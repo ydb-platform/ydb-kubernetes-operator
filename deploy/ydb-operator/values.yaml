@@ -1,0 +1,46 @@
+## @section Конфигурация Docker образа оператора
+##
+
+## YDB operator image
+##
+image:
+  ## @skip image.rollWithEveryUpgrade
+  rollWithEveryUpgrade: false
+  ## @param image.pullPolicy Политика скачивания образа
+  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ##
+  pullPolicy: IfNotPresent
+  ## @param image.repository Репозиторий образа
+  repository: cr.yandex/crpbo4q9lbgkn85vr1rm/operator
+  ## @param image.tag Тэг образа
+  tag: latest  # fixme 0.1.0?
+
+## @param imagePullSecrets Перечисление секретов Docker репозиториев
+## Секреты должны быть созданы вручную.
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+## Например:
+## pullSecrets:
+##   - myRegistryKeySecretName
+##
+imagePullSecrets: []
+
+## @skip nameOverride
+nameOverride: ""
+## @skip fullnameOverride
+fullnameOverride: ""
+
+## @section Конфигурация выделяемых ресурсов
+## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+resources:
+  ## @param resources.storage.limits Ограничения ресурсов оператора
+  ## Например:
+  ## limits:
+  ##    cpu: 250m
+  ##    memory: 512Mi
+  limits: {}
+  ## @param resources.storage.requests Необходимые ресурсы оператора
+  ## Например:
+  ## requests:
+  ##    cpu: 250m
+  ##    memory: 256Mi
+  requests: {}

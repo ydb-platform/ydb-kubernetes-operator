@@ -1,0 +1,20 @@
+package templates
+
+const VdiskTemplate = `
+VDiskKinds {
+  Kind: Log
+  BaseKind: Default
+  Config {
+    FreshUseDreg: true
+    AllowKeepFlags: false
+  }
+}
+VDiskKinds {
+  Kind: LocalMode
+  BaseKind: Default
+  Config {
+    HullCompLevel0MaxSstsAtOnce: 2
+    HullCompSortedPartsNum: 1
+  }
+}
+`

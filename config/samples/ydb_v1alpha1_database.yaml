@@ -1,0 +1,9 @@
+apiVersion: ydb.tech/v1alpha1
+kind: Database
+metadata:
+  name: database-sample
+spec:
+  version: stable-21-4-14.hardening
+  nodes: 6
+  storageClusterRef:
+    name: storage-sample
