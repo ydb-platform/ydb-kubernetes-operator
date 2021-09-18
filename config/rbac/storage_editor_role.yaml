@@ -1,0 +1,24 @@
+# permissions for end users to edit storages.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: storage-editor-role
+rules:
+- apiGroups:
+  - ydb.ydb.tech
+  resources:
+  - storages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ydb.ydb.tech
+  resources:
+  - storages/status
+  verbs:
+  - get
