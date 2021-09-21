@@ -1,8 +1,9 @@
 package controllers
 
 import (
-	ctrl "sigs.k8s.io/controller-runtime"
 	"time"
+
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 func NoRequeue(err error) (ctrl.Result, error) {

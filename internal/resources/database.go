@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -23,14 +23,6 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	api.SetDatabaseSpecDefaults(cr, &cr.Spec)
 
 	return DatabaseBuilder{cr}
-}
-
-func ClusterPlaceholder(name string) *api.Database {
-	return &api.Database{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
 }
 
 func (b *DatabaseBuilder) SetStatusOnFirstReconcile() {

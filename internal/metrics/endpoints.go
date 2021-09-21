@@ -4,7 +4,6 @@ import "strings"
 
 const (
 	StorageMetricsEndpointFormat = "/counters/counters=%s/prometheus"
-	StorageMetricsPort           = "8765"
 )
 
 type MetricEndpoint struct {
