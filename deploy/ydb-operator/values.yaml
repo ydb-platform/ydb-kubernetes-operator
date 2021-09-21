@@ -1,24 +1,22 @@
-## @section Конфигурация Docker образа оператора
+## @section Docker image configuration
 ##
 
 ## YDB operator image
 ##
 image:
-  ## @skip image.rollWithEveryUpgrade
-  rollWithEveryUpgrade: false
-  ## @param image.pullPolicy Политика скачивания образа
+  ## @param image.pullPolicy Operator container pull policy
   ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
   pullPolicy: IfNotPresent
-  ## @param image.repository Репозиторий образа
+  ## @param image.repository Operator image repository
   repository: cr.yandex/crpbo4q9lbgkn85vr1rm/operator
-  ## @param image.tag Тэг образа
-  tag: latest  # fixme 0.1.0?
+  ## @param image.tag Operator image tag
+  tag: 0.1.0
 
-## @param imagePullSecrets Перечисление секретов Docker репозиториев
-## Секреты должны быть созданы вручную.
+## @param imagePullSecrets Secrets to use for Docker registry access
+## Secrets must be provided manually.
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
-## Например:
+## Example:
 ## pullSecrets:
 ##   - myRegistryKeySecretName
 ##
@@ -29,16 +27,16 @@ nameOverride: ""
 ## @skip fullnameOverride
 fullnameOverride: ""
 
-## @section Конфигурация выделяемых ресурсов
+## @section Resource quotas
 ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
 resources:
-  ## @param resources.storage.limits Ограничения ресурсов оператора
+  ## @param resources.limits The resource limits for Operator container
   ## Например:
   ## limits:
   ##    cpu: 250m
   ##    memory: 512Mi
   limits: {}
-  ## @param resources.storage.requests Необходимые ресурсы оператора
+  ## @param resources.requests The requested resources for Operator container
   ## Например:
   ## requests:
   ##    cpu: 250m
