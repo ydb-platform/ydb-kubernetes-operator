@@ -40,7 +40,6 @@ type StorageSpec struct {
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 	// (Optional) Additional custom resource labels that are added to all resources
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Map of additional custom labels"
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
 }

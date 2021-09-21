@@ -10,8 +10,6 @@ const (
 	NameKey = "app.kubernetes.io/name"
 	// InstanceKey A unique name identifying the instance of an application
 	InstanceKey = "app.kubernetes.io/instance"
-	// VersionKey The current version of the application
-	VersionKey = "app.kubernetes.io/version"
 	// ComponentKey The component within the architecture
 	ComponentKey = "app.kubernetes.io/component"
 	// PartOfKey The name of a higher level application this one is part of
