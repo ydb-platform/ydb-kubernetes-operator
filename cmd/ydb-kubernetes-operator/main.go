@@ -17,8 +17,8 @@ import (
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/controllers/database"
-	"github.com/ydb-platform/ydb-kubernetes-operator/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	//+kubebuilder:scaffold:imports
 )
 

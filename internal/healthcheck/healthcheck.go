@@ -7,8 +7,8 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/grpc"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/resources"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 const (

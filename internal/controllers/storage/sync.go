@@ -6,11 +6,11 @@ import (
 	"time"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/controllers"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/exec"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/healthcheck"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/labels"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/resources"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -23,6 +23,10 @@ import (
 )
 
 const (
+	DefaultRequeueDelay               = 10 * time.Second
+	HealthcheckRequeueDelay           = 30 * time.Second
+	StorageInitializationRequeueDelay = 30 * time.Second
+
 	StorageInitializedCondition = "StorageInitialized"
 )
 
@@ -33,42 +37,32 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	storage := resources.NewCluster(cr)
 	storage.SetStatusOnFirstReconcile()
 
-	// wait for resources
-
 	result, err = r.waitForStatefulSetToScale(ctx, &storage)
 	if err != nil || !result.IsZero() {
 		return result, err
 	}
-
-	// create resources
 
 	result, err = r.handleResourcesSync(ctx, &storage)
 	if err != nil || !result.IsZero() {
 		return result, err
 	}
 
-	// do init
-
 	result, err = r.waitForHealthCheck(ctx, &storage)
 	if err != nil || !result.IsZero() {
 		return result, err
 	}
 
-	result, err = r.runDefineBoxScript(ctx, &storage)
-	if err != nil || !result.IsZero() {
-		return result, err
+	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
+		result, err = r.runDefineBoxScript(ctx, &storage)
+		if err != nil || !result.IsZero() {
+			return result, err
+		}
 	}
-
-	// set ready status
 
 	return controllers.Ok()
 }
 
 func (r *StorageReconciler) runDefineBoxScript(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
-	if meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
-		return controllers.Ok()
-	}
-
 	podName := fmt.Sprintf("%s-0", storage.Name)
 
 	cmd := []string{
@@ -81,12 +75,10 @@ func (r *StorageReconciler) runDefineBoxScript(ctx context.Context, storage *res
 		"/opt/kikimr/cfg/DefineBox.txt",
 	}
 
-	stdout, stderr, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+	_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
 
 	if err != nil {
-		fmt.Println(stdout)
-		fmt.Println(stderr)
-		return controllers.RequeueAfter(30*time.Second, err)
+		return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
 	}
 
 	cmd = []string{
@@ -99,12 +91,10 @@ func (r *StorageReconciler) runDefineBoxScript(ctx context.Context, storage *res
 		"/opt/kikimr/cfg/ConfigureRoot.txt",
 	}
 
-	stdout, stderr, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+	_, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
 
 	if err != nil {
-		fmt.Println(stdout)
-		fmt.Println(stderr)
-		return controllers.RequeueAfter(30*time.Second, err)
+		return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
 	}
 
 	resourcesProvided := metav1.Condition{
@@ -183,7 +173,7 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 		msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
 		r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", msg)
 
-		return controllers.RequeueAfter(10*time.Second, nil)
+		return controllers.RequeueAfter(DefaultRequeueDelay, nil)
 	}
 
 	if storage.Status.State != "Ready" && meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
@@ -207,7 +197,7 @@ func (r *StorageReconciler) waitForHealthCheck(ctx context.Context, storage *res
 			"HealthcheckInProgress",
 			fmt.Sprintf("Waiting for healthcheck, current status: %s", err),
 		)
-		return controllers.RequeueAfter(30*time.Second, err)
+		return controllers.RequeueAfter(HealthcheckRequeueDelay, err)
 	}
 
 	r.Recorder.Event(

@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/configuration"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/labels"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/metrics"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

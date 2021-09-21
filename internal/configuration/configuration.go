@@ -6,7 +6,7 @@ import (
 	"text/template"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/configuration/templates"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/templates"
 )
 
 var templateToFilename = map[string]string{

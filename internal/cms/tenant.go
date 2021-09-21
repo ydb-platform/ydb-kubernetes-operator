@@ -6,8 +6,8 @@ import (
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Cms"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/grpc"
-	"github.com/ydb-platform/ydb-kubernetes-operator/pkg/resources"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 const (
