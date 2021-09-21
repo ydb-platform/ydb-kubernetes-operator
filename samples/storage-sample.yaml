@@ -1,0 +1,14 @@
+apiVersion: ydb.tech/v1alpha1
+kind: Storage
+metadata:
+  name: storage-sample
+spec:
+  dataStore:
+    volumeMode: Block
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 80Gi
+  version: 21.4.14
+  nodes: 8
