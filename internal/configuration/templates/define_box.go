@@ -1,7 +1,5 @@
 package templates
 
-//fixme IcPort
-
 const DefineBoxTemplate = `
 Command {
   DefineHostConfig {

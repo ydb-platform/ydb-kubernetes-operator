@@ -28,7 +28,7 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	if sts.ObjectMeta.Name == "" {
 		sts.ObjectMeta.Name = b.Name
 	}
-	sts.ObjectMeta.Namespace = b.Namespace // fixme should we really slap namespace on any object?
+	sts.ObjectMeta.Namespace = b.Namespace
 
 	sts.Spec = appsv1.StatefulSetSpec{
 		Replicas: ptr.Int32(b.Spec.Nodes),
@@ -96,7 +96,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		LivenessProbe: &corev1.Probe{
 			Handler: corev1.Handler{
 				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(v1alpha1.GRPCPort), // fixme
+					Port: intstr.FromInt(v1alpha1.GRPCPort),
 				},
 			},
 		},

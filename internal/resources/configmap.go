@@ -24,7 +24,7 @@ func (b *ConfigMapBuilder) Build(obj client.Object) error {
 	if cm.ObjectMeta.Name == "" {
 		cm.ObjectMeta.Name = b.GetName()
 	}
-	cm.ObjectMeta.Namespace = b.GetNamespace() // fixme should we really slap namespace on any object?
+	cm.ObjectMeta.Namespace = b.GetNamespace()
 
 	cm.Data = b.Data
 	cm.Labels = b.Labels

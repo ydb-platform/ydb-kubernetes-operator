@@ -1,7 +1,5 @@
 package templates
 
-//fixme Port
-
 const NamesTemplate = `
 {{- range $i := iter .Spec.Nodes }}
 Node {
