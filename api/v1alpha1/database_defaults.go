@@ -6,8 +6,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// SetDatabaseSpecDefaults sets various values to the
-// default vars.
+// SetDatabaseSpecDefaults sets various values to the default vars.
 func SetDatabaseSpecDefaults(ydbCr *Database, ydbSpec *DatabaseSpec) {
 	if ydbSpec.StorageClusterRef.Namespace == "" {
 		ydbSpec.StorageClusterRef.Namespace = ydbCr.Namespace
