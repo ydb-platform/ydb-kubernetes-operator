@@ -9,7 +9,7 @@ image:
   ##
   pullPolicy: IfNotPresent
   ## @param image.repository Operator image repository
-  repository: cr.yandex/crpbo4q9lbgkn85vr1rm/operator
+  repository: cr.yandex/yc/ydb-kubernetes-operator
   ## @param image.tag Operator image tag
   tag: 0.1.0
 
