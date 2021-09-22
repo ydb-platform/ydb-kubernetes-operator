@@ -10,5 +10,5 @@ spec:
     resources:
       requests:
         storage: 80Gi
-  version: 21.4.14
+  version: 21.4.30
   nodes: 8
