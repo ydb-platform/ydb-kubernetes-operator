@@ -3,6 +3,7 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
@@ -21,6 +22,23 @@ type StorageStatefulSetBuilder struct {
 	*v1alpha1.Storage
 
 	Labels map[string]string
+}
+
+func StringRJust(str, pad string, lenght int) string {
+	for {
+		str = pad + str
+		if len(str) > lenght {
+			return str[len(str)-lenght : len(str)]
+		}
+	}
+}
+
+func (b *StorageStatefulSetBuilder) GeneratePVCName(index int) string {
+	return b.Name + "-" + StringRJust(strconv.Itoa(index), "0", v1alpha1.DiskNumberMaxDigits)
+}
+
+func (b *StorageStatefulSetBuilder) GenerateDeviceName(index int) string {
+	return v1alpha1.DiskPathPrefix + "_" + StringRJust(strconv.Itoa(index), "0", v1alpha1.DiskNumberMaxDigits)
 }
 
 func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
@@ -43,13 +61,21 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		RevisionHistoryLimit: ptr.Int32(10),
 		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.GetName()),
 		Template:             b.buildPodTemplateSpec(),
-		VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: b.Name,
-			},
-			Spec: b.Spec.DataStore,
-		}},
 	}
+
+	var pvcList []corev1.PersistentVolumeClaim
+	for i, pvcSpec := range b.Spec.DataStore {
+		pvcList = append(
+			pvcList,
+			corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: b.GeneratePVCName(i),
+				},
+				Spec: pvcSpec,
+			},
+		)
+	}
+	sts.Spec.VolumeClaimTemplates = pvcList
 
 	return nil
 }
@@ -126,15 +152,20 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
 				MountPath: "/opt/kikimr/cfg",
 			},
 		},
-		VolumeDevices: []corev1.VolumeDevice{
-			{
-				Name:       b.Name,
-				DevicePath: v1alpha1.DiskPath,
-			},
-		},
-
 		Resources: b.Spec.Resources,
 	}
+
+	var volumeDeviceList []corev1.VolumeDevice
+	for i, _ := range b.Spec.DataStore {
+		volumeDeviceList = append(
+			volumeDeviceList,
+			corev1.VolumeDevice{
+				Name:       b.GeneratePVCName(i),
+				DevicePath: b.GenerateDeviceName(i),
+			},
+		)
+	}
+	container.VolumeDevices = volumeDeviceList
 
 	return container
 }

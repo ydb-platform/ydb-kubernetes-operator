@@ -15,7 +15,7 @@ type StorageSpec struct {
 	ClusterConfig map[string]string `json:"config"`
 	// Where cluster data should be kept
 	// +required
-	DataStore corev1.PersistentVolumeClaimSpec `json:"dataStore"`
+	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`
 	// (Optional) Storage container resource limits. Any container limits
 	// can be specified.
 	// Default: (not specified)

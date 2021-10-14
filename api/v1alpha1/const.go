@@ -10,5 +10,6 @@ const (
 	InterconnectPort = 19001
 	StatusPort       = 8765
 
-	DiskPath = "/dev/kikimr_ssd_01"
+	DiskPathPrefix      = "/dev/kikimr_ssd"
+	DiskNumberMaxDigits = 2
 )

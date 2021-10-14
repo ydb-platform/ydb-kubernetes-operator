@@ -5,7 +5,7 @@ Command {
   DefineHostConfig {
     HostConfigId: 1
     Drive {
-      Path: "/dev/kikimr_ssd_01"
+      Path: "/dev/kikimr_ssd_00"
     }
   }
 }

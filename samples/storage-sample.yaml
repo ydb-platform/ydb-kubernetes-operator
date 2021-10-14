@@ -4,11 +4,11 @@ metadata:
   name: storage-sample
 spec:
   dataStore:
-    volumeMode: Block
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 80Gi
+    - volumeMode: Block
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 80Gi
   version: 21.4.30
   nodes: 8
