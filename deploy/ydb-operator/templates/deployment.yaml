@@ -9,6 +9,7 @@ spec:
   selector:
     matchLabels:
       {{- include "ydb.selectorLabels" . | nindent 6 }}
+  revisionHistoryLimit: 2
   template:
     metadata:
       labels:
