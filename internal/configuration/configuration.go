@@ -11,12 +11,12 @@ import (
 
 var templateToFilename = map[string]string{
 	"auth.txt":          templates.AuthTemplate,
-	"bs.txt":            templates.BlobStoreTemplate,
-	"names.txt":         templates.NamesTemplate,
 	"boot.txt":          templates.BootTemplate,
+	"bs.txt":            templates.BlobStoreTemplate,
 	"channels.txt":      templates.ChannelsTemplate,
-	"DefineBox.txt":     templates.DefineBoxTemplate,
+	"names.txt":         templates.NamesTemplate,
 	"domains.txt":       templates.DomainTemplate,
+	"DefineBox.txt":     templates.DefineBoxTemplate,
 	"feature_flags.txt": templates.FeatureFlagTemplate,
 	"grpc.txt":          templates.GrpcTemplate,
 	"ic.txt":            templates.InterconnectTemplate,
@@ -85,15 +85,15 @@ func Build(cr *v1alpha1.Storage) (map[string]string, error) {
 		result[k] = v
 	}
 
-	if _, ok := result["ConfigureRoot.txt"]; !ok {
+	if _, ok := result["Configure-Root.txt"]; !ok {
 		configureRoot, err := applyTemplate(templates.ConfigureRootTemplate, MapWrapper{
 			Amap: result,
 		})
 		if err != nil {
 			return nil, err
 		}
+		result["Configure-Root.txt"] = configureRoot
 
-		result["ConfigureRoot.txt"] = configureRoot
 	}
 
 	return result, nil
