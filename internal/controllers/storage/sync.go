@@ -53,7 +53,7 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
-		result, err = r.runDefineBoxScript(ctx, &storage)
+		result, err = r.runInitScripts(ctx, &storage)
 		if err != nil || !result.IsZero() {
 			return result, err
 		}
@@ -62,7 +62,7 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	return controllers.Ok()
 }
 
-func (r *StorageReconciler) runDefineBoxScript(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
+func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
 	podName := fmt.Sprintf("%s-0", storage.Name)
 
 	cmd := []string{
@@ -88,7 +88,7 @@ func (r *StorageReconciler) runDefineBoxScript(ctx context.Context, storage *res
 		"execute",
 		"--domain=Root",
 		"--retry=10",
-		"/opt/kikimr/cfg/ConfigureRoot.txt",
+		"/opt/kikimr/cfg/Configure-Root.txt",
 	}
 
 	_, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
