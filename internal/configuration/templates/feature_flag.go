@@ -1,6 +1,6 @@
 package templates
 
-const FeatureFlagTemplate = `
+const FeatureFlagsTemplate = `
 EnableSeparateSolomonShardForPDisk: true
 AllowConsistentOperationsForSchemeShard: true
 EnableExternalSubdomains: true

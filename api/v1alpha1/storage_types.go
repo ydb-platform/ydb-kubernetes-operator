@@ -10,9 +10,9 @@ type StorageSpec struct {
 	// Number of nodes (pods) in the cluster
 	// +required
 	Nodes int32 `json:"nodes"`
-	// Full list of configuration for the storage component
+	// ConfigMap name with custom ydb configuration, where key is config file name and value is config file content.
 	// +optional
-	ClusterConfig map[string]string `json:"config"`
+	ClusterConfig string `json:"config"`
 	// Where cluster data should be kept
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`

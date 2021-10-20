@@ -1,5 +1,5 @@
 package templates
 
-const PqTemplate = `
+const PQConfigTemplate = `
 Enabled: false
 `

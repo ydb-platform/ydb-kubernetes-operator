@@ -1,5 +1,5 @@
 package templates
 
-const KqpTemplate = `
+const KQPConfigTemplate = `
 Enable: true
 `

@@ -10,21 +10,29 @@ import (
 )
 
 var templateToFilename = map[string]string{
-	"auth.txt":          templates.AuthTemplate,
-	"boot.txt":          templates.BootTemplate,
-	"bs.txt":            templates.BlobStoreTemplate,
-	"channels.txt":      templates.ChannelsTemplate,
-	"names.txt":         templates.NamesTemplate,
-	"domains.txt":       templates.DomainTemplate,
-	"DefineBox.txt":     templates.DefineBoxTemplate,
-	"feature_flags.txt": templates.FeatureFlagTemplate,
-	"grpc.txt":          templates.GrpcTemplate,
-	"ic.txt":            templates.InterconnectTemplate,
-	"kqp.txt":           templates.KqpTemplate,
-	"log.txt":           templates.LogTemplate,
-	"pq.txt":            templates.PqTemplate,
-	"sys.txt":           templates.SysTemplate,
-	"vdisks.txt":        templates.VdiskTemplate,
+	"auth.txt":                        templates.AuthConfigTemplate,
+	"boot.txt":                        templates.BootstrapConfigTemplate,
+	"bs.txt":                          templates.BlobStorageConfigTemplate,
+	"channels.txt":                    templates.ChannelProfileConfigTemplate,
+	"domains.txt":                     templates.DomainsConfigTemplate,
+	"feature_flags.txt":               templates.FeatureFlagsTemplate,
+	"grpc.txt":                        templates.GRpcConfigTemplate,
+	"ic.txt":                          templates.InterconnectConfigTemplate,
+	"kqp.txt":                         templates.KQPConfigTemplate,
+	"log.txt":                         templates.LogConfigTemplate,
+	"names.txt":                       templates.NameserviceConfigTemplate,
+	"pq.txt":                          templates.PQConfigTemplate,
+	"sys.txt":                         templates.ActorSystemConfigTemplate,
+	"vdisks.txt":                      templates.VDiskConfigTemplate,
+	"BindRootStorageRequest-Root.txt": templates.BindRootStorageRequestRootInitConfigTemplate,
+	"Configure-Root.txt":              templates.ConfigureRootInitConfigTemplate,
+	"Console-Config-Root.txt":         templates.ConsoleConfigRootInitConfigTemplate,
+	"DefineBox.txt":                   templates.DefineBoxInitConfigTemplate,
+	"DefineStoragePools.txt":          templates.DefineStoragePoolsInitConfigTemplate,
+	"init_cms.bash":                   templates.CMSInitScriptTemplate,
+	"init_compute.bash":               templates.ComputeInitScriptTemplate,
+	"init_root_storage.bash":          templates.RootStorageInitScriptTemplate,
+	"init_storage.bash":               templates.StorageInitScriptTemplate,
 }
 
 type MapWrapper struct {
@@ -81,12 +89,8 @@ func Build(cr *v1alpha1.Storage) (map[string]string, error) {
 		}
 	}
 
-	for k, v := range cr.Spec.ClusterConfig {
-		result[k] = v
-	}
-
 	if _, ok := result["Configure-Root.txt"]; !ok {
-		configureRoot, err := applyTemplate(templates.ConfigureRootTemplate, MapWrapper{
+		configureRoot, err := applyTemplate(templates.ConfigureRootInitConfigTemplate, MapWrapper{
 			Amap: result,
 		})
 		if err != nil {

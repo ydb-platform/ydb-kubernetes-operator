@@ -1,6 +1,6 @@
 package templates
 
-const NamesTemplate = `
+const NameserviceConfigTemplate = `
 {{- range $i := iter .Spec.Nodes }}
 Node {
   NodeId: {{ add $i 1 }}

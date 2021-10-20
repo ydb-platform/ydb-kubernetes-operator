@@ -1,6 +1,6 @@
 package templates
 
-const VdiskTemplate = `
+const VDiskConfigTemplate = `
 VDiskKinds {
   Kind: Log
   BaseKind: Default

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	TenantPathFormat string = "/root/%s"
+	TenantPathFormat string = "/Root/%s"
 )
 
 type DatabaseBuilder struct {

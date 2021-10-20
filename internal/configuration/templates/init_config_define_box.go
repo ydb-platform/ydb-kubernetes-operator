@@ -1,6 +1,6 @@
 package templates
 
-const DefineBoxTemplate = `
+const DefineBoxInitConfigTemplate = `
 Command {
   DefineHostConfig {
     HostConfigId: 1
