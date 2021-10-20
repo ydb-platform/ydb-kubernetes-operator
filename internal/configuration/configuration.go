@@ -83,6 +83,9 @@ func Build(cr *v1alpha1.Storage) (map[string]string, error) {
 	}
 
 	for filename, templateText := range templateToFilename {
+		if filename == "Configure-Root.txt" {
+			continue
+		}
 		if result[filename], err = applyTemplate(templateText, templateData); err != nil {
 			return nil, err
 		}

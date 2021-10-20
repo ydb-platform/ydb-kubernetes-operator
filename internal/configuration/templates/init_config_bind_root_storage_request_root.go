@@ -5,9 +5,9 @@ ModifyScheme {
   WorkingDir: "/"
   OperationType: ESchemeOpAlterSubDomain
   SubDomain {
-    Name: "Root"
+    Name: "root"
     StoragePools {
-      Name: "/Root:hdd"
+      Name: "/root:hdd"
       Kind: "hdd"
     }
   }

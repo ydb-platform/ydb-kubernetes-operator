@@ -3,6 +3,7 @@ package resources
 import (
 	"fmt"
 
+	"github.com/go-logr/logr"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
@@ -13,14 +14,15 @@ import (
 
 type StorageClusterBuilder struct {
 	*api.Storage
+	Log logr.Logger
 }
 
-func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
+func NewCluster(ydbCr *api.Storage, Log logr.Logger) StorageClusterBuilder {
 	cr := ydbCr.DeepCopy()
 
 	api.SetStorageClusterSpecDefaults(&cr.Spec)
 
-	return StorageClusterBuilder{cr}
+	return StorageClusterBuilder{cr, Log}
 }
 
 func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() {
@@ -53,10 +55,12 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		}
 	}
 
-	cr := b.Unwrap()
-	if cr.Spec.ClusterConfig == "" {
-		cfg, _ := configuration.Build(cr)
+	if b.Spec.ClusterConfig == "" {
+		cfg, err := configuration.Build(b.Unwrap())
 
+		if err != nil {
+			b.Log.Error(err, "failed to generate configuration")
+		}
 		serviceMonitors = append(
 			serviceMonitors,
 			&ConfigMapBuilder{
@@ -65,9 +69,10 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 				Labels: ll,
 			},
 		)
+
 	}
 
-	serviceMonitors = append(
+	return append(
 		serviceMonitors,
 		&ServiceBuilder{
 			Object:     b,
@@ -96,6 +101,4 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 			}}},
 		&StorageStatefulSetBuilder{Storage: b.Unwrap(), Labels: ll},
 	)
-
-	return serviceMonitors
 }
