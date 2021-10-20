@@ -7,7 +7,7 @@ Domain {
   SSId: 1
   HiveUid: 1
   PlanResolution: 10
-  Name: "Root"
+  Name: "root"
   StoragePoolTypes {
     Kind: "hdd"
     PoolConfig {

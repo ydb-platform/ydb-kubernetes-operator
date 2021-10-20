@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"os"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers"
@@ -35,7 +34,7 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	var err error
 	var result ctrl.Result
 
-	storage := resources.NewCluster(cr)
+	storage := resources.NewCluster(cr, r.Log)
 	storage.SetStatusOnFirstReconcile()
 
 	result, err = r.waitForStatefulSetToScale(ctx, &storage)
