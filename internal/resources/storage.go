@@ -42,8 +42,6 @@ func (b *StorageClusterBuilder) GetEndpoint() string {
 func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 	ll := labels.ClusterLabels(b.Unwrap())
 
-	cfg, _ := configuration.Build(b.Unwrap())
-
 	serviceMonitors := make([]ResourceBuilder, len(metrics.GetStorageMetricEndpoints()))
 
 	for i, e := range metrics.GetStorageMetricEndpoints() {
@@ -55,7 +53,21 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		}
 	}
 
-	return append(
+	cr := b.Unwrap()
+	if cr.Spec.ClusterConfig == "" {
+		cfg, _ := configuration.Build(cr)
+
+		serviceMonitors = append(
+			serviceMonitors,
+			&ConfigMapBuilder{
+				Object: b,
+				Data:   cfg,
+				Labels: ll,
+			},
+		)
+	}
+
+	serviceMonitors = append(
 		serviceMonitors,
 		&ServiceBuilder{
 			Object:     b,
@@ -82,11 +94,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 				Name: "status",
 				Port: api.StatusPort,
 			}}},
-		&ConfigMapBuilder{
-			Object: b,
-			Data:   cfg,
-			Labels: ll,
-		},
 		&StorageStatefulSetBuilder{Storage: b.Unwrap(), Labels: ll},
 	)
+
+	return serviceMonitors
 }
