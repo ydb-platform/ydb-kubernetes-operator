@@ -876,10 +876,8 @@ spec:
                     type: object
                 type: object
               config:
-                additionalProperties:
-                  type: string
-                description: Full list of configuration for the storage component
-                type: object
+                description: ConfigMap name with custom ydb configuration, where key is config file name and value is config file content.
+                type: string
               dataStore:
                 description: Where cluster data should be kept
                 items:

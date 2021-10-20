@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"os"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers"
@@ -71,25 +72,17 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 		return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
 	}
 
-	//выпилили?
-	// cmd = []string{"/bin/bash", "/opt/kikimr/cfg/init_compute.bash"}
-	// _, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
-	// if err != nil {
-	// 	return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
-	// }
+	cmd = []string{"/bin/bash", "-c", "test -s /opt/kikimr/cfg/init_root_storage.bash && source /opt/kikimr/cfg/init_root_storage.bash"}
+	_, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+	if err != nil {
+		return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
+	}
 
 	cmd = []string{"/bin/bash", "/opt/kikimr/cfg/init_cms.bash"}
 	_, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
 	if err != nil {
 		return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
 	}
-
-	// выпилили? в каком порядке?
-	// cmd = []string{"/bin/bash", "/opt/kikimr/cfg/init_root_storage.bash"}
-	// _, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
-	// if err != nil {
-	// 	return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
-	// }
 
 	resourcesProvided := metav1.Condition{
 		Type:    StorageInitializedCondition,

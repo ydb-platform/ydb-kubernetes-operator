@@ -30,7 +30,6 @@ var templateToFilename = map[string]string{
 	"DefineBox.txt":                   templates.DefineBoxInitConfigTemplate,
 	"DefineStoragePools.txt":          templates.DefineStoragePoolsInitConfigTemplate,
 	"init_cms.bash":                   templates.CMSInitScriptTemplate,
-	"init_compute.bash":               templates.ComputeInitScriptTemplate,
 	"init_root_storage.bash":          templates.RootStorageInitScriptTemplate,
 	"init_storage.bash":               templates.StorageInitScriptTemplate,
 }
