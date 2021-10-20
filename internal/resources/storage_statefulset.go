@@ -89,6 +89,11 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 		),
 	}
 
+	configMapName := b.Name
+	if b.Spec.ClusterConfig != "" {
+		configMapName = b.Spec.ClusterConfig
+	}
+
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: b.Labels,
@@ -103,7 +108,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 				Name: configVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{Name: b.Name},
+						LocalObjectReference: corev1.LocalObjectReference{Name: configMapName},
 					},
 				},
 			}},
@@ -116,6 +121,11 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 }
 
 func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
+	useCustomConfiguration := "false"
+	if b.Spec.ClusterConfig != "" {
+		useCustomConfiguration = "true"
+	}
+
 	container := corev1.Container{
 		Name:    "ydb-storage",
 		Image:   b.Spec.Image.Name,
@@ -124,7 +134,12 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
 			"--node",
 			"static",
 		},
-
+		Env: []corev1.EnvVar{
+			{
+				Name:  "USE_CUSTOM_CONFIGURATION",
+				Value: useCustomConfiguration,
+			},
+		},
 		LivenessProbe: &corev1.Probe{
 			Handler: corev1.Handler{
 				TCPSocket: &corev1.TCPSocketAction{
