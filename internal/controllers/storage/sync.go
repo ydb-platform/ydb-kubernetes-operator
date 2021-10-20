@@ -65,37 +65,31 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
 	podName := fmt.Sprintf("%s-0", storage.Name)
 
-	cmd := []string{
-		"/opt/kikimr/bin/kikimr",
-		"admin",
-		"bs",
-		"config",
-		"invoke",
-		"--proto-file",
-		"/opt/kikimr/cfg/DefineBox.txt",
-	}
-
+	cmd := []string{"/bin/bash", "/opt/kikimr/cfg/init_storage.bash"}
 	_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
-
 	if err != nil {
 		return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
 	}
 
-	cmd = []string{
-		"/opt/kikimr/bin/kikimr",
-		"admin",
-		"console",
-		"execute",
-		"--domain=Root",
-		"--retry=10",
-		"/opt/kikimr/cfg/Configure-Root.txt",
-	}
+	//выпилили?
+	// cmd = []string{"/bin/bash", "/opt/kikimr/cfg/init_compute.bash"}
+	// _, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+	// if err != nil {
+	// 	return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
+	// }
 
+	cmd = []string{"/bin/bash", "/opt/kikimr/cfg/init_cms.bash"}
 	_, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
-
 	if err != nil {
 		return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
 	}
+
+	// выпилили? в каком порядке?
+	// cmd = []string{"/bin/bash", "/opt/kikimr/cfg/init_root_storage.bash"}
+	// _, _, err = exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+	// if err != nil {
+	// 	return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
+	// }
 
 	resourcesProvided := metav1.Condition{
 		Type:    StorageInitializedCondition,

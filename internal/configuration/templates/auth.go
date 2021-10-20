@@ -1,3 +1,3 @@
 package templates
 
-const AuthTemplate = ``
+const AuthConfigTemplate = ``

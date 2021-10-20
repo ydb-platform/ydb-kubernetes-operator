@@ -1,6 +1,6 @@
 package templates
 
-const GrpcTemplate = `
+const GRpcConfigTemplate = `
 StartGRpcProxy: true
 Host: "[::]"
 Port: {{ .GRPCPort }}

@@ -1,6 +1,6 @@
 package templates
 
-const LogTemplate = `
+const LogConfigTemplate = `
 Entry {
   Component: "FLAT_TX_SCHEMESHARD"
   Level: 7

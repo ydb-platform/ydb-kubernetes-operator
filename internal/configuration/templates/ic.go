@@ -1,6 +1,6 @@
 package templates
 
-const InterconnectTemplate = `
+const InterconnectConfigTemplate = `
 StartTcp: true
 MaxInflightAmountOfDataInKB: 10240
 HandshakeTimeoutDuration {

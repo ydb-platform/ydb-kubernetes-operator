@@ -1,6 +1,6 @@
 package templates
 
-const BlobStoreTemplate = `
+const BlobStorageConfigTemplate = `
 ServiceSet {
   PDisks {
     NodeID: 1

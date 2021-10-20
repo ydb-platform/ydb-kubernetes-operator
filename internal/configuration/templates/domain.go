@@ -1,13 +1,13 @@
 package templates
 
-const DomainTemplate = `
+const DomainsConfigTemplate = `
 Domain {
   DomainId: 1
   SchemeRoot: 72057594046678944
   SSId: 1
   HiveUid: 1
   PlanResolution: 10
-  Name: "root"
+  Name: "Root"
   StoragePoolTypes {
     Kind: "hdd"
     PoolConfig {

@@ -1,6 +1,6 @@
 package templates
 
-const SysTemplate = `
+const ActorSystemConfigTemplate = `
 Executor {
   Type: BASIC
   Threads: 9

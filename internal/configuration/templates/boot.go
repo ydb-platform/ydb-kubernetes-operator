@@ -1,6 +1,6 @@
 package templates
 
-const BootTemplate = `
+const BootstrapConfigTemplate = `
 Tablet {
   Type: FLAT_HIVE
   Node: 1

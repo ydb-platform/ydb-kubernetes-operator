@@ -1,6 +1,6 @@
 package templates
 
-const ConfigureRootTemplate = `
+const ConfigureRootInitConfigTemplate = `
 ConfigureRequest {
   Actions {
     AddConfigItem {

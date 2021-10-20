@@ -1,6 +1,6 @@
 package templates
 
-const ChannelsTemplate = `
+const ChannelProfileConfigTemplate = `
 Profile {
   ProfileId: 0
   Channel {
