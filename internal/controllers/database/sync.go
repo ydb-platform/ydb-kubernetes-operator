@@ -29,7 +29,9 @@ const (
 	TenantCreationRequeueDelay = 30 * time.Second
 	StorageAwaitRequeueDelay   = 60 * time.Second
 
-	ConditionTenantInitialized = "TenantInitialized"
+	TenantInitializedCondition        = "TenantInitialized"
+	TenantInitializedReasonInProgress = "InProgres"
+	TenantInitializedReasonCompleted  = "Completed"
 )
 
 type ClusterState string
@@ -57,7 +59,11 @@ func (r *DatabaseReconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Databa
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(database.Status.Conditions, ConditionTenantInitialized) {
+	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
+		result, err = r.setInitialStatus(ctx, &database)
+		if err != nil || !result.IsZero() {
+			return result, err
+		}
 		result, err = r.handleTenantCreation(ctx, &database)
 		if err != nil || !result.IsZero() {
 			return result, err
@@ -138,7 +144,7 @@ func (r *DatabaseReconciler) waitForStatefulSetToScale(ctx context.Context, data
 		return controllers.RequeueAfter(DefaultRequeueDelay, nil)
 	}
 
-	if database.Status.State != string(Ready) && meta.IsStatusConditionTrue(database.Status.Conditions, ConditionTenantInitialized) {
+	if database.Status.State != string(Ready) && meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
 		database.Status.State = string(Ready)
 		if _, err = r.setState(ctx, database); err != nil {
 			return controllers.NoRequeue(err)
@@ -206,6 +212,19 @@ func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *
 	return controllers.Ok()
 }
 
+func (r *DatabaseReconciler) setInitialStatus(ctx context.Context, database *resources.DatabaseBuilder) (ctrl.Result, error) {
+	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+		Type:    TenantInitializedCondition,
+		Status:  "False",
+		Reason:  TenantInitializedReasonInProgress,
+		Message: "Tenant creation in progress",
+	})
+	if _, err := r.setState(ctx, database); err != nil {
+		return controllers.NoRequeue(err)
+	}
+	return controllers.Ok()
+}
+
 func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database *resources.DatabaseBuilder) (ctrl.Result, error) {
 	database.Status.State = string(Initializing)
 	if _, err := r.setState(ctx, database); err != nil {
@@ -220,13 +239,12 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 	}
 	r.Recorder.Event(database, corev1.EventTypeNormal, "Initialized", fmt.Sprintf("Tenant %s created", tenant.Name))
 
-	resourcesProvided := metav1.Condition{
-		Type:    ConditionTenantInitialized,
+	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+		Type:    TenantInitializedCondition,
 		Status:  "True",
-		Reason:  "TenantInitialized",
+		Reason:  TenantInitializedReasonCompleted,
 		Message: "Tenant creation is complete",
-	}
-	meta.SetStatusCondition(&database.Status.Conditions, resourcesProvided)
+	})
 	if _, err := r.setState(ctx, database); err != nil {
 		return controllers.NoRequeue(err)
 	}

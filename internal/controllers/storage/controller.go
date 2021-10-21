@@ -54,8 +54,10 @@ func (r *StorageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	err := r.Get(ctx, req.NamespacedName, storage)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.Log.Info("Storage resources not found")
+			r.Log.Info("storage resources not found")
 			return controllers.Ok()
+		} else {
+			r.Log.Error(err, "unexpected error")
 		}
 		return controllers.NoRequeue(err)
 	}

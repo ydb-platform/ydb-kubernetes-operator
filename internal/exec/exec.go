@@ -2,7 +2,7 @@ package exec
 
 import (
 	"bytes"
-
+	"fmt"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -46,7 +46,10 @@ func ExecInPod(scheme *runtime.Scheme, config *rest.Config, namespace string, na
 		Tty:    false,
 	})
 	if err != nil {
-		return "", stderr.String(), errors.Wrapf(err, "failed to stream execution results back")
+		return stdout.String(), stderr.String(), errors.Wrapf(
+			err,
+			fmt.Sprintf("failed to stream execution results back, stdout:\n\"%s\"stderr:\n\"%s\"", stdout.String(), stderr.String()),
+		)
 	}
 
 	return stdout.String(), stderr.String(), nil
