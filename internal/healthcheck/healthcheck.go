@@ -2,8 +2,6 @@ package healthcheck
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
@@ -15,7 +13,7 @@ const (
 	selfCheckEndpoint = "/Ydb.Monitoring.V1.MonitoringService/SelfCheck"
 )
 
-func CheckBootstrapHealth(ctx context.Context, cluster *resources.StorageClusterBuilder) error {
+func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
 	client := grpc.InsecureGrpcClient{
 		Context: ctx,
 		Target:  cluster.GetEndpoint(),
@@ -28,20 +26,14 @@ func CheckBootstrapHealth(ctx context.Context, cluster *resources.StorageCluster
 		&response,
 	)
 
-	if err != nil {
-		return err
-	}
-
 	result := &Ydb_Monitoring.SelfCheckResult{}
+	if err != nil {
+		return result, err
+	}
+
 	if err := proto.Unmarshal(response.Operation.Result.GetValue(), result); err != nil {
-		return err
+		return result, err
 	}
 
-	if len(result.IssueLog) > 0 {
-		return errors.New(
-			fmt.Sprintf("healthcheck API status code %s", result.SelfCheckResult.String()),
-		)
-	}
-
-	return nil
+	return result, err
 }
