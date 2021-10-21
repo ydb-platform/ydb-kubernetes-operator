@@ -50,12 +50,15 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			r.Log.Info("database resources not found")
 			return controllers.Ok()
 		} else {
-			r.Log.Error(err, "unexpected error")
+			r.Log.Error(err, "unexpected Get error")
 		}
 		return controllers.NoRequeue(err)
 	}
-
-	return r.Sync(ctx, database)
+	result, err := r.Sync(ctx, database)
+	if err != nil {
+		r.Log.Error(err, "unexpected Sync error")
+	}
+	return result, err
 }
 
 func ignoreDeletionPredicate() predicate.Predicate {

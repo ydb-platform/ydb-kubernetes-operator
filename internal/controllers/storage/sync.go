@@ -24,7 +24,7 @@ import (
 
 const (
 	DefaultRequeueDelay               = 10 * time.Second
-	HealthcheckRequeueDelay           = 30 * time.Second
+	SelfCheckRequeueDelay             = 30 * time.Second
 	StorageInitializationRequeueDelay = 30 * time.Second
 
 	StorageInitializedCondition        = "StorageInitialized"
@@ -62,13 +62,12 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 		return result, err
 	}
 
-	result, err = r.waitForHealthCheck(ctx, &storage)
-	if err != nil || !result.IsZero() {
-		return result, err
-	}
-
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		result, err = r.setInitialStatus(ctx, &storage)
+		if err != nil || !result.IsZero() {
+			return result, err
+		}
+		result, err = r.runSelfCheck(ctx, &storage, true)
 		if err != nil || !result.IsZero() {
 			return result, err
 		}
@@ -76,6 +75,11 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 		if err != nil || !result.IsZero() {
 			return result, err
 		}
+	}
+
+	result, err = r.runSelfCheck(ctx, &storage, false)
+	if err != nil || !result.IsZero() {
+		return result, err
 	}
 
 	return controllers.Ok()
@@ -225,103 +229,115 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 }
 
 func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    StorageInitializedCondition,
-		Status:  "False",
-		Reason:  StorageInitializedReasonInProgress,
-		Message: "Storage is not initialized",
-	})
-	if _, err := r.setState(ctx, storage); err != nil {
-		return controllers.NoRequeue(err)
-	}
-
-	configMapName := storage.Name
-	if storage.Spec.ClusterConfig != "" {
-		configMapName = storage.Spec.ClusterConfig
-	}
-
-	configMap := &corev1.ConfigMap{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      configMapName,
-		Namespace: storage.Namespace,
-	}, configMap)
-
-	if err != nil && errors.IsNotFound(err) {
-		return controllers.Ok()
-	} else if err != nil {
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeNormal,
-			"Syncing",
-			fmt.Sprintf("Failed to get ConfigMap: %s", err),
-		)
-		return controllers.NoRequeue(err)
-	}
-
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    InitStorageStepCondition,
-		Status:  "False",
-		Reason:  InitStorageStepReasonInProgress,
-		Message: "InitStorageStep is required",
-	})
-	if _, err := r.setState(ctx, storage); err != nil {
-		return controllers.NoRequeue(err)
-	}
-
-	if _, ok := configMap.Data["init_root_storage.bash"]; ok {
+	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitRootStorageStepCondition,
+			Type:    StorageInitializedCondition,
 			Status:  "False",
-			Reason:  InitRootStorageStepReasonInProgress,
-			Message: fmt.Sprintf("InitRootStorageStep (init_root_storage.bash script) is specified in ConfigMap: %s", configMapName),
-		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
-	} else {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitRootStorageStepCondition,
-			Status:  "True",
-			Reason:  InitRootStorageStepReasonNotRequired,
-			Message: "InitRootStorageStep is not required",
+			Reason:  StorageInitializedReasonInProgress,
+			Message: "Storage is not initialized",
 		})
 		if _, err := r.setState(ctx, storage); err != nil {
 			return controllers.NoRequeue(err)
 		}
 	}
 
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    InitCMSStepCondition,
-		Status:  "False",
-		Reason:  InitCMSStepReasonInProgress,
-		Message: "InitCMSStep is required",
-	})
-	if _, err := r.setState(ctx, storage); err != nil {
-		return controllers.NoRequeue(err)
+	if meta.FindStatusCondition(storage.Status.Conditions, InitStorageStepCondition) == nil {
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:    InitStorageStepCondition,
+			Status:  "False",
+			Reason:  InitStorageStepReasonInProgress,
+			Message: "InitStorageStep is required",
+		})
+		if _, err := r.setState(ctx, storage); err != nil {
+			return controllers.NoRequeue(err)
+		}
+	}
+
+	if meta.FindStatusCondition(storage.Status.Conditions, InitRootStorageStepCondition) == nil {
+		configMapName := storage.Name
+		if storage.Spec.ClusterConfig != "" {
+			configMapName = storage.Spec.ClusterConfig
+		}
+
+		configMap := &corev1.ConfigMap{}
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      configMapName,
+			Namespace: storage.Namespace,
+		}, configMap)
+
+		if err != nil && errors.IsNotFound(err) {
+			return controllers.Ok()
+		} else if err != nil {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeNormal,
+				"Syncing",
+				fmt.Sprintf("Failed to get ConfigMap: %s", err),
+			)
+			return controllers.NoRequeue(err)
+		}
+
+		if _, ok := configMap.Data["init_root_storage.bash"]; ok {
+			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+				Type:    InitRootStorageStepCondition,
+				Status:  "False",
+				Reason:  InitRootStorageStepReasonInProgress,
+				Message: fmt.Sprintf("InitRootStorageStep is required, init_root_storage.bash script is specified in ConfigMap: %s", configMapName),
+			})
+			if _, err := r.setState(ctx, storage); err != nil {
+				return controllers.NoRequeue(err)
+			}
+		} else {
+			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+				Type:    InitRootStorageStepCondition,
+				Status:  "True",
+				Reason:  InitRootStorageStepReasonNotRequired,
+				Message: "InitRootStorageStep is not required",
+			})
+			if _, err := r.setState(ctx, storage); err != nil {
+				return controllers.NoRequeue(err)
+			}
+		}
+	}
+
+	if meta.FindStatusCondition(storage.Status.Conditions, InitCMSStepCondition) == nil {
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:    InitCMSStepCondition,
+			Status:  "False",
+			Reason:  InitCMSStepReasonInProgress,
+			Message: "InitCMSStep is required",
+		})
+		if _, err := r.setState(ctx, storage); err != nil {
+			return controllers.NoRequeue(err)
+		}
 	}
 
 	return controllers.Ok()
 }
 
-func (r *StorageReconciler) waitForHealthCheck(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
-	err := healthcheck.CheckBootstrapHealth(ctx, storage)
+func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources.StorageClusterBuilder, waitForGoodResultWithoutIssues bool) (ctrl.Result, error) {
+	result, err := healthcheck.GetSelfCheckResult(ctx, storage)
 
 	if err != nil {
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeNormal,
-			"HealthcheckInProgress",
-			fmt.Sprintf("Waiting for healthcheck, current status: %s", err),
-		)
-		return controllers.RequeueAfter(HealthcheckRequeueDelay, err)
+		r.Log.Error(err, "GetSelfCheckResult error")
+		return controllers.RequeueAfter(SelfCheckRequeueDelay, err)
+	}
+
+	eventType := corev1.EventTypeNormal
+	if result.SelfCheckResult.String() != "GOOD" {
+		eventType = corev1.EventTypeWarning
 	}
 
 	r.Recorder.Event(
 		storage,
-		corev1.EventTypeNormal,
-		"HealthcheckOK",
-		"Bootstrap healthcheck is green",
+		eventType,
+		"SelfCheck",
+		fmt.Sprintf("SelfCheck result: %s, issues found: %d", result.SelfCheckResult.String(), len(result.IssueLog)),
 	)
+
+	if waitForGoodResultWithoutIssues && (result.SelfCheckResult.String() != "GOOD" || len(result.IssueLog) > 0) {
+		return controllers.RequeueAfter(SelfCheckRequeueDelay, err)
+	}
 	return controllers.Ok()
 }
 

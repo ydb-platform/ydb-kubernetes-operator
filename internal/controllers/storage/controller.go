@@ -57,12 +57,15 @@ func (r *StorageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			r.Log.Info("storage resources not found")
 			return controllers.Ok()
 		} else {
-			r.Log.Error(err, "unexpected error")
+			r.Log.Error(err, "unexpected Get error")
 		}
 		return controllers.NoRequeue(err)
 	}
-
-	return r.Sync(ctx, storage)
+	result, err := r.Sync(ctx, storage)
+	if err != nil {
+		r.Log.Error(err, "unexpected Sync error")
+	}
+	return result, err
 }
 
 func ignoreDeletionPredicate() predicate.Predicate {
