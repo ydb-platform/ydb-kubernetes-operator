@@ -47,8 +47,10 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	err := r.Get(ctx, req.NamespacedName, database)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.Log.Info("failed to retrieve Database resource; resource deleted?")
+			r.Log.Info("database resources not found")
 			return controllers.Ok()
+		} else {
+			r.Log.Error(err, "unexpected error")
 		}
 		return controllers.NoRequeue(err)
 	}
