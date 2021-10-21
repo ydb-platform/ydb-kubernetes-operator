@@ -121,25 +121,18 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 }
 
 func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
-	useCustomConfiguration := "false"
+	command := []string{"/opt/kikimr/bin/start.sh"}
+	args := []string{"--node", "static"}
 	if b.Spec.ClusterConfig != "" {
-		useCustomConfiguration = "true"
+		command = []string{"/bin/bash"}
+		args = []string{"-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}"}
 	}
 
 	container := corev1.Container{
 		Name:    "ydb-storage",
 		Image:   b.Spec.Image.Name,
-		Command: []string{"/opt/kikimr/bin/start.sh"},
-		Args: []string{
-			"--node",
-			"static",
-		},
-		Env: []corev1.EnvVar{
-			{
-				Name:  "USE_CUSTOM_CONFIGURATION",
-				Value: useCustomConfiguration,
-			},
-		},
+		Command: command,
+		Args:    args,
 		LivenessProbe: &corev1.Probe{
 			Handler: corev1.Handler{
 				TCPSocket: &corev1.TCPSocketAction{
