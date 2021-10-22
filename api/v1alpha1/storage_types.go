@@ -10,6 +10,12 @@ type StorageSpec struct {
 	// Number of nodes (pods) in the cluster
 	// +required
 	Nodes int32 `json:"nodes"`
+	// IPFamilies is a list of IP families (e.g. IPv4, IPv6) assigned to created Service objecs.
+	// +required
+	IPFamilies []corev1.IPFamily `json:"ipFamilies"`
+	// IPFamilyPolicy represents the dual-stack-ness requested or required by created Service objects.
+	// +required
+	IPFamilyPolicy corev1.IPFamilyPolicyType `json:"ipFamilyPolicy"`
 	// ConfigMap name with custom ydb configuration, where key is config file name and value is config file content.
 	// +optional
 	ClusterConfig string `json:"config"`
