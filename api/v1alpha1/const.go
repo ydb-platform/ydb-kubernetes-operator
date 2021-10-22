@@ -12,4 +12,6 @@ const (
 
 	DiskPathPrefix      = "/dev/kikimr_ssd"
 	DiskNumberMaxDigits = 2
+
+	ConfigDir = "/opt/kikimr/cfg"
 )

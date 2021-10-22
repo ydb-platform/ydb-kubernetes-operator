@@ -876,7 +876,7 @@ spec:
                     type: object
                 type: object
               config:
-                description: ConfigMap name with custom ydb configuration, where key
+                description: ConfigMap name with custom YDB configuration, where key
                   is config file name and value is config file content.
                 type: string
               dataStore:

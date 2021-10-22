@@ -16,9 +16,9 @@ type StorageSpec struct {
 	// IPFamilyPolicy represents the dual-stack-ness requested or required by created Service objects.
 	// +required
 	IPFamilyPolicy corev1.IPFamilyPolicyType `json:"ipFamilyPolicy"`
-	// ConfigMap name with custom ydb configuration, where key is config file name and value is config file content.
+	// ConfigMap name with custom YDB configuration, where key is config file name and value is config file content.
 	// +optional
-	ClusterConfig string `json:"config"`
+	ClusterConfig string `json:"config,omitempty"`
 	// Where cluster data should be kept
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`

@@ -9,6 +9,10 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/templates"
 )
 
+const (
+	ConfigureRootInitConfigFile = "Configure-Root.txt"
+)
+
 var templateToFilename = map[string]string{
 	"auth.txt":                templates.AuthConfigTemplate,
 	"boot.txt":                templates.BootstrapConfigTemplate,
@@ -81,7 +85,7 @@ func Build(cr *v1alpha1.Storage) (map[string]string, error) {
 	}
 
 	for filename, templateText := range templateToFilename {
-		if filename == "Configure-Root.txt" {
+		if filename == ConfigureRootInitConfigFile {
 			continue
 		}
 		if result[filename], err = applyTemplate(templateText, templateData); err != nil {
@@ -89,14 +93,14 @@ func Build(cr *v1alpha1.Storage) (map[string]string, error) {
 		}
 	}
 
-	if _, ok := result["Configure-Root.txt"]; !ok {
+	if _, ok := result[ConfigureRootInitConfigFile]; !ok {
 		configureRoot, err := applyTemplate(templates.ConfigureRootInitConfigTemplate, MapWrapper{
 			Amap: result,
 		})
 		if err != nil {
 			return nil, err
 		}
-		result["Configure-Root.txt"] = configureRoot
+		result[ConfigureRootInitConfigFile] = configureRoot
 
 	}
 
