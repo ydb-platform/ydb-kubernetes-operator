@@ -56,7 +56,10 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			Ports: []corev1.ServicePort{{
 				Name: "grpc",
 				Port: api.GRPCPort,
-			}}},
+			}},
+			IPFamilies:     b.Spec.IPFamilies,
+			IPFamilyPolicy: b.Spec.IPFamilyPolicy,
+		},
 		&ServiceBuilder{
 			Object:     b,
 			NameFormat: interconnectServiceNameFormat,
@@ -65,7 +68,8 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			Ports: []corev1.ServicePort{{
 				Name: "interconnect",
 				Port: api.InterconnectPort,
-			}}},
+			}},
+		},
 		&ServiceBuilder{
 			Object:     b,
 			Labels:     ll,
@@ -73,7 +77,10 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			Ports: []corev1.ServicePort{{
 				Name: "status",
 				Port: api.StatusPort,
-			}}},
+			}},
+			IPFamilies:     b.Spec.IPFamilies,
+			IPFamilyPolicy: b.Spec.IPFamilyPolicy,
+		},
 		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: ll},
 	}
 }
