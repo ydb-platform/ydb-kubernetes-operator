@@ -7,7 +7,6 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -15,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,22 +25,26 @@ const (
 	SelfCheckRequeueDelay             = 30 * time.Second
 	StorageInitializationRequeueDelay = 30 * time.Second
 
+	ReasonInProgress  = "InProgress"
+	ReasonNotRequired = "NotRequired"
+	ReasonCompleted   = "Completed"
+
 	StorageInitializedCondition        = "StorageInitialized"
-	StorageInitializedReasonInProgress = "InProgres"
-	StorageInitializedReasonCompleted  = "Completed"
+	StorageInitializedReasonInProgress = ReasonInProgress
+	StorageInitializedReasonCompleted  = ReasonCompleted
 
 	InitStorageStepCondition        = "InitStorageStep"
-	InitStorageStepReasonInProgress = "InProgres"
-	InitStorageStepReasonCompleted  = "Completed"
+	InitStorageStepReasonInProgress = ReasonInProgress
+	InitStorageStepReasonCompleted  = ReasonCompleted
 
 	InitRootStorageStepCondition         = "InitRootStorageStep"
-	InitRootStorageStepReasonInProgress  = "InProgres"
-	InitRootStorageStepReasonNotRequired = "NotRequired"
-	InitRootStorageStepReasonCompleted   = "Completed"
+	InitRootStorageStepReasonInProgress  = ReasonInProgress
+	InitRootStorageStepReasonNotRequired = ReasonNotRequired
+	InitRootStorageStepReasonCompleted   = ReasonCompleted
 
 	InitCMSStepCondition        = "InitCMSStep"
-	InitCMSStepReasonInProgress = "InProgres"
-	InitCMSStepReasonCompleted  = "Completed"
+	InitCMSStepReasonInProgress = ReasonInProgress
+	InitCMSStepReasonCompleted  = ReasonCompleted
 )
 
 func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
@@ -83,73 +85,6 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	}
 
 	return controllers.Ok()
-}
-
-func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
-	podName := fmt.Sprintf("%s-0", storage.Name)
-
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, InitStorageStepCondition) {
-		cmd := []string{"/bin/bash", "/opt/kikimr/cfg/init_storage.bash"}
-		_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
-		if err != nil {
-			return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
-		}
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitStorageStepCondition,
-			Status:  "True",
-			Reason:  InitStorageStepReasonCompleted,
-			Message: "InitStorageStep completed successfully",
-		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
-	}
-
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, InitRootStorageStepCondition) {
-		cmd := []string{"/bin/bash", "/opt/kikimr/cfg/init_root_storage.bash"}
-		_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
-		if err != nil {
-			return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
-		}
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitRootStorageStepCondition,
-			Status:  "True",
-			Reason:  InitRootStorageStepReasonCompleted,
-			Message: "InitRootStorageStep completed successfully",
-		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
-	}
-
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, InitCMSStepCondition) {
-		cmd := []string{"/bin/bash", "/opt/kikimr/cfg/init_cms.bash"}
-		_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
-		if err != nil {
-			return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
-		}
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitCMSStepCondition,
-			Status:  "True",
-			Reason:  InitCMSStepReasonCompleted,
-			Message: "InitCMSStep completed successfully",
-		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
-	}
-
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    StorageInitializedCondition,
-		Status:  "True",
-		Reason:  StorageInitializedReasonCompleted,
-		Message: "Storage initialized successfully",
-	})
-	if _, err := r.setState(ctx, storage); err != nil {
-		return controllers.NoRequeue(err)
-	}
-
-	return controllers.RequeueImmediately()
 }
 
 func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
@@ -228,119 +163,6 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 	return controllers.Ok()
 }
 
-func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
-	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    StorageInitializedCondition,
-			Status:  "False",
-			Reason:  StorageInitializedReasonInProgress,
-			Message: "Storage is not initialized",
-		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
-	}
-
-	if meta.FindStatusCondition(storage.Status.Conditions, InitStorageStepCondition) == nil {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitStorageStepCondition,
-			Status:  "False",
-			Reason:  InitStorageStepReasonInProgress,
-			Message: "InitStorageStep is required",
-		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
-	}
-
-	if meta.FindStatusCondition(storage.Status.Conditions, InitRootStorageStepCondition) == nil {
-		configMapName := storage.Name
-		if storage.Spec.ClusterConfig != "" {
-			configMapName = storage.Spec.ClusterConfig
-		}
-
-		configMap := &corev1.ConfigMap{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      configMapName,
-			Namespace: storage.Namespace,
-		}, configMap)
-
-		if err != nil && errors.IsNotFound(err) {
-			return controllers.Ok()
-		} else if err != nil {
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeNormal,
-				"Syncing",
-				fmt.Sprintf("Failed to get ConfigMap: %s", err),
-			)
-			return controllers.NoRequeue(err)
-		}
-
-		if _, ok := configMap.Data["init_root_storage.bash"]; ok {
-			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-				Type:    InitRootStorageStepCondition,
-				Status:  "False",
-				Reason:  InitRootStorageStepReasonInProgress,
-				Message: fmt.Sprintf("InitRootStorageStep is required, init_root_storage.bash script is specified in ConfigMap: %s", configMapName),
-			})
-			if _, err := r.setState(ctx, storage); err != nil {
-				return controllers.NoRequeue(err)
-			}
-		} else {
-			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-				Type:    InitRootStorageStepCondition,
-				Status:  "True",
-				Reason:  InitRootStorageStepReasonNotRequired,
-				Message: "InitRootStorageStep is not required",
-			})
-			if _, err := r.setState(ctx, storage); err != nil {
-				return controllers.NoRequeue(err)
-			}
-		}
-	}
-
-	if meta.FindStatusCondition(storage.Status.Conditions, InitCMSStepCondition) == nil {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitCMSStepCondition,
-			Status:  "False",
-			Reason:  InitCMSStepReasonInProgress,
-			Message: "InitCMSStep is required",
-		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
-	}
-
-	return controllers.Ok()
-}
-
-func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources.StorageClusterBuilder, waitForGoodResultWithoutIssues bool) (ctrl.Result, error) {
-	result, err := healthcheck.GetSelfCheckResult(ctx, storage)
-
-	if err != nil {
-		r.Log.Error(err, "GetSelfCheckResult error")
-		return controllers.RequeueAfter(SelfCheckRequeueDelay, err)
-	}
-
-	eventType := corev1.EventTypeNormal
-	if result.SelfCheckResult.String() != "GOOD" {
-		eventType = corev1.EventTypeWarning
-	}
-
-	r.Recorder.Event(
-		storage,
-		eventType,
-		"SelfCheck",
-		fmt.Sprintf("SelfCheck result: %s, issues found: %d", result.SelfCheckResult.String(), len(result.IssueLog)),
-	)
-
-	if waitForGoodResultWithoutIssues && (result.SelfCheckResult.String() != "GOOD" || len(result.IssueLog) > 0) {
-		return controllers.RequeueAfter(SelfCheckRequeueDelay, err)
-	}
-	return controllers.Ok()
-}
-
 func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
 	r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", "Resource sync is in progress")
 
@@ -395,6 +217,32 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 		return controllers.RequeueImmediately()
 	}
 
+	return controllers.Ok()
+}
+
+func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources.StorageClusterBuilder, waitForGoodResultWithoutIssues bool) (ctrl.Result, error) {
+	result, err := healthcheck.GetSelfCheckResult(ctx, storage)
+
+	if err != nil {
+		r.Log.Error(err, "GetSelfCheckResult error")
+		return controllers.RequeueAfter(SelfCheckRequeueDelay, err)
+	}
+
+	eventType := corev1.EventTypeNormal
+	if result.SelfCheckResult.String() != "GOOD" {
+		eventType = corev1.EventTypeWarning
+	}
+
+	r.Recorder.Event(
+		storage,
+		eventType,
+		"SelfCheck",
+		fmt.Sprintf("SelfCheck result: %s, issues found: %d", result.SelfCheckResult.String(), len(result.IssueLog)),
+	)
+
+	if waitForGoodResultWithoutIssues && (result.SelfCheckResult.String() != "GOOD" || len(result.IssueLog) > 0) {
+		return controllers.RequeueAfter(SelfCheckRequeueDelay, err)
+	}
 	return controllers.Ok()
 }
 

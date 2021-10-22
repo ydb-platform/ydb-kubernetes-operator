@@ -53,7 +53,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 		),
 	}
 
-	return corev1.PodTemplateSpec{
+	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: b.Labels,
 		},
@@ -68,6 +68,10 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			},
 		},
 	}
+	if *b.Spec.Image.PullSecret != "" {
+		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
+	}
+	return podTemplate
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {

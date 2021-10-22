@@ -94,7 +94,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 		configMapName = b.Spec.ClusterConfig
 	}
 
-	return corev1.PodTemplateSpec{
+	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: b.Labels,
 		},
@@ -118,6 +118,10 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			},
 		},
 	}
+	if *b.Spec.Image.PullSecret != "" {
+		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
+	}
+	return podTemplate
 }
 
 func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
