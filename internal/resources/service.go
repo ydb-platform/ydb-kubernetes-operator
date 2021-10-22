@@ -17,6 +17,9 @@ type ServiceBuilder struct {
 	Ports    []corev1.ServicePort
 	Headless bool
 
+	IPFamilies     []corev1.IPFamily
+	IPFamilyPolicy corev1.IPFamilyPolicyType
+
 	Labels map[string]string
 }
 
@@ -38,6 +41,14 @@ func (b *ServiceBuilder) Build(obj client.Object) error {
 
 	service.Spec.Ports = b.Ports
 	service.Spec.Selector = b.Labels
+
+	if len(b.IPFamilies) > 0 {
+		service.Spec.IPFamilies = b.IPFamilies
+	}
+
+	if b.IPFamilyPolicy != "" {
+		service.Spec.IPFamilyPolicy = &b.IPFamilyPolicy
+	}
 
 	if b.Headless && service.Spec.ClusterIP == "" {
 		service.Spec.ClusterIP = "None"

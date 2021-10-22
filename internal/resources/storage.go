@@ -35,9 +35,8 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 	return b.DeepCopy()
 }
 
-func (b *StorageClusterBuilder) GetEndpoint() string {
+func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
 	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Name, b.Namespace)
-
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
@@ -81,7 +80,10 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 			Ports: []corev1.ServicePort{{
 				Name: "grpc",
 				Port: api.GRPCPort,
-			}}},
+			}},
+			IPFamilies:     b.Spec.IPFamilies,
+			IPFamilyPolicy: b.Spec.IPFamilyPolicy,
+		},
 		&ServiceBuilder{
 			Object:     b,
 			Labels:     ll,
@@ -90,7 +92,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 			Ports: []corev1.ServicePort{{
 				Name: "interconnect",
 				Port: api.InterconnectPort,
-			}}},
+			}},
+		},
 		&ServiceBuilder{
 			Object:     b,
 			Labels:     ll,
@@ -98,7 +101,10 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 			Ports: []corev1.ServicePort{{
 				Name: "status",
 				Port: api.StatusPort,
-			}}},
+			}},
+			IPFamilies:     b.Spec.IPFamilies,
+			IPFamilyPolicy: b.Spec.IPFamilyPolicy,
+		},
 		&StorageStatefulSetBuilder{Storage: b.Unwrap(), Labels: ll},
 	)
 }

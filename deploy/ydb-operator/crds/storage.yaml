@@ -876,22 +876,24 @@ spec:
                     type: object
                 type: object
               config:
-                description: ConfigMap name with custom ydb configuration, where key is config file name and value is config file content.
+                description: ConfigMap name with custom ydb configuration, where key
+                  is config file name and value is config file content.
                 type: string
               dataStore:
                 description: Where cluster data should be kept
                 items:
-                  description: Where cluster data should be kept
+                  description: PersistentVolumeClaimSpec describes the common attributes
+                    of storage devices and allows a Source for provider-specific attributes
                   properties:
                     accessModes:
-                      description: 'AccessModes contains the desired access modes the
-                        volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
+                      description: 'AccessModes contains the desired access modes
+                        the volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                       items:
                         type: string
                       type: array
                     dataSource:
-                      description: 'This field can be used to specify either: * An existing
-                        VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                      description: 'This field can be used to specify either: * An
+                        existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
                         * An existing PVC (PersistentVolumeClaim) If the provisioner
                         or an external controller can support the specified data source,
                         it will create a new volume based on the contents of the specified
@@ -921,19 +923,20 @@ spec:
                         be any local object from a non-empty API group (non core object)
                         or a PersistentVolumeClaim object. When this field is specified,
                         volume binding will only succeed if the type of the specified
-                        object matches some installed volume populator or dynamic provisioner.
-                        This field will replace the functionality of the DataSource
-                        field and as such if both fields are non-empty, they must have
-                        the same value. For backwards compatibility, both fields (DataSource
-                        and DataSourceRef) will be set to the same value automatically
-                        if one of them is empty and the other is non-empty. There are
-                        two important differences between DataSource and DataSourceRef:
-                        * While DataSource only allows two specific types of objects,
-                        DataSourceRef   allows any non-core object, as well as PersistentVolumeClaim
-                        objects. * While DataSource ignores disallowed values (dropping
-                        them), DataSourceRef   preserves all values, and generates an
-                        error if a disallowed value is   specified. (Alpha) Using this
-                        field requires the AnyVolumeDataSource feature gate to be enabled.'
+                        object matches some installed volume populator or dynamic
+                        provisioner. This field will replace the functionality of
+                        the DataSource field and as such if both fields are non-empty,
+                        they must have the same value. For backwards compatibility,
+                        both fields (DataSource and DataSourceRef) will be set to
+                        the same value automatically if one of them is empty and the
+                        other is non-empty. There are two important differences between
+                        DataSource and DataSourceRef: * While DataSource only allows
+                        two specific types of objects, DataSourceRef   allows any
+                        non-core object, as well as PersistentVolumeClaim objects.
+                        * While DataSource ignores disallowed values (dropping them),
+                        DataSourceRef   preserves all values, and generates an error
+                        if a disallowed value is   specified. (Alpha) Using this field
+                        requires the AnyVolumeDataSource feature gate to be enabled.'
                       properties:
                         apiGroup:
                           description: APIGroup is the group for the resource being
@@ -952,8 +955,8 @@ spec:
                       - name
                       type: object
                     resources:
-                      description: 'Resources represents the minimum resources the volume
-                        should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
+                      description: 'Resources represents the minimum resources the
+                        volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                       properties:
                         limits:
                           additionalProperties:
@@ -974,8 +977,9 @@ spec:
                             x-kubernetes-int-or-string: true
                           description: 'Requests describes the minimum amount of compute
                             resources required. If Requests is omitted for a container,
-                            it defaults to Limits if that is explicitly specified, otherwise
-                            to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                            it defaults to Limits if that is explicitly specified,
+                            otherwise to an implementation-defined value. More info:
+                            https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                           type: object
                       type: object
                     selector:
@@ -999,11 +1003,11 @@ spec:
                                   Exists and DoesNotExist.
                                 type: string
                               values:
-                                description: values is an array of string values. If
-                                  the operator is In or NotIn, the values array must
-                                  be non-empty. If the operator is Exists or DoesNotExist,
-                                  the values array must be empty. This array is replaced
-                                  during a strategic merge patch.
+                                description: values is an array of string values.
+                                  If the operator is In or NotIn, the values array
+                                  must be non-empty. If the operator is Exists or
+                                  DoesNotExist, the values array must be empty. This
+                                  array is replaced during a strategic merge patch.
                                 items:
                                   type: string
                                 type: array
@@ -1015,11 +1019,11 @@ spec:
                         matchLabels:
                           additionalProperties:
                             type: string
-                          description: matchLabels is a map of {key,value} pairs. A
-                            single {key,value} in the matchLabels map is equivalent
-                            to an element of matchExpressions, whose key field is "key",
-                            the operator is "In", and the values array contains only
-                            "value". The requirements are ANDed.
+                          description: matchLabels is a map of {key,value} pairs.
+                            A single {key,value} in the matchLabels map is equivalent
+                            to an element of matchExpressions, whose key field is
+                            "key", the operator is "In", and the values array contains
+                            only "value". The requirements are ANDed.
                           type: object
                       type: object
                     storageClassName:
@@ -1055,6 +1059,19 @@ spec:
                       must be configured first by the user.
                     type: string
                 type: object
+              ipFamilies:
+                description: IPFamilies is a list of IP families (e.g. IPv4, IPv6)
+                  assigned to created Service objecs.
+                items:
+                  description: IPFamily represents the IP Family (IPv4 or IPv6). This
+                    type is used to express the family of an IP expressed by a type
+                    (e.g. service.spec.ipFamilies).
+                  type: string
+                type: array
+              ipFamilyPolicy:
+                description: IPFamilyPolicy represents the dual-stack-ness requested
+                  or required by created Service objects.
+                type: string
               nodeSelector:
                 additionalProperties:
                   type: string
@@ -1139,6 +1156,8 @@ spec:
                 type: string
             required:
             - dataStore
+            - ipFamilies
+            - ipFamilyPolicy
             - nodes
             type: object
           status:
