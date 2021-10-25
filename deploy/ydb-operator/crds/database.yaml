@@ -1003,8 +1003,6 @@ spec:
                   YDB image Default: ""'
                 type: string
             required:
-            - ipFamilies
-            - ipFamilyPolicy
             - nodes
             - storageClusterRef
             type: object

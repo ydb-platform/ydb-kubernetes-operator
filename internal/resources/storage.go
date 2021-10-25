@@ -93,6 +93,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 				Name: "interconnect",
 				Port: api.InterconnectPort,
 			}},
+			IPFamilies:     b.Spec.IPFamilies,
+			IPFamilyPolicy: b.Spec.IPFamilyPolicy,
 		},
 		&ServiceBuilder{
 			Object:     b,
