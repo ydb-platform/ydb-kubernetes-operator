@@ -1156,8 +1156,6 @@ spec:
                 type: string
             required:
             - dataStore
-            - ipFamilies
-            - ipFamilyPolicy
             - nodes
             type: object
           status:
