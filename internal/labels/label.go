@@ -77,6 +77,16 @@ func (l Labels) Merge(other map[string]string) {
 	}
 }
 
+func (l Labels) MergeInPlace(other map[string]string) map[string]string {
+	result := l.Copy()
+
+	for k, v := range other {
+		result[k] = v
+	}
+
+	return result
+}
+
 func makeCommonLabels(other map[string]string, instance string) map[string]string {
 	common := make(map[string]string)
 

@@ -28,7 +28,7 @@ func StringRJust(str, pad string, lenght int) string {
 	for {
 		str = pad + str
 		if len(str) > lenght {
-			return str[len(str)-lenght : len(str)]
+			return str[len(str)-lenght:]
 		}
 	}
 }
@@ -89,11 +89,6 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 		),
 	}
 
-	configMapName := b.Name
-	if b.Spec.ClusterConfig != "" {
-		configMapName = b.Spec.ClusterConfig
-	}
-
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: b.Labels,
@@ -104,33 +99,49 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			Affinity:     b.Spec.Affinity,
 			Tolerations:  b.Spec.Tolerations,
 
-			Volumes: []corev1.Volume{{
-				Name: configVolumeName,
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{Name: configMapName},
-					},
-				},
-			}},
+			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},
 		},
 	}
-	if *b.Spec.Image.PullSecret != "" {
+	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
 	return podTemplate
 }
 
-func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
-	command := []string{"/opt/kikimr/bin/start.sh"}
-	args := []string{"--node", "static"}
+func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
+	configMapName := b.Name
 	if b.Spec.ClusterConfig != "" {
-		command = []string{"/bin/bash"}
-		args = []string{"-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}"}
+		configMapName = b.Spec.ClusterConfig
 	}
+
+	volumes := []corev1.Volume{
+		{
+			Name: configVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: configMapName},
+				},
+			},
+		},
+	}
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		volumes = append(volumes, buildTLSVolume("grpc-tls-volume", b.Spec.Service.GRPC.TLSConfiguration))
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		volumes = append(volumes, buildTLSVolume("interconnect-tls-volume", b.Spec.Service.Interconnect.TLSConfiguration)) // fixme const
+	}
+
+	return volumes
+}
+
+func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
+	command, args := b.buildContainerArgs()
 
 	container := corev1.Container{
 		Name:    "ydb-storage",
@@ -157,18 +168,12 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
 			Name: "status", ContainerPort: v1alpha1.StatusPort,
 		}},
 
-		VolumeMounts: []corev1.VolumeMount{
-			{
-				Name:      configVolumeName,
-				ReadOnly:  true,
-				MountPath: "/opt/kikimr/cfg",
-			},
-		},
-		Resources: b.Spec.Resources,
+		VolumeMounts: b.buildVolumeMounts(),
+		Resources:    b.Spec.Resources,
 	}
 
 	var volumeDeviceList []corev1.VolumeDevice
-	for i, _ := range b.Spec.DataStore {
+	for i := range b.Spec.DataStore {
 		volumeDeviceList = append(
 			volumeDeviceList,
 			corev1.VolumeDevice{
@@ -180,6 +185,57 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
 	container.VolumeDevices = volumeDeviceList
 
 	return container
+}
+
+func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      configVolumeName,
+			ReadOnly:  true,
+			MountPath: "/opt/kikimr/cfg",
+		},
+	}
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "grpc-tls-volume",
+			ReadOnly:  true,
+			MountPath: "/tls/grpc",
+		})
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "interconnect-tls-volume",
+			ReadOnly:  true,
+			MountPath: "/tls/interconnect",
+		})
+	}
+
+	return volumeMounts
+}
+
+func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
+	command := []string{"/opt/kikimr/bin/start.sh"}
+	var args []string
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		args = append(args,
+			//"--ca",
+			//"/tls/interconnect/ca.crt",  // re-check, may be unnecessary, also overrides gRPC CA
+			"--cert",
+			"/tls/interconnect/tls.crt",
+			"--key",
+			"/tls/interconnect/tls.key",
+		)
+	}
+
+	if b.Spec.ClusterConfig != "" {
+		command = []string{"/bin/bash"}
+		args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
+	}
+
+	return command, args
 }
 
 func (b *StorageStatefulSetBuilder) Placeholder(cr client.Object) client.Object {

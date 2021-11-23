@@ -24,4 +24,11 @@ func SetDatabaseSpecDefaults(ydbCr *Database, ydbSpec *DatabaseSpec) {
 		policy := v1.PullIfNotPresent
 		ydbSpec.Image.PullPolicyName = &policy
 	}
+
+	if ydbSpec.Service.GRPC.TLSConfiguration == nil {
+		ydbSpec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
+	if ydbSpec.Service.Interconnect.TLSConfiguration == nil {
+		ydbSpec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
 }

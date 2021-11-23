@@ -63,39 +63,66 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			Affinity:     b.Spec.Affinity,
 			Tolerations:  b.Spec.Tolerations,
 
+			Volumes: b.buildVolumes(),
+
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},
 		},
 	}
-	if *b.Spec.Image.PullSecret != "" {
+	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
 	return podTemplate
 }
 
-func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
-	db := NewDatabase(b.DeepCopy())
+func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
+	var volumes []corev1.Volume
 
+	if b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		volumes = append(volumes, buildTLSVolume("grpc-tls-volume", b.Spec.Service.GRPC.TLSConfiguration))
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration != nil && b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		volumes = append(volumes, buildTLSVolume("interconnect-tls-volume", b.Spec.Service.Interconnect.TLSConfiguration)) // fixme const
+	}
+
+	return volumes
+}
+
+func buildTLSVolume(name string, configuration *v1alpha1.TLSConfiguration) corev1.Volume { // fixme move somewhere?
+	volume := corev1.Volume{
+		Name: name,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: configuration.Key.Name, // todo validate that Name is equal for all params
+				Items: []corev1.KeyToPath{
+					{
+						Key:  configuration.CertificateAuthority.Key,
+						Path: "ca.crt",
+					},
+					{
+						Key:  configuration.Certificate.Key,
+						Path: "tls.crt",
+					},
+					{
+						Key:  configuration.Key.Key,
+						Path: "tls.key",
+					},
+				},
+			},
+		},
+	}
+
+	return volume
+}
+
+func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 	container := corev1.Container{
 		Name:    "ydb-dynamic",
 		Image:   b.Spec.Image.Name,
 		Command: []string{"/opt/kikimr/bin/kikimr"},
-		Args: []string{
-			"server",
-
-			"--mon-port",
-			fmt.Sprintf("%d", v1alpha1.StatusPort),
-
-			"--ic-port",
-			fmt.Sprintf("%d", v1alpha1.InterconnectPort),
-
-			"--tenant",
-			fmt.Sprintf(TenantPathFormat, b.Name),
-
-			"--node-broker",
-			db.GetStorageEndpoint(),
-		},
+		Args:    b.buildContainerArgs(),
 
 		LivenessProbe: &corev1.Probe{
 			Handler: corev1.Handler{
@@ -113,10 +140,69 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 			Name: "status", ContainerPort: v1alpha1.StatusPort,
 		}},
 
+		VolumeMounts: b.buildVolumeMounts(),
+
 		Resources: b.Spec.Resources,
 	}
 
 	return container
+}
+
+func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
+	var volumeMounts []corev1.VolumeMount
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "grpc-tls-volume",
+			ReadOnly:  true,
+			MountPath: "/tls/grpc",
+		})
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "interconnect-tls-volume",
+			ReadOnly:  true,
+			MountPath: "/tls/interconnect",
+		})
+	}
+
+	return volumeMounts
+}
+
+func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
+	db := NewDatabase(b.DeepCopy())
+
+	args := []string{
+		"server",
+
+		"--mon-port",
+		fmt.Sprintf("%d", v1alpha1.StatusPort),
+
+		"--ic-port",
+		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
+
+		"--tenant",
+		fmt.Sprintf(TenantPathFormat, b.Name),
+
+		"--node-broker",
+		db.GetStorageEndpoint(),
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		tlsConfiguration := []string{
+			"--ca", // fixme consts
+			"/tls/interconnect/ca.crt",
+			"--cert",
+			"/tls/interconnect/tls.crt",
+			"--key",
+			"/tls/interconnect/tls.key",
+		}
+
+		args = append(args, tlsConfiguration...)
+	}
+
+	return args
 }
 
 func (b *DatabaseStatefulSetBuilder) Placeholder(cr client.Object) client.Object {
