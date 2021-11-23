@@ -22,6 +22,10 @@ type DatabaseSpec struct {
 	// Default: (not specified)
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	// (Optional) Public host to advertise on discovery requests
+	// Default: ""
+	// +optional
+	PublicHost string `json:"publicHost,omitempty"`
 	// (Optional) YDBVersion sets the explicit version of the YDB image
 	// Default: ""
 	// +optional

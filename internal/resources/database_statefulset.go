@@ -202,6 +202,16 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
 		args = append(args, tlsConfiguration...)
 	}
 
+	if b.Spec.PublicHost != "" {
+		publicHostOption := "--grpc-public-host"
+
+		if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+			publicHostOption = "--grpcs-public-host"
+		}
+
+		args = append(args, publicHostOption, b.Spec.PublicHost)
+	}
+
 	return args
 }
 

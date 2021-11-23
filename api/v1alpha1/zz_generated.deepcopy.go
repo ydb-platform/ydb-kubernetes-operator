@@ -195,6 +195,13 @@ func (in *Service) DeepCopyInto(out *Service) {
 			(*out)[key] = val
 		}
 	}
+	if in.AdditionalAnnotations != nil {
+		in, out := &in.AdditionalAnnotations, &out.AdditionalAnnotations
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.IPFamilies != nil {
 		in, out := &in.IPFamilies, &out.IPFamilies
 		*out = make([]v1.IPFamily, len(*in))
