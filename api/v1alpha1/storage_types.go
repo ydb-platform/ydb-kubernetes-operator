@@ -10,18 +10,17 @@ type StorageSpec struct {
 	// Number of nodes (pods) in the cluster
 	// +required
 	Nodes int32 `json:"nodes"`
-	// IPFamilies is a list of IP families (e.g. IPv4, IPv6) assigned to created Service objecs.
-	// +optional
-	IPFamilies []corev1.IPFamily `json:"ipFamilies,omitempty"`
-	// IPFamilyPolicy represents the dual-stack-ness requested or required by created Service objects.
-	// +optional
-	IPFamilyPolicy corev1.IPFamilyPolicyType `json:"ipFamilyPolicy,omitempty"`
 	// ConfigMap name with custom YDB configuration, where key is config file name and value is config file content.
 	// +optional
 	ClusterConfig string `json:"config,omitempty"`
 	// Where cluster data should be kept
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`
+	//TenantDomain string `json:"tenant_domain"`  // fixme?
+	// (Optional) Storage services parameter overrides
+	// Default: (not specified)
+	// +optional
+	Service StorageServices `json:"service,omitempty"`
 	// (Optional) Storage container resource limits. Any container limits
 	// can be specified.
 	// Default: (not specified)
@@ -61,7 +60,7 @@ type StorageStatus struct {
 //+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.state",description="The status of this DB"
 //+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// Storage is the Schema for the storages API
+// Storage is the Schema for the Storages API
 type Storage struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -79,6 +78,13 @@ type StorageList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Storage `json:"items"`
+}
+
+// StorageServices defines parameter overrides for Storage Services
+type StorageServices struct {
+	GRPC         Service `json:"grpc,omitempty"`
+	Interconnect Service `json:"interconnect,omitempty"`
+	Status       Service `json:"status,omitempty"`
 }
 
 func init() {

@@ -1,0 +1,37 @@
+apiVersion: ydb.tech/v1alpha1
+kind: Database
+metadata:
+  name: database-sample
+spec:
+  service:
+    grpc:
+      tls:
+        enabled: true
+        CA:
+          key: tls.crt
+          name: storage-grpc-tls-secret
+        certificate:
+          key: tls.crt
+          name: storage-grpc-tls-secret
+        key:
+          key: tls.key
+          name: storage-grpc-tls-secret
+    interconnect:
+      additionalLabels:
+        external-dns.alpha.kubernetes.io/hostname:  database-sample.eks.ydb.double.tech
+      tls:
+        enabled: true
+        CA:
+          key: ca.crt
+          name: storage-interconnect-secret
+        certificate:
+          key: tls.crt
+          name: storage-interconnect-secret
+        key:
+          key: tls.key
+          name: storage-interconnect-secret
+  image:
+    name: 690619578286.dkr.ecr.eu-central-1.amazonaws.com/preprod-ydb-eks-containers/ydb:local-build-dynnode
+  nodes: 6
+  storageClusterRef:
+    name: storage-sample-with-tls

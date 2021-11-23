@@ -10,12 +10,10 @@ type DatabaseSpec struct {
 	// Number of nodes (pods) in the cluster
 	// +required
 	Nodes int32 `json:"nodes"`
-	// IPFamilies is a list of IP families (e.g. IPv4, IPv6) assigned to created Service objecs.
+	// (Optional) Storage services parameter overrides
+	// Default: (not specified)
 	// +optional
-	IPFamilies []corev1.IPFamily `json:"ipFamilies,omitempty"`
-	// IPFamilyPolicy represents the dual-stack-ness requested or required by created Service objects.
-	// +optional
-	IPFamilyPolicy corev1.IPFamilyPolicyType `json:"ipFamilyPolicy,omitempty"`
+	Service DatabaseServices `json:"service,omitempty"`
 	// YDB Storage cluster reference
 	// +required
 	StorageClusterRef StorageRef `json:"storageClusterRef"`
@@ -106,6 +104,12 @@ type StorageRef struct {
 	// +kubebuilder:validation:MaxLength:=63
 	// +optional
 	Namespace string `json:"namespace"`
+}
+
+type DatabaseServices struct {
+	GRPC         Service `json:"grpc,omitempty"`
+	Interconnect Service `json:"interconnect,omitempty"`
+	Status       Service `json:"status,omitempty"`
 }
 
 func init() {

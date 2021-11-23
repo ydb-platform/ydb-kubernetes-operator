@@ -18,9 +18,10 @@ type ServiceBuilder struct {
 	Headless bool
 
 	IPFamilies     []corev1.IPFamily
-	IPFamilyPolicy corev1.IPFamilyPolicyType
+	IPFamilyPolicy *corev1.IPFamilyPolicyType
 
-	Labels map[string]string
+	Labels         map[string]string
+	SelectorLabels map[string]string
 }
 
 func (b *ServiceBuilder) Build(obj client.Object) error {
@@ -40,14 +41,14 @@ func (b *ServiceBuilder) Build(obj client.Object) error {
 	service.ObjectMeta.Labels = b.Labels
 
 	service.Spec.Ports = b.Ports
-	service.Spec.Selector = b.Labels
+	service.Spec.Selector = b.SelectorLabels
 
 	if len(b.IPFamilies) > 0 {
 		service.Spec.IPFamilies = b.IPFamilies
 	}
 
-	if b.IPFamilyPolicy != "" {
-		service.Spec.IPFamilyPolicy = &b.IPFamilyPolicy
+	if b.IPFamilyPolicy != nil {
+		service.Spec.IPFamilyPolicy = b.IPFamilyPolicy
 	}
 
 	if b.Headless && service.Spec.ClusterIP == "" {

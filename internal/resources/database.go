@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	TenantPathFormat string = "/root/%s"
+	TenantPathFormat string = "/root/%s" // FIXME can be anything
 )
 
 type DatabaseBuilder struct {
@@ -50,38 +50,41 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 
 	return []ResourceBuilder{
 		&ServiceBuilder{
-			Object:     b,
-			Labels:     ll,
-			NameFormat: "%s",
+			Object:         b,
+			Labels:         ll.MergeInPlace(b.Spec.Service.GRPC.AdditionalLabels),
+			SelectorLabels: ll,
+			NameFormat:     "%s",
 			Ports: []corev1.ServicePort{{
 				Name: "grpc",
 				Port: api.GRPCPort,
 			}},
-			IPFamilies:     b.Spec.IPFamilies,
-			IPFamilyPolicy: b.Spec.IPFamilyPolicy,
+			IPFamilies:     b.Spec.Service.GRPC.IPFamilies,
+			IPFamilyPolicy: b.Spec.Service.GRPC.IPFamilyPolicy,
 		},
 		&ServiceBuilder{
-			Object:     b,
-			NameFormat: interconnectServiceNameFormat,
-			Labels:     ll,
-			Headless:   true,
+			Object:         b,
+			NameFormat:     interconnectServiceNameFormat,
+			Labels:         ll.MergeInPlace(b.Spec.Service.Interconnect.AdditionalLabels),
+			SelectorLabels: ll,
+			Headless:       true,
 			Ports: []corev1.ServicePort{{
 				Name: "interconnect",
 				Port: api.InterconnectPort,
 			}},
-			IPFamilies:     b.Spec.IPFamilies,
-			IPFamilyPolicy: b.Spec.IPFamilyPolicy,
+			IPFamilies:     b.Spec.Service.Interconnect.IPFamilies,
+			IPFamilyPolicy: b.Spec.Service.Interconnect.IPFamilyPolicy,
 		},
 		&ServiceBuilder{
-			Object:     b,
-			Labels:     ll,
-			NameFormat: statusServiceNameFormat,
+			Object:         b,
+			Labels:         ll.MergeInPlace(b.Spec.Service.Status.AdditionalLabels),
+			SelectorLabels: ll,
+			NameFormat:     statusServiceNameFormat,
 			Ports: []corev1.ServicePort{{
 				Name: "status",
 				Port: api.StatusPort,
 			}},
-			IPFamilies:     b.Spec.IPFamilies,
-			IPFamilyPolicy: b.Spec.IPFamilyPolicy,
+			IPFamilies:     b.Spec.Service.Status.IPFamilies,
+			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: ll},
 	}

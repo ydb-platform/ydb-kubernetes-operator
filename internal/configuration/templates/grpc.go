@@ -3,11 +3,18 @@ package templates
 const GRpcConfigTemplate = `
 StartGRpcProxy: true
 Host: "[::]"
-Port: {{ .GRPCPort }}
 GRpcMemoryQuotaBytes: 1073741824
 StreamingConfig {
   EnableOutputStreams: true
 }
+{{- if .Spec.Service.Interconnect.TLSConfiguration.Enabled }}
+SslPort: {{ .GRPCPort }}
+CA: "/tls/grpc/ca.crt"
+Cert: "/tls/grpc/tls.crt"
+Key: "/tls/grpc/tls.key"
+{{- else }}
+Port: {{ .GRPCPort }}
+{{- end }}
 Services: "legacy"
 Services: "experimental"
 Services: "yql"
