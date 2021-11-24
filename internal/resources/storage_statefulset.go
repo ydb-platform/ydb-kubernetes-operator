@@ -219,6 +219,11 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	command := []string{"/opt/kikimr/bin/start.sh"}
 	var args []string
 
+	if b.Spec.ClusterConfig != "" {
+		command = []string{"/bin/bash"}
+		args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
+	}
+
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		args = append(args,
 			//"--ca",
@@ -228,11 +233,6 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 			"--key",
 			"/tls/interconnect/tls.key",
 		)
-	}
-
-	if b.Spec.ClusterConfig != "" {
-		command = []string{"/bin/bash"}
-		args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
 	}
 
 	return command, args
