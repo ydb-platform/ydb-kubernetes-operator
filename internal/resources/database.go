@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	TenantPathFormat string = "/root/%s" // FIXME can be anything
+	TenantPathFormat string = "/root/%s"
 )
 
 type DatabaseBuilder struct {
@@ -53,9 +53,9 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			Object:         b,
 			Labels:         ll.MergeInPlace(b.Spec.Service.GRPC.AdditionalLabels),
 			SelectorLabels: ll,
-			NameFormat:     "%s",
+			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
-				Name: "grpc",
+				Name: api.GRPCServicePortName,
 				Port: api.GRPCPort,
 			}},
 			IPFamilies:     b.Spec.Service.GRPC.IPFamilies,
@@ -66,9 +66,10 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			NameFormat:     interconnectServiceNameFormat,
 			Labels:         ll.MergeInPlace(b.Spec.Service.Interconnect.AdditionalLabels),
 			SelectorLabels: ll,
+			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			Ports: []corev1.ServicePort{{
-				Name: "interconnect",
+				Name: api.InterconnectServicePortName,
 				Port: api.InterconnectPort,
 			}},
 			IPFamilies:     b.Spec.Service.Interconnect.IPFamilies,
@@ -78,9 +79,10 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			Object:         b,
 			Labels:         ll.MergeInPlace(b.Spec.Service.Status.AdditionalLabels),
 			SelectorLabels: ll,
+			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			NameFormat:     statusServiceNameFormat,
 			Ports: []corev1.ServicePort{{
-				Name: "status",
+				Name: api.StatusServicePortName,
 				Port: api.StatusPort,
 			}},
 			IPFamilies:     b.Spec.Service.Status.IPFamilies,

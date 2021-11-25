@@ -16,7 +16,6 @@ type StorageSpec struct {
 	// Where cluster data should be kept
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`
-	//TenantDomain string `json:"tenant_domain"`  // fixme?
 	// (Optional) Storage services parameter overrides
 	// Default: (not specified)
 	// +optional

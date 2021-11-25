@@ -191,7 +191,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		tlsConfiguration := []string{
-			"--ca", // fixme consts
+			"--ca",
 			"/tls/interconnect/ca.crt",
 			"--cert",
 			"/tls/interconnect/tls.crt",
