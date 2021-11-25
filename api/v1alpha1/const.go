@@ -6,9 +6,14 @@ const (
 
 	ImagePathFormat = "%s:%s"
 
-	GRPCPort         = 2135
-	InterconnectPort = 19001
-	StatusPort       = 8765
+	GRPCPort            = 2135
+	GRPCServicePortName = "grpc"
+
+	InterconnectPort            = 19001
+	InterconnectServicePortName = "interconnect"
+
+	StatusPort            = 8765
+	StatusServicePortName = "status"
 
 	DiskPathPrefix      = "/dev/kikimr_ssd"
 	DiskNumberMaxDigits = 2

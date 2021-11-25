@@ -226,8 +226,8 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		args = append(args,
-			//"--ca",
-			//"/tls/interconnect/ca.crt",  // re-check, may be unnecessary, also overrides gRPC CA
+			"--ca",
+			"/tls/interconnect/ca.crt",
 			"--cert",
 			"/tls/interconnect/tls.crt",
 			"--key",

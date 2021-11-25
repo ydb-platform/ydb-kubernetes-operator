@@ -22,6 +22,8 @@ type ServiceBuilder struct {
 
 	Labels         map[string]string
 	SelectorLabels map[string]string
+
+	Annotations map[string]string
 }
 
 func (b *ServiceBuilder) Build(obj client.Object) error {
@@ -39,6 +41,7 @@ func (b *ServiceBuilder) Build(obj client.Object) error {
 	}
 	service.ObjectMeta.Namespace = b.GetNamespace()
 	service.ObjectMeta.Labels = b.Labels
+	service.ObjectMeta.Annotations = b.Annotations
 
 	service.Spec.Ports = b.Ports
 	service.Spec.Selector = b.SelectorLabels
