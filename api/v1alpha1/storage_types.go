@@ -20,6 +20,13 @@ type StorageSpec struct {
 	// Default: (not specified)
 	// +optional
 	Service StorageServices `json:"service,omitempty"`
+	// (Optional) Name of the root storage domain
+	// Default: root
+	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +kubebuilder:default:="root"
+	// +optional
+	Domain string `json:"domain"`
 	// (Optional) Storage container resource limits. Any container limits
 	// can be specified.
 	// Default: (not specified)

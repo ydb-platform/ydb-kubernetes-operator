@@ -19,4 +19,7 @@ const (
 	DiskNumberMaxDigits = 2
 
 	ConfigDir = "/opt/kikimr/cfg"
+
+	DefaultDomain    = "root"
+	TenantNameFormat = "/%s/%s"
 )

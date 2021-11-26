@@ -17,6 +17,13 @@ type DatabaseSpec struct {
 	// YDB Storage cluster reference
 	// +required
 	StorageClusterRef StorageRef `json:"storageClusterRef"`
+	// (Optional) Name of the root storage domain
+	// Default: root
+	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +kubebuilder:default:="root"
+	// +optional
+	Domain string `json:"domain"`
 	// (Optional) Database container resource limits. Any container limits
 	// can be specified.
 	// Default: (not specified)
