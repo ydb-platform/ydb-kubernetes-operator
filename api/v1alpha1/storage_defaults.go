@@ -28,4 +28,8 @@ func SetStorageClusterSpecDefaults(ydbSpec *StorageSpec) {
 	if ydbSpec.Service.Interconnect.TLSConfiguration == nil {
 		ydbSpec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
+
+	if ydbSpec.Domain == "" {
+		ydbSpec.Domain = "root"
+	}
 }

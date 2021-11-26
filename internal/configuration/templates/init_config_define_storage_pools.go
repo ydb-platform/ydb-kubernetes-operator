@@ -5,7 +5,7 @@ Command {
   DefineStoragePool {
     BoxId: 1
     StoragePoolId: 1
-    Name: "/root:hdd"
+    Name: "/{{ .Domain }}:hdd"
     ErasureSpecies: "block-4-2"
     VDiskKind: "Default"
     Kind: "hdd"

@@ -25,6 +25,10 @@ func SetDatabaseSpecDefaults(ydbCr *Database, ydbSpec *DatabaseSpec) {
 		ydbSpec.Image.PullPolicyName = &policy
 	}
 
+	if ydbSpec.Domain == "" {
+		ydbSpec.Domain = "root"
+	}
+
 	if ydbSpec.Service.GRPC.TLSConfiguration == nil {
 		ydbSpec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}

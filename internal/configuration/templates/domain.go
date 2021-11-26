@@ -7,7 +7,7 @@ Domain {
   SSId: 1
   HiveUid: 1
   PlanResolution: 10
-  Name: "root"
+  Name: "{{ .Domain }}"
   StoragePoolTypes {
     Kind: "hdd"
     PoolConfig {

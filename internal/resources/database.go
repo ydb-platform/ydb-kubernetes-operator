@@ -9,10 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	TenantPathFormat string = "/root/%s"
-)
-
 type DatabaseBuilder struct {
 	*api.Database
 }
@@ -42,7 +38,7 @@ func (b *DatabaseBuilder) GetStorageEndpoint() string {
 }
 
 func (b *DatabaseBuilder) GetTenantName() string {
-	return fmt.Sprintf(TenantPathFormat, b.Name)
+	return fmt.Sprintf(api.TenantNameFormat, b.Spec.Domain, b.Name)
 }
 
 func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
