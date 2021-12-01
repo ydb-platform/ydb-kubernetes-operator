@@ -23,3 +23,10 @@ const (
 	DefaultDomain    = "root"
 	TenantNameFormat = "/%s/%s"
 )
+
+type ErasureType string
+
+const (
+	ErasureBlock42   ErasureType = "block-4-2"
+	ErasureMirror3DC ErasureType = "mirror-3-dc"
+)

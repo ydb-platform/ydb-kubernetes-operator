@@ -1048,6 +1048,15 @@ spec:
                 maxLength: 63
                 pattern: '[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?'
                 type: string
+              erasure:
+                default: block-4-2
+                description: Data storage mode. For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
+                  TODO English docs link FIXME mirror-3-dc is only supported with
+                  external configuration
+                enum:
+                - mirror-3-dc
+                - block-4-2
+                type: string
               image:
                 description: Container image information
                 properties:
@@ -1413,6 +1422,7 @@ spec:
                 type: string
             required:
             - dataStore
+            - erasure
             - nodes
             type: object
           status:
