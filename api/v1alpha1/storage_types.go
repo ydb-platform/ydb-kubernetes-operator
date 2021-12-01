@@ -13,6 +13,13 @@ type StorageSpec struct {
 	// ConfigMap name with custom YDB configuration, where key is config file name and value is config file content.
 	// +optional
 	ClusterConfig string `json:"config,omitempty"`
+	// Data storage mode.
+	// For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
+	// TODO English docs link
+	// FIXME mirror-3-dc is only supported with external configuration
+	// +kubebuilder:validation:Enum=mirror-3-dc;block-4-2
+	// +kubebuilder:default:=block-4-2
+	Erasure ErasureType `json:"erasure"`
 	// Where cluster data should be kept
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`

@@ -24,11 +24,11 @@ type StorageStatefulSetBuilder struct {
 	Labels map[string]string
 }
 
-func StringRJust(str, pad string, lenght int) string {
+func StringRJust(str, pad string, length int) string {
 	for {
 		str = pad + str
-		if len(str) > lenght {
-			return str[len(str)-lenght:]
+		if len(str) > length {
+			return str[len(str)-length:]
 		}
 	}
 }
@@ -104,12 +104,32 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},
+			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 		},
 	}
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
 	return podTemplate
+}
+
+func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.TopologySpreadConstraint {
+	if b.Spec.Erasure == v1alpha1.ErasureBlock42 {
+		return []corev1.TopologySpreadConstraint{}
+	}
+
+	return []corev1.TopologySpreadConstraint{
+		{
+			TopologyKey:       corev1.LabelTopologyZone,
+			WhenUnsatisfiable: corev1.DoNotSchedule,
+			LabelSelector:     &metav1.LabelSelector{MatchLabels: b.Labels},
+		},
+		{
+			TopologyKey:       corev1.LabelHostname,
+			WhenUnsatisfiable: corev1.DoNotSchedule,
+			LabelSelector:     &metav1.LabelSelector{MatchLabels: b.Labels},
+		},
+	}
 }
 
 func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
