@@ -17,8 +17,15 @@ const (
 	// ManagedByKey The tool being used to manage the operation of an application
 	ManagedByKey = "app.kubernetes.io/managed-by"
 
+	// ServiceComponent The specialization of a Service resource
+	ServiceComponent = "ydb.tech/service-for"
+
 	StorageComponent = "storage-node"
 	DynamicComponent = "dynamic-node"
+
+	GRPCComponent         = "grpc"
+	InterconnectComponent = "interconnect"
+	StatusComponent       = "status"
 )
 
 type Labels map[string]string
@@ -31,7 +38,7 @@ func Common(name string, defaultLabels Labels) Labels {
 	return l
 }
 
-func ClusterLabels(cluster *v1alpha1.Storage) Labels {
+func StorageLabels(cluster *v1alpha1.Storage) Labels {
 	l := Common(cluster.Name, cluster.Labels)
 
 	l.Merge(cluster.Spec.AdditionalLabels)
@@ -67,14 +74,16 @@ func (l Labels) Copy() Labels {
 	return res
 }
 
-func (l Labels) Merge(other map[string]string) {
+func (l Labels) Merge(other map[string]string) map[string]string {
 	if other == nil {
-		return
+		return l
 	}
 
 	for k, v := range other {
 		l[k] = v
 	}
+
+	return l
 }
 
 func (l Labels) MergeInPlace(other map[string]string) map[string]string {
