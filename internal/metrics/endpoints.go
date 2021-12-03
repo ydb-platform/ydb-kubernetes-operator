@@ -13,7 +13,7 @@ type MetricsService struct {
 }
 
 func GetStorageMetricsServices() []MetricsService {
-	services := make([]MetricsService, len(storageMetricsServices))
+	var services []MetricsService
 
 	for _, serviceName := range storageMetricsServices {
 		services = append(services, MetricsService{

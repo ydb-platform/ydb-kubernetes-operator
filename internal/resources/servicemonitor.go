@@ -31,7 +31,7 @@ func (b *ServiceMonitorBuilder) Build(obj client.Object) error {
 	}
 
 	if sm.ObjectMeta.Name == "" {
-		sm.ObjectMeta.Name = b.Name
+		sm.ObjectMeta.Name = b.Object.GetName()
 	}
 
 	sm.ObjectMeta.Namespace = b.GetNamespace()
@@ -52,7 +52,7 @@ func (b *ServiceMonitorBuilder) Build(obj client.Object) error {
 }
 
 func (b *ServiceMonitorBuilder) buildEndpoints() []monitoringv1.Endpoint {
-	endpoints := make([]monitoringv1.Endpoint, len(b.MetricsServices))
+	var endpoints []monitoringv1.Endpoint
 
 	for _, service := range b.MetricsServices {
 		metricRelabelings := service.Relabelings
@@ -73,7 +73,7 @@ func (b *ServiceMonitorBuilder) buildEndpoints() []monitoringv1.Endpoint {
 func (b *ServiceMonitorBuilder) Placeholder(cr client.Object) client.Object {
 	return &monitoringv1.ServiceMonitor{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.Name,
+			Name:      cr.GetName(),
 			Namespace: cr.GetNamespace(),
 		},
 	}
