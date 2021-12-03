@@ -1,47 +1,27 @@
 package metrics
 
-import "strings"
+import (
+	"fmt"
 
-const (
-	StorageMetricsEndpointFormat = "/counters/counters=%s/prometheus"
+	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
-type MetricEndpoint struct {
+type MetricsService struct {
 	Name        string
-	MonitorName string
+	Path        string
+	Relabelings []*v1.RelabelConfig
 }
 
-var storageMetricEndpoints = []string{
-	"ydb",
-	"auth",
-	"coordinator",
-	"dsproxy_queue",
-	"grpc",
-	"kqp",
-	"pdisks",
-	"processing",
-	"proxy",
-	"slaves",
-	"storage_pool_stat",
-	"streaming",
-	"tablets",
-	"utils",
-	"yq",
-	"yql",
-	"dsproxynode",
-	"interconnect",
-	"vdisks",
-}
+func GetStorageMetricsServices() []MetricsService {
+	services := make([]MetricsService, len(storageMetricsServices))
 
-func GetStorageMetricEndpoints() []MetricEndpoint {
-	result := make([]MetricEndpoint, len(storageMetricEndpoints))
-
-	for i, e := range storageMetricEndpoints {
-		result[i] = MetricEndpoint{
-			Name:        e,
-			MonitorName: strings.Replace(e, "_", "-", -1),
-		}
+	for _, serviceName := range storageMetricsServices {
+		services = append(services, MetricsService{
+			Name:        serviceName,
+			Path:        fmt.Sprintf(MetricEndpointFormat, serviceName),
+			Relabelings: GetStorageMetricsRelabelings(serviceName),
+		})
 	}
 
-	return result
+	return services
 }

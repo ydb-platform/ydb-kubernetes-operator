@@ -46,6 +46,10 @@ type StorageSpec struct {
 	// Default: ""
 	// +optional
 	YDBVersion string `json:"version,omitempty"`
+	// (Optional) Monitoring sets configuration options for YDB observability
+	// Default: ""
+	// +optional
+	Monitoring MonitoringOptions `json:"monitoring,omitempty"`
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/

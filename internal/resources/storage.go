@@ -36,23 +36,14 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 }
 
 func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
-	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Name, b.Namespace)
+	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Name, b.Namespace) // FIXME .svc.cluster.local should not be hardcoded
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
 func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
-	ll := labels.ClusterLabels(b.Unwrap())
+	storageLabels := labels.StorageLabels(b.Unwrap())
 
-	serviceMonitors := make([]ResourceBuilder, len(metrics.GetStorageMetricEndpoints()))
-
-	for i, e := range metrics.GetStorageMetricEndpoints() {
-		smLabels := ll.Copy()
-		serviceMonitors[i] = &ServiceMonitorBuilder{
-			Object: b,
-			Name:   fmt.Sprintf("%s-%s", b.Name, e.MonitorName),
-			Labels: smLabels,
-		}
-	}
+	var optionalBuilders []ResourceBuilder
 
 	if b.Spec.ClusterConfig == "" {
 		cfg, err := configuration.Build(b.Unwrap())
@@ -60,23 +51,49 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		if err != nil {
 			b.Log.Error(err, "failed to generate configuration")
 		}
-		serviceMonitors = append(
-			serviceMonitors,
+		optionalBuilders = append(
+			optionalBuilders,
 			&ConfigMapBuilder{
 				Object: b,
 				Data:   cfg,
-				Labels: ll,
+				Labels: storageLabels,
 			},
 		)
+	}
 
+	grpcServiceLabels := storageLabels.Copy()
+	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
+	grpcServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.GRPCComponent})
+
+	interconnectServiceLabels := storageLabels.Copy()
+	interconnectServiceLabels.Merge(b.Spec.Service.Interconnect.AdditionalLabels)
+	interconnectServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.InterconnectComponent})
+
+	statusServiceLabels := storageLabels.Copy()
+	statusServiceLabels.Merge(b.Spec.Service.Status.AdditionalLabels)
+	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
+
+	if b.Spec.Monitoring.Enabled {
+		optionalBuilders = append(optionalBuilders,
+			&ServiceMonitorBuilder{
+				Object: b,
+
+				TargetPort:      api.StatusPort,
+				MetricsServices: metrics.GetStorageMetricsServices(),
+				Options:         b.Spec.Monitoring,
+
+				Labels:         storageLabels,
+				SelectorLabels: statusServiceLabels,
+			},
+		)
 	}
 
 	return append(
-		serviceMonitors,
+		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
-			Labels:         ll.MergeInPlace(b.Spec.Service.GRPC.AdditionalLabels),
-			SelectorLabels: ll,
+			Labels:         grpcServiceLabels,
+			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			NameFormat:     grpcServiceNameFormat,
 			Ports: []corev1.ServicePort{{
@@ -88,8 +105,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 		&ServiceBuilder{
 			Object:         b,
-			Labels:         ll.MergeInPlace(b.Spec.Service.Interconnect.AdditionalLabels),
-			SelectorLabels: ll,
+			Labels:         interconnectServiceLabels,
+			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			NameFormat:     interconnectServiceNameFormat,
@@ -102,8 +119,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 		&ServiceBuilder{
 			Object:         b,
-			Labels:         ll.MergeInPlace(b.Spec.Service.Status.AdditionalLabels),
-			SelectorLabels: ll,
+			Labels:         statusServiceLabels,
+			SelectorLabels: storageLabels,
 			NameFormat:     statusServiceNameFormat,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
@@ -113,6 +130,9 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 			IPFamilies:     b.Spec.Service.Status.IPFamilies,
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
-		&StorageStatefulSetBuilder{Storage: b.Unwrap(), Labels: ll},
+		&StorageStatefulSetBuilder{
+			Storage: b.Unwrap(),
+			Labels:  storageLabels,
+		},
 	)
 }
