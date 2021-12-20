@@ -23,7 +23,7 @@ import (
 const (
 	DefaultRequeueDelay               = 10 * time.Second
 	SelfCheckRequeueDelay             = 30 * time.Second
-	StorageInitializationRequeueDelay = 30 * time.Second
+	StorageInitializationRequeueDelay =  5 * time.Second
 
 	ReasonInProgress  = "InProgress"
 	ReasonNotRequired = "NotRequired"
