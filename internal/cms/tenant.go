@@ -32,7 +32,7 @@ func NewTenant(name string) Tenant {
 }
 
 func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder) error {
-	client := grpc.InsecureGrpcClient{
+	client := grpc.GrpcClient{
 		Context: ctx,
 		Target:  database.GetStorageEndpoint(),
 	}
@@ -42,6 +42,7 @@ func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder
 		createDatabaseMethod,
 		t.makeCreateDatabaseRequest(),
 		response,
+		!database.Spec.Service.GRPC.TLSConfiguration.Enabled,
 	)
 
 	if _, err := parseDatabaseCreationResponse(response); err != nil {

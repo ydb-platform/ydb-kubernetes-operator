@@ -2,18 +2,34 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
-type InsecureGrpcClient struct {
+type GrpcClient struct {
 	Context context.Context
 	Target  string
 }
 
-func (client *InsecureGrpcClient) Invoke(method string, input interface{}, output interface{}) error {
+func buildSystemTLSStoreOption() grpc.DialOption {
+	certPool, _ := x509.SystemCertPool()
+	tlsCredentials := credentials.NewTLS(&tls.Config{
+		RootCAs: certPool,
+	})
+	return grpc.WithTransportCredentials(tlsCredentials)
+}
+
+func (client *GrpcClient) Invoke(method string, input interface{}, output interface{}, insecure bool) error {
 	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithInsecure())
+
+	if insecure {
+		opts = append(opts, grpc.WithInsecure())
+	} else {
+		opts = append(opts, buildSystemTLSStoreOption())
+	}
 
 	conn, err := grpc.Dial(client.Target, opts...)
 	if err != nil {
