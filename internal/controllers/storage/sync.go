@@ -191,8 +191,8 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 		var eventMessage string = fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
 			reflect.TypeOf(new_resource),
-			new_resource.ObjectMeta.Namespace,
-			new_resource.ObjectMeta.Name,
+			new_resource.GetNamespace(),
+			new_resource.GetName(),
 		)
 		if err != nil {
 			r.Recorder.Event(
@@ -206,6 +206,7 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeNormal,
+				"ProvisioningDone",
 				eventMessage + fmt.Sprintf(", changed, result: %s", result),
 			)
 		}
