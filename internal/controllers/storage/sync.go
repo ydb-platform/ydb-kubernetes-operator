@@ -6,7 +6,6 @@ import (
 	"time"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -45,65 +44,63 @@ const (
 	InitCMSStepCondition        = "InitCMSStep"
 	InitCMSStepReasonInProgress = ReasonInProgress
 	InitCMSStepReasonCompleted  = ReasonCompleted
+
+	Stop     = true
+	Continue = false
 )
 
 func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
-	var err error
+	var stop bool
 	var result ctrl.Result
+	var err error
 
 	storage := resources.NewCluster(cr, r.Log)
 	storage.SetStatusOnFirstReconcile()
 
-	result, err = r.waitForStatefulSetToScale(ctx, &storage)
-	if err != nil || !result.IsZero() {
+	stop, result, err = r.handleResourcesSync(ctx, &storage)
+	if stop {
 		return result, err
 	}
-
-	result, err = r.handleResourcesSync(ctx, &storage)
-	if err != nil || !result.IsZero() {
+	stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
+	if stop {
 		return result, err
 	}
-
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
-		result, err = r.setInitialStatus(ctx, &storage)
-		if err != nil || !result.IsZero() {
+		stop, result, err = r.setInitialStatus(ctx, &storage)
+		if stop {
 			return result, err
 		}
-		result, err = r.runSelfCheck(ctx, &storage, true)
-		if err != nil || !result.IsZero() {
+		stop, result, err = r.runSelfCheck(ctx, &storage, true)
+		if stop {
 			return result, err
 		}
-		result, err = r.runInitScripts(ctx, &storage)
-		if err != nil || !result.IsZero() {
+		stop, result, err = r.runInitScripts(ctx, &storage)
+		if stop {
 			return result, err
 		}
 	}
-
-	result, err = r.runSelfCheck(ctx, &storage, false)
-	if err != nil || !result.IsZero() {
-		return result, err
-	}
-
-	return controllers.Ok()
+	_, result, err = r.runSelfCheck(ctx, &storage, false)
+	return result, err
 }
 
-func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
+func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step waitForStatefulSetToScale")
 	found := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      storage.Name,
 		Namespace: storage.Namespace,
 	}, found)
-
-	if err != nil && errors.IsNotFound(err) {
-		return controllers.Ok()
-	} else if err != nil {
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		}
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
 			"Syncing",
 			fmt.Sprintf("Failed to get StatefulSets: %s", err),
 		)
-		return controllers.NoRequeue(err)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	podLabels := labels.Common(storage.Name, make(map[string]string))
@@ -121,8 +118,8 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 		client.InNamespace(storage.Namespace),
 		matchingLabels,
 	}
-	err = r.List(ctx, podList, opts...)
 
+	err = r.List(ctx, podList, opts...)
 	if err != nil {
 		r.Recorder.Event(
 			storage,
@@ -130,7 +127,7 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 			"Syncing",
 			fmt.Sprintf("Failed to list cluster pods: %s", err),
 		)
-		return controllers.NoRequeue(err)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	runningPods := 0
@@ -141,39 +138,35 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 	}
 
 	if runningPods != int(storage.Spec.Nodes) {
-		storage.Status.State = "Provisioning"
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
-
 		msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
 		r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", msg)
 
-		return controllers.RequeueAfter(DefaultRequeueDelay, nil)
+		storage.Status.State = "Provisioning"
+		return r.setState(ctx, storage)
 	}
 
 	if storage.Status.State != "Ready" && meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
-		storage.Status.State = "Ready"
-		if _, err = r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
 		r.Recorder.Event(storage, corev1.EventTypeNormal, "ResourcesReady", "Everything should be in sync")
+		storage.Status.State = "Ready"
+		return r.setState(ctx, storage)
 	}
 
-	return controllers.Ok()
+	return Continue, ctrl.Result{}, nil
 }
 
-func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
+func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handleResourcesSync")
 	r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", "Resource sync is in progress")
 
 	areResourcesCreated := false
 
 	for _, builder := range storage.GetResourceBuilders() {
-		rr := builder.Placeholder(storage)
+		new_resource := builder.Placeholder(storage)
 
-		result, err := ctrl.CreateOrUpdate(ctx, r.Client, rr, func() error {
-			err := builder.Build(rr)
+		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, new_resource, func() error {
+			var err error
 
+			err = builder.Build(new_resource)
 			if err != nil {
 				r.Recorder.Event(
 					storage,
@@ -183,8 +176,7 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 				)
 				return err
 			}
-
-			err = ctrl.SetControllerReference(storage.Unwrap(), rr, r.Scheme)
+			err = ctrl.SetControllerReference(storage.Unwrap(), new_resource, r.Scheme)
 			if err != nil {
 				r.Recorder.Event(
 					storage,
@@ -198,6 +190,8 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 			return nil
 		})
 
+		r.Log.Info(fmt.Sprintf("CreateOrUpdate result: %+v", result))
+
 		if err != nil {
 			r.Recorder.Event(
 				storage,
@@ -205,27 +199,27 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 				"ProvisioningFailed",
 				fmt.Sprintf("Failed syncing resources: %s", err),
 			)
-			return controllers.NoRequeue(err)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		areResourcesCreated = areResourcesCreated || (result == controllerutil.OperationResultCreated)
+		areResourcesCreated = areResourcesCreated || (result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated)
 	}
 
 	r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", "Resource sync complete")
 
-	if areResourcesCreated {
-		return controllers.RequeueImmediately()
+	if !areResourcesCreated {
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
-
-	return controllers.Ok()
+	return Continue, ctrl.Result{}, nil
 }
 
-func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources.StorageClusterBuilder, waitForGoodResultWithoutIssues bool) (ctrl.Result, error) {
+func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources.StorageClusterBuilder, waitForGoodResultWithoutIssues bool) (bool, ctrl.Result, error) {
+	r.Log.Info("running step runSelfCheck")
 	result, err := healthcheck.GetSelfCheckResult(ctx, storage)
 
 	if err != nil {
 		r.Log.Error(err, "GetSelfCheckResult error")
-		return controllers.RequeueAfter(SelfCheckRequeueDelay, err)
+		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
 	}
 
 	eventType := corev1.EventTypeNormal
@@ -241,12 +235,12 @@ func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources
 	)
 
 	if waitForGoodResultWithoutIssues && (result.SelfCheckResult.String() != "GOOD" || len(result.IssueLog) > 0) {
-		return controllers.RequeueAfter(SelfCheckRequeueDelay, err)
+		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
 	}
-	return controllers.Ok()
+	return Continue, ctrl.Result{}, nil
 }
 
-func (r *StorageReconciler) setState(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
+func (r *StorageReconciler) setState(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
 	storageCr := &ydbv1alpha1.Storage{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: storage.Namespace,
@@ -255,7 +249,7 @@ func (r *StorageReconciler) setState(ctx context.Context, storage *resources.Sto
 
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
-		return controllers.NoRequeue(err)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	storageCr.Status.State = storage.Status.State
@@ -264,8 +258,8 @@ func (r *StorageReconciler) setState(ctx context.Context, storage *resources.Sto
 	err = r.Status().Update(ctx, storageCr)
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
-		return controllers.NoRequeue(err)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	return controllers.Ok()
+	return Stop, ctrl.Result{Requeue: true}, nil
 }

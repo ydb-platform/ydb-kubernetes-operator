@@ -6,7 +6,6 @@ import (
 	"path"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	corev1 "k8s.io/api/core/v1"
@@ -23,7 +22,9 @@ const (
 	InitCMSScript         = "init_cms.bash"
 )
 
-func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
+func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step setInitialStatus")
+	var changed bool = false
 	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageInitializedCondition,
@@ -31,11 +32,8 @@ func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resou
 			Reason:  StorageInitializedReasonInProgress,
 			Message: "Storage is not initialized",
 		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
+		changed = true
 	}
-
 	if meta.FindStatusCondition(storage.Status.Conditions, InitStorageStepCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    InitStorageStepCondition,
@@ -43,33 +41,38 @@ func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resou
 			Reason:  InitStorageStepReasonInProgress,
 			Message: "InitStorageStep is required",
 		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
+		changed = true
 	}
-
+	if meta.FindStatusCondition(storage.Status.Conditions, InitCMSStepCondition) == nil {
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:    InitCMSStepCondition,
+			Status:  "False",
+			Reason:  InitCMSStepReasonInProgress,
+			Message: "InitCMSStep is required",
+		})
+		changed = true
+	}
 	if meta.FindStatusCondition(storage.Status.Conditions, InitRootStorageStepCondition) == nil {
 		configMapName := storage.Name
 		if storage.Spec.ClusterConfig != "" {
 			configMapName = storage.Spec.ClusterConfig
 		}
-
 		configMap := &corev1.ConfigMap{}
 		err := r.Get(ctx, types.NamespacedName{
 			Name:      configMapName,
 			Namespace: storage.Namespace,
 		}, configMap)
 
-		if err != nil && errors.IsNotFound(err) {
-			return controllers.Ok()
-		} else if err != nil {
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeNormal,
-				"Syncing",
-				fmt.Sprintf("Failed to get ConfigMap: %s", err),
-			)
-			return controllers.NoRequeue(err)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				r.Recorder.Event(
+					storage,
+					corev1.EventTypeNormal,
+					"Syncing",
+					fmt.Sprintf("Failed to get ConfigMap: %s", err),
+				)
+			}
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
 		if _, ok := configMap.Data[InitRootStorageScript]; ok {
@@ -79,9 +82,7 @@ func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resou
 				Reason:  InitRootStorageStepReasonInProgress,
 				Message: fmt.Sprintf("InitRootStorageStep is required, %s script is specified in ConfigMap: %s", InitRootStorageScript, configMapName),
 			})
-			if _, err := r.setState(ctx, storage); err != nil {
-				return controllers.NoRequeue(err)
-			}
+			changed = true
 		} else {
 			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 				Type:    InitRootStorageStepCondition,
@@ -89,35 +90,24 @@ func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resou
 				Reason:  InitRootStorageStepReasonNotRequired,
 				Message: "InitRootStorageStep is not required",
 			})
-			if _, err := r.setState(ctx, storage); err != nil {
-				return controllers.NoRequeue(err)
-			}
+			changed = true
 		}
 	}
-
-	if meta.FindStatusCondition(storage.Status.Conditions, InitCMSStepCondition) == nil {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitCMSStepCondition,
-			Status:  "False",
-			Reason:  InitCMSStepReasonInProgress,
-			Message: "InitCMSStep is required",
-		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
+	if changed {
+		return r.setState(ctx, storage)
 	}
-
-	return controllers.Ok()
+	return Continue, ctrl.Result{}, nil
 }
 
-func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resources.StorageClusterBuilder) (ctrl.Result, error) {
+func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step runInitScripts")
 	podName := fmt.Sprintf("%s-0", storage.Name)
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, InitStorageStepCondition) {
 		cmd := []string{"/bin/bash", path.Join(v1alpha1.ConfigDir, InitStorageScript)}
 		_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
 		if err != nil {
-			return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
+			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 		}
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    InitStorageStepCondition,
@@ -125,16 +115,14 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 			Reason:  InitStorageStepReasonCompleted,
 			Message: "InitStorageStep completed successfully",
 		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
+		return r.setState(ctx, storage)
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, InitRootStorageStepCondition) {
 		cmd := []string{"/bin/bash", path.Join(v1alpha1.ConfigDir, InitRootStorageScript)}
 		_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
 		if err != nil {
-			return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
+			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 		}
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    InitRootStorageStepCondition,
@@ -142,16 +130,14 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 			Reason:  InitRootStorageStepReasonCompleted,
 			Message: "InitRootStorageStep completed successfully",
 		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
+		return r.setState(ctx, storage)
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, InitCMSStepCondition) {
 		cmd := []string{"/bin/bash", path.Join(v1alpha1.ConfigDir, InitCMSScript)}
 		_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
 		if err != nil {
-			return controllers.RequeueAfter(StorageInitializationRequeueDelay, err)
+			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 		}
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    InitCMSStepCondition,
@@ -159,9 +145,7 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 			Reason:  InitCMSStepReasonCompleted,
 			Message: "InitCMSStep completed successfully",
 		})
-		if _, err := r.setState(ctx, storage); err != nil {
-			return controllers.NoRequeue(err)
-		}
+		return r.setState(ctx, storage)
 	}
 
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
@@ -170,9 +154,5 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 		Reason:  StorageInitializedReasonCompleted,
 		Message: "Storage initialized successfully",
 	})
-	if _, err := r.setState(ctx, storage); err != nil {
-		return controllers.NoRequeue(err)
-	}
-
-	return controllers.RequeueImmediately()
+	return r.setState(ctx, storage)
 }
