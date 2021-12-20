@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"reflect"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
@@ -156,9 +157,6 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 
 func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
-	r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", "Resource sync is in progress")
-
-	areResourcesCreated := false
 
 	for _, builder := range storage.GetResourceBuilders() {
 		new_resource := builder.Placeholder(storage)
@@ -190,26 +188,29 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 			return nil
 		})
 
-		r.Log.Info(fmt.Sprintf("CreateOrUpdate result: %+v", result))
-
+		var eventMessage string = fmt.Sprintf(
+			"Resource: %s, Namespace: %s, Name: %s",
+			reflect.TypeOf(new_resource),
+			new_resource.ObjectMeta.Namespace,
+			new_resource.ObjectMeta.Name,
+		)
 		if err != nil {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				fmt.Sprintf("Failed syncing resources: %s", err),
+				eventMessage + fmt.Sprintf(", failed to sync, error: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		} else if (result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated) {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeNormal,
+				eventMessage + fmt.Sprintf(", changed, result: %s", result),
+			)
 		}
-
-		areResourcesCreated = areResourcesCreated || (result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated)
 	}
-
-	r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", "Resource sync complete")
-
-	if !areResourcesCreated {
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-	}
+	r.Log.Info("Resource sync complete")
 	return Continue, ctrl.Result{}, nil
 }
 
