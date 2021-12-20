@@ -141,7 +141,6 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 	if runningPods != int(storage.Spec.Nodes) {
 		msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
 		r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", msg)
-
 		storage.Status.State = "Provisioning"
 		return r.setState(ctx, storage)
 	}
@@ -206,7 +205,7 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeNormal,
-				"ProvisioningDone",
+				"Provisioning",
 				eventMessage + fmt.Sprintf(", changed, result: %s", result),
 			)
 		}
@@ -236,7 +235,7 @@ func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources
 		fmt.Sprintf("SelfCheck result: %s, issues found: %d", result.SelfCheckResult.String(), len(result.IssueLog)),
 	)
 
-	if waitForGoodResultWithoutIssues && (result.SelfCheckResult.String() != "GOOD" || len(result.IssueLog) > 0) {
+	if waitForGoodResultWithoutIssues && result.SelfCheckResult.String() != "GOOD" {
 		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
 	}
 	return Continue, ctrl.Result{}, nil
