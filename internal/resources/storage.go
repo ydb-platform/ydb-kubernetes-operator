@@ -95,10 +95,10 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     grpcServiceNameFormat,
 			Labels:         grpcServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
-			NameFormat:     grpcServiceNameFormat,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
 				Port: api.GRPCPort,
@@ -108,11 +108,11 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     interconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
-			NameFormat:     interconnectServiceNameFormat,
 			Ports: []corev1.ServicePort{{
 				Name: api.InterconnectServicePortName,
 				Port: api.InterconnectPort,
@@ -122,9 +122,9 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     statusServiceNameFormat,
 			Labels:         statusServiceLabels,
 			SelectorLabels: storageLabels,
-			NameFormat:     statusServiceNameFormat,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,

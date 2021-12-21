@@ -26,6 +26,7 @@ const (
 	Ready        ClusterState = "Ready"
 
 	DefaultRequeueDelay        = 10 * time.Second
+	StatusUpdateRequeueDelay   =  1 * time.Second
 	TenantCreationRequeueDelay = 30 * time.Second
 	StorageAwaitRequeueDelay   = 60 * time.Second
 
@@ -45,10 +46,7 @@ func (r *DatabaseReconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Databa
 	var err error
 
 	database := resources.NewDatabase(ydbCr)
-	if changed := database.SetStatusOnFirstReconcile(); changed {
-		_, result, err = r.setState(ctx, &database)
-		return result, err
-	}
+	database.SetStatusOnFirstReconcile()
 
 	stop, result, err = r.waitForClusterResource(ctx, &database)
 	if stop {
@@ -275,7 +273,7 @@ func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.D
 
 	if err != nil {
 		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
-		return Stop, ctrl.Result{Requeue: true}, err
+		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, err
 	}
 
 	databaseCr.Status.State = database.Status.State
@@ -284,8 +282,8 @@ func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.D
 	err = r.Status().Update(ctx, databaseCr)
 	if err != nil {
 		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
-		return Stop, ctrl.Result{Requeue: true}, err
+		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, err
 	}
 
-	return Stop, ctrl.Result{Requeue: true}, nil
+	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }

@@ -50,6 +50,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 	return []ResourceBuilder{
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     grpcServiceNameFormat,
 			Labels:         ll.MergeInPlace(b.Spec.Service.GRPC.AdditionalLabels),
 			SelectorLabels: ll,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
@@ -76,10 +77,10 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     statusServiceNameFormat,
 			Labels:         ll.MergeInPlace(b.Spec.Service.Status.AdditionalLabels),
 			SelectorLabels: ll,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
-			NameFormat:     statusServiceNameFormat,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
 				Port: api.StatusPort,

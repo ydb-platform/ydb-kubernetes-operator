@@ -26,6 +26,7 @@ const (
 	Ready        ClusterState = "Ready"
 
 	DefaultRequeueDelay               = 10 * time.Second
+	StatusUpdateRequeueDelay          =  1 * time.Second
 	SelfCheckRequeueDelay             = 30 * time.Second
 	StorageInitializationRequeueDelay =  5 * time.Second
 
@@ -62,10 +63,7 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	var err error
 
 	storage := resources.NewCluster(cr, r.Log)
-	if changed := storage.SetStatusOnFirstReconcile(); changed {
-		_, result, err = r.setState(ctx, &storage)
-		return result, err
-	}
+	storage.SetStatusOnFirstReconcile()
 
 	stop, result, err = r.handleResourcesSync(ctx, &storage)
 	if stop {
@@ -259,7 +257,7 @@ func (r *StorageReconciler) setState(ctx context.Context, storage *resources.Sto
 
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
-		return Stop, ctrl.Result{Requeue: true}, err
+		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, err
 	}
 
 	storageCr.Status.State = storage.Status.State
@@ -268,8 +266,8 @@ func (r *StorageReconciler) setState(ctx context.Context, storage *resources.Sto
 	err = r.Status().Update(ctx, storageCr)
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
-		return Stop, ctrl.Result{Requeue: true}, err
+		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, err
 	}
 
-	return Stop, ctrl.Result{Requeue: true}, nil
+	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
