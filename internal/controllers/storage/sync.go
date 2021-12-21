@@ -21,6 +21,10 @@ import (
 )
 
 const (
+	Provisioning ClusterState = "Provisioning"
+	Initializing ClusterState = "Initializing"
+	Ready        ClusterState = "Ready"
+
 	DefaultRequeueDelay               = 10 * time.Second
 	SelfCheckRequeueDelay             = 30 * time.Second
 	StorageInitializationRequeueDelay =  5 * time.Second
@@ -50,13 +54,18 @@ const (
 	Continue = false
 )
 
+type ClusterState string
+
 func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
 
 	storage := resources.NewCluster(cr, r.Log)
-	storage.SetStatusOnFirstReconcile()
+	if changed := storage.SetStatusOnFirstReconcile(); changed {
+		_, result, err = r.setState(ctx, &storage)
+		return result, err
+	}
 
 	stop, result, err = r.handleResourcesSync(ctx, &storage)
 	if stop {
@@ -140,18 +149,18 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 
 	if runningPods != int(storage.Spec.Nodes) {
 		msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
-		r.Recorder.Event(storage, corev1.EventTypeNormal, "Provisioning", msg)
-		storage.Status.State = "Provisioning"
+		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
+		storage.Status.State = string(Provisioning)
 		return r.setState(ctx, storage)
 	}
 
-	if storage.Status.State != "Ready" && meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
+	if storage.Status.State != string(Ready) && meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		r.Recorder.Event(storage, corev1.EventTypeNormal, "ResourcesReady", "Everything should be in sync")
-		storage.Status.State = "Ready"
+		storage.Status.State = string(Ready)
 		return r.setState(ctx, storage)
 	}
 
-	return Continue, ctrl.Result{}, nil
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
@@ -205,13 +214,13 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeNormal,
-				"Provisioning",
+				string(Provisioning),
 				eventMessage + fmt.Sprintf(", changed, result: %s", result),
 			)
 		}
 	}
-	r.Log.Info("Resource sync complete")
-	return Continue, ctrl.Result{}, nil
+	r.Log.Info("resource sync complete")
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources.StorageClusterBuilder, waitForGoodResultWithoutIssues bool) (bool, ctrl.Result, error) {
@@ -238,7 +247,7 @@ func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources
 	if waitForGoodResultWithoutIssues && result.SelfCheckResult.String() != "GOOD" {
 		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
 	}
-	return Continue, ctrl.Result{}, nil
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *StorageReconciler) setState(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
@@ -250,7 +259,7 @@ func (r *StorageReconciler) setState(ctx context.Context, storage *resources.Sto
 
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		return Stop, ctrl.Result{Requeue: true}, err
 	}
 
 	storageCr.Status.State = storage.Status.State
@@ -259,7 +268,7 @@ func (r *StorageReconciler) setState(ctx context.Context, storage *resources.Sto
 	err = r.Status().Update(ctx, storageCr)
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		return Stop, ctrl.Result{Requeue: true}, err
 	}
 
 	return Stop, ctrl.Result{Requeue: true}, nil

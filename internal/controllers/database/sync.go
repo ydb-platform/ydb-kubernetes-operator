@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"reflect"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
@@ -31,48 +32,51 @@ const (
 	TenantInitializedCondition        = "TenantInitialized"
 	TenantInitializedReasonInProgress = "InProgres"
 	TenantInitializedReasonCompleted  = "Completed"
+
+	Stop     = true
+	Continue = false
 )
 
 type ClusterState string
 
 func (r *DatabaseReconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Database) (ctrl.Result, error) {
-	var err error
+	var stop bool
 	var result ctrl.Result
+	var err error
 
 	database := resources.NewDatabase(ydbCr)
-	database.SetStatusOnFirstReconcile()
-	_, err = r.setState(ctx, &database)
-
-	result, err = r.waitForClusterResource(ctx, &database)
-	if err != nil || !result.IsZero() {
+	if changed := database.SetStatusOnFirstReconcile(); changed {
+		_, result, err = r.setState(ctx, &database)
 		return result, err
 	}
 
-	result, err = r.waitForStatefulSetToScale(ctx, &database)
-	if err != nil || !result.IsZero() {
+	stop, result, err = r.waitForClusterResource(ctx, &database)
+	if stop {
 		return result, err
 	}
-
-	result, err = r.handleResourcesSync(ctx, &database)
-	if err != nil || !result.IsZero() {
+	stop, result, err = r.handleResourcesSync(ctx, &database)
+	if stop {
 		return result, err
 	}
-
+	stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
+	if stop {
+		return result, err
+	}
 	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
-		result, err = r.setInitialStatus(ctx, &database)
-		if err != nil || !result.IsZero() {
+		stop, result, err = r.setInitialStatus(ctx, &database)
+		if stop {
 			return result, err
 		}
-		result, err = r.handleTenantCreation(ctx, &database)
-		if err != nil || !result.IsZero() {
+		stop, result, err = r.handleTenantCreation(ctx, &database)
+		if stop {
 			return result, err
 		}
 	}
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{Requeue: false}, nil
 }
 
-func (r *DatabaseReconciler) waitForClusterResource(ctx context.Context, database *resources.DatabaseBuilder) (ctrl.Result, error) {
+func (r *DatabaseReconciler) waitForClusterResource(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step waitForClusterResource")
 	found := &ydbv1alpha1.Storage{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      database.Spec.StorageClusterRef.Name,
@@ -91,7 +95,7 @@ func (r *DatabaseReconciler) waitForClusterResource(ctx context.Context, databas
 				err,
 			),
 		)
-		return ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
+		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
 	if found.Status.State != "Ready" {
@@ -106,65 +110,59 @@ func (r *DatabaseReconciler) waitForClusterResource(ctx context.Context, databas
 				found.Status.State,
 			),
 		)
-		return ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
+		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
-	return ctrl.Result{}, nil
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *DatabaseReconciler) waitForStatefulSetToScale(ctx context.Context, database *resources.DatabaseBuilder) (ctrl.Result, error) {
+func (r *DatabaseReconciler) waitForStatefulSetToScale(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step waitForStatefulSetToScale")
 	found := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      database.Name,
 		Namespace: database.Namespace,
 	}, found)
 
-	if err != nil && errors.IsNotFound(err) {
-		return ctrl.Result{}, nil
-	} else if err != nil {
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		}
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
 			"Syncing",
 			fmt.Sprintf("Failed to get StatefulSets: %s", err),
 		)
-		return ctrl.Result{}, err
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	if found.Status.Replicas != database.Spec.Nodes {
-		database.Status.State = string(Provisioning)
-		if _, err := r.setState(ctx, database); err != nil {
-			return ctrl.Result{}, err
-		}
-
 		msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", found.Status.Replicas, database.Spec.Nodes)
 		r.Recorder.Event(database, corev1.EventTypeNormal, "Provisioning", msg)
-
-		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		database.Status.State = string(Provisioning)
+		return r.setState(ctx, database)
 	}
 
 	if database.Status.State != string(Ready) && meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
-		database.Status.State = string(Ready)
-		if _, err = r.setState(ctx, database); err != nil {
-			return ctrl.Result{}, err
-		}
 		r.Recorder.Event(database, corev1.EventTypeNormal, "ResourcesReady", "Resource are ready and DB is initialized")
+		database.Status.State = string(Ready)
+		return r.setState(ctx, database)
 	}
 
-	return ctrl.Result{}, nil
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *resources.DatabaseBuilder) (ctrl.Result, error) {
-	r.Recorder.Event(database, corev1.EventTypeNormal, "Provisioning", "Resource sync is in progress")
-
-	areResourcesCreated := false
+func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handleResourcesSync")
 
 	for _, builder := range database.GetResourceBuilders() {
-		rr := builder.Placeholder(database)
+		new_resource := builder.Placeholder(database)
 
-		result, err := ctrl.CreateOrUpdate(ctx, r.Client, rr, func() error {
-			err := builder.Build(rr)
+		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, new_resource, func() error {
+			var err error
 
+			err = builder.Build(new_resource)
 			if err != nil {
 				r.Recorder.Event(
 					database,
@@ -175,7 +173,7 @@ func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *
 				return err
 			}
 
-			err = ctrl.SetControllerReference(database.Unwrap(), rr, r.Scheme)
+			err = ctrl.SetControllerReference(database.Unwrap(), new_resource, r.Scheme)
 			if err != nil {
 				r.Recorder.Event(
 					database,
@@ -189,54 +187,75 @@ func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *
 			return nil
 		})
 
+		var eventMessage string = fmt.Sprintf(
+			"Resource: %s, Namespace: %s, Name: %s",
+			reflect.TypeOf(new_resource),
+			new_resource.GetNamespace(),
+			new_resource.GetName(),
+		)
 		if err != nil {
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				fmt.Sprintf("Failed syncing resources: %s", err),
+				eventMessage + fmt.Sprintf(", failed to sync, error: %s", err),
 			)
-			return ctrl.Result{}, err
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		} else if (result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated) {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeNormal,
+				"Provisioning",
+				eventMessage + fmt.Sprintf(", changed, result: %s", result),
+			)
 		}
-
-		areResourcesCreated = areResourcesCreated || (result == controllerutil.OperationResultCreated)
 	}
-
-	r.Recorder.Event(database, corev1.EventTypeNormal, "Provisioning", "Resource sync complete")
-
-	if areResourcesCreated {
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	return ctrl.Result{}, nil
+	r.Log.Info("resource sync complete")
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *DatabaseReconciler) setInitialStatus(ctx context.Context, database *resources.DatabaseBuilder) (ctrl.Result, error) {
-	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    TenantInitializedCondition,
-		Status:  "False",
-		Reason:  TenantInitializedReasonInProgress,
-		Message: "Tenant creation in progress",
-	})
-	if _, err := r.setState(ctx, database); err != nil {
-		return ctrl.Result{}, err
+func (r *DatabaseReconciler) setInitialStatus(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step setInitialStatus")
+	var changed bool = false
+	if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil {
+		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+			Type:    TenantInitializedCondition,
+			Status:  "False",
+			Reason:  TenantInitializedReasonInProgress,
+			Message: "Tenant creation in progress",
+		})
+		changed = true
 	}
-	return ctrl.Result{}, nil
+	if database.Status.State != string(Initializing) {
+		database.Status.State = string(Initializing)
+		changed = true
+	}
+	if changed {
+		return r.setState(ctx, database)
+	}
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database *resources.DatabaseBuilder) (ctrl.Result, error) {
-	database.Status.State = string(Initializing)
-	if _, err := r.setState(ctx, database); err != nil {
-		return ctrl.Result{}, err
-	}
+func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handleTenantCreation")
 
 	tenant := cms.NewTenant(database.GetTenantName())
 	err := tenant.Create(ctx, database)
 	if err != nil {
-		r.Recorder.Event(database, corev1.EventTypeWarning, "InitializingFailed", fmt.Sprintf("Error creating tenant %s: %s", tenant.Name, err))
-		return ctrl.Result{RequeueAfter: TenantCreationRequeueDelay}, err
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"InitializingFailed",
+			fmt.Sprintf("Error creating tenant %s: %s", tenant.Name, err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: TenantCreationRequeueDelay}, err
 	}
-	r.Recorder.Event(database, corev1.EventTypeNormal, "Initialized", fmt.Sprintf("Tenant %s created", tenant.Name))
+	r.Recorder.Event(
+		database,
+		corev1.EventTypeNormal,
+		"Initialized",
+		fmt.Sprintf("Tenant %s created", tenant.Name),
+	)
 
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 		Type:    TenantInitializedCondition,
@@ -244,14 +263,10 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 		Reason:  TenantInitializedReasonCompleted,
 		Message: "Tenant creation is complete",
 	})
-	if _, err := r.setState(ctx, database); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{Requeue: true}, nil
+	return r.setState(ctx, database)
 }
 
-func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.DatabaseBuilder) (ctrl.Result, error) {
+func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
 	databaseCr := &ydbv1alpha1.Database{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: database.Namespace,
@@ -260,7 +275,7 @@ func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.D
 
 	if err != nil {
 		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
-		return ctrl.Result{}, err
+		return Stop, ctrl.Result{Requeue: true}, err
 	}
 
 	databaseCr.Status.State = database.Status.State
@@ -269,8 +284,8 @@ func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.D
 	err = r.Status().Update(ctx, databaseCr)
 	if err != nil {
 		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
-		return ctrl.Result{}, err
+		return Stop, ctrl.Result{Requeue: true}, err
 	}
 
-	return ctrl.Result{}, nil
+	return Stop, ctrl.Result{Requeue: true}, nil
 }

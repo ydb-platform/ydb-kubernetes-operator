@@ -21,10 +21,13 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	return DatabaseBuilder{cr}
 }
 
-func (b *DatabaseBuilder) SetStatusOnFirstReconcile() {
+func (b *DatabaseBuilder) SetStatusOnFirstReconcile() bool {
+	var changed bool = false
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
+		changed = true
 	}
+	return changed
 }
 
 func (b *DatabaseBuilder) Unwrap() *api.Database {
