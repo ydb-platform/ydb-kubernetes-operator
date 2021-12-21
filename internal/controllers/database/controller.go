@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-logr/logr"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -48,11 +47,10 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if err != nil {
 		if errors.IsNotFound(err) {
 			r.Log.Info("database resources not found")
-			return controllers.Ok()
-		} else {
-			r.Log.Error(err, "unexpected Get error")
+			return ctrl.Result{}, nil
 		}
-		return controllers.NoRequeue(err)
+		r.Log.Error(err, "unexpected Get error")
+		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 	result, err := r.Sync(ctx, database)
 	if err != nil {
