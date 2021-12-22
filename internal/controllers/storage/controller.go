@@ -54,7 +54,7 @@ func (r *StorageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		if errors.IsNotFound(err) {
 			r.Log.Info("storage resources not found")
-			return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			return ctrl.Result{Requeue: false}, nil
 		}
 		r.Log.Error(err, "unexpected Get error")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
