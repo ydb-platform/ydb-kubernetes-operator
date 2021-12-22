@@ -238,7 +238,7 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 	r.Log.Info("running step handleTenantCreation")
 
 	tenant := cms.NewTenant(database.GetTenantName())
-	err := tenant.Create(ctx, database)
+	err := tenant.Create(ctx, database)                                 // <------!
 	if err != nil {
 		r.Recorder.Event(
 			database,
@@ -254,7 +254,6 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 		"Initialized",
 		fmt.Sprintf("Tenant %s created", tenant.Name),
 	)
-
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 		Type:    TenantInitializedCondition,
 		Status:  "True",
@@ -273,7 +272,7 @@ func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.D
 
 	if err != nil {
 		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, err
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	databaseCr.Status.State = database.Status.State
@@ -282,7 +281,7 @@ func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.D
 	err = r.Status().Update(ctx, databaseCr)
 	if err != nil {
 		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, err
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil

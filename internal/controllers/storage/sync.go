@@ -257,7 +257,7 @@ func (r *StorageReconciler) setState(ctx context.Context, storage *resources.Sto
 
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, err
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	storageCr.Status.State = storage.Status.State
@@ -266,7 +266,7 @@ func (r *StorageReconciler) setState(ctx context.Context, storage *resources.Sto
 	err = r.Status().Update(ctx, storageCr)
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, err
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
