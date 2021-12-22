@@ -32,10 +32,7 @@ func NewTenant(name string) Tenant {
 }
 
 func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder) error {
-	client := grpc.InsecureGrpcClient{
-		Context: ctx,
-		Target:  database.GetStorageEndpoint(),
-	}
+	client := grpc.NewGrpcClient(ctx, database.GetStorageEndpoint())
 
 	response := &Ydb_Cms.CreateDatabaseResponse{}
 	grpcCallResult := client.Invoke(
@@ -44,7 +41,7 @@ func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder
 		response,
 	)
 
-	if _, err := parseDatabaseCreationResponse(response); err != nil {
+	if _, err := processDatabaseCreationResponse(response); err != nil {
 		return err
 	}
 
@@ -67,7 +64,7 @@ func (t *Tenant) makeCreateDatabaseRequest() *Ydb_Cms.CreateDatabaseRequest {
 	}
 }
 
-func parseDatabaseCreationResponse(response *Ydb_Cms.CreateDatabaseResponse) (bool, error) {
+func processDatabaseCreationResponse(response *Ydb_Cms.CreateDatabaseResponse) (bool, error) {
 	if response.Operation == nil {
 		return false, errors.New("empty reply from storage")
 	}

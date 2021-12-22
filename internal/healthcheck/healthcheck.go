@@ -14,10 +14,7 @@ const (
 )
 
 func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
-	client := grpc.InsecureGrpcClient{
-		Context: ctx,
-		Target:  cluster.GetGRPCEndpoint(),
-	}
+	client := grpc.NewGrpcClient(ctx, cluster.GetGRPCEndpoint())
 
 	response := Ydb_Monitoring.SelfCheckResponse{}
 	err := client.Invoke(
