@@ -21,6 +21,7 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 		selfCheckEndpoint,
 		&Ydb_Monitoring.SelfCheckRequest{},
 		&response,
+		false,
 	)
 
 	result := &Ydb_Monitoring.SelfCheckResult{}

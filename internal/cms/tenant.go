@@ -37,8 +37,9 @@ func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder
 	response := &Ydb_Cms.CreateDatabaseResponse{}
 	grpcCallResult := client.Invoke(
 		createDatabaseMethod,
-		t.makeCreateDatabaseRequest(),
+		t.makeCreateDatabaseRequest(&database),
 		response,
+		true,
 	)
 
 	if _, err := processDatabaseCreationResponse(response); err != nil {
@@ -48,8 +49,8 @@ func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder
 	return grpcCallResult
 }
 
-func (t *Tenant) makeCreateDatabaseRequest() *Ydb_Cms.CreateDatabaseRequest {
-	return &Ydb_Cms.CreateDatabaseRequest{
+func (t *Tenant) makeCreateDatabaseRequest(database *resources.DatabaseBuilder) *Ydb_Cms.CreateDatabaseRequest {
+	request := &Ydb_Cms.CreateDatabaseRequest{
 		Path: t.Name,
 		ResourcesKind: &Ydb_Cms.CreateDatabaseRequest_Resources{
 			Resources: &Ydb_Cms.Resources{
@@ -62,6 +63,7 @@ func (t *Tenant) makeCreateDatabaseRequest() *Ydb_Cms.CreateDatabaseRequest {
 			},
 		},
 	}
+	return request
 }
 
 func processDatabaseCreationResponse(response *Ydb_Cms.CreateDatabaseResponse) (bool, error) {
