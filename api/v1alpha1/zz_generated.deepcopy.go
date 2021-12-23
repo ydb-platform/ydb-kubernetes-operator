@@ -114,9 +114,21 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 	*out = *in
 	in.Service.DeepCopyInto(&out.Service)
 	out.StorageClusterRef = in.StorageClusterRef
-	in.Resources.DeepCopyInto(&out.Resources)
-	in.SharedResources.DeepCopyInto(&out.SharedResources)
-	out.ServerlessResources = in.ServerlessResources
+	if in.Resources != nil {
+		in, out := &in.Resources, &out.Resources
+		*out = new(DatabaseResources)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.SharedResources != nil {
+		in, out := &in.SharedResources, &out.SharedResources
+		*out = new(DatabaseResources)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.ServerlessResources != nil {
+		in, out := &in.ServerlessResources, &out.ServerlessResources
+		*out = new(ServerlessDatabaseResources)
+		**out = **in
+	}
 	in.Image.DeepCopyInto(&out.Image)
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
