@@ -84,7 +84,7 @@ type DatabaseResources struct {
 	// for all main unit parameters: used hard disk type, capacity
 	// throughput, IOPS etc.
 	// +required
-	StorageUnits []StorageUnits `json:"storageUnits,omitempty"`
+	StorageUnits []StorageUnit `json:"storageUnits,omitempty"`
 }
 
 type ServerlessDatabaseResources struct {
@@ -93,7 +93,7 @@ type ServerlessDatabaseResources struct {
 	SharedDatabaseRef SharedDatabaseRef `json:"sharedDatabaseRef,omitempty"`
 }
 
-type StorageUnits struct {
+type StorageUnit struct {
 	// Kind of the storage unit. Determine guarantees
 	// for all main unit parameters: used hard disk type, capacity
 	// throughput, IOPS etc.
