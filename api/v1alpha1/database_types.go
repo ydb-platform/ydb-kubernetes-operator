@@ -102,7 +102,7 @@ type StorageUnit struct {
 
 	// Number of units in this set.
 	// +required
-	Count int64 `json:"count"`
+	Count uint64 `json:"count"`
 }
 
 // DatabaseStatus defines the observed state of Database
