@@ -3,7 +3,7 @@ package cms
 import (
 	"context"
 	"errors"
-	"fmt2"
+	"fmt"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
@@ -27,7 +27,6 @@ type Tenant struct {
 
 func (t *Tenant) Create(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-
 	client := grpc.GrpcClient{
 		Context: ctx,
 		Target:  t.StorageEndpoint,
