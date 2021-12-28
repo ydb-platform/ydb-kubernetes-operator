@@ -12,6 +12,12 @@ func SetDatabaseSpecDefaults(ydbCr *Database, ydbSpec *DatabaseSpec) {
 		ydbSpec.StorageClusterRef.Namespace = ydbCr.Namespace
 	}
 
+	if ydbSpec.ServerlessResources != nil {
+		if ydbSpec.ServerlessResources.SharedDatabaseRef.Namespace == "" {
+			ydbSpec.ServerlessResources.SharedDatabaseRef.Namespace = ydbCr.Namespace
+		}
+	}
+
 	if ydbSpec.Image.Name == "" {
 		if ydbSpec.YDBVersion == "" {
 			ydbSpec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)

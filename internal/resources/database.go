@@ -40,13 +40,16 @@ func (b *DatabaseBuilder) GetStorageEndpoint() string {
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
-func (b *DatabaseBuilder) GetTenantName() string {
+func (b *DatabaseBuilder) GetPath() string {
 	return fmt.Sprintf(api.TenantNameFormat, b.Spec.Domain, b.Name)
 }
 
 func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 	ll := labels.DatabaseLabels(b.Unwrap())
 
+	if b.Spec.ServerlessResources != nil {
+		return []ResourceBuilder{}
+	}
 	return []ResourceBuilder{
 		&ServiceBuilder{
 			Object:         b,

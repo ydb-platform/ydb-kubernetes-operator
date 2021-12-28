@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 	"reflect"
+	"errors"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,10 +26,11 @@ const (
 	Initializing ClusterState = "Initializing"
 	Ready        ClusterState = "Ready"
 
-	DefaultRequeueDelay        = 10 * time.Second
-	StatusUpdateRequeueDelay   =  1 * time.Second
-	TenantCreationRequeueDelay = 30 * time.Second
-	StorageAwaitRequeueDelay   = 60 * time.Second
+	DefaultRequeueDelay             = 10 * time.Second
+	StatusUpdateRequeueDelay        =  1 * time.Second
+	TenantCreationRequeueDelay      = 30 * time.Second
+	StorageAwaitRequeueDelay        = 60 * time.Second
+	SharedDatabaseAwaitRequeueDelay = 60 * time.Second
 
 	TenantInitializedCondition        = "TenantInitialized"
 	TenantInitializedReasonInProgress = "InProgres"
@@ -48,7 +50,7 @@ func (r *DatabaseReconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Databa
 	database := resources.NewDatabase(ydbCr)
 	database.SetStatusOnFirstReconcile()
 
-	stop, result, err = r.waitForClusterResource(ctx, &database)
+	stop, result, err = r.waitForClusterResources(ctx, &database)
 	if stop {
 		return result, err
 	}
@@ -73,8 +75,8 @@ func (r *DatabaseReconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Databa
 	return ctrl.Result{Requeue: false}, nil
 }
 
-func (r *DatabaseReconciler) waitForClusterResource(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForClusterResource")
+func (r *DatabaseReconciler) waitForClusterResources(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
+	r.Log.Info("running step waitForClusterResources")
 	found := &ydbv1alpha1.Storage{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      database.Spec.StorageClusterRef.Name,
@@ -82,12 +84,25 @@ func (r *DatabaseReconciler) waitForClusterResource(ctx context.Context, databas
 	}, found)
 
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"Pending",
+				fmt.Sprintf(
+					"Storage (%s/%s) not found.",
+					database.Spec.StorageClusterRef.Name,
+					database.Spec.StorageClusterRef.Namespace,
+				),
+			)
+			return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, nil
+		}
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
 			"Pending",
 			fmt.Sprintf(
-				"Failed to get (%s, %s) resource of type cluster.ydb.tech: %s",
+				"Failed to get Database (%s, %s) resource, error: %s",
 				database.Spec.StorageClusterRef.Name,
 				database.Spec.StorageClusterRef.Namespace,
 				err,
@@ -116,30 +131,33 @@ func (r *DatabaseReconciler) waitForClusterResource(ctx context.Context, databas
 
 func (r *DatabaseReconciler) waitForStatefulSetToScale(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale")
-	found := &appsv1.StatefulSet{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      database.Name,
-		Namespace: database.Namespace,
-	}, found)
 
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+	if database.Spec.ServerlessResources == nil {
+		found := &appsv1.StatefulSet{}
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      database.Name,
+			Namespace: database.Namespace,
+		}, found)
+
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			}
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeNormal,
+				"Syncing",
+				fmt.Sprintf("Failed to get StatefulSets: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
-		r.Recorder.Event(
-			database,
-			corev1.EventTypeNormal,
-			"Syncing",
-			fmt.Sprintf("Failed to get StatefulSets: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
 
-	if found.Status.Replicas != database.Spec.Nodes {
-		msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", found.Status.Replicas, database.Spec.Nodes)
-		r.Recorder.Event(database, corev1.EventTypeNormal, "Provisioning", msg)
-		database.Status.State = string(Provisioning)
-		return r.setState(ctx, database)
+		if found.Status.Replicas != database.Spec.Nodes {
+			msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", found.Status.Replicas, database.Spec.Nodes)
+			r.Recorder.Event(database, corev1.EventTypeNormal, "Provisioning", msg)
+			database.Status.State = string(Provisioning)
+			return r.setState(ctx, database)
+		}
 	}
 
 	if database.Status.State != string(Ready) && meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
@@ -237,14 +255,80 @@ func (r *DatabaseReconciler) setInitialStatus(ctx context.Context, database *res
 func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleTenantCreation")
 
-	tenant := cms.NewTenant(database.GetTenantName())
-	err := tenant.Create(ctx, database)                                 // <------!
+	var Path string = database.GetPath()
+	var StorageUnits []ydbv1alpha1.StorageUnit
+	var Shared bool
+	var SharedDatabasePath string
+	if database.Spec.Resources != nil {
+		StorageUnits = (*database.Spec.Resources).StorageUnits
+		Shared = false
+	} else if database.Spec.SharedResources != nil {
+		StorageUnits = (*database.Spec.SharedResources).StorageUnits
+		Shared = true
+	} else if database.Spec.ServerlessResources != nil {
+		sharedDatabaseCr := &ydbv1alpha1.Database{}
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      (*database.Spec.ServerlessResources).SharedDatabaseRef.Name,
+			Namespace: (*database.Spec.ServerlessResources).SharedDatabaseRef.Namespace,
+		}, sharedDatabaseCr)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeWarning,
+					"Pending",
+					fmt.Sprintf(
+						"Database (%s/%s) not found.",
+						(*database.Spec.ServerlessResources).SharedDatabaseRef.Name,
+						(*database.Spec.ServerlessResources).SharedDatabaseRef.Namespace,
+					),
+				)
+				return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, nil
+			}
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"Pending",
+				fmt.Sprintf(
+					"Failed to get Database (%s, %s) resource, error: %s",
+					(*database.Spec.ServerlessResources).SharedDatabaseRef.Name,
+					(*database.Spec.ServerlessResources).SharedDatabaseRef.Namespace,
+					err,
+				),
+			)
+			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
+		}
+
+		if sharedDatabaseCr.Status.State != "Ready" {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"Pending",
+				fmt.Sprintf(
+					"Referenced shared Database (%s, %s) in a bad state: %s != Ready",
+					(*database.Spec.ServerlessResources).SharedDatabaseRef.Name,
+					(*database.Spec.ServerlessResources).SharedDatabaseRef.Namespace,
+					sharedDatabaseCr.Status.State,
+				),
+			)
+			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
+		}
+
+		SharedDatabasePath = fmt.Sprintf(ydbv1alpha1.TenantNameFormat, sharedDatabaseCr.Spec.Domain, sharedDatabaseCr.Name)
+	} else {
+		//TODO: move this logic to webhook
+		msg := "Incorrect database resources configuration, must be one of: Resources, SharedResources, ServerlessResources"
+		r.Recorder.Event(database, corev1.EventTypeWarning, "ControllerError", msg)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, errors.New(msg)
+	}
+	tenant := cms.Tenant{database.GetStorageEndpoint(), Path, StorageUnits, Shared, SharedDatabasePath, database.Spec.Service.GRPC.TLSConfiguration.Enabled}
+	err := tenant.Create(ctx)
 	if err != nil {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
 			"InitializingFailed",
-			fmt.Sprintf("Error creating tenant %s: %s", tenant.Name, err),
+			fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: TenantCreationRequeueDelay}, err
 	}
@@ -252,7 +336,7 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 		database,
 		corev1.EventTypeNormal,
 		"Initialized",
-		fmt.Sprintf("Tenant %s created", tenant.Name),
+		fmt.Sprintf("Tenant %s created", tenant.Path),
 	)
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 		Type:    TenantInitializedCondition,
@@ -269,7 +353,6 @@ func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.D
 		Namespace: database.Namespace,
 		Name:      database.Name,
 	}, databaseCr)
-
 	if err != nil {
 		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err

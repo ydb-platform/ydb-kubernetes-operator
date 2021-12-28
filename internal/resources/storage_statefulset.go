@@ -123,11 +123,13 @@ func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.To
 			TopologyKey:       corev1.LabelTopologyZone,
 			WhenUnsatisfiable: corev1.DoNotSchedule,
 			LabelSelector:     &metav1.LabelSelector{MatchLabels: b.Labels},
+			MaxSkew:           1,
 		},
 		{
 			TopologyKey:       corev1.LabelHostname,
 			WhenUnsatisfiable: corev1.DoNotSchedule,
 			LabelSelector:     &metav1.LabelSelector{MatchLabels: b.Labels},
+			MaxSkew:           1,
 		},
 	}
 }
