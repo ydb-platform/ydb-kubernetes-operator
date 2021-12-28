@@ -25,10 +25,13 @@ func NewCluster(ydbCr *api.Storage, Log logr.Logger) StorageClusterBuilder {
 	return StorageClusterBuilder{cr, Log}
 }
 
-func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() {
+func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() bool {
+	var changed bool = false
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
+		changed = true
 	}
+	return changed
 }
 
 func (b *StorageClusterBuilder) Unwrap() *api.Storage {
@@ -92,10 +95,10 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     grpcServiceNameFormat,
 			Labels:         grpcServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
-			NameFormat:     grpcServiceNameFormat,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
 				Port: api.GRPCPort,
@@ -105,11 +108,11 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     interconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
-			NameFormat:     interconnectServiceNameFormat,
 			Ports: []corev1.ServicePort{{
 				Name: api.InterconnectServicePortName,
 				Port: api.InterconnectPort,
@@ -119,9 +122,9 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     statusServiceNameFormat,
 			Labels:         statusServiceLabels,
 			SelectorLabels: storageLabels,
-			NameFormat:     statusServiceNameFormat,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,

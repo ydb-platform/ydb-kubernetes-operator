@@ -38,10 +38,8 @@ func (client *GrpcClient) Invoke(method string, input interface{}, output interf
 	defer conn.Close()
 
 	err = conn.Invoke(client.Context, method, input, output)
-
 	if err != nil {
 		return err
 	}
-
 	return nil
 }

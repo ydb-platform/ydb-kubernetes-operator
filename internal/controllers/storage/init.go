@@ -30,7 +30,7 @@ func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resou
 			Type:    StorageInitializedCondition,
 			Status:  "False",
 			Reason:  StorageInitializedReasonInProgress,
-			Message: "Storage is not initialized",
+			Message: "Storage initialization in progress",
 		})
 		changed = true
 	}
@@ -93,10 +93,14 @@ func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resou
 			changed = true
 		}
 	}
+	if storage.Status.State != string(Initializing) {
+		storage.Status.State = string(Initializing)
+		changed = true
+	}
 	if changed {
 		return r.setState(ctx, storage)
 	}
-	return Continue, ctrl.Result{}, nil
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {

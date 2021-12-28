@@ -916,30 +916,73 @@ spec:
                   Default: ""'
                 type: string
               resources:
-                description: '(Optional) Database container resource limits. Any container
-                  limits can be specified. Default: (not specified)'
+                description: (Optional) Database storage and compute resources
                 properties:
-                  limits:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Limits describes the maximum amount of compute resources
-                      allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                  containerResources:
+                    description: '(Optional) Database container resource limits. Any
+                      container limits can be specified. Default: (not specified)'
+                    properties:
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: 'Limits describes the maximum amount of compute
+                          resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: 'Requests describes the minimum amount of compute
+                          resources required. If Requests is omitted for a container,
+                          it defaults to Limits if that is explicitly specified, otherwise
+                          to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                        type: object
                     type: object
-                  requests:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: 'Requests describes the minimum amount of compute
-                      resources required. If Requests is omitted for a container,
-                      it defaults to Limits if that is explicitly specified, otherwise
-                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                  storageUnits:
+                    description: 'Kind of the storage unit. Determine guarantees for
+                      all main unit parameters: used hard disk type, capacity throughput,
+                      IOPS etc.'
+                    items:
+                      properties:
+                        count:
+                          description: Number of units in this set.
+                          format: int64
+                          type: integer
+                        unitKind:
+                          description: 'Kind of the storage unit. Determine guarantees
+                            for all main unit parameters: used hard disk type, capacity
+                            throughput, IOPS etc.'
+                          type: string
+                      required:
+                      - count
+                      - unitKind
+                      type: object
+                    type: array
+                type: object
+              serverlessResources:
+                description: (Optional) If specified, created database will be "serverless".
+                properties:
+                  sharedDatabaseRef:
+                    description: Reference to YDB Database with configured shared
+                      resources
+                    properties:
+                      name:
+                        maxLength: 63
+                        pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                        type: string
+                      namespace:
+                        maxLength: 63
+                        pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                        type: string
+                    required:
+                    - name
                     type: object
                 type: object
               service:
@@ -1204,6 +1247,58 @@ spec:
                         - enabled
                         type: object
                     type: object
+                type: object
+              sharedResources:
+                description: (Optional) Shared resources can be used by serverless
+                  databases.
+                properties:
+                  containerResources:
+                    description: '(Optional) Database container resource limits. Any
+                      container limits can be specified. Default: (not specified)'
+                    properties:
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: 'Limits describes the maximum amount of compute
+                          resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: 'Requests describes the minimum amount of compute
+                          resources required. If Requests is omitted for a container,
+                          it defaults to Limits if that is explicitly specified, otherwise
+                          to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                        type: object
+                    type: object
+                  storageUnits:
+                    description: 'Kind of the storage unit. Determine guarantees for
+                      all main unit parameters: used hard disk type, capacity throughput,
+                      IOPS etc.'
+                    items:
+                      properties:
+                        count:
+                          description: Number of units in this set.
+                          format: int64
+                          type: integer
+                        unitKind:
+                          description: 'Kind of the storage unit. Determine guarantees
+                            for all main unit parameters: used hard disk type, capacity
+                            throughput, IOPS etc.'
+                          type: string
+                      required:
+                      - count
+                      - unitKind
+                      type: object
+                    type: array
                 type: object
               storageClusterRef:
                 description: YDB Storage cluster reference

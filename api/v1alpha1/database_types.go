@@ -10,13 +10,16 @@ type DatabaseSpec struct {
 	// Number of nodes (pods) in the cluster
 	// +required
 	Nodes int32 `json:"nodes"`
+
 	// (Optional) Storage services parameter overrides
 	// Default: (not specified)
 	// +optional
 	Service DatabaseServices `json:"service,omitempty"`
+
 	// YDB Storage cluster reference
 	// +required
 	StorageClusterRef StorageRef `json:"storageClusterRef"`
+
 	// (Optional) Name of the root storage domain
 	// Default: root
 	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
@@ -24,36 +27,82 @@ type DatabaseSpec struct {
 	// +kubebuilder:default:="root"
 	// +optional
 	Domain string `json:"domain"`
-	// (Optional) Database container resource limits. Any container limits
-	// can be specified.
-	// Default: (not specified)
+
+	// (Optional) Database storage and compute resources
 	// +optional
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Resources *DatabaseResources `json:"resources,omitempty"`  // TODO: Add validation webhook: some resources must be specified
+
+	// (Optional) Shared resources can be used by serverless databases.
+	// +optional
+	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
+
+	// (Optional) If specified, created database will be "serverless".
+	// +optional
+	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
+
 	// (Optional) Public host to advertise on discovery requests
 	// Default: ""
 	// +optional
 	PublicHost string `json:"publicHost,omitempty"`
+
 	// (Optional) YDBVersion sets the explicit version of the YDB image
 	// Default: ""
 	// +optional
 	YDBVersion string `json:"version,omitempty"`
+
 	// (Optional) Yandex Database Image
 	// +optional
 	Image PodImage `json:"image,omitempty"`
+
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
 	// (Optional) If specified, the pod's scheduling constraints
 	// +optional
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
 	// (Optional) If specified, the pod's tolerations.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
+}
+
+type DatabaseResources struct {
+	// (Optional) Database container resource limits. Any container limits
+	// can be specified.
+	// Default: (not specified)
+	// +optional
+	ContainerResources corev1.ResourceRequirements `json:"containerResources,omitempty"`
+
+	// Kind of the storage unit. Determine guarantees
+	// for all main unit parameters: used hard disk type, capacity
+	// throughput, IOPS etc.
+	// +required
+	StorageUnits []StorageUnit `json:"storageUnits,omitempty"`
+}
+
+type ServerlessDatabaseResources struct {
+	// Reference to YDB Database with configured shared resources
+	// +required
+	SharedDatabaseRef SharedDatabaseRef `json:"sharedDatabaseRef,omitempty"`
+}
+
+type StorageUnit struct {
+	// Kind of the storage unit. Determine guarantees
+	// for all main unit parameters: used hard disk type, capacity
+	// throughput, IOPS etc.
+	// +required
+	UnitKind string `json:"unitKind"`
+
+	// Number of units in this set.
+	// +required
+	Count uint64 `json:"count"`
 }
 
 // DatabaseStatus defines the observed state of Database
@@ -95,10 +144,12 @@ type PodImage struct {
 	// For instance: cr.yandex/ydb/ydb:stable-21-4-14
 	// +required
 	Name string `json:"name,omitempty"`
+
 	// (Optional) PullPolicy for the image, which defaults to IfNotPresent.
 	// Default: IfNotPresent
 	// +optional
 	PullPolicyName *corev1.PullPolicy `json:"pullPolicy,omitempty"`
+
 	// (Optional) Secret name containing the dockerconfig to use for a registry that requires authentication. The secret
 	// must be configured first by the user.
 	// +optional
@@ -111,6 +162,19 @@ type StorageRef struct {
 	// +kubebuilder:validation:MaxLength:=63
 	// +required
 	Name string `json:"name"`
+
+	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +optional
+	Namespace string `json:"namespace"`
+}
+
+type SharedDatabaseRef struct {
+	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +required
+	Name string `json:"name"`
+
 	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
 	// +kubebuilder:validation:MaxLength:=63
 	// +optional

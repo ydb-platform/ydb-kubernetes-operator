@@ -21,10 +21,13 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	return DatabaseBuilder{cr}
 }
 
-func (b *DatabaseBuilder) SetStatusOnFirstReconcile() {
+func (b *DatabaseBuilder) SetStatusOnFirstReconcile() bool {
+	var changed bool = false
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
+		changed = true
 	}
+	return changed
 }
 
 func (b *DatabaseBuilder) Unwrap() *api.Database {
@@ -37,16 +40,20 @@ func (b *DatabaseBuilder) GetStorageEndpoint() string {
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
-func (b *DatabaseBuilder) GetTenantName() string {
+func (b *DatabaseBuilder) GetPath() string {
 	return fmt.Sprintf(api.TenantNameFormat, b.Spec.Domain, b.Name)
 }
 
 func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 	ll := labels.DatabaseLabels(b.Unwrap())
 
+	if b.Spec.ServerlessResources != nil {
+		return []ResourceBuilder{}
+	}
 	return []ResourceBuilder{
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     grpcServiceNameFormat,
 			Labels:         ll.MergeInPlace(b.Spec.Service.GRPC.AdditionalLabels),
 			SelectorLabels: ll,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
@@ -73,10 +80,10 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 		&ServiceBuilder{
 			Object:         b,
+			NameFormat:     statusServiceNameFormat,
 			Labels:         ll.MergeInPlace(b.Spec.Service.Status.AdditionalLabels),
 			SelectorLabels: ll,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
-			NameFormat:     statusServiceNameFormat,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
 				Port: api.StatusPort,

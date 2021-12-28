@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -142,10 +141,12 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		}},
 
 		VolumeMounts: b.buildVolumeMounts(),
-
-		Resources: b.Spec.Resources,
 	}
-
+	if b.Spec.Resources != nil {
+		container.Resources = (*b.Spec.Resources).ContainerResources
+	} else if b.Spec.SharedResources != nil {
+		container.Resources = (*b.Spec.SharedResources).ContainerResources
+	}
 	return container
 }
 
@@ -184,7 +185,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
 		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
 
 		"--tenant",
-		fmt.Sprintf(api.TenantNameFormat, b.Spec.Domain, b.Name),
+		fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name),
 
 		"--node-broker",
 		db.GetStorageEndpoint(),
