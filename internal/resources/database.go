@@ -35,7 +35,26 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 }
 
 func (b *DatabaseBuilder) GetStorageEndpoint() string {
+	var proto string
+	if b.StorageRef.Spec.Service.GRPC.TLSConfiguration != nil && b.StorageRef.Spec.Service.GRPC.TLSConfiguration.Enabled { // todo check storage config?
+		proto = "grpcs://"
+	} else {
+		proto = "grpc://"
+	}
+
 	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
+	if b.StorageRef.Spec.Service.GRPC.ExternalHost != "" {
+		host = b.StorageRef.Spec.Service.GRPC.ExternalHost
+	}
+
+	return fmt.Sprintf("%s%s:%d", proto, host, api.GRPCPort)
+}
+
+func (b *DatabaseBuilder) GetStorageEndpointWithoutProto() string {
+	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
+	if b.StorageRef.Spec.Service.GRPC.ExternalHost != "" {
+		host = b.StorageRef.Spec.Service.GRPC.ExternalHost
+	}
 
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }

@@ -40,6 +40,9 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 
 func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
 	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Name, b.Namespace) // FIXME .svc.cluster.local should not be hardcoded
+	if b.Spec.Service.GRPC.ExternalHost != "" {
+		host = b.Spec.Service.GRPC.ExternalHost
+	}
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 

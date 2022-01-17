@@ -239,22 +239,11 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	command := []string{"/opt/kikimr/bin/start.sh"}
-	var args []string
+	args := []string{"--node", "static"}
 
 	if b.Spec.ClusterConfig != "" {
 		command = []string{"/bin/bash"}
 		args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
-	}
-
-	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		args = append(args,
-			"--ca",
-			"/tls/interconnect/ca.crt",
-			"--cert",
-			"/tls/interconnect/tls.crt",
-			"--key",
-			"/tls/interconnect/tls.key",
-		)
 	}
 
 	return command, args

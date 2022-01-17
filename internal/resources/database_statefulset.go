@@ -191,19 +191,6 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
 		db.GetStorageEndpoint(),
 	}
 
-	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		tlsConfiguration := []string{
-			"--ca",
-			"/tls/interconnect/ca.crt",
-			"--cert",
-			"/tls/interconnect/tls.crt",
-			"--key",
-			"/tls/interconnect/tls.key",
-		}
-
-		args = append(args, tlsConfiguration...)
-	}
-
 	if b.Spec.PublicHost != "" {
 		publicHostOption := "--grpc-public-host"
 
