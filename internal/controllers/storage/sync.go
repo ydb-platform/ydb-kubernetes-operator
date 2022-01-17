@@ -3,9 +3,10 @@ package storage
 import (
 	"context"
 	"fmt"
-	"time"
 	"reflect"
+	"time"
 
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
@@ -26,9 +27,9 @@ const (
 	Ready        ClusterState = "Ready"
 
 	DefaultRequeueDelay               = 10 * time.Second
-	StatusUpdateRequeueDelay          =  1 * time.Second
+	StatusUpdateRequeueDelay          = 1 * time.Second
 	SelfCheckRequeueDelay             = 30 * time.Second
-	StorageInitializationRequeueDelay =  5 * time.Second
+	StorageInitializationRequeueDelay = 5 * time.Second
 
 	ReasonInProgress  = "InProgress"
 	ReasonNotRequired = "NotRequired"
@@ -205,15 +206,15 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 				storage,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				eventMessage + fmt.Sprintf(", failed to sync, error: %s", err),
+				eventMessage+fmt.Sprintf(", failed to sync, error: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		} else if (result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated) {
+		} else if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeNormal,
 				string(Provisioning),
-				eventMessage + fmt.Sprintf(", changed, result: %s", result),
+				eventMessage+fmt.Sprintf(", changed, result: %s", result),
 			)
 		}
 	}
@@ -231,7 +232,7 @@ func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources
 	}
 
 	eventType := corev1.EventTypeNormal
-	if result.SelfCheckResult.String() != "GOOD" {
+	if result.SelfCheckResult != Ydb_Monitoring.SelfCheck_GOOD {
 		eventType = corev1.EventTypeWarning
 	}
 

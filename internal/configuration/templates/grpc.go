@@ -7,7 +7,7 @@ GRpcMemoryQuotaBytes: 1073741824
 StreamingConfig {
   EnableOutputStreams: true
 }
-{{- if .Spec.Service.Interconnect.TLSConfiguration.Enabled }}
+{{- if .Spec.Service.GRPC.TLSConfiguration.Enabled }}
 SslPort: {{ .GRPCPort }}
 CA: "/tls/grpc/ca.crt"
 Cert: "/tls/grpc/tls.crt"

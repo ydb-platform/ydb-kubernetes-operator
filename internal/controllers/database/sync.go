@@ -126,6 +126,8 @@ func (r *DatabaseReconciler) waitForClusterResources(ctx context.Context, databa
 		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
+	database.StorageRef = found
+
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 

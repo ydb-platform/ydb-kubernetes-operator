@@ -62,6 +62,10 @@ func (b *ServiceBuilder) Build(obj client.Object) error {
 }
 
 func (b *ServiceBuilder) Placeholder(cr client.Object) client.Object {
+	if b.NameFormat == "" {
+		b.NameFormat = "%s"
+	}
+
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf(b.NameFormat, b.GetName()),
