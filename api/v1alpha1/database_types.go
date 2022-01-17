@@ -125,6 +125,8 @@ type Database struct {
 
 	// +kubebuilder:default:={state: "Pending"}
 	Status DatabaseStatus `json:"status,omitempty"`
+
+	StorageRef *Storage `json:"storageRef,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -182,9 +184,9 @@ type SharedDatabaseRef struct {
 }
 
 type DatabaseServices struct {
-	GRPC         Service `json:"grpc,omitempty"`
-	Interconnect Service `json:"interconnect,omitempty"`
-	Status       Service `json:"status,omitempty"`
+	GRPC         GRPCService         `json:"grpc,omitempty"`
+	Interconnect InterconnectService `json:"interconnect,omitempty"`
+	Status       StatusService       `json:"status,omitempty"`
 }
 
 func init() {
