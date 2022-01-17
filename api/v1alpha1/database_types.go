@@ -30,7 +30,7 @@ type DatabaseSpec struct {
 
 	// (Optional) Database storage and compute resources
 	// +optional
-	Resources *DatabaseResources `json:"resources,omitempty"`  // TODO: Add validation webhook: some resources must be specified
+	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
 
 	// (Optional) Shared resources can be used by serverless databases.
 	// +optional

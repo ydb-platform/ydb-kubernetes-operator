@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Cms"
+	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -17,11 +17,11 @@ const (
 )
 
 type Tenant struct {
-	StorageEndpoint string
-	Path string
-	StorageUnits []ydbv1alpha1.StorageUnit
-	Shared bool
-	SharedDatabasePath string
+	StorageEndpoint      string
+	Path                 string
+	StorageUnits         []ydbv1alpha1.StorageUnit
+	Shared               bool
+	SharedDatabasePath   string
 	UseGrpcSecureChannel bool
 }
 
@@ -51,7 +51,7 @@ func (t *Tenant) makeCreateDatabaseRequest() *Ydb_Cms.CreateDatabaseRequest {
 	request := &Ydb_Cms.CreateDatabaseRequest{Path: t.Path}
 	if t.SharedDatabasePath != "" {
 		request.ResourcesKind = &Ydb_Cms.CreateDatabaseRequest_ServerlessResources{
-			ServerlessResources:  &Ydb_Cms.ServerlessResources{
+			ServerlessResources: &Ydb_Cms.ServerlessResources{
 				SharedDatabasePath: t.SharedDatabasePath,
 			},
 		}

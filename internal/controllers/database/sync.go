@@ -2,10 +2,10 @@ package database
 
 import (
 	"context"
-	"fmt"
-	"time"
-	"reflect"
 	"errors"
+	"fmt"
+	"reflect"
+	"time"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
@@ -27,7 +27,7 @@ const (
 	Ready        ClusterState = "Ready"
 
 	DefaultRequeueDelay             = 10 * time.Second
-	StatusUpdateRequeueDelay        =  1 * time.Second
+	StatusUpdateRequeueDelay        = 1 * time.Second
 	TenantCreationRequeueDelay      = 30 * time.Second
 	StorageAwaitRequeueDelay        = 60 * time.Second
 	SharedDatabaseAwaitRequeueDelay = 60 * time.Second
@@ -173,12 +173,12 @@ func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *
 	r.Log.Info("running step handleResourcesSync")
 
 	for _, builder := range database.GetResourceBuilders() {
-		new_resource := builder.Placeholder(database)
+		newResource := builder.Placeholder(database)
 
-		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, new_resource, func() error {
+		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {
 			var err error
 
-			err = builder.Build(new_resource)
+			err = builder.Build(newResource)
 			if err != nil {
 				r.Recorder.Event(
 					database,
@@ -189,7 +189,7 @@ func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *
 				return err
 			}
 
-			err = ctrl.SetControllerReference(database.Unwrap(), new_resource, r.Scheme)
+			err = ctrl.SetControllerReference(database.Unwrap(), newResource, r.Scheme)
 			if err != nil {
 				r.Recorder.Event(
 					database,
@@ -205,24 +205,24 @@ func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *
 
 		var eventMessage string = fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
-			reflect.TypeOf(new_resource),
-			new_resource.GetNamespace(),
-			new_resource.GetName(),
+			reflect.TypeOf(newResource),
+			newResource.GetNamespace(),
+			newResource.GetName(),
 		)
 		if err != nil {
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				eventMessage + fmt.Sprintf(", failed to sync, error: %s", err),
+				eventMessage+fmt.Sprintf(", failed to sync, error: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		} else if (result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated) {
+		} else if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeNormal,
 				"Provisioning",
-				eventMessage + fmt.Sprintf(", changed, result: %s", result),
+				eventMessage+fmt.Sprintf(", changed, result: %s", result),
 			)
 		}
 	}
@@ -321,7 +321,14 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 		r.Recorder.Event(database, corev1.EventTypeWarning, "ControllerError", msg)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, errors.New(msg)
 	}
-	tenant := cms.Tenant{database.GetStorageEndpoint(), Path, StorageUnits, Shared, SharedDatabasePath, database.Spec.Service.GRPC.TLSConfiguration.Enabled}
+	tenant := cms.Tenant{
+		StorageEndpoint:      database.GetStorageEndpoint(),
+		Path:                 Path,
+		StorageUnits:         StorageUnits,
+		Shared:               Shared,
+		SharedDatabasePath:   SharedDatabasePath,
+		UseGrpcSecureChannel: database.Spec.Service.GRPC.TLSConfiguration.Enabled,
+	}
 	err := tenant.Create(ctx)
 	if err != nil {
 		r.Recorder.Event(
