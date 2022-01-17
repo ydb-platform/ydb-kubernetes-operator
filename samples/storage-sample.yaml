@@ -12,3 +12,4 @@ spec:
           storage: 80Gi
   version: 21.4.30
   nodes: 8
+  erasure: block-4-2
