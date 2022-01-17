@@ -3,7 +3,6 @@ package v1alpha1
 import corev1 "k8s.io/api/core/v1"
 
 type Service struct {
-	TLSConfiguration      *TLSConfiguration `json:"tls,omitempty"`
 	AdditionalLabels      map[string]string `json:"additionalLabels,omitempty"`
 	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
 
@@ -16,4 +15,21 @@ type TLSConfiguration struct {
 	CertificateAuthority corev1.SecretKeySelector `json:"CA,omitempty"`
 	Certificate          corev1.SecretKeySelector `json:"certificate,omitempty"`
 	Key                  corev1.SecretKeySelector `json:"key,omitempty"` // fixme validate: all three or none
+}
+
+type GRPCService struct {
+	Service `json:""`
+
+	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
+	ExternalHost     string            `json:"externalHost,omitempty"` // TODO implementation
+}
+
+type InterconnectService struct {
+	Service `json:""`
+
+	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
+}
+
+type StatusService struct {
+	Service `json:""`
 }
