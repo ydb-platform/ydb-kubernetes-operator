@@ -5,7 +5,12 @@ Command {
   DefineHostConfig {
     HostConfigId: 1
     Drive {
-      Path: "/dev/kikimr_ssd_00"
+	  {{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
+	  Path: "/dev/kikimr_ssd_00"
+	  {{- end }}
+	  {{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+	  Path: "/data/kikimr"
+	  {{- end }}
     }
   }
 }

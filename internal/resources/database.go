@@ -22,7 +22,7 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 }
 
 func (b *DatabaseBuilder) SetStatusOnFirstReconcile() bool {
-	var changed bool = false
+	changed := false
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
 		changed = true
@@ -34,23 +34,16 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 	return b.DeepCopy()
 }
 
-func (b *DatabaseBuilder) GetStorageEndpoint() string {
-	var proto string
-	if b.StorageRef.Spec.Service.GRPC.TLSConfiguration != nil && b.StorageRef.Spec.Service.GRPC.TLSConfiguration.Enabled { // todo check storage config?
-		proto = "grpcs://"
-	} else {
-		proto = "grpc://"
+func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
+	proto := api.GRPCProto
+	if b.StorageRef.Spec.Service.GRPC.TLSConfiguration != nil && b.StorageRef.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		proto = api.GRPCSProto
 	}
 
-	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
-	if b.StorageRef.Spec.Service.GRPC.ExternalHost != "" {
-		host = b.StorageRef.Spec.Service.GRPC.ExternalHost
-	}
-
-	return fmt.Sprintf("%s%s:%d", proto, host, api.GRPCPort)
+	return fmt.Sprintf("%s%s", proto, b.GetStorageEndpoint())
 }
 
-func (b *DatabaseBuilder) GetStorageEndpointWithoutProto() string {
+func (b *DatabaseBuilder) GetStorageEndpoint() string {
 	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
 	if b.StorageRef.Spec.Service.GRPC.ExternalHost != "" {
 		host = b.StorageRef.Spec.Service.GRPC.ExternalHost

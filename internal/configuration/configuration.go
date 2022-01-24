@@ -2,6 +2,8 @@ package configuration
 
 import (
 	"bytes"
+	"fmt"
+	"reflect"
 	"strings"
 	"text/template"
 
@@ -57,6 +59,7 @@ var additionalFuncs = template.FuncMap{
 		}
 		return items
 	},
+
 	"add": func(a int32, b int32) int32 {
 		return a + b
 	},
@@ -69,6 +72,25 @@ var additionalFuncs = template.FuncMap{
 	"hasKey": func(d map[string]string, key string) bool {
 		_, ok := d[key]
 		return ok
+	},
+
+	"deref": func(p interface{}) interface{} {
+		return reflect.ValueOf(p).Elem()
+	},
+
+	"toString": func(v interface{}) string {
+		switch v := v.(type) {
+		case string:
+			return v
+		case []byte:
+			return string(v)
+		case error:
+			return v.Error()
+		case fmt.Stringer:
+			return v.String()
+		default:
+			return fmt.Sprintf("%v", v)
+		}
 	},
 }
 

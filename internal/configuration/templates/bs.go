@@ -5,56 +5,96 @@ ServiceSet {
   PDisks {
     NodeID: 1
     PDiskID: 1
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
     Path: "/dev/kikimr_ssd_00"
+	{{- end }}
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+    Path: "/data/kikimr"
+	{{- end }}
     PDiskGuid: 7072714480107857776
     PDiskCategory: 0
   }
   PDisks {
     NodeID: 2
     PDiskID: 1
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
     Path: "/dev/kikimr_ssd_00"
+	{{- end }}
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+    Path: "/data/kikimr"
+	{{- end }}
     PDiskGuid: 16291166822083105651
     PDiskCategory: 0
   }
   PDisks {
     NodeID: 3
     PDiskID: 1
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
     Path: "/dev/kikimr_ssd_00"
+	{{- end }}
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+    Path: "/data/kikimr"
+	{{- end }}
     PDiskGuid: 6662963332485859848
     PDiskCategory: 0
   }
   PDisks {
     NodeID: 4
     PDiskID: 1
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
     Path: "/dev/kikimr_ssd_00"
+	{{- end }}
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+    Path: "/data/kikimr"
+	{{- end }}
     PDiskGuid: 17826674922888324531
     PDiskCategory: 0
   }
   PDisks {
     NodeID: 5
     PDiskID: 1
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
     Path: "/dev/kikimr_ssd_00"
+	{{- end }}
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+    Path: "/data/kikimr"
+	{{- end }}
     PDiskGuid: 7072509400554621355
     PDiskCategory: 0
   }
   PDisks {
     NodeID: 6
     PDiskID: 1
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
     Path: "/dev/kikimr_ssd_00"
+	{{- end }}
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+    Path: "/data/kikimr"
+	{{- end }}
     PDiskGuid: 2048839831911463872
     PDiskCategory: 0
   }
   PDisks {
     NodeID: 7
     PDiskID: 1
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
     Path: "/dev/kikimr_ssd_00"
+	{{- end }}
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+    Path: "/data/kikimr"
+	{{- end }}
     PDiskGuid: 16453561994362958550
     PDiskCategory: 0
   }
   PDisks {
     NodeID: 8
     PDiskID: 1
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Block" }}
     Path: "/dev/kikimr_ssd_00"
+	{{- end }}
+	{{- if eq ((index .Spec.DataStore 0).VolumeMode | deref | toString) "Filesystem" }}
+    Path: "/data/kikimr"
+	{{- end }}
     PDiskGuid: 13131501771972430830
     PDiskCategory: 0
   }

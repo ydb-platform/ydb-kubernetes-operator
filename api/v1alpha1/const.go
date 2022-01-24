@@ -8,6 +8,8 @@ const (
 
 	GRPCPort            = 2135
 	GRPCServicePortName = "grpc"
+	GRPCProto           = "grpc://"
+	GRPCSProto          = "grpcs://"
 
 	InterconnectPort            = 19001
 	InterconnectServicePortName = "interconnect"
@@ -17,6 +19,7 @@ const (
 
 	DiskPathPrefix      = "/dev/kikimr_ssd"
 	DiskNumberMaxDigits = 2
+	DiskFilePath        = "/data"
 
 	ConfigDir = "/opt/kikimr/cfg"
 
