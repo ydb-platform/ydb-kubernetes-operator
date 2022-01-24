@@ -22,13 +22,13 @@ func buildSystemTLSStoreOption() grpc.DialOption {
 	return grpc.WithTransportCredentials(tlsCredentials)
 }
 
-func (client *GrpcClient) Invoke(method string, input interface{}, output interface{}, insecure bool) error {
+func (client *GrpcClient) Invoke(method string, input interface{}, output interface{}, secure bool) error {
 	var opts []grpc.DialOption
 
-	if insecure {
-		opts = append(opts, grpc.WithInsecure())
-	} else {
+	if secure {
 		opts = append(opts, buildSystemTLSStoreOption())
+	} else {
+		opts = append(opts, grpc.WithInsecure())
 	}
 
 	conn, err := grpc.Dial(client.Target, opts...)

@@ -5,5 +5,12 @@ metadata:
 spec:
   version: 21.4.30
   nodes: 6
+  resources:
+    containerResources:
+      limits:
+        cpu: 100m
+    storageUnits:
+      - count: 1
+        unitKind: ssd
   storageClusterRef:
     name: storage-sample

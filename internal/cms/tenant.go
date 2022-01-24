@@ -37,7 +37,7 @@ func (t *Tenant) Create(ctx context.Context) error {
 		createDatabaseMethod,
 		request,
 		response,
-		!t.UseGrpcSecureChannel,
+		t.UseGrpcSecureChannel,
 	)
 	logger.Info(fmt.Sprintf("method call: %s, request: %s, response: %s, err: %s", createDatabaseMethod, request, response, grpcCallResult))
 
@@ -92,5 +92,5 @@ func processDatabaseCreationResponse(response *Ydb_Cms.CreateDatabaseResponse) (
 		return true, nil
 	}
 
-	return false, errors.New("unknown error")
+	return false, errors.New(fmt.Sprintf("YDB response error: %v %v", response.Operation.Status, response.Operation.Issues))
 }
