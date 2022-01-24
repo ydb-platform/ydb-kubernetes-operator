@@ -83,7 +83,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
 	dnsConfigSearches := []string{
 		fmt.Sprintf(
-			"%s-interconnect.%s.svc.cluster.local",
+			"%s-interconnect.%s.svc.cluster.local", // fixme .svc.cluster.local should not be hardcoded
 			b.Name,
 			b.Namespace,
 		),
@@ -94,10 +94,11 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			Labels: b.Labels,
 		},
 		Spec: corev1.PodSpec{
-			Containers:   []corev1.Container{b.buildContainer()},
-			NodeSelector: b.Spec.NodeSelector,
-			Affinity:     b.Spec.Affinity,
-			Tolerations:  b.Spec.Tolerations,
+			Containers:     []corev1.Container{b.buildContainer()},
+			InitContainers: b.Spec.InitContainers,
+			NodeSelector:   b.Spec.NodeSelector,
+			Affinity:       b.Spec.Affinity,
+			Tolerations:    b.Spec.Tolerations,
 
 			Volumes: b.buildVolumes(),
 
@@ -162,7 +163,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	return volumes
 }
 
-func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
+func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo add init container for sparse files?
 	command, args := b.buildContainerArgs()
 
 	container := corev1.Container{
@@ -194,17 +195,30 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container {
 		Resources:    b.Spec.Resources,
 	}
 
-	var volumeDeviceList []corev1.VolumeDevice
-	for i := range b.Spec.DataStore {
-		volumeDeviceList = append(
-			volumeDeviceList,
-			corev1.VolumeDevice{
-				Name:       b.GeneratePVCName(i),
-				DevicePath: b.GenerateDeviceName(i),
-			},
-		)
+	var volumeDeviceList []corev1.VolumeDevice // todo decide on PVC volumeMode?
+	var volumeMountList []corev1.VolumeMount
+	for i, spec := range b.Spec.DataStore {
+		if *spec.VolumeMode == corev1.PersistentVolumeFilesystem {
+			volumeMountList = append(
+				volumeMountList,
+				corev1.VolumeMount{
+					Name:      b.GeneratePVCName(i),
+					MountPath: v1alpha1.DiskFilePath,
+				},
+			)
+		}
+		if *spec.VolumeMode == corev1.PersistentVolumeBlock {
+			volumeDeviceList = append(
+				volumeDeviceList,
+				corev1.VolumeDevice{
+					Name:       b.GeneratePVCName(i),
+					DevicePath: b.GenerateDeviceName(i),
+				},
+			)
+		}
 	}
-	container.VolumeDevices = volumeDeviceList
+	container.VolumeDevices = append(container.VolumeDevices, volumeDeviceList...)
+	container.VolumeMounts = append(container.VolumeMounts, volumeMountList...)
 
 	return container
 }

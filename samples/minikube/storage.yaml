@@ -1,0 +1,24 @@
+apiVersion: ydb.tech/v1alpha1
+kind: Storage
+metadata:
+  name: storage-minikube-sample
+spec:
+  dataStore:
+    - volumeMode: Filesystem
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 80Gi
+  initContainers:
+    - name: init-sparse-file
+      image: ubuntu
+      command: ['truncate', '--size', '64G', '/data/kikimr']
+      securityContext:
+        runAsUser: 999
+      volumeMounts:
+        - mountPath: /data
+          name: storage-minikube-sample-00
+  version: 21.4.30
+  nodes: 8
+  erasure: block-4-2

@@ -3,6 +3,7 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
@@ -188,17 +189,26 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
 		fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name),
 
 		"--node-broker",
-		db.GetStorageEndpoint(),
+		db.GetStorageEndpointWithProto(),
 	}
 
-	if b.Spec.PublicHost != "" {
+	if b.Spec.Service.GRPC.ExternalHost != "" {
 		publicHostOption := "--grpc-public-host"
+		publicPortOption := "--grpc-public-port"
 
 		if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 			publicHostOption = "--grpcs-public-host"
 		}
 
-		args = append(args, publicHostOption, b.Spec.PublicHost)
+		args = append(
+			args,
+
+			publicHostOption,
+			fmt.Sprintf("%s.%s", "$(HOSTNAME)", b.Spec.Service.GRPC.ExternalHost), // fixme $(HOSTNAME)
+
+			publicPortOption,
+			strconv.Itoa(v1alpha1.GRPCPort),
+		)
 	}
 
 	return args
