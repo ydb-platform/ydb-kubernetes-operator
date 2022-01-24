@@ -24,7 +24,7 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 		selfCheckEndpoint,
 		&Ydb_Monitoring.SelfCheckRequest{},
 		&response,
-		!cluster.Spec.Service.GRPC.TLSConfiguration.Enabled,
+		cluster.Spec.Service.GRPC.TLSConfiguration.Enabled,
 	)
 
 	result := &Ydb_Monitoring.SelfCheckResult{}
