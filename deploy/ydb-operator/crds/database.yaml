@@ -4903,6 +4903,7 @@ spec:
                   nodes:
                     description: Number of nodes (pods) in the cluster
                     format: int32
+                    minimum: 8
                     type: integer
                   resources:
                     description: '(Optional) Storage container resource limits. Any

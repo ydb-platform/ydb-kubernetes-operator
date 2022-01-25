@@ -1,0 +1,17 @@
+{{- if and .Values.webhook.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ydb.fullname" . }}-webhook
+  labels:
+    {{- include "ydb.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.webhook.service.type }}
+  ports:
+    - port: {{ .Values.webhook.service.port }}
+      targetPort: webhook
+      protocol: TCP
+      name: webhook
+  selector:
+    {{- include "ydb.selectorLabels" . | nindent 4 }}
+{{- end }}

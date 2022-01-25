@@ -8,6 +8,7 @@ import (
 // StorageSpec defines the desired state of Storage
 type StorageSpec struct {
 	// Number of nodes (pods) in the cluster
+	// +kubebuilder:validation:Minimum:=8
 	// +required
 	Nodes int32 `json:"nodes"`
 
