@@ -31,6 +31,10 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
           name: manager
+          ports:
+            - containerPort: {{ .Values.webhook.service.port }}
+              name: webhook
+              protocol: TCP
           readinessProbe:
             httpGet:
               path: /readyz
@@ -41,10 +45,28 @@ spec:
             {{- toYaml .Values.resources | nindent 12  }}
           securityContext:
             allowPrivilegeEscalation: false
+          {{- if .Values.webhook.enabled }}
+          volumeMounts:
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: webhook-tls
+          {{- end }}
       securityContext:
         runAsNonRoot: true
       serviceAccountName: {{ include "ydb.fullname" . }}-operator
       terminationGracePeriodSeconds: 10
+      {{- if .Values.webhook.enabled }}
+      volumes:
+        - name: webhook-tls
+          secret:
+            secretName: {{ include "ydb.fullname" . }}-webhook
+            items:
+              - key: ca
+                path: ca.crt
+              - key: cert
+                path: tls.crt
+              - key: key
+                path: tls.key
+      {{- end }}
       {{- if .Values.imagePullSecrets }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

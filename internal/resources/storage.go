@@ -20,8 +20,6 @@ type StorageClusterBuilder struct {
 func NewCluster(ydbCr *api.Storage, Log logr.Logger) StorageClusterBuilder {
 	cr := ydbCr.DeepCopy()
 
-	api.SetStorageClusterSpecDefaults(&cr.Spec)
-
 	return StorageClusterBuilder{cr, Log}
 }
 

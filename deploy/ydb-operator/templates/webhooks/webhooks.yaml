@@ -1,0 +1,91 @@
+{{- if and .Values.webhook.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ template "ydb.fullname" . }}-webhook
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ template "ydb.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        port: {{ .Values.webhook.service.port }}
+        path: /mutate-ydb-tech-v1alpha1-database
+    failurePolicy: Fail
+    name: mutate-database.ydb.tech
+    rules:
+      - apiGroups:
+          - ydb.tech
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - databases
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ template "ydb.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        port: {{ .Values.webhook.service.port }}
+        path: /validate-ydb-tech-v1alpha1-database
+    failurePolicy: Fail
+    name: validate-database.ydb.tech
+    rules:
+      - apiGroups:
+          - ydb.tech
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - databases
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ template "ydb.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        port: {{ .Values.webhook.service.port }}
+        path: /mutate-ydb-tech-v1alpha1-storage
+    failurePolicy: Fail
+    name: mutate-storage.ydb.tech
+    rules:
+      - apiGroups:
+          - ydb.tech
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - storages
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ template "ydb.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        port: {{ .Values.webhook.service.port }}
+        path: /validate-ydb-tech-v1alpha1-storage
+    failurePolicy: Fail
+    name: validate-storage.ydb.tech
+    rules:
+      - apiGroups:
+          - ydb.tech
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - storages
+    sideEffects: None
+{{- end }}
