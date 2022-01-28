@@ -137,9 +137,9 @@ func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.To
 
 func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	configMapName := b.Name
-	if b.Spec.ClusterConfig != "" {
-		configMapName = b.Spec.ClusterConfig
-	}
+	//if b.Spec.ClusterConfig != "" {
+	//	configMapName = b.Spec.ClusterConfig
+	//}
 
 	volumes := []corev1.Volume{
 		{
@@ -255,10 +255,10 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	command := []string{"/opt/kikimr/bin/start.sh"}
 	var args []string
 
-	if b.Spec.ClusterConfig != "" {
-		command = []string{"/bin/bash"}
-		args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
-	}
+	//if b.Spec.ClusterConfig != "" {
+	//	command = []string{"/bin/bash"}
+	//	args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
+	//}
 
 	args = append(args, "--node", "static")
 

@@ -3440,9 +3440,9 @@ spec:
                             type: array
                         type: object
                     type: object
-                  config:
-                    description: ConfigMap name with custom YDB configuration, where
-                      key is config file name and value is config file content.
+                  configuration:
+                    description: YDB configuration in YAML format. Will be applied
+                      on top of generated one in internal/configuration
                     type: string
                   dataStore:
                     description: Where cluster data should be kept
@@ -5195,6 +5195,7 @@ spec:
                       of the YDB image Default: ""'
                     type: string
                 required:
+                - configuration
                 - dataStore
                 - erasure
                 - nodes

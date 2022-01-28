@@ -10,6 +10,352 @@ spec:
       resources:
         requests:
           storage: 80Gi
-  version: 21.4.30
-  nodes: 8
+  # version: 21.4.30
+  image:
+    name: cr.yandex/crpbo4q9lbgkn85vr1rm/ydb:yaml
+  nodes: 9
   erasure: block-4-2
+  configuration: |-
+    static_erasure: none
+    host_configs:
+      - drive:
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+          - kind: 0
+            path: /dev/kikimr_ssd_00
+            type: ROT
+        host_config_id: 1
+    domains_config:
+      domain:
+        - name: root
+          storage_pool_types:
+            - kind: hdd
+              pool_config:
+                box_id: 1
+                erasure_species: block-4-2
+                kind: hdd
+                pdisk_filter:
+                  - property:
+                      - type: ROT
+                vdisk_kind: Default
+      state_storage:
+        - ring:
+            node: [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
+            nto_select: 5
+          ssid: 1
+    actor_system_config:
+      batch_executor: 2
+      io_executor: 3
+      executor:
+        - name: System
+          spin_threshold: 0
+          threads: 2
+          type: BASIC
+        - name: User
+          spin_threshold: 0
+          threads: 3
+          type: BASIC
+        - name: Batch
+          spin_threshold: 0
+          threads: 2
+          type: BASIC
+        - name: IO
+          threads: 1
+          time_per_mailbox_micro_secs: 100
+          type: IO
+        - name: IC
+          spin_threshold: 10
+          threads: 1
+          time_per_mailbox_micro_secs: 100
+          type: BASIC
+      scheduler:
+        progress_threshold: 10000
+        resolution: 256
+        spin_threshold: 0
+      service_executor:
+        - executor_id: 4
+          service_name: Interconnect
+    blob_storage_config:
+      service_set:
+        availability_domains: 1
+        groups:
+          - erasure_species: 3
+            group_id: 0
+            group_generation: 1
+            rings:
+              - fail_domains:
+                  - vdisk_locations:
+                      - node_id: 1
+                        pdisk_guid: 1
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+                  - vdisk_locations:
+                      - node_id: 2
+                        pdisk_guid: 12
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+                  - vdisk_locations:
+                      - node_id: 3
+                        pdisk_guid: 123
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+                  - vdisk_locations:
+                      - node_id: 4
+                        pdisk_guid: 1234
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+                  - vdisk_locations:
+                      - node_id: 5
+                        pdisk_guid: 12345
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+                  - vdisk_locations:
+                      - node_id: 6
+                        pdisk_guid: 123456
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+                  - vdisk_locations:
+                      - node_id: 7
+                        pdisk_guid: 1234567
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+                  - vdisk_locations:
+                      - node_id: 8
+                        pdisk_guid: 12345678
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+                  - vdisk_locations:
+                      - node_id: 9
+                        pdisk_guid: 123456789
+                        pdisk_id: 1
+                        vdisk_slot_id: 0
+        pdisks:
+          - node_id: 1
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 1
+            pdisk_id: 1
+          - node_id: 2
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 12
+            pdisk_id: 1
+          - node_id: 3
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 123
+            pdisk_id: 1
+
+          - node_id: 4
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 1234
+            pdisk_id: 1
+          - node_id: 5
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 12345
+            pdisk_id: 1
+          - node_id: 6
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 123456
+            pdisk_id: 1
+
+          - node_id: 7
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 1234567
+            pdisk_id: 1
+          - node_id: 8
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 12345678
+            pdisk_id: 1
+          - node_id: 9
+            path: /dev/kikimr_ssd_00
+            pdisk_category: 0
+            pdisk_guid: 123456789
+            pdisk_id: 1
+
+        vdisks:
+          - vdisk_id:
+              domain: 0
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 1
+              pdisk_guid: 1
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+          - vdisk_id:
+              domain: 1
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 2
+              pdisk_guid: 12
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+          - vdisk_id:
+              domain: 2
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 3
+              pdisk_guid: 123
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+          - vdisk_id:
+              domain: 3
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 4
+              pdisk_guid: 1234
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+          - vdisk_id:
+              domain: 4
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 5
+              pdisk_guid: 12345
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+          - vdisk_id:
+              domain: 5
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 6
+              pdisk_guid: 123456
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+
+          - vdisk_id:
+              domain: 6
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 7
+              pdisk_guid: 1234567
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+          - vdisk_id:
+              domain: 7
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 8
+              pdisk_guid: 12345678
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+          - vdisk_id:
+              domain: 8
+              group_generation: 1
+              group_id: 0
+              ring: 0
+              vdisk: 0
+            vdisk_location:
+              node_id: 9
+              pdisk_guid: 123456789
+              pdisk_id: 1
+              vdisk_slot_id: 0
+
+    channel_profile_config:
+      profile:
+        - channel:
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+          profile_id: 0
+        - channel:
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+          profile_id: 1
+        - channel:
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+          profile_id: 2
+        - channel:
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+            - erasure_species: block-4-2
+              pdisk_category: 0
+              storage_pool_kind: hdd
+          profile_id: 3

@@ -13,7 +13,11 @@ type StorageSpec struct {
 
 	// ConfigMap name with custom YDB configuration, where key is config file name and value is config file content.
 	// +optional
+	// +deprecated
 	ClusterConfig string `json:"config,omitempty"`
+
+	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
+	Configuration string `json:"configuration"`
 
 	// Data storage mode.
 	// For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
