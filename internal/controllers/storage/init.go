@@ -54,9 +54,9 @@ func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resou
 	}
 	if meta.FindStatusCondition(storage.Status.Conditions, InitRootStorageStepCondition) == nil {
 		configMapName := storage.Name
-		if storage.Spec.ClusterConfig != "" {
-			configMapName = storage.Spec.ClusterConfig
-		}
+		//if storage.Spec.ClusterConfig != "" {
+		//	configMapName = storage.Spec.ClusterConfig
+		//}
 		configMap := &corev1.ConfigMap{}
 		err := r.Get(ctx, types.NamespacedName{
 			Name:      configMapName,

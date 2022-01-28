@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-logr/logr"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/yaml"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
@@ -49,21 +49,19 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 
 	var optionalBuilders []ResourceBuilder
 
-	if b.Spec.ClusterConfig == "" {
-		cfg, err := configuration.Build(b.Unwrap())
+	cfg, err := yaml.Build(b.Unwrap())
 
-		if err != nil {
-			b.Log.Error(err, "failed to generate configuration")
-		}
-		optionalBuilders = append(
-			optionalBuilders,
-			&ConfigMapBuilder{
-				Object: b,
-				Data:   cfg,
-				Labels: storageLabels,
-			},
-		)
+	if err != nil {
+		b.Log.Error(err, "failed to generate configuration")
 	}
+	optionalBuilders = append(
+		optionalBuilders,
+		&ConfigMapBuilder{
+			Object: b,
+			Data:   cfg,
+			Labels: storageLabels,
+		},
+	)
 
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
