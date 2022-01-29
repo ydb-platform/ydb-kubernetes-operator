@@ -3,12 +3,12 @@ kind: Database
 metadata:
   name: database-minikube-sample
 spec:
-  version: 21.4.30
+  version: 21.4.57
   nodes: 6
   resources:
     containerResources:
       limits:
-        cpu: 100m
+        cpu: 500m
     storageUnits:
       - count: 1
         unitKind: hdd
