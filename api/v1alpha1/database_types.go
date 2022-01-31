@@ -11,6 +11,10 @@ type DatabaseSpec struct {
 	// +required
 	Nodes int32 `json:"nodes"`
 
+	// ConfigMap name with custom YDB configuration, where key is config file name and value is config file content.
+	// +optional
+	ClusterConfig string `json:"config,omitempty"`
+
 	// (Optional) Storage services parameter overrides
 	// Default: (not specified)
 	// +optional
