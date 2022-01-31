@@ -135,6 +135,13 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 		*out = new(ServerlessDatabaseResources)
 		**out = **in
 	}
+	if in.InitContainers != nil {
+		in, out := &in.InitContainers, &out.InitContainers
+		*out = make([]v1.Container, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	in.Image.DeepCopyInto(&out.Image)
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
@@ -480,6 +487,13 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 	in.Service.DeepCopyInto(&out.Service)
 	in.Resources.DeepCopyInto(&out.Resources)
 	in.Image.DeepCopyInto(&out.Image)
+	if in.InitContainers != nil {
+		in, out := &in.InitContainers, &out.InitContainers
+		*out = make([]v1.Container, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	in.Monitoring.DeepCopyInto(&out.Monitoring)
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector

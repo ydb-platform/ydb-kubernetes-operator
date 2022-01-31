@@ -80,6 +80,17 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	var volumes []corev1.Volume
 
+	if b.Spec.ClusterConfig != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: configVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: b.Spec.ClusterConfig},
+				},
+			},
+		})
+	}
+
 	if b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumes = append(volumes, buildTLSVolume("grpc-tls-volume", b.Spec.Service.GRPC.TLSConfiguration))
 	}
@@ -119,12 +130,12 @@ func buildTLSVolume(name string, configuration *v1alpha1.TLSConfiguration) corev
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
+	command, args := b.buildContainerArgs()
 	container := corev1.Container{
 		Name:    "ydb-dynamic",
 		Image:   b.Spec.Image.Name,
-		Command: []string{"/opt/kikimr/bin/kikimr"},
-		Args:    b.buildContainerArgs(),
-
+		Command: command,
+		Args:    args,
 		LivenessProbe: &corev1.Probe{
 			Handler: corev1.Handler{
 				TCPSocket: &corev1.TCPSocketAction{
@@ -154,6 +165,14 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	var volumeMounts []corev1.VolumeMount
 
+	if b.Spec.ClusterConfig != "" {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      configVolumeName,
+			ReadOnly:  true,
+			MountPath: "/opt/kikimr/cfg",
+		})
+	}
+
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      "grpc-tls-volume",
@@ -173,8 +192,12 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	return volumeMounts
 }
 
-func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
+func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
+	command := []string{"/opt/kikimr/bin/kikimr"}
+
 	db := NewDatabase(b.DeepCopy())
+
+	tenant_name := fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name)
 
 	args := []string{
 		"server",
@@ -186,7 +209,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
 		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
 
 		"--tenant",
-		fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name),
+		tenant_name,
 
 		"--node-broker",
 		db.GetStorageEndpointWithProto(),
@@ -211,7 +234,14 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() []string {
 		)
 	}
 
-	return args
+	if b.Spec.ClusterConfig != "" {
+		command = []string{"/bin/bash"}
+		args = []string{
+			"-c",
+			fmt.Sprintf("export kikimr_tenant='%s' && source /opt/kikimr/cfg/dynamic_server.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}", tenant_name),
+		}
+	}
+	return command, args
 }
 
 func (b *DatabaseStatefulSetBuilder) Placeholder(cr client.Object) client.Object {

@@ -875,6 +875,10 @@ spec:
                         type: array
                     type: object
                 type: object
+              config:
+                description: ConfigMap name with custom YDB configuration, where key
+                  is config file name and value is config file content.
+                type: string
               domain:
                 default: root
                 description: '(Optional) Name of the root storage domain Default:

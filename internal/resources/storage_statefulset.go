@@ -257,9 +257,8 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 	if b.Spec.ClusterConfig != "" {
 		command = []string{"/bin/bash"}
-		args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
+		args = []string{"-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}"}
 	}
-
 	return command, args
 }
 
