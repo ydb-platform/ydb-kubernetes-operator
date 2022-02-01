@@ -253,12 +253,15 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	command := []string{"/opt/kikimr/bin/start.sh"}
-	args := []string{"--node", "static"}
+	var args []string
 
 	if b.Spec.ClusterConfig != "" {
 		command = []string{"/bin/bash"}
-		args = []string{"-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}"}
+		args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
 	}
+
+	args = append(args, "--node", "static")
+
 	return command, args
 }
 
