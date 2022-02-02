@@ -219,10 +219,6 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		publicHostOption := "--grpc-public-host"
 		publicPortOption := "--grpc-public-port"
 
-		if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-			publicHostOption = "--grpcs-public-host"
-		}
-
 		args = append(
 			args,
 
