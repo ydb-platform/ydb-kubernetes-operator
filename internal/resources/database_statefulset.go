@@ -45,6 +45,22 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	return nil
 }
 
+func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
+	var envVars []corev1.EnvVar
+
+	envVars = append(envVars, corev1.EnvVar{
+		Name: "NODE_NAME", // for `--grpc-public-host` flag
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				APIVersion: "v1",
+				FieldPath:  "metadata.name",
+			},
+		},
+	})
+
+	return envVars
+}
+
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
 	dnsConfigSearches := []string{
 		fmt.Sprintf(
@@ -136,6 +152,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		Image:   b.Spec.Image.Name,
 		Command: command,
 		Args:    args,
+		Env:     b.buildEnv(),
 		LivenessProbe: &corev1.Probe{
 			Handler: corev1.Handler{
 				TCPSocket: &corev1.TCPSocketAction{
@@ -197,7 +214,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 	db := NewDatabase(b.DeepCopy())
 
-	tenant_name := fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name)
+	tenantName := fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name)
 
 	args := []string{
 		"server",
@@ -209,7 +226,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
 
 		"--tenant",
-		tenant_name,
+		tenantName,
 
 		"--node-broker",
 		db.GetStorageEndpointWithProto(),
@@ -223,7 +240,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 			args,
 
 			publicHostOption,
-			fmt.Sprintf("%s.%s", "$(HOSTNAME)", b.Spec.Service.GRPC.ExternalHost), // fixme $(HOSTNAME)
+			fmt.Sprintf("%s.%s", "$(NODE_NAME)", b.Spec.Service.GRPC.ExternalHost), // fixme $(NODE_NAME)
 
 			publicPortOption,
 			strconv.Itoa(v1alpha1.GRPCPort),
@@ -234,7 +251,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		command = []string{"/bin/bash"}
 		args = []string{
 			"-c",
-			fmt.Sprintf("export kikimr_tenant='%s' && source /opt/kikimr/cfg/dynamic_server.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}", tenant_name),
+			fmt.Sprintf("export kikimr_tenant='%s' && source /opt/kikimr/cfg/dynamic_server.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}", tenantName),
 		}
 	}
 	return command, args
