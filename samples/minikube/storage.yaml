@@ -20,8 +20,8 @@ spec:
         - mountPath: /data
           name: storage-minikube-sample-00
   version: 21.4.57
-  nodes: 8
-  erasure: block-4-2
+  nodes: 2
+  erasure: none
   resources:
     limits:
       cpu: 500m
