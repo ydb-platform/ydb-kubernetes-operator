@@ -1056,6 +1056,7 @@ spec:
                 enum:
                 - mirror-3-dc
                 - block-4-2
+                - none
                 type: string
               image:
                 description: Container image information
@@ -2310,7 +2311,6 @@ spec:
               nodes:
                 description: Number of nodes (pods) in the cluster
                 format: int32
-                minimum: 8
                 type: integer
               resources:
                 description: '(Optional) Storage container resource limits. Any container

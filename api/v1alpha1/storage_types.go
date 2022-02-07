@@ -8,7 +8,6 @@ import (
 // StorageSpec defines the desired state of Storage
 type StorageSpec struct {
 	// Number of nodes (pods) in the cluster
-	// +kubebuilder:validation:Minimum:=8
 	// +required
 	Nodes int32 `json:"nodes"`
 
@@ -20,7 +19,7 @@ type StorageSpec struct {
 	// For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
 	// TODO English docs link
 	// FIXME mirror-3-dc is only supported with external configuration
-	// +kubebuilder:validation:Enum=mirror-3-dc;block-4-2
+	// +kubebuilder:validation:Enum=mirror-3-dc;block-4-2;none
 	// +kubebuilder:default:=block-4-2
 	Erasure ErasureType `json:"erasure"`
 

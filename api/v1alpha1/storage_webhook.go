@@ -64,6 +64,7 @@ func (r *Storage) ValidateCreate() error {
 	minNodesPerErasure := map[ErasureType]int32{
 		ErasureMirror3DC: 9,
 		ErasureBlock42:   8,
+		None:             1,
 	}
 
 	if r.Spec.Nodes < minNodesPerErasure[r.Spec.Erasure] {
