@@ -25,7 +25,7 @@ const (
 	ConfigFileName = "config.yaml"
 
 	BinariesDir      = "/opt/ydb/bin"
-	DaemonBinaryName = "ybdd"
+	DaemonBinaryName = "ydbd"
 
 	TenantNameFormat = "/%s/%s"
 )
