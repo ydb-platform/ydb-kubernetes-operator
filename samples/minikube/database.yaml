@@ -3,14 +3,16 @@ kind: Database
 metadata:
   name: database-minikube-sample
 spec:
-  version: 21.4.57
-  nodes: 6
+  image:
+    name: cr.yandex/crpl7ipeu79oseqhcgn2/ydb-oss:master
+  nodes: 1
+  domain: Root
   resources:
     containerResources:
       limits:
         cpu: 500m
     storageUnits:
       - count: 1
-        unitKind: hdd
+        unitKind: ssd
   storageClusterRef:
     name: storage-minikube-sample
