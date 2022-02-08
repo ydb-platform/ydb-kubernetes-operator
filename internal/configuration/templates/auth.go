@@ -1,3 +1,0 @@
-package templates
-
-const AuthConfigTemplate = ``

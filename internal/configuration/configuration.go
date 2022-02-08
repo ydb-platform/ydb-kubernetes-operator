@@ -1,144 +1,55 @@
 package configuration
 
 import (
-	"bytes"
 	"fmt"
-	"reflect"
-	"strings"
-	"text/template"
+	"strconv"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/templates"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
+	"gopkg.in/yaml.v3"
 )
 
-const (
-	ConfigureRootInitConfigFile = "Configure-Root.txt"
-)
+func generate(cr *v1alpha1.Storage) schema.Configuration {
+	var hosts []schema.Host
 
-var templateToFilename = map[string]string{
-	"auth.txt":                templates.AuthConfigTemplate,
-	"boot.txt":                templates.BootstrapConfigTemplate,
-	"bs.txt":                  templates.BlobStorageConfigTemplate,
-	"channels.txt":            templates.ChannelProfileConfigTemplate,
-	"domains.txt":             templates.DomainsConfigTemplate,
-	"feature_flags.txt":       templates.FeatureFlagsTemplate,
-	"grpc.txt":                templates.GRpcConfigTemplate,
-	"ic.txt":                  templates.InterconnectConfigTemplate,
-	"kqp.txt":                 templates.KQPConfigTemplate,
-	"log.txt":                 templates.LogConfigTemplate,
-	"names.txt":               templates.NameserviceConfigTemplate,
-	"pq.txt":                  templates.PQConfigTemplate,
-	"sys.txt":                 templates.ActorSystemConfigTemplate,
-	"vdisks.txt":              templates.VDiskConfigTemplate,
-	"Configure-Root.txt":      templates.ConfigureRootInitConfigTemplate,
-	"Console-Config-Root.txt": templates.ConsoleConfigRootInitConfigTemplate,
-	"DefineBox.txt":           templates.DefineBoxInitConfigTemplate,
-	"DefineStoragePools.txt":  templates.DefineStoragePoolsInitConfigTemplate,
-	"init_cms.bash":           templates.CMSInitScriptTemplate,
-	"init_storage.bash":       templates.StorageInitScriptTemplate,
-}
+	for i := 0; i < int(cr.Spec.Nodes); i++ {
+		hosts = append(hosts, schema.Host{
+			Host:         fmt.Sprintf("%v-%d", cr.GetName(), i),
+			HostConfigID: 1, // TODO
+			NodeID:       i + 1,
+			Port:         v1alpha1.InterconnectPort,
+			WalleLocation: schema.WalleLocation{
+				Body:       12340 + i,
+				DataCenter: "az-1",
+				Rack:       strconv.Itoa(i),
+			},
+		})
+	}
 
-type MapWrapper struct {
-	Amap map[string]string
-}
-
-type ClusterObjectWrapper struct {
-	*v1alpha1.Storage
-
-	GRPCPort         int
-	InterconnectPort int
-	StatusPort       int
-}
-
-var additionalFuncs = template.FuncMap{
-	"iter": func(count int32) []int32 {
-		var i int32
-		var items []int32
-		for i = 0; i < (count); i++ {
-			items = append(items, i)
-		}
-		return items
-	},
-
-	"add": func(a int32, b int32) int32 {
-		return a + b
-	},
-
-	"indent": func(spaces int, v string) string {
-		pad := strings.Repeat(" ", spaces)
-		return pad + strings.Replace(v, "\n", "\n"+pad, -1)
-	},
-
-	"hasKey": func(d map[string]string, key string) bool {
-		_, ok := d[key]
-		return ok
-	},
-
-	"deref": func(p interface{}) interface{} {
-		return reflect.ValueOf(p).Elem()
-	},
-
-	"toString": func(v interface{}) string {
-		switch v := v.(type) {
-		case string:
-			return v
-		case []byte:
-			return string(v)
-		case error:
-			return v.Error()
-		case fmt.Stringer:
-			return v.String()
-		default:
-			return fmt.Sprintf("%v", v)
-		}
-	},
+	return schema.Configuration{
+		Hosts: hosts,
+	}
 }
 
 func Build(cr *v1alpha1.Storage) (map[string]string, error) {
-	var err error
+	var crdConfig map[string]interface{}
+	generatedConfig := generate(cr)
 
-	result := make(map[string]string)
-
-	templateData := ClusterObjectWrapper{
-		Storage:          cr,
-		GRPCPort:         v1alpha1.GRPCPort,
-		InterconnectPort: v1alpha1.InterconnectPort,
-		StatusPort:       v1alpha1.StatusPort,
-	}
-
-	for filename, templateText := range templateToFilename {
-		if filename == ConfigureRootInitConfigFile {
-			continue
-		}
-		if result[filename], err = applyTemplate(templateText, templateData); err != nil {
-			return nil, err
-		}
-	}
-
-	if _, ok := result[ConfigureRootInitConfigFile]; !ok {
-		configureRoot, err := applyTemplate(templates.ConfigureRootInitConfigTemplate, MapWrapper{
-			Amap: result,
-		})
-		if err != nil {
-			return nil, err
-		}
-		result[ConfigureRootInitConfigFile] = configureRoot
-
-	}
-
-	return result, nil
-}
-
-func applyTemplate(templateText string, data interface{}) (string, error) {
-	buffer := &bytes.Buffer{}
-
-	tpl := template.Must(
-		template.New("").Funcs(additionalFuncs).Parse(templateText),
-	)
-
-	err := tpl.Execute(buffer, data)
+	err := yaml.Unmarshal([]byte(cr.Spec.Configuration), &crdConfig)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return buffer.String(), nil
+
+	crdConfig["hosts"] = generatedConfig.Hosts
+
+	data, err := yaml.Marshal(crdConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	result := string(data)
+
+	return map[string]string{
+		v1alpha1.ConfigFileName: result,
+	}, nil
 }
