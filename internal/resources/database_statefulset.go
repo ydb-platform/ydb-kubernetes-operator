@@ -94,17 +94,17 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 }
 
 func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
-	var volumes []corev1.Volume
+	configMapName := b.Name
 
-	if b.Spec.ClusterConfig != "" {
-		volumes = append(volumes, corev1.Volume{
+	volumes := []corev1.Volume{
+		{
 			Name: configVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{Name: b.Spec.ClusterConfig},
+					LocalObjectReference: corev1.LocalObjectReference{Name: configMapName},
 				},
 			},
-		})
+		},
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled {
@@ -182,13 +182,11 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	var volumeMounts []corev1.VolumeMount
 
-	if b.Spec.ClusterConfig != "" {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      configVolumeName,
-			ReadOnly:  true,
-			MountPath: "/opt/kikimr/cfg",
-		})
-	}
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      configVolumeName,
+		ReadOnly:  true,
+		MountPath: v1alpha1.ConfigDir,
+	})
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
@@ -210,7 +208,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
-	command := []string{"/opt/kikimr/bin/kikimr"}
+	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
 
 	db := NewDatabase(b.DeepCopy())
 
@@ -224,6 +222,9 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 		"--ic-port",
 		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
+
+		"--yaml-config",
+		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
 
 		"--tenant",
 		tenantName,
@@ -247,13 +248,6 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		)
 	}
 
-	if b.Spec.ClusterConfig != "" {
-		command = []string{"/bin/bash"}
-		args = []string{
-			"-c",
-			fmt.Sprintf("export kikimr_tenant='%s' && source /opt/kikimr/cfg/dynamic_server.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}", tenantName),
-		}
-	}
 	return command, args
 }
 

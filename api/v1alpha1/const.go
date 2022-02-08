@@ -21,9 +21,12 @@ const (
 	DiskNumberMaxDigits = 2
 	DiskFilePath        = "/data"
 
-	ConfigDir = "/opt/kikimr/cfg"
+	ConfigDir      = "/opt/ydb/cfg"
+	ConfigFileName = "config.yaml"
 
-	DefaultDomain    = "root"
+	BinariesDir      = "/opt/ydb/bin"
+	DaemonBinaryName = "ybdd"
+
 	TenantNameFormat = "/%s/%s"
 )
 

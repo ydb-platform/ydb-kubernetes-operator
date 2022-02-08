@@ -137,9 +137,6 @@ func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.To
 
 func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	configMapName := b.Name
-	//if b.Spec.ClusterConfig != "" {
-	//	configMapName = b.Spec.ClusterConfig
-	//}
 
 	volumes := []corev1.Volume{
 		{
@@ -228,7 +225,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		{
 			Name:      configVolumeName,
 			ReadOnly:  true,
-			MountPath: "/opt/kikimr/cfg",
+			MountPath: v1alpha1.ConfigDir,
 		},
 	}
 
@@ -252,15 +249,24 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 }
 
 func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
-	command := []string{"/opt/kikimr/bin/start.sh"}
+	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
 	var args []string
 
-	//if b.Spec.ClusterConfig != "" {
-	//	command = []string{"/bin/bash"}
-	//	args = append(args, "-c", "source /opt/kikimr/cfg/kikimr.cfg && exec /opt/kikimr/bin/kikimr ${kikimr_arg}")
-	//}
+	args = append(args,
+		"server",
 
-	args = append(args, "--node", "static")
+		"--mon-port",
+		fmt.Sprintf("%d", v1alpha1.StatusPort),
+
+		"--ic-port",
+		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
+
+		"--yaml-config",
+		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
+
+		"--node",
+		"static",
+	)
 
 	return command, args
 }

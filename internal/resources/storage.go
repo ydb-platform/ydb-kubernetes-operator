@@ -3,9 +3,8 @@ package resources
 import (
 	"fmt"
 
-	"github.com/go-logr/logr"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/yaml"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
@@ -14,17 +13,16 @@ import (
 
 type StorageClusterBuilder struct {
 	*api.Storage
-	Log logr.Logger
 }
 
-func NewCluster(ydbCr *api.Storage, Log logr.Logger) StorageClusterBuilder {
+func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	cr := ydbCr.DeepCopy()
 
-	return StorageClusterBuilder{cr, Log}
+	return StorageClusterBuilder{cr}
 }
 
 func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() bool {
-	var changed bool = false
+	var changed = false
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
 		changed = true
@@ -49,11 +47,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, err := yaml.Build(b.Unwrap())
+	cfg, _ := configuration.Build(b.Unwrap())
 
-	if err != nil {
-		b.Log.Error(err, "failed to generate configuration")
-	}
 	optionalBuilders = append(
 		optionalBuilders,
 		&ConfigMapBuilder{

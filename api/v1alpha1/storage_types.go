@@ -17,6 +17,7 @@ type StorageSpec struct {
 	ClusterConfig string `json:"config,omitempty"`
 
 	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
+	// +optional
 	Configuration string `json:"configuration"`
 
 	// Data storage mode.
