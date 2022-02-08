@@ -63,7 +63,7 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	var result ctrl.Result
 	var err error
 
-	storage := resources.NewCluster(cr, r.Log)
+	storage := resources.NewCluster(cr)
 	storage.SetStatusOnFirstReconcile()
 
 	stop, result, err = r.handleResourcesSync(ctx, &storage)
@@ -79,7 +79,7 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.runSelfCheck(ctx, &storage, true)
+		stop, result, err = r.runSelfCheck(ctx, &storage, false)
 		if stop {
 			return result, err
 		}
@@ -166,12 +166,12 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 	r.Log.Info("running step handleResourcesSync")
 
 	for _, builder := range storage.GetResourceBuilders() {
-		new_resource := builder.Placeholder(storage)
+		newResource := builder.Placeholder(storage)
 
-		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, new_resource, func() error {
+		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {
 			var err error
 
-			err = builder.Build(new_resource)
+			err = builder.Build(newResource)
 			if err != nil {
 				r.Recorder.Event(
 					storage,
@@ -181,7 +181,7 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 				)
 				return err
 			}
-			err = ctrl.SetControllerReference(storage.Unwrap(), new_resource, r.Scheme)
+			err = ctrl.SetControllerReference(storage.Unwrap(), newResource, r.Scheme)
 			if err != nil {
 				r.Recorder.Event(
 					storage,
@@ -195,11 +195,11 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 			return nil
 		})
 
-		var eventMessage string = fmt.Sprintf(
+		var eventMessage = fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
-			reflect.TypeOf(new_resource),
-			new_resource.GetNamespace(),
-			new_resource.GetName(),
+			reflect.TypeOf(newResource),
+			newResource.GetNamespace(),
+			newResource.GetName(),
 		)
 		if err != nil {
 			r.Recorder.Event(

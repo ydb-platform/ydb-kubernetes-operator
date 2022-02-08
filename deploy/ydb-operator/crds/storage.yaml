@@ -875,6 +875,10 @@ spec:
                         type: array
                     type: object
                 type: object
+              config:
+                description: ConfigMap name with custom YDB configuration, where key
+                  is config file name and value is config file content.
+                type: string
               configuration:
                 description: YDB configuration in YAML format. Will be applied on
                   top of generated one in internal/configuration
@@ -2585,7 +2589,6 @@ spec:
                   YDB image Default: ""'
                 type: string
             required:
-            - configuration
             - dataStore
             - erasure
             - nodes

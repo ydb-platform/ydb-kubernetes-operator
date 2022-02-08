@@ -879,6 +879,10 @@ spec:
                 description: ConfigMap name with custom YDB configuration, where key
                   is config file name and value is config file content.
                 type: string
+              configuration:
+                description: YDB configuration in YAML format. Will be applied on
+                  top of generated one in internal/configuration
+                type: string
               domain:
                 default: root
                 description: '(Optional) Name of the root storage domain Default:
@@ -3440,6 +3444,10 @@ spec:
                             type: array
                         type: object
                     type: object
+                  config:
+                    description: ConfigMap name with custom YDB configuration, where
+                      key is config file name and value is config file content.
+                    type: string
                   configuration:
                     description: YDB configuration in YAML format. Will be applied
                       on top of generated one in internal/configuration
@@ -5195,7 +5203,6 @@ spec:
                       of the YDB image Default: ""'
                     type: string
                 required:
-                - configuration
                 - dataStore
                 - erasure
                 - nodes

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,10 +60,24 @@ func (b *DatabaseBuilder) GetPath() string {
 func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 	ll := labels.DatabaseLabels(b.Unwrap())
 
+	var optionalBuilders []ResourceBuilder
+
+	cfg, _ := configuration.Build(b.StorageRef)
+
+	optionalBuilders = append(
+		optionalBuilders,
+		&ConfigMapBuilder{
+			Object: b,
+			Data:   cfg,
+			Labels: ll,
+		},
+	)
+
 	if b.Spec.ServerlessResources != nil {
 		return []ResourceBuilder{}
 	}
-	return []ResourceBuilder{
+	return append(
+		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
 			NameFormat:     grpcServiceNameFormat,
@@ -104,5 +119,5 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: ll},
-	}
+	)
 }
