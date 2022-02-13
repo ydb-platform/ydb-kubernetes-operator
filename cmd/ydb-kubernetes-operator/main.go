@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -15,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
@@ -29,7 +29,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 
 	utilruntime.Must(ydbv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
@@ -39,6 +38,7 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var disableWebhooks bool
+	var enableServiceMonitors bool
 	var probeAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -46,6 +46,7 @@ func main() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&disableWebhooks, "disable-webhooks", false, "Disable webhooks registration on start.")
+	flag.BoolVar(&enableServiceMonitors, "with-service-monitors", false, "Enables service monitoring")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -53,6 +54,10 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if enableServiceMonitors {
+		utilruntime.Must(monitoringv1.AddToScheme(scheme))
+	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -81,6 +86,8 @@ func main() {
 		Scheme:   mgr.GetScheme(),
 		Config:   mgr.GetConfig(),
 		Recorder: mgr.GetEventRecorderFor("ydb-operator"),
+
+		WithServiceMonitors: enableServiceMonitors,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Storage")
 		os.Exit(1)

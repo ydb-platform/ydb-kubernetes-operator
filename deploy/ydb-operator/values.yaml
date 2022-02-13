@@ -43,6 +43,13 @@ resources:
   ##    memory: 256Mi
   requests: {}
 
+service:
+  port: 8080
+  type: ClusterIP
+
+metrics:
+  enabled: true
+
 webhook:
   enabled: true
 

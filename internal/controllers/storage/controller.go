@@ -28,6 +28,8 @@ type StorageReconciler struct {
 	Config   *rest.Config
 	Recorder record.EventRecorder
 	Log      logr.Logger
+
+	WithServiceMonitors bool
 }
 
 //+kubebuilder:rbac:groups=ydb.tech,resources=storages,verbs=get;list;watch;create;update;patch;delete
@@ -83,12 +85,18 @@ func ignoreDeletionPredicate() predicate.Predicate {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *StorageReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&ydbv1alpha1.Storage{}).
+	controller := ctrl.NewControllerManagedBy(mgr).For(&ydbv1alpha1.Storage{})
+
+	if r.WithServiceMonitors {
+		controller = controller.
+			Owns(&monitoringv1.ServiceMonitor{})
+	}
+
+	controller = controller.
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
-		Owns(&corev1.ConfigMap{}).
-		Owns(&monitoringv1.ServiceMonitor{}).
-		WithEventFilter(ignoreDeletionPredicate()).
+		Owns(&corev1.ConfigMap{})
+
+	return controller.WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
 }
