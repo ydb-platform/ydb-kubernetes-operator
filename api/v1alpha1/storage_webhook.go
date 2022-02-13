@@ -48,6 +48,12 @@ func (r *Storage) Default() {
 		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
+	if r.Spec.Monitoring == nil {
+		r.Spec.Monitoring = &MonitoringOptions{
+			Enabled: false,
+		}
+	}
+
 	if r.Spec.Domain == "" {
 		r.Spec.Domain = "root" // FIXME
 	}
