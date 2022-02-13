@@ -23,6 +23,9 @@ spec:
             {{- if not .Values.webhook.enabled }}
             - --disable-webhooks
             {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - --with-service-monitors=true
+            {{- end }}
           command:
             - /manager
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -55,7 +58,7 @@ spec:
           {{- end }}
       securityContext:
         runAsNonRoot: true
-      serviceAccountName: {{ include "ydb.fullname" . }}-operator
+      serviceAccountName: {{ include "ydb.fullname" . }}
       terminationGracePeriodSeconds: 10
       {{- if .Values.webhook.enabled }}
       volumes:

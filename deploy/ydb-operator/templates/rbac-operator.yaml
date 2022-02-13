@@ -181,7 +181,7 @@ roleRef:
   name: {{ include "ydb.fullname" . }}-operator-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: {{ include "ydb.fullname" . }}-operator
+  name: {{ include "ydb.fullname" . }}
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -194,5 +194,5 @@ roleRef:
   name: {{ include "ydb.fullname" . }}-operator-manager-role
 subjects:
 - kind: ServiceAccount
-  name: {{ include "ydb.fullname" . }}-operator
+  name: {{ include "ydb.fullname" . }}
   namespace: {{ .Release.Namespace }}
