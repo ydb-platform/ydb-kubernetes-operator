@@ -42,6 +42,15 @@ func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
+func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
+	proto := api.GRPCProto
+	if b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		proto = api.GRPCSProto
+	}
+
+	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
+}
+
 func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 	storageLabels := labels.StorageLabels(b.Unwrap())
 
