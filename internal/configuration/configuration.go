@@ -13,6 +13,11 @@ func generate(cr *v1alpha1.Storage) schema.Configuration {
 	var hosts []schema.Host
 
 	for i := 0; i < int(cr.Spec.Nodes); i++ {
+		datacenter := "az-1"
+		if cr.Spec.Erasure == v1alpha1.ErasureMirror3DC {
+			datacenter = fmt.Sprintf("az-%d", i%3)
+		}
+
 		hosts = append(hosts, schema.Host{
 			Host:         fmt.Sprintf("%v-%d", cr.GetName(), i),
 			HostConfigID: 1, // TODO
@@ -20,7 +25,7 @@ func generate(cr *v1alpha1.Storage) schema.Configuration {
 			Port:         v1alpha1.InterconnectPort,
 			WalleLocation: schema.WalleLocation{
 				Body:       12340 + i,
-				DataCenter: "az-1",
+				DataCenter: datacenter,
 				Rack:       strconv.Itoa(i),
 			},
 		})
