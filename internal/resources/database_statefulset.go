@@ -148,11 +148,12 @@ func buildTLSVolume(name string, configuration *v1alpha1.TLSConfiguration) corev
 func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 	command, args := b.buildContainerArgs()
 	container := corev1.Container{
-		Name:    "ydb-dynamic",
-		Image:   b.Spec.Image.Name,
-		Command: command,
-		Args:    args,
-		Env:     b.buildEnv(),
+		Name:            "ydb-dynamic",
+		Image:           b.Spec.Image.Name,
+		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		Command:         command,
+		Args:            args,
+		Env:             b.buildEnv(),
 		LivenessProbe: &corev1.Probe{
 			Handler: corev1.Handler{
 				TCPSocket: &corev1.TCPSocketAction{
