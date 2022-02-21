@@ -1,22 +1,25 @@
 # YDB Kubernetes Operator Helm chart
 
-## Parameters
+## Add repo
 
-### Docker image configuration
+```console
+helm repo add ydb https://charts.ydb.tech
+helm repo update
+```
 
-| Name               | Description                               | Value                                     |
-| ------------------ | ----------------------------------------- | ----------------------------------------- |
-| `image.pullPolicy` | Политика скачивания образа                | `IfNotPresent`                            |
-| `image.repository` | Image repository                          | `cr.yandex/crpbo4q9lbgkn85vr1rm/operator` |
-| `image.tag`        | Image tag                                 | `latest`                                  |
-| `imagePullSecrets` | Secrets to use for Docker registry access | `[]`                                      |
+_See [helm repo](https://helm.sh/docs/helm/helm_repo/) for command documentation._
 
+## Install Chart
 
-### Resource quotas
+```console
+# Helm
+$ helm install [RELEASE_NAME] ydb/operator
+```
 
-| Name                 | Description                                    | Value |
-| -------------------- | ---------------------------------------------- | ----- |
-| `resources.limits`   | The resource limits for Operator container     | `{}`  |
-| `resources.requests` | The requested resources for Operator container | `{}`  |
+## Configuration
 
+See [Customizing the Chart Before Installing](https://helm.sh/docs/intro/using_helm/#customizing-the-chart-before-installing). To see all configurable options with detailed comments:
 
+```console
+helm show values ydb/operator
+```
