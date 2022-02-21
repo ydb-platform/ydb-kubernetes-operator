@@ -164,10 +164,11 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 	command, args := b.buildContainerArgs()
 
 	container := corev1.Container{
-		Name:    "ydb-storage",
-		Image:   b.Spec.Image.Name,
-		Command: command,
-		Args:    args,
+		Name:            "ydb-storage",
+		Image:           b.Spec.Image.Name,
+		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		Command:         command,
+		Args:            args,
 		LivenessProbe: &corev1.Probe{
 			Handler: corev1.Handler{
 				TCPSocket: &corev1.TCPSocketAction{
