@@ -1,19 +1,14 @@
-## @section Docker image configuration
-##
-
-## YDB operator image
+## Docker image configuration
 ##
 image:
-  ## @param image.pullPolicy Operator container pull policy
+  ## Operator container pull policy
   ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
   pullPolicy: IfNotPresent
-  ## @param image.repository Operator image repository
   repository: cr.yandex/yc/ydb-kubernetes-operator
-  ## @param image.tag Operator image tag
-  tag: 0.2.0
+  tag: 0.4.3
 
-## @param imagePullSecrets Secrets to use for Docker registry access
+## Secrets to use for Docker registry access
 ## Secrets must be provided manually.
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 ## Example:
@@ -22,22 +17,20 @@ image:
 ##
 imagePullSecrets: []
 
-## @skip nameOverride
 nameOverride: ""
-## @skip fullnameOverride
 fullnameOverride: ""
 
-## @section Resource quotas
+## Resource quotas
 ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
 resources:
-  ## @param resources.limits The resource limits for Operator container
-  ## Например:
+  ## The resource limits for Operator container
+  ## Example:
   ## limits:
   ##    cpu: 250m
   ##    memory: 512Mi
   limits: {}
-  ## @param resources.requests The requested resources for Operator container
-  ## Например:
+  ## The requested resources for Operator container
+  ## Example:
   ## requests:
   ##    cpu: 250m
   ##    memory: 256Mi
@@ -48,6 +41,8 @@ service:
   type: ClusterIP
 
 metrics:
+  ## Create ServiceMonitor resources
+  ##
   enabled: true
 
 webhook:
@@ -57,6 +52,10 @@ webhook:
     type: ClusterIP
     port: 9443
 
+  ## If enabled, generate a self-signed certificate, then patch the webhook configurations with the generated data.
+  ## On chart upgrades (or if the secret exists) the cert will not be re-generated. You can use this to provide your own
+  ## certs ahead of time if you wish.
+  ##
   patch:
     enabled: true
     image:
@@ -74,7 +73,7 @@ webhook:
     tolerations: []
 
     ## SecurityContext holds pod-level security attributes and common container settings.
-    ## This defaults to non root user with uid 2000 and gid 2000. *v1.PodSecurityContext  false
+    ## This defaults to non-root user with uid 2000 and gid 2000. *v1.PodSecurityContext  false
     ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
     ##
     securityContext:
@@ -82,7 +81,7 @@ webhook:
       runAsNonRoot: true
       runAsUser: 2000
 
-  # Use certmanager to generate webhook certs
+  # Use cert-manager to generate webhook certs
   certManager:
     enabled: false
     # self-signed root certificate

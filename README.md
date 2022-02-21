@@ -7,7 +7,6 @@ The YDB Kubernetes operator deploys and manages Yandex Database resources on a K
 1. Helm 3.1.0+
 2. Kubernetes 1.20+.
 3. [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-4. Support for ([Dynamic Volume Provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/)).
 
 ## Limitations
 
