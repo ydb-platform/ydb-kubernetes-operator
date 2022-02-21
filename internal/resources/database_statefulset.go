@@ -234,20 +234,23 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		db.GetStorageEndpointWithProto(),
 	}
 
-	if b.Spec.Service.GRPC.ExternalHost != "" {
-		publicHostOption := "--grpc-public-host"
-		publicPortOption := "--grpc-public-port"
-
-		args = append(
-			args,
-
-			publicHostOption,
-			fmt.Sprintf("%s.%s", "$(NODE_NAME)", b.Spec.Service.GRPC.ExternalHost), // fixme $(NODE_NAME)
-
-			publicPortOption,
-			strconv.Itoa(v1alpha1.GRPCPort),
-		)
+	if b.Spec.Service.GRPC.ExternalHost == "" {
+		service := fmt.Sprintf(grpcServiceNameFormat, b.GetName())
+		b.Spec.Service.GRPC.ExternalHost = fmt.Sprintf("%s.%s.svc.cluster.local", service, b.GetNamespace()) // FIXME .svc.cluster.local
 	}
+
+	publicHostOption := "--grpc-public-host"
+	publicPortOption := "--grpc-public-port"
+
+	args = append(
+		args,
+
+		publicHostOption,
+		fmt.Sprintf("%s.%s", "$(NODE_NAME)", b.Spec.Service.GRPC.ExternalHost), // fixme $(NODE_NAME)
+
+		publicPortOption,
+		strconv.Itoa(v1alpha1.GRPCPort),
+	)
 
 	return command, args
 }
