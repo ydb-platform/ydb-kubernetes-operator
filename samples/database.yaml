@@ -3,7 +3,8 @@ kind: Database
 metadata:
   name: database-sample
 spec:
-  version: 21.4.30
+  image:
+    name: cr.yandex/crpl7ipeu79oseqhcgn2/ydb-oss:master
   nodes: 6
   resources:
     containerResources:
