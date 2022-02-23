@@ -51,12 +51,15 @@ func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
 	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
 }
 
-func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
+func (b *StorageClusterBuilder) GetResourceBuilders() ([]ResourceBuilder, error) {
 	storageLabels := labels.StorageLabels(b.Unwrap())
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.Unwrap())
+	cfg, err := configuration.Build(b.Unwrap())
+	if err != nil {
+		return []ResourceBuilder{}, err
+	}
 
 	optionalBuilders = append(
 		optionalBuilders,
@@ -140,5 +143,5 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 			Storage: b.Unwrap(),
 			Labels:  storageLabels,
 		},
-	)
+	), nil
 }

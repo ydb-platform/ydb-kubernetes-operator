@@ -57,12 +57,15 @@ func (b *DatabaseBuilder) GetPath() string {
 	return fmt.Sprintf(api.TenantNameFormat, b.Spec.Domain, b.Name)
 }
 
-func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
+func (b *DatabaseBuilder) GetResourceBuilders() ([]ResourceBuilder, error) {
 	ll := labels.DatabaseLabels(b.Unwrap())
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.StorageRef)
+	cfg, err := configuration.Build(b.StorageRef)
+	if err != nil {
+		return []ResourceBuilder{}, err
+	}
 
 	optionalBuilders = append(
 		optionalBuilders,
@@ -74,7 +77,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 	)
 
 	if b.Spec.ServerlessResources != nil {
-		return []ResourceBuilder{}
+		return []ResourceBuilder{}, nil
 	}
 	return append(
 		optionalBuilders,
@@ -119,5 +122,5 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: ll},
-	)
+	), nil
 }

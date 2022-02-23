@@ -165,7 +165,18 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
 
-	for _, builder := range storage.GetResourceBuilders() {
+	resourceBuilders, err := storage.GetResourceBuilders()
+	if err != nil {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed building resources: %s", err),
+		)
+		return Stop, ctrl.Result{Requeue: true}, err
+	}
+
+	for _, builder := range resourceBuilders {
 		newResource := builder.Placeholder(storage)
 
 		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {

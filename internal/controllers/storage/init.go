@@ -48,12 +48,7 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 	podName := fmt.Sprintf("%s-0", storage.Name)
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, InitStorageStepCondition) {
-		cmd := []string{
-			fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
-			"admin", "blobstorage", "config", "init",
-			"--yaml-file",
-			fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
-		}
+		cmd := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
 
 		if storage.Spec.Service.GRPC.TLSConfiguration.Enabled {
 			cmd = append(
@@ -61,6 +56,13 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 				"-s", storage.GetGRPCEndpointWithProto(),
 			)
 		}
+
+		cmd = append(
+			cmd,
+			"admin", "blobstorage", "config", "init",
+			"--yaml-file",
+			fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
+		)
 		_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
 		if err != nil {
 			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
