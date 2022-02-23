@@ -174,7 +174,18 @@ func (r *DatabaseReconciler) waitForStatefulSetToScale(ctx context.Context, data
 func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
 
-	for _, builder := range database.GetResourceBuilders() {
+	resourceBuilders, err := database.GetResourceBuilders()
+	if err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed building resources: %s", err),
+		)
+		return Stop, ctrl.Result{Requeue: true}, err
+	}
+
+	for _, builder := range resourceBuilders {
 		newResource := builder.Placeholder(database)
 
 		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {

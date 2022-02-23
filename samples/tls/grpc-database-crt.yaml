@@ -1,0 +1,24 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: database-sample-grpc
+spec:
+  secretName: database-sample-grpc-tls-secret
+  duration: 2160h0m0s # 90d
+  renewBefore: 360h0m0s # 15d
+  subject:
+    organizations:
+      - yandex
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - '*.database-sample.example.com'
+  issuerRef:
+    name: acme-issuer
+    kind: Issuer
+    group: cert-manager.io

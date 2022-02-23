@@ -1,0 +1,49 @@
+apiVersion: ydb.tech/v1alpha1
+kind: Database
+metadata:
+  name: database-sample
+spec:
+  domain: root
+  image:
+    name: cr.yandex/crpl7ipeu79oseqhcgn2/ydb-oss:master
+  nodes: 6
+  storageClusterRef:
+    name:
+      storage-sample
+  resources:
+    containerResources:
+      limits:
+        cpu: 500m
+    storageUnits:
+      - count: 1
+        unitKind: ssd
+  service:
+    grpc:
+      externalHost: database-sample.example.com
+      additionalAnnotations:
+        external-dns.alpha.kubernetes.io/hostname: database-sample.example.com
+      tls:
+        enabled: true
+        CA:
+          key: tls.crt
+          name: database-sample-grpc-tls-secret
+        certificate:
+          key: tls.crt
+          name: database-sample-grpc-tls-secret
+        key:
+          key: tls.key
+          name: database-sample-grpc-tls-secret
+    interconnect:
+      additionalAnnotations:
+        external-dns.alpha.kubernetes.io/hostname: database-sample.example.com
+      tls:
+        enabled: true
+        CA:
+          key: ca.crt
+          name: storage-interconnect-secret
+        certificate:
+          key: tls.crt
+          name: storage-interconnect-secret
+        key:
+          key: tls.key
+          name: storage-interconnect-secret
