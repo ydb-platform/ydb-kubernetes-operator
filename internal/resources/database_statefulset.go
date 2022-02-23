@@ -235,7 +235,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	if b.Spec.Service.GRPC.ExternalHost == "" {
-		service := fmt.Sprintf(grpcServiceNameFormat, b.GetName())
+		service := fmt.Sprintf(interconnectServiceNameFormat, b.GetName())
 		b.Spec.Service.GRPC.ExternalHost = fmt.Sprintf("%s.%s.svc.cluster.local", service, b.GetNamespace()) // FIXME .svc.cluster.local
 	}
 
