@@ -58,11 +58,15 @@ func (b *DatabaseBuilder) GetPath() string {
 }
 
 func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
+	if b.Spec.ServerlessResources != nil {
+		return []ResourceBuilder{}
+	}
+
 	ll := labels.DatabaseLabels(b.Unwrap())
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.StorageRef)
+	cfg, _ := configuration.Build(b.StorageRef, b.Unwrap())
 
 	optionalBuilders = append(
 		optionalBuilders,
@@ -73,9 +77,23 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 	)
 
-	if b.Spec.ServerlessResources != nil {
-		return []ResourceBuilder{}
+	if b.Spec.Encryption.Enabled && b.Spec.Encryption.Key == nil {
+		var pin string
+		if b.Spec.Encryption.Pin == nil || len(*b.Spec.Encryption.Pin) == 0 {
+			pin = defaultPin
+		} else {
+			pin = *b.Spec.Encryption.Pin
+		}
+		optionalBuilders = append(
+			optionalBuilders,
+			&EncryptionSecretBuilder{
+				Object: b,
+				Labels: ll,
+				Pin:    pin,
+			},
+		)
 	}
+
 	return append(
 		optionalBuilders,
 		&ServiceBuilder{

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -115,6 +116,10 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume("interconnect-tls-volume", b.Spec.Service.Interconnect.TLSConfiguration)) // fixme const
 	}
 
+	if b.Spec.Encryption.Enabled {
+		volumes = append(volumes, b.buildEncryptionVolume())
+	}
+
 	return volumes
 }
 
@@ -143,6 +148,32 @@ func buildTLSVolume(name string, configuration *v1alpha1.TLSConfiguration) corev
 	}
 
 	return volume
+}
+
+func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
+	var secretName, secretKey string
+	if b.Spec.Encryption.Key != nil {
+		secretName = b.Spec.Encryption.Key.Name
+		secretKey = b.Spec.Encryption.Key.Key
+	} else {
+		secretName = b.Name
+		secretKey = defaultEncryptionSecretKey
+	}
+
+	return corev1.Volume{
+		Name: encryptionVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: secretName,
+				Items: []corev1.KeyToPath{
+					{
+						Key:  secretKey,
+						Path: configuration.DatabaseEncryptionKeyFile,
+					},
+				},
+			},
+		},
+	}
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
@@ -202,6 +233,14 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 			Name:      "interconnect-tls-volume",
 			ReadOnly:  true,
 			MountPath: "/tls/interconnect",
+		})
+	}
+
+	if b.Spec.Encryption.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      encryptionVolumeName,
+			ReadOnly:  true,
+			MountPath: configuration.DatabaseEncryptionKeyPath,
 		})
 	}
 

@@ -56,7 +56,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.Unwrap())
+	cfg, _ := configuration.Build(b.Unwrap(), nil)
 
 	optionalBuilders = append(
 		optionalBuilders,
