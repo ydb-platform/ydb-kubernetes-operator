@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strconv"
 
@@ -9,7 +10,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func generate(cr *v1alpha1.Storage) schema.Configuration {
+func hash(text string) string {
+	h := sha256.New()
+	h.Write([]byte(text))
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func generate(cr *v1alpha1.Storage, crDb *v1alpha1.Database) schema.Configuration {
 	var hosts []schema.Host
 
 	for i := 0; i < int(cr.Spec.Nodes); i++ {
@@ -31,14 +38,29 @@ func generate(cr *v1alpha1.Storage) schema.Configuration {
 		})
 	}
 
+	var keyConfig *schema.KeyConfig
+	if crDb != nil && crDb.Spec.Encryption.Enabled {
+		keyConfig = &schema.KeyConfig{
+			Keys: []schema.Key{
+				{
+					ContainerPath: "/tls/encryption/key",
+					Id:            hash(cr.Name),
+					Pin:           crDb.Spec.Encryption.Pin,
+					Version:       1,
+				},
+			},
+		}
+	}
+
 	return schema.Configuration{
-		Hosts: hosts,
+		Hosts:     hosts,
+		KeyConfig: keyConfig,
 	}
 }
 
-func Build(cr *v1alpha1.Storage) (map[string]string, error) {
+func Build(cr *v1alpha1.Storage, crDb *v1alpha1.Database) (map[string]string, error) {
 	var crdConfig map[string]interface{}
-	generatedConfig := generate(cr)
+	generatedConfig := generate(cr, crDb)
 
 	err := yaml.Unmarshal([]byte(cr.Spec.Configuration), &crdConfig)
 	if err != nil {
@@ -46,6 +68,9 @@ func Build(cr *v1alpha1.Storage) (map[string]string, error) {
 	}
 
 	crdConfig["hosts"] = generatedConfig.Hosts
+	if generatedConfig.KeyConfig != nil {
+		crdConfig["key_config"] = generatedConfig.KeyConfig
+	}
 
 	data, err := yaml.Marshal(crdConfig)
 	if err != nil {

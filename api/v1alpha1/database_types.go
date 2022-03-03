@@ -29,6 +29,10 @@ type DatabaseSpec struct {
 	// +required
 	StorageClusterRef StorageRef `json:"storageClusterRef"`
 
+	// Encryption
+	// +optional
+	Encryption *EncryptionConfig `json:"encryption,omitempty"`
+
 	// (Optional) Name of the root storage domain
 	// Default: root
 	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
@@ -181,6 +185,18 @@ type PodImage struct {
 	// must be configured first by the user.
 	// +optional
 	PullSecret *string `json:"pullSecret,omitempty"`
+}
+
+// EncryptionConfig todo
+type EncryptionConfig struct {
+	// +required
+	Enabled bool `json:"enabled"`
+
+	// +optional
+	Key *corev1.SecretKeySelector `json:"key,omitempty"`
+
+	// +optional
+	Pin *string `json:"pin,omitempty"`
 }
 
 // StorageRef todo
