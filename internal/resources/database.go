@@ -77,7 +77,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		},
 	)
 
-	if b.Spec.Encryption.Enabled && b.Spec.Encryption.Key == nil {
+	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled && b.Spec.Encryption.Key == nil {
 		var pin string
 		if b.Spec.Encryption.Pin == nil || len(*b.Spec.Encryption.Pin) == 0 {
 			pin = defaultPin

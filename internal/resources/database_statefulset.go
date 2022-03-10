@@ -116,7 +116,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume("interconnect-tls-volume", b.Spec.Service.Interconnect.TLSConfiguration)) // fixme const
 	}
 
-	if b.Spec.Encryption.Enabled {
+	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumes = append(volumes, b.buildEncryptionVolume())
 	}
 
@@ -236,7 +236,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.Spec.Encryption.Enabled {
+	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      encryptionVolumeName,
 			ReadOnly:  true,
