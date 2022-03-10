@@ -45,7 +45,7 @@ func generate(cr *v1alpha1.Storage, crDb *v1alpha1.Database) schema.Configuratio
 	}
 
 	var keyConfig *schema.KeyConfig
-	if crDb != nil && crDb.Spec.Encryption.Enabled {
+	if crDb != nil && crDb.Spec.Encryption != nil && crDb.Spec.Encryption.Enabled {
 		keyConfig = &schema.KeyConfig{
 			Keys: []schema.Key{
 				{
