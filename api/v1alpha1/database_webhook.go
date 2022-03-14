@@ -65,6 +65,12 @@ func (r *Database) Default() {
 	if r.Spec.Encryption == nil {
 		r.Spec.Encryption = &EncryptionConfig{Enabled: false}
 	}
+
+	if r.Spec.Monitoring == nil {
+		r.Spec.Monitoring = &MonitoringOptions{
+			Enabled: false,
+		}
+	}
 }
 
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databases,verbs=create;update,versions=v1alpha1,name=validate-database.ydb.tech,admissionReviewVersions=v1

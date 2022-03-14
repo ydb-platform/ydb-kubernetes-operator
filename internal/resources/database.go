@@ -6,6 +6,7 @@ import (
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -62,7 +63,8 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		return []ResourceBuilder{}
 	}
 
-	ll := labels.DatabaseLabels(b.Unwrap())
+	databaseLabels := labels.DatabaseLabels(b.Unwrap())
+	statusServiceLabels := databaseLabels.MergeInPlace(b.Spec.Service.Status.AdditionalLabels)
 
 	var optionalBuilders []ResourceBuilder
 
@@ -73,9 +75,24 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		&ConfigMapBuilder{
 			Object: b,
 			Data:   cfg,
-			Labels: ll,
+			Labels: databaseLabels,
 		},
 	)
+
+	if b.Spec.Monitoring != nil && b.Spec.Monitoring.Enabled {
+		optionalBuilders = append(optionalBuilders,
+			&ServiceMonitorBuilder{
+				Object: b,
+
+				TargetPort:      api.StatusPort,
+				MetricsServices: metrics.GetDatabaseMetricsServices(),
+				Options:         b.Spec.Monitoring,
+
+				Labels:         databaseLabels,
+				SelectorLabels: statusServiceLabels,
+			},
+		)
+	}
 
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled && b.Spec.Encryption.Key == nil {
 		var pin string
@@ -88,7 +105,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			optionalBuilders,
 			&EncryptionSecretBuilder{
 				Object: b,
-				Labels: ll,
+				Labels: databaseLabels,
 				Pin:    pin,
 			},
 		)
@@ -99,8 +116,8 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		&ServiceBuilder{
 			Object:         b,
 			NameFormat:     grpcServiceNameFormat,
-			Labels:         ll.MergeInPlace(b.Spec.Service.GRPC.AdditionalLabels),
-			SelectorLabels: ll,
+			Labels:         databaseLabels.MergeInPlace(b.Spec.Service.GRPC.AdditionalLabels),
+			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
@@ -112,8 +129,8 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		&ServiceBuilder{
 			Object:         b,
 			NameFormat:     interconnectServiceNameFormat,
-			Labels:         ll.MergeInPlace(b.Spec.Service.Interconnect.AdditionalLabels),
-			SelectorLabels: ll,
+			Labels:         databaseLabels.MergeInPlace(b.Spec.Service.Interconnect.AdditionalLabels),
+			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			Ports: []corev1.ServicePort{{
@@ -126,8 +143,8 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		&ServiceBuilder{
 			Object:         b,
 			NameFormat:     statusServiceNameFormat,
-			Labels:         ll.MergeInPlace(b.Spec.Service.Status.AdditionalLabels),
-			SelectorLabels: ll,
+			Labels:         statusServiceLabels,
+			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
@@ -136,6 +153,6 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			IPFamilies:     b.Spec.Service.Status.IPFamilies,
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
-		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: ll},
+		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: databaseLabels},
 	)
 }
