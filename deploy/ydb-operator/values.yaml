@@ -6,7 +6,7 @@ image:
   ##
   pullPolicy: IfNotPresent
   repository: cr.yandex/yc/ydb-kubernetes-operator
-  tag: 0.4.6
+  tag: 0.4.7
 
 ## Secrets to use for Docker registry access
 ## Secrets must be provided manually.
