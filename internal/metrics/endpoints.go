@@ -12,16 +12,24 @@ type MetricsService struct {
 	Relabelings []*v1.RelabelConfig
 }
 
-func GetStorageMetricsServices() []MetricsService {
-	var services []MetricsService
+func getMetricsServices(services []string) []MetricsService {
+	var metricsServices []MetricsService
 
 	for _, serviceName := range storageMetricsServices {
-		services = append(services, MetricsService{
+		metricsServices = append(metricsServices, MetricsService{
 			Name:        serviceName,
 			Path:        fmt.Sprintf(MetricEndpointFormat, serviceName),
-			Relabelings: GetStorageMetricsRelabelings(serviceName),
+			Relabelings: GetMetricsRelabelings(serviceName),
 		})
 	}
 
-	return services
+	return metricsServices
+}
+
+func GetStorageMetricsServices() []MetricsService {
+	return getMetricsServices(storageMetricsServices)
+}
+
+func GetDatabaseMetricsServices() []MetricsService {
+	return getMetricsServices(databaseMetricsServices)
 }

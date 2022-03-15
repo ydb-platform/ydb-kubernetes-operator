@@ -74,6 +74,11 @@ type DatabaseSpec struct {
 	// +optional
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
+	// (Optional) Monitoring sets configuration options for YDB observability
+	// Default: ""
+	// +optional
+	Monitoring *MonitoringOptions `json:"monitoring,omitempty"`
+
 	// (Optional) YDBVersion sets the explicit version of the YDB image
 	// Default: ""
 	// +optional
