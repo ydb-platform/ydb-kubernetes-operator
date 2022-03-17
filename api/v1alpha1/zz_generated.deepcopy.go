@@ -147,6 +147,11 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.Monitoring != nil {
+		in, out := &in.Monitoring, &out.Monitoring
+		*out = new(MonitoringOptions)
+		(*in).DeepCopyInto(*out)
+	}
 	in.Image.DeepCopyInto(&out.Image)
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector

@@ -329,7 +329,7 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 		StorageUnits:         StorageUnits,
 		Shared:               Shared,
 		SharedDatabasePath:   SharedDatabasePath,
-		UseGrpcSecureChannel: database.Spec.Service.GRPC.TLSConfiguration.Enabled,
+		UseGrpcSecureChannel: database.StorageRef.Spec.Service.GRPC.TLSConfiguration.Enabled,
 	}
 	err := tenant.Create(ctx)
 	if err != nil {

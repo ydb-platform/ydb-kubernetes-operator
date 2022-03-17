@@ -31,7 +31,9 @@ func (t *Tenant) Create(ctx context.Context) error {
 		Context: ctx,
 		Target:  t.StorageEndpoint,
 	}
+	logger.Info(fmt.Sprintf("creating tenant, endpoint: %s, secure: %t, method: %s", t.StorageEndpoint, t.UseGrpcSecureChannel, createDatabaseMethod))
 	request := t.makeCreateDatabaseRequest()
+	logger.Info(fmt.Sprintf("creating tenant, request: %s", request))
 	response := &Ydb_Cms.CreateDatabaseResponse{}
 	grpcCallResult := client.Invoke(
 		createDatabaseMethod,
@@ -39,11 +41,10 @@ func (t *Tenant) Create(ctx context.Context) error {
 		response,
 		t.UseGrpcSecureChannel,
 	)
-	logger.Info(fmt.Sprintf("method call: %s, request: %s, response: %s, err: %s", createDatabaseMethod, request, response, grpcCallResult))
-
 	if _, err := processDatabaseCreationResponse(response); err != nil {
 		return err
 	}
+	logger.Info(fmt.Sprintf("creating tenant, response: %s, err: %s", response, grpcCallResult))
 	return grpcCallResult
 }
 
