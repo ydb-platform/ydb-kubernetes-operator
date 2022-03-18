@@ -64,7 +64,17 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 	}
 
 	databaseLabels := labels.DatabaseLabels(b.Unwrap())
-	statusServiceLabels := databaseLabels.MergeInPlace(b.Spec.Service.Status.AdditionalLabels)
+	grpcServiceLabels := databaseLabels.Copy()
+	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
+	grpcServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.GRPCComponent})
+
+	interconnectServiceLabels := databaseLabels.Copy()
+	interconnectServiceLabels.Merge(b.Spec.Service.Interconnect.AdditionalLabels)
+	interconnectServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.InterconnectComponent})
+
+	statusServiceLabels := databaseLabels.Copy()
+	statusServiceLabels.Merge(b.Spec.Service.Status.AdditionalLabels)
+	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
 
 	var optionalBuilders []ResourceBuilder
 
@@ -116,7 +126,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		&ServiceBuilder{
 			Object:         b,
 			NameFormat:     grpcServiceNameFormat,
-			Labels:         databaseLabels.MergeInPlace(b.Spec.Service.GRPC.AdditionalLabels),
+			Labels:         grpcServiceLabels,
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
@@ -129,7 +139,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		&ServiceBuilder{
 			Object:         b,
 			NameFormat:     interconnectServiceNameFormat,
-			Labels:         databaseLabels.MergeInPlace(b.Spec.Service.Interconnect.AdditionalLabels),
+			Labels:         interconnectServiceLabels,
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
