@@ -16,9 +16,15 @@ func getMetricsServices(services []string) []MetricsService {
 	var metricsServices []MetricsService
 
 	for _, serviceName := range storageMetricsServices {
+		var servicePath string
+		if serviceName == "ydb" || serviceName == "ydb_serverless" {
+			servicePath = fmt.Sprintf(MetricEndpointFormat, serviceName+"/name_label=name")
+		} else {
+			servicePath = fmt.Sprintf(MetricEndpointFormat, serviceName)
+		}
 		metricsServices = append(metricsServices, MetricsService{
 			Name:        serviceName,
-			Path:        fmt.Sprintf(MetricEndpointFormat, serviceName),
+			Path:        servicePath,
 			Relabelings: GetMetricsRelabelings(serviceName),
 		})
 	}

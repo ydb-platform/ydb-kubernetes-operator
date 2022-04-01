@@ -28,6 +28,7 @@ var storageMetricsServices = []string{ // NB dashes are not allowed in the metri
 
 var databaseMetricsServices = []string{ // NB dashes are not allowed in the metric service name
 	"ydb",
+	"ydb_serverless",
 	"auth",
 	"coordinator",
 	"dsproxy_queue",
