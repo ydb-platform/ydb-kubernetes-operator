@@ -919,7 +919,7 @@ spec:
                 - enabled
                 type: object
               image:
-                description: (Optional) Yandex Database Image
+                description: (Optional) YDB Image
                 properties:
                   name:
                     description: 'Container image with supported YDB version. This

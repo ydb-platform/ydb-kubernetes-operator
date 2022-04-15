@@ -84,7 +84,7 @@ type DatabaseSpec struct {
 	// +optional
 	YDBVersion string `json:"version,omitempty"`
 
-	// (Optional) Yandex Database Image
+	// (Optional) YDB Image
 	// +optional
 	Image PodImage `json:"image,omitempty"`
 
