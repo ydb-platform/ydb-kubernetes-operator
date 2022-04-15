@@ -1,6 +1,6 @@
 # YDB Kubernetes Operator
 
-The YDB Kubernetes operator deploys and manages Yandex Database resources on a Kubernetes cluster.
+The YDB Kubernetes operator deploys and manages YDB resources on a Kubernetes cluster.
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ The YDB Kubernetes operator deploys and manages Yandex Database resources on a K
 
 ## Limitations
 
-- The Operator currently runs on Yandex Cloud and EKS, other cloud providers have not been tested.
+- The Operator currently runs on Yandex Cloud and Amazon EKS, other cloud providers have not been tested.
 - The Operator has not been tested with [Istio](https://istio.io/).
 
 ## Usage
