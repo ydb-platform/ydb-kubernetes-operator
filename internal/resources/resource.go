@@ -17,6 +17,11 @@ const (
 	grpcServiceNameFormat         = "%s-grpc"
 	interconnectServiceNameFormat = "%s-interconnect"
 	statusServiceNameFormat       = "%s-status"
+	datastreamsServiceNameFormat  = "%s-datastreams"
+
+	grpcTLSVolumeName         = "grpc-tls-volume"
+	interconnectTLSVolumeName = "interconnect-tls-volume"
+	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
 	encryptionVolumeName                      = "encryption"

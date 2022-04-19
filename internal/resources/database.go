@@ -76,6 +76,10 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 	statusServiceLabels.Merge(b.Spec.Service.Status.AdditionalLabels)
 	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
 
+	datastreamsServiceLabels := databaseLabels.Copy()
+	datastreamsServiceLabels.Merge(b.Spec.Service.Datastreams.AdditionalLabels)
+	datastreamsServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.DatastreamsComponent})
+
 	var optionalBuilders []ResourceBuilder
 
 	cfg, _ := configuration.Build(b.StorageRef, b.Unwrap())
@@ -121,7 +125,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		)
 	}
 
-	return append(
+	optionalBuilders = append(
 		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
@@ -163,6 +167,31 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 			IPFamilies:     b.Spec.Service.Status.IPFamilies,
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
+	)
+
+	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
+		optionalBuilders = append(
+			optionalBuilders,
+			&ServiceBuilder{
+				Object:         b,
+				NameFormat:     datastreamsServiceNameFormat,
+				Labels:         datastreamsServiceLabels,
+				SelectorLabels: databaseLabels,
+				Annotations:    b.Spec.Service.Datastreams.AdditionalAnnotations,
+				Ports: []corev1.ServicePort{{
+					Name: api.DatastreamsServicePortName,
+					Port: api.DatastreamsPort,
+				}},
+				IPFamilies:     b.Spec.Service.Datastreams.IPFamilies,
+				IPFamilyPolicy: b.Spec.Service.Datastreams.IPFamilyPolicy,
+			},
+		)
+	}
+
+	optionalBuilders = append(
+		optionalBuilders,
 		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: databaseLabels},
 	)
+
+	return optionalBuilders
 }

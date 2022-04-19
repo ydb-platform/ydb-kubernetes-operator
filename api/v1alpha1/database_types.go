@@ -211,6 +211,9 @@ type EncryptionConfig struct {
 //Datastreams config todo
 type DatastreamsConfig struct {
 	// +required
+	Enabled bool `json:"enabled"`
+
+	// +required
 	IAMServiceAccountKey *corev1.SecretKeySelector `json:"iam_service_account_key,omitempty"`
 }
 
@@ -243,6 +246,7 @@ type DatabaseServices struct {
 	GRPC         GRPCService         `json:"grpc,omitempty"`
 	Interconnect InterconnectService `json:"interconnect,omitempty"`
 	Status       StatusService       `json:"status,omitempty"`
+	Datastreams  DatastreamsService  `json:"datastreams,omitempty"`
 }
 
 func init() {

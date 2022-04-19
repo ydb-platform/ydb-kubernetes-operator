@@ -17,6 +17,9 @@ const (
 	StatusPort            = 8765
 	StatusServicePortName = "status"
 
+	DatastreamsPort            = 8443
+	DatastreamsServicePortName = "datastreams"
+
 	DiskPathPrefix      = "/dev/kikimr_ssd"
 	DiskNumberMaxDigits = 2
 	DiskFilePath        = "/data"

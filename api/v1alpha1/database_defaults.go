@@ -41,4 +41,7 @@ func SetDatabaseSpecDefaults(ydbCr *Database, ydbSpec *DatabaseSpec) {
 	if ydbSpec.Service.Interconnect.TLSConfiguration == nil {
 		ydbSpec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
+	if ydbSpec.Service.Datastreams.TLSConfiguration == nil {
+		ydbSpec.Service.Datastreams.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
 }

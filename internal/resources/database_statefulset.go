@@ -109,19 +109,22 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		volumes = append(volumes, buildTLSVolume("grpc-tls-volume", b.Spec.Service.GRPC.TLSConfiguration))
+		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
 	if b.Spec.Service.Interconnect.TLSConfiguration != nil && b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		volumes = append(volumes, buildTLSVolume("interconnect-tls-volume", b.Spec.Service.Interconnect.TLSConfiguration)) // fixme const
+		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumes = append(volumes, b.buildEncryptionVolume())
 	}
 
-	if b.Spec.Datastreams != nil {
+	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
 		volumes = append(volumes, b.buildDatastreamsIAMServiceAccountKeyVolume())
+		if b.Spec.Service.Datastreams.TLSConfiguration != nil && b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
+			volumes = append(volumes, buildTLSVolume(datastreamsTLSVolumeName, b.Spec.Service.Datastreams.TLSConfiguration))
+		}
 	}
 
 	return volumes
@@ -213,17 +216,25 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 				},
 			},
 		},
-
-		Ports: []corev1.ContainerPort{{
-			Name: "grpc", ContainerPort: v1alpha1.GRPCPort,
-		}, {
-			Name: "interconnect", ContainerPort: v1alpha1.InterconnectPort,
-		}, {
-			Name: "status", ContainerPort: v1alpha1.StatusPort,
-		}},
-
 		VolumeMounts: b.buildVolumeMounts(),
 	}
+
+	ports := []corev1.ContainerPort{{
+		Name: "grpc", ContainerPort: v1alpha1.GRPCPort,
+	}, {
+		Name: "interconnect", ContainerPort: v1alpha1.InterconnectPort,
+	}, {
+		Name: "status", ContainerPort: v1alpha1.StatusPort,
+	}}
+
+	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
+		ports = append(ports, corev1.ContainerPort{
+			Name: "datastreams", ContainerPort: v1alpha1.DatastreamsPort,
+		})
+	}
+
+	container.Ports = ports
+
 	if b.Spec.Resources != nil {
 		container.Resources = (*b.Spec.Resources).ContainerResources
 	} else if b.Spec.SharedResources != nil {
@@ -243,17 +254,17 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "grpc-tls-volume",
+			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/grpc",
+			MountPath: "/tls/grpc", // fixme const
 		})
 	}
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "interconnect-tls-volume",
+			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/interconnect",
+			MountPath: "/tls/interconnect", // fixme const
 		})
 	}
 
@@ -265,12 +276,19 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.Spec.Datastreams != nil {
+	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      datastreamsIAMServiceAccountKeyVolumeName,
 			ReadOnly:  true,
 			MountPath: configuration.DatastreamsIAMServiceAccountKeyPath,
 		})
+		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      datastreamsTLSVolumeName,
+				ReadOnly:  true,
+				MountPath: "/tls/datastreams", // fixme const
+			})
+		}
 	}
 
 	return volumeMounts

@@ -58,12 +58,20 @@ func (r *Database) Default() {
 		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
+	if r.Spec.Service.Datastreams.TLSConfiguration == nil {
+		r.Spec.Service.Datastreams.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
+
 	if r.Spec.Domain == "" {
 		r.Spec.Domain = "root" // FIXME
 	}
 
 	if r.Spec.Encryption == nil {
 		r.Spec.Encryption = &EncryptionConfig{Enabled: false}
+	}
+
+	if r.Spec.Datastreams == nil {
+		r.Spec.Datastreams = &DatastreamsConfig{Enabled: false}
 	}
 
 	if r.Spec.Monitoring == nil {
