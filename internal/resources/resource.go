@@ -18,10 +18,11 @@ const (
 	interconnectServiceNameFormat = "%s-interconnect"
 	statusServiceNameFormat       = "%s-status"
 
-	lastAppliedAnnotation      = "ydb.tech/last-applied"
-	encryptionVolumeName       = "encryption"
-	defaultEncryptionSecretKey = "key"
-	defaultPin                 = "EmptyPin"
+	lastAppliedAnnotation                     = "ydb.tech/last-applied"
+	encryptionVolumeName                      = "encryption"
+	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
+	defaultEncryptionSecretKey                = "key"
+	defaultPin                                = "EmptyPin"
 )
 
 type ResourceBuilder interface {

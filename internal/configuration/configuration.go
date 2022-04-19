@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	DatabaseEncryptionKeyPath = "/opt/ydb/secrets/database_encryption"
-	DatabaseEncryptionKeyFile = "key"
+	DatabaseEncryptionKeyPath           = "/opt/ydb/secrets/database_encryption"
+	DatabaseEncryptionKeyFile           = "key"
+	DatastreamsIAMServiceAccountKeyPath = "/opt/ydb/secrets/datastreams"
+	DatastreamsIAMServiceAccountKeyFile = "sa_key.json"
 )
 
 func hash(text string) string {

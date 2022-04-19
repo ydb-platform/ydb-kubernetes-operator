@@ -33,6 +33,10 @@ type DatabaseSpec struct {
 	// +optional
 	Encryption *EncryptionConfig `json:"encryption,omitempty"`
 
+	// Datastreams config
+	// +optional
+	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
+
 	// (Optional) Name of the root storage domain
 	// Default: root
 	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
@@ -202,6 +206,12 @@ type EncryptionConfig struct {
 
 	// +optional
 	Pin *string `json:"pin,omitempty"`
+}
+
+//Datastreams config todo
+type DatastreamsConfig struct {
+	// +required
+	IAMServiceAccountKey *corev1.SecretKeySelector `json:"iam_service_account_key,omitempty"`
 }
 
 // StorageRef todo

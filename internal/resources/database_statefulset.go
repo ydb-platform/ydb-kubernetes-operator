@@ -120,6 +120,10 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, b.buildEncryptionVolume())
 	}
 
+	if b.Spec.Datastreams != nil {
+		volumes = append(volumes, b.buildDatastreamsIAMServiceAccountKeyVolume())
+	}
+
 	return volumes
 }
 
@@ -169,6 +173,23 @@ func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
 					{
 						Key:  secretKey,
 						Path: configuration.DatabaseEncryptionKeyFile,
+					},
+				},
+			},
+		},
+	}
+}
+
+func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume() corev1.Volume {
+	return corev1.Volume{
+		Name: datastreamsIAMServiceAccountKeyVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: b.Spec.Datastreams.IAMServiceAccountKey.Name,
+				Items: []corev1.KeyToPath{
+					{
+						Key:  b.Spec.Datastreams.IAMServiceAccountKey.Key,
+						Path: configuration.DatastreamsIAMServiceAccountKeyFile,
 					},
 				},
 			},
@@ -241,6 +262,14 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 			Name:      encryptionVolumeName,
 			ReadOnly:  true,
 			MountPath: configuration.DatabaseEncryptionKeyPath,
+		})
+	}
+
+	if b.Spec.Datastreams != nil {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      datastreamsIAMServiceAccountKeyVolumeName,
+			ReadOnly:  true,
+			MountPath: configuration.DatastreamsIAMServiceAccountKeyPath,
 		})
 	}
 
