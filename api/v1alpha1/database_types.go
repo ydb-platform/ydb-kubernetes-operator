@@ -181,7 +181,7 @@ type DatabaseList struct {
 type PodImage struct {
 	// Container image with supported YDB version.
 	// This defaults to the version pinned to the operator and requires a full container and tag/sha name.
-	// For instance: cr.yandex/ydb/ydb:stable-21-4-14
+	// For instance: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22
 	// +required
 	Name string `json:"name,omitempty"`
 

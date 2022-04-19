@@ -4,7 +4,7 @@ metadata:
   name: database-minikube-sample
 spec:
   image:
-    name: cr.yandex/crpl7ipeu79oseqhcgn2/ydb-oss:master
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22
   nodes: 1
   domain: Root
   resources:
