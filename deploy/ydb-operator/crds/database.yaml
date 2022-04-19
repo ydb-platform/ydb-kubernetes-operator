@@ -886,6 +886,8 @@ spec:
               datastreams:
                 description: Datastreams config
                 properties:
+                  enabled:
+                    type: boolean
                   iam_service_account_key:
                     description: SecretKeySelector selects a key of a Secret.
                     properties:
@@ -904,6 +906,8 @@ spec:
                     required:
                     - key
                     type: object
+                required:
+                - enabled
                 type: object
               domain:
                 default: root
@@ -2272,6 +2276,92 @@ spec:
                 description: '(Optional) Storage services parameter overrides Default:
                   (not specified)'
                 properties:
+                  datastreams:
+                    properties:
+                      additionalAnnotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      additionalLabels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      ipFamilies:
+                        items:
+                          description: IPFamily represents the IP Family (IPv4 or
+                            IPv6). This type is used to express the family of an IP
+                            expressed by a type (e.g. service.spec.ipFamilies).
+                          type: string
+                        type: array
+                      ipFamilyPolicy:
+                        description: IPFamilyPolicyType represents the dual-stack-ness
+                          requested or required by a Service
+                        type: string
+                      tls:
+                        properties:
+                          CA:
+                            description: SecretKeySelector selects a key of a Secret.
+                            properties:
+                              key:
+                                description: The key of the secret to select from.  Must
+                                  be a valid secret key.
+                                type: string
+                              name:
+                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  TODO: Add other useful fields. apiVersion, kind,
+                                  uid?'
+                                type: string
+                              optional:
+                                description: Specify whether the Secret or its key
+                                  must be defined
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                          certificate:
+                            description: SecretKeySelector selects a key of a Secret.
+                            properties:
+                              key:
+                                description: The key of the secret to select from.  Must
+                                  be a valid secret key.
+                                type: string
+                              name:
+                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  TODO: Add other useful fields. apiVersion, kind,
+                                  uid?'
+                                type: string
+                              optional:
+                                description: Specify whether the Secret or its key
+                                  must be defined
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                          enabled:
+                            type: boolean
+                          key:
+                            description: SecretKeySelector selects a key of a Secret.
+                            properties:
+                              key:
+                                description: The key of the secret to select from.  Must
+                                  be a valid secret key.
+                                type: string
+                              name:
+                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  TODO: Add other useful fields. apiVersion, kind,
+                                  uid?'
+                                type: string
+                              optional:
+                                description: Specify whether the Secret or its key
+                                  must be defined
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                        required:
+                        - enabled
+                        type: object
+                    type: object
                   grpc:
                     properties:
                       additionalAnnotations:

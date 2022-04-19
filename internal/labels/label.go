@@ -26,6 +26,7 @@ const (
 	GRPCComponent         = "grpc"
 	InterconnectComponent = "interconnect"
 	StatusComponent       = "status"
+	DatastreamsComponent  = "datastreams"
 )
 
 type Labels map[string]string

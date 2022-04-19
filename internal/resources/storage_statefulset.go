@@ -150,11 +150,11 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		volumes = append(volumes, buildTLSVolume("grpc-tls-volume", b.Spec.Service.GRPC.TLSConfiguration))
+		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		volumes = append(volumes, buildTLSVolume("interconnect-tls-volume", b.Spec.Service.Interconnect.TLSConfiguration)) // fixme const
+		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
 	return volumes
@@ -232,17 +232,17 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "grpc-tls-volume",
+			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/grpc",
+			MountPath: "/tls/grpc", // fixme const
 		})
 	}
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "interconnect-tls-volume",
+			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/interconnect",
+			MountPath: "/tls/interconnect", // fixme const
 		})
 	}
 
