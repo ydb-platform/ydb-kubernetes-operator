@@ -43,7 +43,7 @@ service:
 metrics:
   ## Create ServiceMonitor resources
   ##
-  enabled: true
+  enabled: false
 
 webhook:
   enabled: true
