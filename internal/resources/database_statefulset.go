@@ -76,10 +76,11 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			Labels: b.Labels,
 		},
 		Spec: corev1.PodSpec{
-			Containers:   []corev1.Container{b.buildContainer()},
-			NodeSelector: b.Spec.NodeSelector,
-			Affinity:     b.Spec.Affinity,
-			Tolerations:  b.Spec.Tolerations,
+			Containers:     []corev1.Container{b.buildContainer()},
+			InitContainers: b.Spec.InitContainers,
+			NodeSelector:   b.Spec.NodeSelector,
+			Affinity:       b.Spec.Affinity,
+			Tolerations:    b.Spec.Tolerations,
 
 			Volumes: b.buildVolumes(),
 
