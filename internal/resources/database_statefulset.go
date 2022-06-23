@@ -31,6 +31,7 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		sts.ObjectMeta.Name = b.Name
 	}
 	sts.ObjectMeta.Namespace = b.Namespace
+	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
 
 	sts.Spec = appsv1.StatefulSetSpec{
 		Replicas: ptr.Int32(b.Spec.Nodes),
@@ -73,7 +74,8 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: b.Labels,
+			Labels:      b.Labels,
+			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
 			Containers:     []corev1.Container{b.buildContainer()},
