@@ -44,6 +44,12 @@ spec:
           spec:
             description: DatabaseSpec defines the desired state of Database
             properties:
+              additionalAnnotations:
+                additionalProperties:
+                  type: string
+                description: (Optional) Additional custom resource annotations that
+                  are added to all resources
+                type: object
               additionalLabels:
                 additionalProperties:
                   type: string
@@ -2771,6 +2777,12 @@ spec:
               spec:
                 description: StorageSpec defines the desired state of Storage
                 properties:
+                  additionalAnnotations:
+                    additionalProperties:
+                      type: string
+                    description: (Optional) Additional custom resource annotations
+                      that are added to all resources
+                    type: object
                   additionalLabels:
                     additionalProperties:
                       type: string

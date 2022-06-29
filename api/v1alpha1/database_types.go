@@ -109,6 +109,10 @@ type DatabaseSpec struct {
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
+
+	// (Optional) Additional custom resource annotations that are added to all resources
+	// +optional
+	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
 }
 
 type DatabaseResources struct {
