@@ -168,7 +168,7 @@ type Database struct {
 	// +kubebuilder:default:={state: "Pending"}
 	Status DatabaseStatus `json:"status,omitempty"`
 
-	StorageRef *Storage `json:"storageRef,omitempty"`
+	StorageRef *Storage `json:""`
 }
 
 //+kubebuilder:object:root=true
