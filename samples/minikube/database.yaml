@@ -7,6 +7,9 @@ spec:
     name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22
   nodes: 1
   domain: Root
+  service:
+    grpc:
+      externalHost: localhost
   resources:
     containerResources:
       limits:
