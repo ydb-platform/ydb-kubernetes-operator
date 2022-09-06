@@ -53,6 +53,9 @@ webhook:
     port: 9443
     ## If type is NodePort:
     #  nodePort: 9443
+    #
+    ## If url should be specified in WebhookConfiguration instead of service:
+    #  url: example.org
 
   ## If enabled, generate a self-signed certificate, then patch the webhook configurations with the generated data.
   ## On chart upgrades (or if the secret exists) the cert will not be re-generated. You can use this to provide your own

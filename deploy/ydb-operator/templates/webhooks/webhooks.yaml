@@ -8,14 +8,22 @@ webhooks:
   {{- if eq .Values.webhook.service.type "NodePort" }}
     {{- $webhookPort = coalesce .Values.webhook.service.nodePort 9443 -}}
   {{- end }}
+  {{- $webhookUrl := .Values.webhook.service.url -}}
+  {{- if not hasPrefix $webhookUrl "https://" }}
+    {{- $webhookUrl = "https://"$webhookUrl -}}
+  {{- end }}
   - admissionReviewVersions:
       - v1
     clientConfig:
+      {{- if .Values.webhook.service.url }}
+      url: {{ $webhookUrl }}:{{ $webhookPort }}/mutate-ydb-tech-v1alpha1-database 
+      {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
         namespace: {{ .Release.Namespace }}
         port: {{ $webhookPort }}
         path: /mutate-ydb-tech-v1alpha1-database
+      {{- end}}
     failurePolicy: Fail
     name: mutate-database.ydb.tech
     rules:
@@ -32,11 +40,15 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
+      {{- if .Values.webhook.service.url }}
+      url: {{ $webhookUrl }}:{{ $webhookPort }}/validate-ydb-tech-v1alpha1-database 
+      {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
         namespace: {{ .Release.Namespace }}
         port: {{ $webhookPort }}
         path: /validate-ydb-tech-v1alpha1-database
+      {{- end}}
     failurePolicy: Fail
     name: validate-database.ydb.tech
     rules:
@@ -53,11 +65,15 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
+      {{- if .Values.webhook.service.url }}
+      url: {{ $webhookUrl }}:{{ $webhookPort }}/mutate-ydb-tech-v1alpha1-storage 
+      {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
         namespace: {{ .Release.Namespace }}
         port: {{ $webhookPort }}
         path: /mutate-ydb-tech-v1alpha1-storage
+      {{- end}}
     failurePolicy: Fail
     name: mutate-storage.ydb.tech
     rules:
@@ -74,11 +90,15 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
+      {{- if .Values.webhook.service.url }}
+      url: {{ $webhookUrl }}:{{ $webhookPort }}/validate-ydb-tech-v1alpha1-storage
+      {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
         namespace: {{ .Release.Namespace }}
         port: {{ $webhookPort }}
         path: /validate-ydb-tech-v1alpha1-storage
+      {{- end}}
     failurePolicy: Fail
     name: validate-storage.ydb.tech
     rules:
