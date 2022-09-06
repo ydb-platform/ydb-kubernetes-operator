@@ -6,7 +6,7 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: {{ template "ydb.fullname" . }}-self-signed-issuer
-  namespace: {{ template "ydb.namespace" . }}
+  namespace: {{ .Release.Namespace }}
 spec:
   selfSigned: {}
 ---
