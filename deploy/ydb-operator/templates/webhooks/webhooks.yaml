@@ -9,13 +9,15 @@ webhooks:
     {{- $webhookPort = coalesce .Values.webhook.service.nodePort 9443 -}}
   {{- end }}
   {{- $webhookUrl := .Values.webhook.service.url -}}
-  {{- if not hasPrefix $webhookUrl "https://" }}
-    {{- $webhookUrl = "https://"$webhookUrl -}}
-  {{- end }}
+  {{- if not (empty $webhookUrl) }}
+    {{- if not (hasPrefix $webhookUrl "https://") }}
+      {{- $webhookUrl = printf "https://%s" $webhookUrl -}}
+    {{- end}}
+  {{- end}}
   - admissionReviewVersions:
       - v1
     clientConfig:
-      {{- if .Values.webhook.service.url }}
+      {{- if not (empty $webhookUrl) }}
       url: {{ $webhookUrl }}:{{ $webhookPort }}/mutate-ydb-tech-v1alpha1-database 
       {{- else}}
       service:
@@ -40,7 +42,7 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
-      {{- if .Values.webhook.service.url }}
+      {{- if not (empty $webhookUrl) }}
       url: {{ $webhookUrl }}:{{ $webhookPort }}/validate-ydb-tech-v1alpha1-database 
       {{- else}}
       service:
@@ -65,7 +67,7 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
-      {{- if .Values.webhook.service.url }}
+      {{- if not (empty $webhookUrl) }}
       url: {{ $webhookUrl }}:{{ $webhookPort }}/mutate-ydb-tech-v1alpha1-storage 
       {{- else}}
       service:
@@ -90,7 +92,7 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
-      {{- if .Values.webhook.service.url }}
+      {{- if not (empty $webhookUrl) }}
       url: {{ $webhookUrl }}:{{ $webhookPort }}/validate-ydb-tech-v1alpha1-storage
       {{- else}}
       service:
