@@ -48,8 +48,8 @@ spec:
     name: {{ template "ydb.fullname" . }}-root-issuer
     {{- end }}
   dnsNames:
-  {{- if .Values.webhook.service.url }}
-  - {{ .Values.webhook.service.url }}
+  {{- if .Values.webhook.service.fqdn }}
+  - {{ .Values.webhook.service.fqdn }}
   {{- end}}
   - {{ template "ydb.fullname" . }}-webhook
   - {{ template "ydb.fullname" . }}-webhook.{{ .Release.Namespace }}
