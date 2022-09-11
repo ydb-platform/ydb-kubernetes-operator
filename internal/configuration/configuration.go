@@ -67,7 +67,7 @@ func generate(cr *v1alpha1.Storage, crDb *v1alpha1.Database) schema.Configuratio
 }
 
 func Build(cr *v1alpha1.Storage, crDb *v1alpha1.Database) (map[string]string, error) {
-	var crdConfig map[string]interface{}
+	crdConfig := make(map[string]interface{})
 	generatedConfig := generate(cr, crDb)
 
 	err := yaml.Unmarshal([]byte(cr.Spec.Configuration), &crdConfig)
@@ -75,7 +75,9 @@ func Build(cr *v1alpha1.Storage, crDb *v1alpha1.Database) (map[string]string, er
 		return nil, err
 	}
 
-	crdConfig["hosts"] = generatedConfig.Hosts
+	if crdConfig["hosts"] == nil {
+		crdConfig["hosts"] = generatedConfig.Hosts
+	}
 	if generatedConfig.KeyConfig != nil {
 		crdConfig["key_config"] = generatedConfig.KeyConfig
 	}
