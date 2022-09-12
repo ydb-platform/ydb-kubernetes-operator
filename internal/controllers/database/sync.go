@@ -126,7 +126,7 @@ func (r *DatabaseReconciler) waitForClusterResources(ctx context.Context, databa
 		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
-	database.StorageRef = storage
+	database.Storage = storage
 
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
@@ -329,7 +329,7 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 		StorageUnits:         StorageUnits,
 		Shared:               Shared,
 		SharedDatabasePath:   SharedDatabasePath,
-		UseGrpcSecureChannel: database.StorageRef.Spec.Service.GRPC.TLSConfiguration.Enabled,
+		UseGrpcSecureChannel: database.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled,
 	}
 	err := tenant.Create(ctx)
 	if err != nil {
