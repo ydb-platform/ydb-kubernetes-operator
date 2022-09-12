@@ -13,6 +13,7 @@ import (
 
 type DatabaseBuilder struct {
 	*api.Database
+	StorageRef *api.Storage
 }
 
 func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
@@ -20,7 +21,7 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 
 	api.SetDatabaseSpecDefaults(cr, &cr.Spec)
 
-	return DatabaseBuilder{cr}
+	return DatabaseBuilder{Database: cr, StorageRef: nil}
 }
 
 func (b *DatabaseBuilder) SetStatusOnFirstReconcile() bool {

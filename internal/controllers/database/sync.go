@@ -77,11 +77,11 @@ func (r *DatabaseReconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Databa
 
 func (r *DatabaseReconciler) waitForClusterResources(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForClusterResources")
-	found := &ydbv1alpha1.Storage{}
+	storage := &ydbv1alpha1.Storage{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      database.Spec.StorageClusterRef.Name,
 		Namespace: database.Spec.StorageClusterRef.Namespace,
-	}, found)
+	}, storage)
 
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -111,7 +111,7 @@ func (r *DatabaseReconciler) waitForClusterResources(ctx context.Context, databa
 		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
-	if found.Status.State != "Ready" {
+	if storage.Status.State != "Ready" {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
@@ -120,13 +120,13 @@ func (r *DatabaseReconciler) waitForClusterResources(ctx context.Context, databa
 				"Referenced storage cluster (%s, %s) in a bad state: %s != Ready",
 				database.Spec.StorageClusterRef.Name,
 				database.Spec.StorageClusterRef.Namespace,
-				found.Status.State,
+				storage.Status.State,
 			),
 		)
 		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
-	database.StorageRef = found
+	database.StorageRef = storage
 
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
@@ -318,7 +318,7 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 
 		SharedDatabasePath = fmt.Sprintf(ydbv1alpha1.TenantNameFormat, sharedDatabaseCr.Spec.Domain, sharedDatabaseCr.Name)
 	} else {
-		//TODO: move this logic to webhook
+		// TODO: move this logic to webhook
 		msg := "Incorrect database resources configuration, must be one of: Resources, SharedResources, ServerlessResources"
 		r.Recorder.Event(database, corev1.EventTypeWarning, "ControllerError", msg)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, errors.New(msg)
