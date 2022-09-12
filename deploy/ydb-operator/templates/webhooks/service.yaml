@@ -12,6 +12,9 @@ spec:
       targetPort: webhook
       protocol: TCP
       name: webhook
+      {{- if eq .Values.webhook.service.type "NodePort" }}
+      nodePort: {{ .Values.webhook.service.nodePort }}
+      {{- end }}
   selector:
     {{- include "ydb.selectorLabels" . | nindent 4 }}
 {{- end }}

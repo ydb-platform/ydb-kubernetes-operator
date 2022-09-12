@@ -4,14 +4,23 @@ kind: MutatingWebhookConfiguration
 metadata:
   name: {{ template "ydb.fullname" . }}-webhook
 webhooks:
+  {{- $webhookFqdn := .Values.webhook.service.fqdn -}}
+  {{- $webhookPort := .Values.webhook.service.port -}}
+  {{- if eq .Values.webhook.service.type "NodePort" }}
+    {{- $webhookPort = coalesce .Values.webhook.service.nodePort 9443 -}}
+  {{- end }}
   - admissionReviewVersions:
       - v1
     clientConfig:
+      {{- if not (empty $webhookFqdn) }}
+      url: https://{{ $webhookFqdn }}:{{ $webhookPort }}/mutate-ydb-tech-v1alpha1-database 
+      {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        port: {{ .Values.webhook.service.port }}
+        port: {{ $webhookPort }}
         path: /mutate-ydb-tech-v1alpha1-database
+      {{- end}}
     failurePolicy: Fail
     name: mutate-database.ydb.tech
     rules:
@@ -28,11 +37,15 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
+      {{- if not (empty $webhookFqdn) }}
+      url: https://{{ $webhookFqdn }}:{{ $webhookPort }}/validate-ydb-tech-v1alpha1-database 
+      {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        port: {{ .Values.webhook.service.port }}
+        port: {{ $webhookPort }}
         path: /validate-ydb-tech-v1alpha1-database
+      {{- end}}
     failurePolicy: Fail
     name: validate-database.ydb.tech
     rules:
@@ -49,11 +62,15 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
+      {{- if not (empty $webhookFqdn) }}
+      url: https://{{ $webhookFqdn }}:{{ $webhookPort }}/mutate-ydb-tech-v1alpha1-storage 
+      {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        port: {{ .Values.webhook.service.port }}
+        port: {{ $webhookPort }}
         path: /mutate-ydb-tech-v1alpha1-storage
+      {{- end}}
     failurePolicy: Fail
     name: mutate-storage.ydb.tech
     rules:
@@ -70,11 +87,15 @@ webhooks:
   - admissionReviewVersions:
       - v1
     clientConfig:
+      {{- if not (empty $webhookFqdn) }}
+      url: https://{{ $webhookFqdn }}:{{ $webhookPort }}/validate-ydb-tech-v1alpha1-storage
+      {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        port: {{ .Values.webhook.service.port }}
+        port: {{ $webhookPort }}
         path: /validate-ydb-tech-v1alpha1-storage
+      {{- end}}
     failurePolicy: Fail
     name: validate-storage.ydb.tech
     rules:

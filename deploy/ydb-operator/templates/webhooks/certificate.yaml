@@ -6,7 +6,7 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: {{ template "ydb.fullname" . }}-self-signed-issuer
-  namespace: {{ template "ydb.namespace" . }}
+  namespace: {{ .Release.Namespace }}
 spec:
   selfSigned: {}
 ---
@@ -48,6 +48,9 @@ spec:
     name: {{ template "ydb.fullname" . }}-root-issuer
     {{- end }}
   dnsNames:
+  {{- if .Values.webhook.service.fqdn }}
+  - {{ .Values.webhook.service.fqdn }}
+  {{- end}}
   - {{ template "ydb.fullname" . }}-webhook
   - {{ template "ydb.fullname" . }}-webhook.{{ .Release.Namespace }}
   - {{ template "ydb.fullname" . }}-webhook.{{ .Release.Namespace }}.svc
