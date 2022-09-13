@@ -110,6 +110,11 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 		},
 	}
+
+  if b.Spec.HostNetwork {
+  	podTemplate.Spec.HostNetwork = true
+  	podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
+  }
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
