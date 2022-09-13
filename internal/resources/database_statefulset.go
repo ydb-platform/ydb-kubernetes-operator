@@ -18,7 +18,8 @@ import (
 type DatabaseStatefulSetBuilder struct {
 	*v1alpha1.Database
 
-	Labels map[string]string
+	Labels  map[string]string
+	Storage *v1alpha1.Storage
 }
 
 func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
@@ -301,6 +302,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
 
 	db := NewDatabase(b.DeepCopy())
+	db.Storage = b.Storage
 
 	tenantName := fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name)
 

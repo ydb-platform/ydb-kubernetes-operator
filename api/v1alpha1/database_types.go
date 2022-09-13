@@ -162,8 +162,6 @@ type Database struct {
 
 	// +kubebuilder:default:={state: "Pending"}
 	Status DatabaseStatus `json:"status,omitempty"`
-
-	StorageRef *Storage `json:"storageRef,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -207,7 +205,7 @@ type EncryptionConfig struct {
 	Pin *string `json:"pin,omitempty"`
 }
 
-//Datastreams config todo
+// Datastreams config todo
 type DatastreamsConfig struct {
 	// +required
 	Enabled bool `json:"enabled"`

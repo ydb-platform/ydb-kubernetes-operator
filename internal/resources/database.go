@@ -13,6 +13,7 @@ import (
 
 type DatabaseBuilder struct {
 	*api.Database
+	Storage *api.Storage
 }
 
 func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
@@ -20,7 +21,7 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 
 	api.SetDatabaseSpecDefaults(cr, &cr.Spec)
 
-	return DatabaseBuilder{cr}
+	return DatabaseBuilder{Database: cr, Storage: nil}
 }
 
 func (b *DatabaseBuilder) SetStatusOnFirstReconcile() bool {
@@ -38,7 +39,7 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 
 func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
 	proto := api.GRPCProto
-	if b.StorageRef.Spec.Service.GRPC.TLSConfiguration != nil && b.StorageRef.Spec.Service.GRPC.TLSConfiguration.Enabled {
+	if b.Storage.Spec.Service.GRPC.TLSConfiguration != nil && b.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		proto = api.GRPCSProto
 	}
 
@@ -47,8 +48,8 @@ func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
 
 func (b *DatabaseBuilder) GetStorageEndpoint() string {
 	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
-	if b.StorageRef.Spec.Service.GRPC.ExternalHost != "" {
-		host = b.StorageRef.Spec.Service.GRPC.ExternalHost
+	if b.Storage.Spec.Service.GRPC.ExternalHost != "" {
+		host = b.Storage.Spec.Service.GRPC.ExternalHost
 	}
 
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
@@ -82,7 +83,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.StorageRef, b.Unwrap())
+	cfg, _ := configuration.Build(b.Storage, b.Unwrap())
 
 	optionalBuilders = append(
 		optionalBuilders,
@@ -190,7 +191,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 
 	optionalBuilders = append(
 		optionalBuilders,
-		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: databaseLabels},
+		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: databaseLabels, Storage: b.Storage},
 	)
 
 	return optionalBuilders
