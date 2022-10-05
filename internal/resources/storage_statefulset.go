@@ -193,10 +193,14 @@ func (b *StorageStatefulSetBuilder) buildInitContainer() corev1.Container {
 		Args:            args,
 
 		SecurityContext: &corev1.SecurityContext{
+			// TODO check if I need privileged
+			// Privileged: ptr.Bool(true),
 			RunAsUser: new(int64),
 		},
 
 		VolumeMounts: b.buildInitContainerVolumeMounts(),
+		// TODO check in docs, requests for initContainers are processed somewhat differently from
+		// regular containers
 		Resources: b.Spec.Resources,
 	}
 
