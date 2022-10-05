@@ -23,6 +23,14 @@ const (
 	interconnectTLSVolumeName = "interconnect-tls-volume"
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
+	initMainSharedCertsVolumeName = "init-main-shared-certs-volume"
+	caBundleVolumeName = "ca-bundle-volume"
+
+	caBundleConfigMap = "init-container-cert-auths"
+
+	defaultPathForLocalCerts = "/usr/local/share/ca-certificates"
+	systemSslStorePath = "/etc/ssl/certs"
+
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
 	encryptionVolumeName                      = "encryption"
 	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
