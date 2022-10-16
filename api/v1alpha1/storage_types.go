@@ -76,6 +76,12 @@ type StorageSpec struct {
 	// +optional
 	Monitoring *MonitoringOptions `json:"monitoring,omitempty"`
 
+	// User-defined root certificate authority that is added to system trust
+	// store of Storage pods on startup. 
+	// Default: ""
+	// +optional
+	CaBundle string `json:"caBundle,omitempty"`
+
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/

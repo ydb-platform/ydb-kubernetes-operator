@@ -97,7 +97,6 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 		},
 		Spec: corev1.PodSpec{
 			Containers:     []corev1.Container{b.buildContainer()},
-			InitContainers: b.Spec.InitContainers,
 			NodeSelector:   b.Spec.NodeSelector,
 			Affinity:       b.Spec.Affinity,
 			Tolerations:    b.Spec.Tolerations,
@@ -109,6 +108,22 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			},
 			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 		},
+	}
+
+	// InitContainer only needed for CaBundle manipulation for now,
+	// may be probably used for other stuff later
+	if b.Spec.CaBundle != "" {
+		podTemplate.Spec.InitContainers = append(
+			[]corev1.Container{b.buildInitContainer()},
+			b.Spec.InitContainers...,
+		)
+	} else {
+		podTemplate.Spec.InitContainers = b.Spec.InitContainers
+	}
+
+	if b.Spec.HostNetwork {
+		podTemplate.Spec.HostNetwork = true
+		podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
 	}
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
@@ -159,7 +174,74 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
+	if b.Spec.CaBundle != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: initMainSharedCertsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+
+		volumes = append(volumes, corev1.Volume{
+			Name: initMainSharedSourceDirVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+
+		volumes = append(volumes, corev1.Volume{
+			Name: caBundleVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: caBundleConfigMap},
+				},
+			},
+		})
+	}
+
 	return volumes
+}
+
+func (b *StorageStatefulSetBuilder) buildInitContainer() corev1.Container {
+	command, args := b.buildInitContainerArgs()
+
+	container := corev1.Container{
+		Name:            "ydb-storage-init-container",
+		Image:           b.Spec.Image.Name,
+		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		Command:         command,
+		Args:            args,
+
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser: new(int64),
+		},
+
+		VolumeMounts: b.buildInitContainerVolumeMounts(),
+		Resources:    b.Spec.Resources,
+	}
+
+	return container
+}
+
+func (b *StorageStatefulSetBuilder) buildInitContainerVolumeMounts() []corev1.VolumeMount {
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      caBundleVolumeName,
+			MountPath: temporaryPathForCertsInInit,
+		},
+	}
+
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      initMainSharedCertsVolumeName,
+		MountPath: systemSslStorePath,
+	})
+
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      initMainSharedSourceDirVolumeName,
+		MountPath: defaultPathForLocalCerts,
+	})
+
+	return volumeMounts
 }
 
 func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo add init container for sparse files?
@@ -248,7 +330,34 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
+	if b.Spec.CaBundle != "" {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      initMainSharedCertsVolumeName,
+			ReadOnly:  true,
+			MountPath: systemSslStorePath,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      initMainSharedSourceDirVolumeName,
+			ReadOnly:  true,
+			MountPath: defaultPathForLocalCerts,
+		})
+	}
+
 	return volumeMounts
+}
+
+func (b *StorageStatefulSetBuilder) buildInitContainerArgs() ([]string, []string) {
+	command := []string{"/bin/bash", "-c"}
+
+	args := []string{fmt.Sprintf("%s && %s && %s && %s",
+		fmt.Sprintf("cp %s/* %s/", temporaryPathForCertsInInit, defaultPathForLocalCerts),
+		"apt-get update",
+		"apt-get install -y ca-certificates",
+		"update-ca-certificates",
+	)}
+
+	return command, args
 }
 
 func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
