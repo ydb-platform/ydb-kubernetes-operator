@@ -379,11 +379,11 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/", defaultPathForLocalCerts) // fixme const
+		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt", defaultPathForLocalCerts) // fixme const
 	}
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/", defaultPathForLocalCerts) // fixme const
+		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt", defaultPathForLocalCerts) // fixme const
 	}
 
 	if arg != "" {
