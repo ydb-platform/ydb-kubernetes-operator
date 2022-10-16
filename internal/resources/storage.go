@@ -62,6 +62,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
+			Name:   b.Storage.GetName(),
 			Data:   cfg,
 			Labels: storageLabels,
 		},
