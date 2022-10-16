@@ -201,7 +201,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 }
 
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
-	command, args := b.buildInitContainerArgs()
+	command, args := b.buildCaStorePatchingInitContainerArgs()
 
 	container := corev1.Container{
 		Name:            "ydb-storage-init-container",
@@ -214,7 +214,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 			RunAsUser: new(int64),
 		},
 
-		VolumeMounts: b.buildInitContainerVolumeMounts(),
+		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
 		Resources:    b.Spec.Resources,
 	}
 
@@ -227,7 +227,7 @@ func (b *StorageStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
 		b.Spec.Service.Interconnect.TLSConfiguration.Enabled
 }
 
-func (b *StorageStatefulSetBuilder) buildInitContainerVolumeMounts() []corev1.VolumeMount {
+func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
 	if b.areAnyCertificatesAddedToStore() {
@@ -369,7 +369,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	return volumeMounts
 }
 
-func (b *StorageStatefulSetBuilder) buildInitContainerArgs() ([]string, []string) {
+func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]string, []string) {
 	command := []string{"/bin/bash", "-c"}
 
 	arg := ""
