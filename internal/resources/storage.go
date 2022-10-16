@@ -49,9 +49,7 @@ func (b *StorageClusterBuilder) appendCAConfigMapIfNeeded(optionalBuilders []Res
 	if b.Spec.CaBundle != "" {
 		data, _ := base64.StdEncoding.DecodeString(b.Spec.CaBundle)
 		additionalCAs["generalRoot.crt"] = string(data)
-	}
 
-	if len(additionalCAs) != 0 {
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{
