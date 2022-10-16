@@ -112,19 +112,15 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.Spec.CaBundle != "" {
+	if b.areAnyCertificatesAddedToStore() {
 		podTemplate.Spec.InitContainers = append(
-			[]corev1.Container{b.buildInitContainer()},
+			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
 		)
 	} else {
 		podTemplate.Spec.InitContainers = b.Spec.InitContainers
 	}
 
-	if b.Spec.HostNetwork {
-		podTemplate.Spec.HostNetwork = true
-		podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
-	}
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
@@ -204,7 +200,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	return volumes
 }
 
-func (b *StorageStatefulSetBuilder) buildInitContainer() corev1.Container {
+func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
 	command, args := b.buildInitContainerArgs()
 
 	container := corev1.Container{
