@@ -51,15 +51,6 @@ func (b *StorageClusterBuilder) appendCAConfigMapIfNeeded(optionalBuilders []Res
 		additionalCAs["generalRoot.crt"] = string(data)
 	}
 
-	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		additionalCAs["grpcRoot.crt"] = DO SOMETHING
-	}
-
-	// TODO figure out how to get data from secret
-	// if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-	// 	additionalCAs["interconnectRoot.crt"] = DO SOMETHING
-	// }
-
 	if len(additionalCAs) != 0 {
 		optionalBuilders = append(
 			optionalBuilders,
