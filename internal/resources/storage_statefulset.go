@@ -174,7 +174,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
-	if b.Spec.CaBundle != "" {
+	if b.areAnyCertificatesAddedToStore() {
 		volumes = append(volumes, corev1.Volume{
 			Name: initMainSharedCertsVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -188,7 +188,9 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		})
+	}
 
+	if b.Spec.CaBundle != "" {
 		volumes = append(volumes, corev1.Volume{
 			Name: caBundleVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -223,24 +225,50 @@ func (b *StorageStatefulSetBuilder) buildInitContainer() corev1.Container {
 	return container
 }
 
+func (b *StorageStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
+	return b.Spec.CaBundle != "" ||
+		b.Spec.Service.GRPC.TLSConfiguration.Enabled ||
+		b.Spec.Service.Interconnect.TLSConfiguration.Enabled
+}
+
 func (b *StorageStatefulSetBuilder) buildInitContainerVolumeMounts() []corev1.VolumeMount {
-	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      caBundleVolumeName,
-			MountPath: temporaryPathForCertsInInit,
-		},
+	volumeMounts := []corev1.VolumeMount{}
+
+	if b.areAnyCertificatesAddedToStore() {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      initMainSharedSourceDirVolumeName,
+			MountPath: defaultPathForLocalCerts,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      initMainSharedCertsVolumeName,
+			MountPath: systemSslStorePath,
+		})
 	}
 
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      initMainSharedCertsVolumeName,
-		MountPath: systemSslStorePath,
-	})
+	if b.Spec.CaBundle != "" {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      caBundleVolumeName,
+			ReadOnly:  true,
+			MountPath: temporaryPathForCertsInInit,
+		})
+	}
 
-	volumeMounts = append(volumeMounts, corev1.VolumeMount{
-		Name:      initMainSharedSourceDirVolumeName,
-		MountPath: defaultPathForLocalCerts,
-	})
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      grpcTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: "/tls/grpc", // fixme const
+		})
+	}
 
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      interconnectTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: "/tls/interconnect", // fixme const
+		})
+	}
 	return volumeMounts
 }
 
@@ -330,17 +358,15 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.Spec.CaBundle != "" {
+	if b.areAnyCertificatesAddedToStore() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      initMainSharedCertsVolumeName,
-			ReadOnly:  true,
-			MountPath: systemSslStorePath,
+			Name:      initMainSharedSourceDirVolumeName,
+			MountPath: defaultPathForLocalCerts,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      initMainSharedSourceDirVolumeName,
-			ReadOnly:  true,
-			MountPath: defaultPathForLocalCerts,
+			Name:      initMainSharedCertsVolumeName,
+			MountPath: systemSslStorePath,
 		})
 	}
 
@@ -350,12 +376,29 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 func (b *StorageStatefulSetBuilder) buildInitContainerArgs() ([]string, []string) {
 	command := []string{"/bin/bash", "-c"}
 
-	args := []string{fmt.Sprintf("%s && %s && %s && %s",
-		fmt.Sprintf("cp %s/* %s/", temporaryPathForCertsInInit, defaultPathForLocalCerts),
-		"apt-get update",
-		"apt-get install -y ca-certificates",
-		"update-ca-certificates",
-	)}
+	arg := ""
+
+	if b.Spec.CaBundle != "" {
+		arg += fmt.Sprintf("cp %s/* %s/ &&", temporaryPathForCertsInInit, defaultPathForLocalCerts)
+	}
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/* %s/", "/tls/grpc/ca.crt", defaultPathForLocalCerts) // fixme const
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/* %s/", "/tls/interconnect/ca.crt", defaultPathForLocalCerts) // fixme const
+	}
+
+	if arg != "" {
+		arg += fmt.Sprintf("%s && %s && %s",
+			"apt-get update",
+			"apt-get install -y ca-certificates",
+			"update-ca-certificates",
+		)
+	}
+
+	args := []string{arg}
 
 	return command, args
 }
