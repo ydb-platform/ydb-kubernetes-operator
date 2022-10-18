@@ -375,23 +375,19 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 	arg := ""
 
 	if b.Spec.CaBundle != "" {
-		arg += fmt.Sprintf("cp %s/* %s/ &&", tmpCertsDir, localCertsDir)
+		arg += fmt.Sprintf("cp %s/* %s/ && ", tmpCertsDir, localCertsDir)
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt", localCertsDir) // fixme const
+		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt && ", localCertsDir) // fixme const
 	}
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt", localCertsDir) // fixme const
+		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt && ", localCertsDir) // fixme const
 	}
 
 	if arg != "" {
-		arg += fmt.Sprintf("%s && %s && %s",
-			"apt-get update",
-			"apt-get install -y ca-certificates",
-			"update-ca-certificates",
-		)
+		arg += "update-ca-certificates"
 	}
 
 	args := []string{arg}
