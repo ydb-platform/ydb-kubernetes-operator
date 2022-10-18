@@ -185,7 +185,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		},
 
 		SecurityContext: &corev1.SecurityContext{
-			Privileged: ptr.Bool(false),
+			Privileged: ptr.Bool(true),
 		},
 
 		Ports: []corev1.ContainerPort{{
