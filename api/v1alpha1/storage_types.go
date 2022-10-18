@@ -78,9 +78,8 @@ type StorageSpec struct {
 
 	// User-defined root certificate authority that is added to system trust
 	// store of Storage pods on startup. 
-	// Default: ""
 	// +optional
-	CaBundle string `json:"caBundle,omitempty"`
+	CABundle []byte `json:"caBundle,omitempty"`
 
 	// Whether host network should be enabled. Automatically sets 
 	// `dnsPolicy` to `clusterFirstWithHostNet`.

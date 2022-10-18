@@ -191,7 +191,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		})
 	}
 
-	if b.Spec.CaBundle != "" {
+	if len(b.Spec.CABundle) > 0 {
 		volumes = append(volumes, corev1.Volume{
 			Name: caBundleVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -227,7 +227,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 }
 
 func (b *StorageStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
-	return b.Spec.CaBundle != "" ||
+	return len(b.Spec.CABundle) > 0 ||
 		b.Spec.Service.GRPC.TLSConfiguration.Enabled ||
 		b.Spec.Service.Interconnect.TLSConfiguration.Enabled
 }
@@ -247,7 +247,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		})
 	}
 
-	if b.Spec.CaBundle != "" {
+	if len(b.Spec.CABundle) > 0 {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      caBundleVolumeName,
 			ReadOnly:  true,
@@ -379,7 +379,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 
 	arg := ""
 
-	if b.Spec.CaBundle != "" {
+	if len(b.Spec.CABundle) > 0 {
 		arg += fmt.Sprintf("cp %s/* %s/ && ", tmpCertsDir, localCertsDir)
 	}
 

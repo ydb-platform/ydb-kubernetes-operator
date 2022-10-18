@@ -46,9 +46,8 @@ func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
 func (b *StorageClusterBuilder) appendCAConfigMapIfNeeded(optionalBuilders []ResourceBuilder) []ResourceBuilder {
 	additionalCAs := make(map[string]string)
 
-	if b.Spec.CaBundle != "" {
-		data, _ := base64.StdEncoding.DecodeString(b.Spec.CaBundle)
-		additionalCAs["generalRoot.crt"] = string(data)
+	if len(b.Spec.CABundle) > 0 {
+		additionalCAs["generalRoot.crt"] = string(b.Spec.CABundle)
 
 		optionalBuilders = append(
 			optionalBuilders,
