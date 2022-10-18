@@ -172,14 +172,14 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 	if b.areAnyCertificatesAddedToStore() {
 		volumes = append(volumes, corev1.Volume{
-			Name: initMainSharedCertsVolumeName,
+			Name: systemCertsVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		})
 
 		volumes = append(volumes, corev1.Volume{
-			Name: initMainSharedSourceDirVolumeName,
+			Name: localCertsVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
@@ -232,13 +232,13 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 
 	if b.areAnyCertificatesAddedToStore() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      initMainSharedSourceDirVolumeName,
-			MountPath: defaultPathForLocalCerts,
+			Name:      localCertsVolumeName,
+			MountPath: localCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      initMainSharedCertsVolumeName,
-			MountPath: systemSslStorePath,
+			Name:      systemCertsVolumeName,
+			MountPath: systemCertsDir,
 		})
 	}
 
@@ -246,7 +246,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      caBundleVolumeName,
 			ReadOnly:  true,
-			MountPath: temporaryPathForCertsInInit,
+			MountPath: tmpCertsDir,
 		})
 	}
 
@@ -356,13 +356,13 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 	if b.areAnyCertificatesAddedToStore() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      initMainSharedSourceDirVolumeName,
-			MountPath: defaultPathForLocalCerts,
+			Name:      localCertsVolumeName,
+			MountPath: localCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      initMainSharedCertsVolumeName,
-			MountPath: systemSslStorePath,
+			Name:      systemCertsVolumeName,
+			MountPath: systemCertsDir,
 		})
 	}
 
@@ -375,15 +375,15 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 	arg := ""
 
 	if b.Spec.CaBundle != "" {
-		arg += fmt.Sprintf("cp %s/* %s/ &&", temporaryPathForCertsInInit, defaultPathForLocalCerts)
+		arg += fmt.Sprintf("cp %s/* %s/ &&", tmpCertsDir, localCertsDir)
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt", defaultPathForLocalCerts) // fixme const
+		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt", localCertsDir) // fixme const
 	}
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt", defaultPathForLocalCerts) // fixme const
+		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt", localCertsDir) // fixme const
 	}
 
 	if arg != "" {

@@ -23,16 +23,16 @@ const (
 	interconnectTLSVolumeName = "interconnect-tls-volume"
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
-	initMainSharedCertsVolumeName = "init-main-shared-certs-volume"
-	initMainSharedSourceDirVolumeName = "init-main-shared-source-dir-volume"
+	systemCertsVolumeName = "init-main-shared-certs-volume"
+	localCertsVolumeName = "init-main-shared-source-dir-volume"
 
 	caBundleVolumeName = "ca-bundle-volume"
 
 	caBundleConfigMap = "init-container-cert-auths"
 
-	defaultPathForLocalCerts = "/usr/local/share/ca-certificates"
-	temporaryPathForCertsInInit = "/etc/temporary-certs"
-	systemSslStorePath = "/etc/ssl/certs"
+	localCertsDir = "/usr/local/share/ca-certificates"
+	tmpCertsDir = "/etc/temporary-certs"
+	systemCertsDir = "/etc/ssl/certs"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
 	encryptionVolumeName                      = "encryption"
