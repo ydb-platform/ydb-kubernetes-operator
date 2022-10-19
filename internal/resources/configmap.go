@@ -11,6 +11,7 @@ import (
 type ConfigMapBuilder struct {
 	client.Object
 
+	Name   string
 	Data   map[string]string
 	Labels map[string]string
 }
@@ -35,7 +36,7 @@ func (b *ConfigMapBuilder) Build(obj client.Object) error {
 func (b *ConfigMapBuilder) Placeholder(cr client.Object) client.Object {
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.GetName(),
+			Name:      b.Name,
 			Namespace: cr.GetNamespace(),
 		},
 	}

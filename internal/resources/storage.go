@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -42,6 +43,27 @@ func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
+func (b *StorageClusterBuilder) appendCAConfigMapIfNeeded(optionalBuilders []ResourceBuilder) []ResourceBuilder {
+	additionalCAs := make(map[string]string)
+
+	if len(b.Spec.CABundle) > 0 {
+		// According to OpenAPI V3 spec, CABundle here is already AUTOMATICALLY 
+		// decoded from base64 due to the type being `[]byte`.
+		additionalCAs["generalRoot.crt"] = string(b.Spec.CABundle)
+
+		optionalBuilders = append(
+			optionalBuilders,
+			&ConfigMapBuilder{
+				Object: b,
+				Name:   caBundleConfigMap,
+				Data:   additionalCAs,
+			},
+		)
+	}
+
+	return optionalBuilders
+}
+
 func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
 	proto := api.GRPCProto
 	if b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled {
@@ -62,6 +84,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
+			Name:   b.Storage.GetName(),
 			Data:   cfg,
 			Labels: storageLabels,
 		},
@@ -93,6 +116,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 			},
 		)
 	}
+
+	optionalBuilders = b.appendCAConfigMapIfNeeded(optionalBuilders)
 
 	return append(
 		optionalBuilders,
