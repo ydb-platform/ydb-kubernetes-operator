@@ -13,6 +13,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+var (
+	mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# 0.*ItemConfigGenerationExpected# 1.*")
+)
+
 func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
 	var changed = false
@@ -68,12 +72,7 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 		stdout, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
 
 		if err != nil {
-			res, _ := regexp.MatchString(
-				".*mismatch.*ItemConfigGenerationProvided# 0.*ItemConfigGenerationExpected# 1.*", 
-				stdout,
-			)
-
-			if res {
+			if mismatchItemConfigGenerationRegexp.MatchString(stdout) {
 				r.Log.Info("Storage is already initialized, continuing...")
 			} else {
 				return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
