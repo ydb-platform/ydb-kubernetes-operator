@@ -1,7 +1,6 @@
 package resources
 
 import (
-	"encoding/base64"
 	"fmt"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
