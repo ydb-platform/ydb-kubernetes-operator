@@ -3,6 +3,7 @@ package exec
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -11,7 +12,12 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-func ExecInPod(scheme *runtime.Scheme, config *rest.Config, namespace string, name string, container string, cmd []string) (string, string, error) {
+func ExecInPod(
+	scheme *runtime.Scheme,
+	config *rest.Config,
+	namespace, name, container string,
+	cmd []string,
+) (string, string, error) {
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return "", "", errors.Wrapf(err, "failed to create kubernetes clientset")

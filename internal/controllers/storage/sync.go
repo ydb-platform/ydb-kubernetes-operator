@@ -92,7 +92,10 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	return result, err
 }
 
-func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+func (r *StorageReconciler) waitForStatefulSetToScale(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale")
 	found := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
@@ -142,7 +145,7 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 	runningPods := 0
 	for _, e := range podList.Items {
 		if e.Status.Phase == "Running" {
-			runningPods += 1
+			runningPods++
 		}
 	}
 
@@ -153,7 +156,8 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 		return r.setState(ctx, storage)
 	}
 
-	if storage.Status.State != string(Ready) && meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
+	if storage.Status.State != string(Ready) &&
+		meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		r.Recorder.Event(storage, corev1.EventTypeNormal, "ResourcesReady", "Everything should be in sync")
 		storage.Status.State = string(Ready)
 		return r.setState(ctx, storage)
@@ -162,7 +166,10 @@ func (r *StorageReconciler) waitForStatefulSetToScale(ctx context.Context, stora
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+func (r *StorageReconciler) handleResourcesSync(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
 
 	for _, builder := range storage.GetResourceBuilders() {
@@ -195,7 +202,7 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 			return nil
 		})
 
-		var eventMessage = fmt.Sprintf(
+		eventMessage := fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
 			reflect.TypeOf(newResource),
 			newResource.GetNamespace(),
@@ -222,10 +229,13 @@ func (r *StorageReconciler) handleResourcesSync(ctx context.Context, storage *re
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources.StorageClusterBuilder, waitForGoodResultWithoutIssues bool) (bool, ctrl.Result, error) {
+func (r *StorageReconciler) runSelfCheck(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+	waitForGoodResultWithoutIssues bool,
+) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runSelfCheck")
 	result, err := healthcheck.GetSelfCheckResult(ctx, storage)
-
 	if err != nil {
 		r.Log.Error(err, "GetSelfCheckResult error")
 		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
@@ -249,13 +259,15 @@ func (r *StorageReconciler) runSelfCheck(ctx context.Context, storage *resources
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *StorageReconciler) setState(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+func (r *StorageReconciler) setState(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
 	storageCr := &ydbv1alpha1.Storage{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: storage.Namespace,
 		Name:      storage.Name,
 	}, storageCr)
-
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err

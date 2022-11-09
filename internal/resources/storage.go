@@ -46,7 +46,7 @@ func (b *StorageClusterBuilder) appendCAConfigMapIfNeeded(optionalBuilders []Res
 	additionalCAs := make(map[string]string)
 
 	if len(b.Spec.CABundle) > 0 {
-		// According to OpenAPI V3 spec, CABundle here is already AUTOMATICALLY 
+		// According to OpenAPI V3 spec, CABundle here is already AUTOMATICALLY
 		// decoded from base64 due to the type being `[]byte`.
 		additionalCAs["generalRoot.crt"] = string(b.Spec.CABundle)
 

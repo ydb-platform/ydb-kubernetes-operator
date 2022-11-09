@@ -13,13 +13,15 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-var (
-	mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# 0.*ItemConfigGenerationExpected# 1.*")
-)
+var mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# " +
+	"0.*ItemConfigGenerationExpected# 1.*")
 
-func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+func (r *StorageReconciler) setInitialStatus(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
-	var changed = false
+	changed := false
 	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageInitializedCondition,
@@ -48,7 +50,10 @@ func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resou
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
+func (r *StorageReconciler) runInitScripts(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
 	podName := fmt.Sprintf("%s-0", storage.Name)
 
@@ -70,7 +75,6 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 		)
 
 		stdout, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
-
 		if err != nil {
 			if mismatchItemConfigGenerationRegexp.MatchString(stdout) {
 				r.Log.Info("Storage is already initialized, continuing...")

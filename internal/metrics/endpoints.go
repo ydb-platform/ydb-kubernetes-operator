@@ -6,15 +6,16 @@ import (
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
-type MetricsService struct {
+type Service struct {
 	Name        string
 	Path        string
 	Relabelings []*v1.RelabelConfig
 }
 
-func getMetricsServices(services []string) []MetricsService {
-	var metricsServices []MetricsService
+func getMetricsServices(services []string) []Service {
+	_ = services
 
+	metricsServices := make([]Service, 0, len(storageMetricsServices))
 	for _, serviceName := range storageMetricsServices {
 		var servicePath string
 		if serviceName == "ydb" || serviceName == "ydb_serverless" {
@@ -22,7 +23,7 @@ func getMetricsServices(services []string) []MetricsService {
 		} else {
 			servicePath = fmt.Sprintf(MetricEndpointFormat, serviceName)
 		}
-		metricsServices = append(metricsServices, MetricsService{
+		metricsServices = append(metricsServices, Service{
 			Name:        serviceName,
 			Path:        servicePath,
 			Relabelings: GetMetricsRelabelings(serviceName),
@@ -32,10 +33,10 @@ func getMetricsServices(services []string) []MetricsService {
 	return metricsServices
 }
 
-func GetStorageMetricsServices() []MetricsService {
+func GetStorageMetricsServices() []Service {
 	return getMetricsServices(storageMetricsServices)
 }
 
-func GetDatabaseMetricsServices() []MetricsService {
+func GetDatabaseMetricsServices() []Service {
 	return getMetricsServices(databaseMetricsServices)
 }

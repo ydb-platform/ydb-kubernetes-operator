@@ -16,7 +16,7 @@ type ServiceMonitorBuilder struct {
 	client.Object
 
 	Name            string
-	MetricsServices []metrics.MetricsService
+	MetricsServices []metrics.Service
 	TargetPort      int
 	Options         *v1alpha1.MonitoringOptions
 

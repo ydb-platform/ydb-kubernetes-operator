@@ -32,7 +32,7 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 		return result, err
 	}
 
-	if err := proto.Unmarshal(response.Operation.Result.GetValue(), result); err != nil {
+	if err = proto.Unmarshal(response.Operation.Result.GetValue(), result); err != nil {
 		return result, err
 	}
 

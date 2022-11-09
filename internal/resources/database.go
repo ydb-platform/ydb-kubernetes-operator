@@ -89,7 +89,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
-			Name: b.GetName(),
+			Name:   b.GetName(),
 			Data:   cfg,
 			Labels: databaseLabels,
 		},

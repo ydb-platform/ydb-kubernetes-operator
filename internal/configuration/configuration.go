@@ -24,7 +24,7 @@ func hash(text string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func generate(cr *v1alpha1.Storage, crDb *v1alpha1.Database) schema.Configuration {
+func generate(cr *v1alpha1.Storage, crDB *v1alpha1.Database) schema.Configuration {
 	var hosts []schema.Host
 
 	for i := 0; i < int(cr.Spec.Nodes); i++ {
@@ -47,13 +47,13 @@ func generate(cr *v1alpha1.Storage, crDb *v1alpha1.Database) schema.Configuratio
 	}
 
 	var keyConfig *schema.KeyConfig
-	if crDb != nil && crDb.Spec.Encryption != nil && crDb.Spec.Encryption.Enabled {
+	if crDB != nil && crDB.Spec.Encryption != nil && crDB.Spec.Encryption.Enabled {
 		keyConfig = &schema.KeyConfig{
 			Keys: []schema.Key{
 				{
 					ContainerPath: path.Join(DatabaseEncryptionKeyPath, DatabaseEncryptionKeyFile),
 					Id:            hash(cr.Name),
-					Pin:           crDb.Spec.Encryption.Pin,
+					Pin:           crDB.Spec.Encryption.Pin,
 					Version:       1,
 				},
 			},
@@ -66,9 +66,9 @@ func generate(cr *v1alpha1.Storage, crDb *v1alpha1.Database) schema.Configuratio
 	}
 }
 
-func Build(cr *v1alpha1.Storage, crDb *v1alpha1.Database) (map[string]string, error) {
+func Build(cr *v1alpha1.Storage, crDB *v1alpha1.Database) (map[string]string, error) {
 	crdConfig := make(map[string]interface{})
-	generatedConfig := generate(cr, crDb)
+	generatedConfig := generate(cr, crDB)
 
 	err := yaml.Unmarshal([]byte(cr.Spec.Configuration), &crdConfig)
 	if err != nil {

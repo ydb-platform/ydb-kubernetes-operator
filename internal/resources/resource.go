@@ -24,14 +24,14 @@ const (
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
 	systemCertsVolumeName = "init-main-shared-certs-volume"
-	localCertsVolumeName = "init-main-shared-source-dir-volume"
+	localCertsVolumeName  = "init-main-shared-source-dir-volume"
 
 	caBundleVolumeName = "ca-bundle-volume"
 
 	caBundleConfigMap = "init-container-cert-auths"
 
-	localCertsDir = "/usr/local/share/ca-certificates"
-	tmpCertsDir = "/etc/temporary-certs"
+	localCertsDir  = "/usr/local/share/ca-certificates"
+	tmpCertsDir    = "/etc/temporary-certs"
 	systemCertsDir = "/etc/ssl/certs"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"

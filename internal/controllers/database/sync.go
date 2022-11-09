@@ -40,6 +40,10 @@ const (
 	Continue = false
 )
 
+var (
+	ErrIncorrectDatabaseResourcesConfiguration = errors.New("incorrect database resources configuration, must be one of: Resources, SharedResources, ServerlessResources")
+)
+
 type ClusterState string
 
 func (r *DatabaseReconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Database) (ctrl.Result, error) {
@@ -205,7 +209,7 @@ func (r *DatabaseReconciler) handleResourcesSync(ctx context.Context, database *
 			return nil
 		})
 
-		var eventMessage string = fmt.Sprintf(
+		eventMessage := fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
 			reflect.TypeOf(newResource),
 			newResource.GetNamespace(),
@@ -257,16 +261,16 @@ func (r *DatabaseReconciler) setInitialStatus(ctx context.Context, database *res
 func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleTenantCreation")
 
-	var Path string = database.GetPath()
-	var StorageUnits []ydbv1alpha1.StorageUnit
-	var Shared bool
-	var SharedDatabasePath string
+	path := database.GetPath()
+	var storageUnits []ydbv1alpha1.StorageUnit
+	var shared bool
+	var sharedDatabasePath string
 	if database.Spec.Resources != nil {
-		StorageUnits = (*database.Spec.Resources).StorageUnits
-		Shared = false
+		storageUnits = (*database.Spec.Resources).StorageUnits
+		shared = false
 	} else if database.Spec.SharedResources != nil {
-		StorageUnits = (*database.Spec.SharedResources).StorageUnits
-		Shared = true
+		storageUnits = (*database.Spec.SharedResources).StorageUnits
+		shared = true
 	} else if database.Spec.ServerlessResources != nil {
 		sharedDatabaseCr := &ydbv1alpha1.Database{}
 		err := r.Get(ctx, types.NamespacedName{
@@ -316,19 +320,18 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
 		}
 
-		SharedDatabasePath = fmt.Sprintf(ydbv1alpha1.TenantNameFormat, sharedDatabaseCr.Spec.Domain, sharedDatabaseCr.Name)
+		sharedDatabasePath = fmt.Sprintf(ydbv1alpha1.TenantNameFormat, sharedDatabaseCr.Spec.Domain, sharedDatabaseCr.Name)
 	} else {
 		// TODO: move this logic to webhook
-		msg := "Incorrect database resources configuration, must be one of: Resources, SharedResources, ServerlessResources"
-		r.Recorder.Event(database, corev1.EventTypeWarning, "ControllerError", msg)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, errors.New(msg)
+		r.Recorder.Event(database, corev1.EventTypeWarning, "ControllerError", ErrIncorrectDatabaseResourcesConfiguration.Error())
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, ErrIncorrectDatabaseResourcesConfiguration
 	}
 	tenant := cms.Tenant{
 		StorageEndpoint:      database.GetStorageEndpoint(),
-		Path:                 Path,
-		StorageUnits:         StorageUnits,
-		Shared:               Shared,
-		SharedDatabasePath:   SharedDatabasePath,
+		Path:                 path,
+		StorageUnits:         storageUnits,
+		Shared:               shared,
+		SharedDatabasePath:   sharedDatabasePath,
 		UseGrpcSecureChannel: database.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled,
 	}
 	err := tenant.Create(ctx)
@@ -356,7 +359,10 @@ func (r *DatabaseReconciler) handleTenantCreation(ctx context.Context, database 
 	return r.setState(ctx, database)
 }
 
-func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
+func (r *DatabaseReconciler) setState(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
 	databaseCr := &ydbv1alpha1.Database{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: database.Namespace,
@@ -372,7 +378,12 @@ func (r *DatabaseReconciler) setState(ctx context.Context, database *resources.D
 
 	err = r.Status().Update(ctx, databaseCr)
 	if err != nil {
-		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
+		r.Recorder.Event(
+			databaseCr,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("failed setting status: %s", err),
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
