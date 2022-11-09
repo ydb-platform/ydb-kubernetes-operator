@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
@@ -12,9 +13,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+var (
+	mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# 0.*ItemConfigGenerationExpected# 1.*")
+)
+
 func (r *StorageReconciler) setInitialStatus(ctx context.Context, storage *resources.StorageClusterBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
-	var changed bool = false
+	var changed = false
 	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageInitializedCondition,
@@ -64,10 +69,16 @@ func (r *StorageReconciler) runInitScripts(ctx context.Context, storage *resourc
 			fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
 		)
 
-		_, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+		stdout, _, err := exec.ExecInPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+
 		if err != nil {
-			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+			if mismatchItemConfigGenerationRegexp.MatchString(stdout) {
+				r.Log.Info("Storage is already initialized, continuing...")
+			} else {
+				return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+			}
 		}
+
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    InitStorageStepCondition,
 			Status:  "True",
