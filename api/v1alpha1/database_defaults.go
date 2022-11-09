@@ -6,6 +6,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+const (
+	DefaultDatabaseDomain = "root"
+)
+
 // SetDatabaseSpecDefaults sets various values to the default vars.
 func SetDatabaseSpecDefaults(ydbCr *Database, ydbSpec *DatabaseSpec) {
 	if ydbSpec.StorageClusterRef.Namespace == "" {
@@ -32,7 +36,7 @@ func SetDatabaseSpecDefaults(ydbCr *Database, ydbSpec *DatabaseSpec) {
 	}
 
 	if ydbSpec.Domain == "" {
-		ydbSpec.Domain = "root"
+		ydbSpec.Domain = DefaultDatabaseDomain
 	}
 
 	if ydbSpec.Service.GRPC.TLSConfiguration == nil {

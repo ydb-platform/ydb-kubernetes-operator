@@ -240,9 +240,9 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 	container.Ports = ports
 
 	if b.Spec.Resources != nil {
-		container.Resources = (*b.Spec.Resources).ContainerResources
+		container.Resources = b.Spec.Resources.ContainerResources
 	} else if b.Spec.SharedResources != nil {
-		container.Resources = (*b.Spec.SharedResources).ContainerResources
+		container.Resources = b.Spec.SharedResources.ContainerResources
 	}
 	return container
 }

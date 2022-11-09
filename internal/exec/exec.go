@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-func ExecInPod(
+func InPod(
 	scheme *runtime.Scheme,
 	config *rest.Config,
 	namespace, name, container string,

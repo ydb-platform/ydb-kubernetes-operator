@@ -63,7 +63,7 @@ func (r *Database) Default() {
 	}
 
 	if r.Spec.Domain == "" {
-		r.Spec.Domain = "root" // FIXME
+		r.Spec.Domain = DefaultDatabaseDomain // FIXME
 	}
 
 	if r.Spec.Encryption == nil {

@@ -1,6 +1,6 @@
 // Package v1alpha1 contains API Schema definitions for the ydb v1alpha1 API group
-//+kubebuilder:object:generate=true
-//+groupName=ydb.tech
+// +kubebuilder:object:generate=true
+// +groupName=ydb.tech
 package v1alpha1
 
 import (

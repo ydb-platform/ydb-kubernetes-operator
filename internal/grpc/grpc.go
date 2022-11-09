@@ -9,20 +9,21 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-type GrpcClient struct {
+type Client struct {
 	Context context.Context
 	Target  string
 }
 
 func buildSystemTLSStoreOption() grpc.DialOption {
 	certPool, _ := x509.SystemCertPool()
-	tlsCredentials := credentials.NewTLS(&tls.Config{
+	// TODO(shmel1k@): figure out min allowed TLS version?
+	tlsCredentials := credentials.NewTLS(&tls.Config{ //nolint
 		RootCAs: certPool,
 	})
 	return grpc.WithTransportCredentials(tlsCredentials)
 }
 
-func (client *GrpcClient) Invoke(method string, input interface{}, output interface{}, secure bool) error {
+func (client *Client) Invoke(method string, input interface{}, output interface{}, secure bool) error {
 	var opts []grpc.DialOption
 
 	if secure {

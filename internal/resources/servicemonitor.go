@@ -52,7 +52,7 @@ func (b *ServiceMonitorBuilder) Build(obj client.Object) error {
 }
 
 func (b *ServiceMonitorBuilder) buildEndpoints() []monitoringv1.Endpoint {
-	var endpoints []monitoringv1.Endpoint
+	endpoints := make([]monitoringv1.Endpoint, 0, len(b.MetricsServices))
 
 	for _, service := range b.MetricsServices {
 		metricRelabelings := service.Relabelings

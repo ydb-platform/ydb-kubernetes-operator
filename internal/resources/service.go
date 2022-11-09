@@ -9,6 +9,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	DefaultNameFormat = "%s"
+)
+
 type ServiceBuilder struct {
 	client.Object
 
@@ -33,7 +37,7 @@ func (b *ServiceBuilder) Build(obj client.Object) error {
 	}
 
 	if b.NameFormat == "" {
-		b.NameFormat = "%s"
+		b.NameFormat = DefaultNameFormat
 	}
 
 	if service.ObjectMeta.Name == "" {

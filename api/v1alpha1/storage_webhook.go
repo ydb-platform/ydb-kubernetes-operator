@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	"errors"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -74,7 +73,7 @@ func (r *Storage) ValidateCreate() error {
 	}
 
 	if r.Spec.Nodes < minNodesPerErasure[r.Spec.Erasure] {
-		return errors.New(fmt.Sprintf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure]))
+		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
 	// TODO(user): fill in your validation logic upon object creation.

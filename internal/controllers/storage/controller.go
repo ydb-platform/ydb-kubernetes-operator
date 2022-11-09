@@ -21,8 +21,8 @@ import (
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
-// StorageReconciler reconciles a Storage object
-type StorageReconciler struct {
+// Reconciler reconciles a Storage object
+type Reconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Config   *rest.Config
@@ -48,7 +48,7 @@ type StorageReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *StorageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
 	storage := &ydbv1alpha1.Storage{}
@@ -84,7 +84,7 @@ func ignoreDeletionPredicate() predicate.Predicate {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *StorageReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller := ctrl.NewControllerManagedBy(mgr).For(&ydbv1alpha1.Storage{})
 
 	if r.WithServiceMonitors {

@@ -58,7 +58,7 @@ const (
 
 type ClusterState string
 
-func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -92,7 +92,7 @@ func (r *StorageReconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (
 	return result, err
 }
 
-func (r *StorageReconciler) waitForStatefulSetToScale(
+func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
@@ -166,7 +166,7 @@ func (r *StorageReconciler) waitForStatefulSetToScale(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *StorageReconciler) handleResourcesSync(
+func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
@@ -229,7 +229,7 @@ func (r *StorageReconciler) handleResourcesSync(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *StorageReconciler) runSelfCheck(
+func (r *Reconciler) runSelfCheck(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 	waitForGoodResultWithoutIssues bool,
@@ -259,7 +259,7 @@ func (r *StorageReconciler) runSelfCheck(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *StorageReconciler) setState(
+func (r *Reconciler) setState(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {

@@ -72,7 +72,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&database.DatabaseReconciler{
+	if err = (&database.Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Config:   mgr.GetConfig(),
@@ -81,7 +81,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Database")
 		os.Exit(1)
 	}
-	if err = (&storage.StorageReconciler{
+	if err = (&storage.Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Config:   mgr.GetConfig(),

@@ -52,7 +52,7 @@ func generate(cr *v1alpha1.Storage, crDB *v1alpha1.Database) schema.Configuratio
 			Keys: []schema.Key{
 				{
 					ContainerPath: path.Join(DatabaseEncryptionKeyPath, DatabaseEncryptionKeyFile),
-					Id:            hash(cr.Name),
+					ID:            hash(cr.Name),
 					Pin:           crDB.Spec.Encryption.Pin,
 					Version:       1,
 				},

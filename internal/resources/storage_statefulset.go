@@ -64,7 +64,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	var pvcList []corev1.PersistentVolumeClaim
+	pvcList := make([]corev1.PersistentVolumeClaim, 0, len(b.Spec.DataStore))
 	for i, pvcSpec := range b.Spec.DataStore {
 		pvcList = append(
 			pvcList,

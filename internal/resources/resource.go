@@ -46,8 +46,10 @@ type ResourceBuilder interface {
 	Build(client.Object) error
 }
 
-var annotator = patch.NewAnnotator(lastAppliedAnnotation)
-var patchMaker = patch.NewPatchMaker(annotator)
+var (
+	annotator  = patch.NewAnnotator(lastAppliedAnnotation)
+	patchMaker = patch.NewPatchMaker(annotator)
+)
 
 var CreateOrUpdate = ctrl.CreateOrUpdate
 
@@ -101,8 +103,7 @@ func CheckObjectUpdatedIgnoreStatus(current, updated runtime.Object) (bool, erro
 	opts := []patch.CalculateOption{
 		patch.IgnoreStatusFields(),
 	}
-	switch updated.(type) {
-	case *appsv1.StatefulSet:
+	if _, ok := updated.(*appsv1.StatefulSet); ok {
 		opts = append(opts, patch.IgnoreVolumeClaimTemplateTypeMetaAndStatus())
 	}
 	patchResult, err := patchMaker.Calculate(current, updated, opts...)
