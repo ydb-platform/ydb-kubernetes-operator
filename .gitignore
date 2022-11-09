@@ -36,3 +36,4 @@ fabric.properties
 
 bin/
 config/
+vendor/
