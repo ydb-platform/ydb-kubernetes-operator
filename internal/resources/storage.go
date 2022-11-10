@@ -3,12 +3,13 @@ package resources
 import (
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type StorageClusterBuilder struct {
@@ -22,7 +23,7 @@ func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 }
 
 func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() bool {
-	var changed = false
+	changed := false
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
 		changed = true
@@ -46,7 +47,7 @@ func (b *StorageClusterBuilder) appendCAConfigMapIfNeeded(optionalBuilders []Res
 	additionalCAs := make(map[string]string)
 
 	if len(b.Spec.CABundle) > 0 {
-		// According to OpenAPI V3 spec, CABundle here is already AUTOMATICALLY 
+		// According to OpenAPI V3 spec, CABundle here is already AUTOMATICALLY
 		// decoded from base64 due to the type being `[]byte`.
 		additionalCAs["generalRoot.crt"] = string(b.Spec.CABundle)
 

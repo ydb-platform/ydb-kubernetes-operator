@@ -3,8 +3,9 @@ package healthcheck
 import (
 	"context"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -14,7 +15,7 @@ const (
 )
 
 func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
-	client := grpc.GrpcClient{
+	client := grpc.Client{
 		Context: ctx,
 		Target:  cluster.GetGRPCEndpoint(),
 	}
@@ -32,7 +33,7 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 		return result, err
 	}
 
-	if err := proto.Unmarshal(response.Operation.Result.GetValue(), result); err != nil {
+	if err = proto.Unmarshal(response.Operation.Result.GetValue(), result); err != nil {
 		return result, err
 	}
 

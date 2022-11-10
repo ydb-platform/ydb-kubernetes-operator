@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,10 +15,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
-// DatabaseReconciler reconciles a Database object
-type DatabaseReconciler struct {
+// Reconciler reconciles a Database object
+type Reconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Config   *rest.Config
@@ -42,7 +43,7 @@ type DatabaseReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
 	database := &ydbv1alpha1.Database{}
@@ -78,7 +79,7 @@ func ignoreDeletionPredicate() predicate.Predicate {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *DatabaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&ydbv1alpha1.Database{}).
 		Owns(&corev1.Service{}).

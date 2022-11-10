@@ -7,14 +7,17 @@ import (
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Cms"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
 	createDatabaseMethod = "/Ydb.Cms.V1.CmsService/CreateDatabase"
 )
+
+var ErrEmptyReplyFromStorage = errors.New("empty reply from storage")
 
 type Tenant struct {
 	StorageEndpoint      string
@@ -27,7 +30,7 @@ type Tenant struct {
 
 func (t *Tenant) Create(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-	client := grpc.GrpcClient{
+	client := grpc.Client{
 		Context: ctx,
 		Target:  t.StorageEndpoint,
 	}
@@ -83,7 +86,7 @@ func (t *Tenant) makeCreateDatabaseRequest() *Ydb_Cms.CreateDatabaseRequest {
 
 func processDatabaseCreationResponse(response *Ydb_Cms.CreateDatabaseResponse) (bool, error) {
 	if response.Operation == nil {
-		return false, errors.New("empty reply from storage")
+		return false, ErrEmptyReplyFromStorage
 	}
 
 	if response.Operation.Status == Ydb.StatusIds_ALREADY_EXISTS || response.Operation.Status == Ydb.StatusIds_SUCCESS {
@@ -93,5 +96,5 @@ func processDatabaseCreationResponse(response *Ydb_Cms.CreateDatabaseResponse) (
 		return true, nil
 	}
 
-	return false, errors.New(fmt.Sprintf("YDB response error: %v %v", response.Operation.Status, response.Operation.Issues))
+	return false, fmt.Errorf("YDB response error: %v %v", response.Operation.Status, response.Operation.Issues)
 }

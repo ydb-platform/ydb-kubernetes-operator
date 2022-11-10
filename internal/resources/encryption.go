@@ -3,10 +3,11 @@ package resources
 import (
 	"errors"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/encryption"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/encryption"
 )
 
 type EncryptionSecretBuilder struct {

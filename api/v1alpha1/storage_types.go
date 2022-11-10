@@ -77,11 +77,11 @@ type StorageSpec struct {
 	Monitoring *MonitoringOptions `json:"monitoring,omitempty"`
 
 	// User-defined root certificate authority that is added to system trust
-	// store of Storage pods on startup. 
+	// store of Storage pods on startup.
 	// +optional
 	CABundle []byte `json:"caBundle,omitempty"`
 
-	// Whether host network should be enabled. Automatically sets 
+	// Whether host network should be enabled. Automatically sets
 	// `dnsPolicy` to `clusterFirstWithHostNet`.
 	// Default: false
 	// +optional

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
 const (
@@ -64,7 +65,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	var pvcList []corev1.PersistentVolumeClaim
+	pvcList := make([]corev1.PersistentVolumeClaim, 0, len(b.Spec.DataStore))
 	for i, pvcSpec := range b.Spec.DataStore {
 		pvcList = append(
 			pvcList,
@@ -96,10 +97,10 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
-			Containers:     []corev1.Container{b.buildContainer()},
-			NodeSelector:   b.Spec.NodeSelector,
-			Affinity:       b.Spec.Affinity,
-			Tolerations:    b.Spec.Tolerations,
+			Containers:   []corev1.Container{b.buildContainer()},
+			NodeSelector: b.Spec.NodeSelector,
+			Affinity:     b.Spec.Affinity,
+			Tolerations:  b.Spec.Tolerations,
 
 			Volumes: b.buildVolumes(),
 

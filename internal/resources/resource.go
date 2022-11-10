@@ -24,14 +24,14 @@ const (
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
 	systemCertsVolumeName = "init-main-shared-certs-volume"
-	localCertsVolumeName = "init-main-shared-source-dir-volume"
+	localCertsVolumeName  = "init-main-shared-source-dir-volume"
 
 	caBundleVolumeName = "ca-bundle-volume"
 
 	caBundleConfigMap = "init-container-cert-auths"
 
-	localCertsDir = "/usr/local/share/ca-certificates"
-	tmpCertsDir = "/etc/temporary-certs"
+	localCertsDir  = "/usr/local/share/ca-certificates"
+	tmpCertsDir    = "/etc/temporary-certs"
 	systemCertsDir = "/etc/ssl/certs"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
@@ -46,8 +46,10 @@ type ResourceBuilder interface {
 	Build(client.Object) error
 }
 
-var annotator = patch.NewAnnotator(lastAppliedAnnotation)
-var patchMaker = patch.NewPatchMaker(annotator)
+var (
+	annotator  = patch.NewAnnotator(lastAppliedAnnotation)
+	patchMaker = patch.NewPatchMaker(annotator)
+)
 
 var CreateOrUpdate = ctrl.CreateOrUpdate
 
@@ -101,8 +103,7 @@ func CheckObjectUpdatedIgnoreStatus(current, updated runtime.Object) (bool, erro
 	opts := []patch.CalculateOption{
 		patch.IgnoreStatusFields(),
 	}
-	switch updated.(type) {
-	case *appsv1.StatefulSet:
+	if _, ok := updated.(*appsv1.StatefulSet); ok {
 		opts = append(opts, patch.IgnoreVolumeClaimTemplateTypeMetaAndStatus())
 	}
 	patchResult, err := patchMaker.Calculate(current, updated, opts...)

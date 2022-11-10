@@ -2,7 +2,7 @@ package schema
 
 type Key struct {
 	ContainerPath string  `yaml:"container_path"`
-	Id            string  `yaml:"id"`
+	ID            string  `yaml:"id"`
 	Pin           *string `yaml:"pin,omitempty"`
 	Version       int     `yaml:"version"`
 }

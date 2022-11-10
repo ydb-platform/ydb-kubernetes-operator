@@ -8,21 +8,20 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
-// StorageReconciler reconciles a Storage object
-type StorageReconciler struct {
+// Reconciler reconciles a Storage object
+type Reconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Config   *rest.Config
@@ -48,7 +47,7 @@ type StorageReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *StorageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
 	storage := &ydbv1alpha1.Storage{}
@@ -84,7 +83,7 @@ func ignoreDeletionPredicate() predicate.Predicate {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *StorageReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller := ctrl.NewControllerManagedBy(mgr).For(&ydbv1alpha1.Storage{})
 
 	if r.WithServiceMonitors {
