@@ -4,12 +4,13 @@ import (
 	"errors"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
 
 type ServiceMonitorBuilder struct {

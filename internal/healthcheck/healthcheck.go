@@ -4,9 +4,10 @@ import (
 	"context"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
-	"google.golang.org/protobuf/proto"
 )
 
 const (

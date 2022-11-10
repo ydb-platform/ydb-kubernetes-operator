@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 var mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# " +

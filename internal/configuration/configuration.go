@@ -6,9 +6,10 @@ import (
 	"path"
 	"strconv"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
-	"gopkg.in/yaml.v3"
 )
 
 const (
