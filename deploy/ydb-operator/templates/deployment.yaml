@@ -15,8 +15,10 @@ spec:
       labels:
         {{- include "ydb.selectorLabels" . | nindent 8 }}
     spec:
+      {{- with .Values.nodeSelector }}
       nodeSelector:
-        {{- .Values.nodeSelector | nindent 8 }}
+        {{- toYaml . | nindent 8 -}}
+      {{- end }}
       containers:
         - args:
             - --health-probe-bind-address=:8081
@@ -30,8 +32,13 @@ spec:
             {{- end }}
           command:
             - /manager
-          image: {{ .Values.image.repository }}:{{ eq .Values.image.tag "REPLACED_BY_CHART_VERSION_IF_UNSPECIFIED" }}{{ $.Chart.Version }}{{ else }}{{ .Values.image.tag }}{{ end }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: {{ default "cr.yandex/yc/ydb-kubernetes-operator" .Values.image.repository }}:
+            {{- if eq .Values.image.tag "REPLACED_BY_CHART_APP_VERSION_IF_UNSPECIFIED" -}}
+              {{- .Chart.AppVersion -}}
+            {{- else -}}
+              {{- .Values.image.tag -}}
+            {{- end }}
+          imagePullPolicy: {{ default "IfNotPresent" .Values.image.pullPolicy }}
           livenessProbe:
             httpGet:
               path: /healthz
