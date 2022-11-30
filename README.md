@@ -1,6 +1,6 @@
 # YDB Kubernetes Operator
 
-The YDB Kubernetes operator deploys and manages YDB resources on a Kubernetes cluster.
+The YDB Kubernetes operator deploys and manages YDB resources in a Kubernetes cluster.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ The YDB Kubernetes operator deploys and manages YDB resources on a Kubernetes cl
 
 ## Usage
 
-For steps how to deploy and use YDB Kubernetes Operator, please refer to [documentation](https://ydb.tech/en/docs/deploy/orchestrated/concepts).
+For steps on how to deploy and use YDB Kubernetes Operator, please refer to [documentation](https://ydb.tech/en/docs/deploy/orchestrated/concepts).
 
 ## Development
 
