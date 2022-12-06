@@ -81,6 +81,11 @@ type StorageSpec struct {
 	// +optional
 	CABundle []byte `json:"caBundle,omitempty"`
 
+	// Additional secret names that will be mounted into the well-known directory of 
+	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
+	// +optional
+	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
+
 	// Whether host network should be enabled. Automatically sets
 	// `dnsPolicy` to `clusterFirstWithHostNet`.
 	// Default: false
