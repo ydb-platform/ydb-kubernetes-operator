@@ -6,7 +6,7 @@ image:
   ##
   pullPolicy: IfNotPresent
   repository: cr.yandex/yc/ydb-kubernetes-operator
-  tag: 0.4.12
+  tag: "REPLACED_BY_CHART_APP_VERSION_IF_UNSPECIFIED"
 
 ## Secrets to use for Docker registry access
 ## Secrets must be provided manually.
@@ -16,6 +16,8 @@ image:
 ##   - myRegistryKeySecretName
 ##
 imagePullSecrets: []
+
+nodeSelector: {}
 
 nameOverride: ""
 fullnameOverride: ""
