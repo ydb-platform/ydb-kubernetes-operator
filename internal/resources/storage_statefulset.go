@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	configVolumeName = "ydb-config"
+	configVolumeName                 = "ydb-config"
+	annotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
 )
 
 type StorageStatefulSetBuilder struct {
@@ -66,6 +67,12 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		RevisionHistoryLimit: ptr.Int32(10),
 		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.GetName()),
 		Template:             b.buildPodTemplateSpec(),
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[annotationUpdateStrategyOnDelete]; ok && value == "true" {
+		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
+			Type: "OnDelete",
+		}
 	}
 
 	pvcList := make([]corev1.PersistentVolumeClaim, 0, len(b.Spec.DataStore))
@@ -307,6 +314,9 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: ptr.Bool(false),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{"SYS_RAWIO"},
+			},
 		},
 
 		Ports: []corev1.ContainerPort{{
