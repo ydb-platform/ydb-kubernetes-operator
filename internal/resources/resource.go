@@ -26,6 +26,8 @@ const (
 	systemCertsVolumeName = "init-main-shared-certs-volume"
 	localCertsVolumeName  = "init-main-shared-source-dir-volume"
 
+	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
+
 	caBundleVolumeName = "ca-bundle-volume"
 
 	caBundleConfigMap = "init-container-cert-auths"

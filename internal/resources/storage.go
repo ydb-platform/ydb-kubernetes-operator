@@ -5,6 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
@@ -73,7 +74,7 @@ func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
 	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
 }
 
-func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
+func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	storageLabels := labels.StorageLabels(b.Unwrap())
 
 	var optionalBuilders []ResourceBuilder
@@ -162,8 +163,9 @@ func (b *StorageClusterBuilder) GetResourceBuilders() []ResourceBuilder {
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 		&StorageStatefulSetBuilder{
-			Storage: b.Unwrap(),
-			Labels:  storageLabels,
+			Storage:    b.Unwrap(),
+			Labels:     storageLabels,
+			RestConfig: restConfig,
 		},
 	)
 }

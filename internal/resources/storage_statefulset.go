@@ -3,12 +3,14 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -21,6 +23,7 @@ const (
 
 type StorageStatefulSetBuilder struct {
 	*v1alpha1.Storage
+	RestConfig *rest.Config
 
 	Labels map[string]string
 }
@@ -174,6 +177,17 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
+	}
+
+	for _, secret := range b.Spec.Secrets {
+		volumes = append(volumes, corev1.Volume{
+			Name: secret.Name,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secret.Name,
+				},
+			},
+		})
 	}
 
 	if b.areAnyCertificatesAddedToStore() {
@@ -372,6 +386,13 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
+	for _, secret := range b.Spec.Secrets {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      secret.Name,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, secret.Name),
+		})
+	}
+
 	return volumeMounts
 }
 
@@ -420,6 +441,29 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		"--node",
 		"static",
 	)
+
+	for _, secret := range b.Spec.Secrets {
+		exists, err := checkSecretHasField(
+			b.GetNamespace(),
+			secret.Name,
+			v1alpha1.YdbAuthToken,
+			b.RestConfig,
+		)
+
+		if err != nil {
+			log.Default().Printf("Failed to inspect a secret %s: %s\n", secret.Name, err.Error())
+		} else if exists {
+			args = append(args,
+				"--auth-token-file",
+				fmt.Sprintf(
+					"%s/%s/%s",
+					wellKnownDirForAdditionalSecrets,
+					secret.Name,
+					v1alpha1.YdbAuthToken,
+				),
+			)
+		}
+	}
 
 	return command, args
 }
