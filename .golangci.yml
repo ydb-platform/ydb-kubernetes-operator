@@ -73,6 +73,9 @@ linters-settings:
     min-len: 2
     # minimal occurrences count to trigger, 3 by default
     min-occurrences: 2
+  gosec:
+    excludes:
+     - G101
   fieldalignment:
     # print struct with more effective memory layout or not, false by default
     suggest-new: true
