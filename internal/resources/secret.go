@@ -2,7 +2,6 @@ package resources
 
 import (
 	"context"
-	"log"
 
 	"errors"
 
@@ -11,9 +10,12 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func checkSecretHasField(namespace string, secretName string, secretField string, config *rest.Config) (bool, error) {
-  log.Printf("checking if secret %s has field %s...\n", secretName, secretField)
-
+func checkSecretHasField(
+	namespace string,
+	secretName string,
+	secretField string,
+	config *rest.Config,
+) (bool, error) {
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return false, errors.New("failed to create kubernetes clientset")
@@ -23,9 +25,6 @@ func checkSecretHasField(namespace string, secretName string, secretField string
 		CoreV1().
 		Secrets(namespace).
 		Get(context.TODO(), secretName, v1.GetOptions{})
-
-	log.Print("Secret getting req: ", req)
-	log.Print("Secret getting err: ", err)
 
 	if err != nil {
 		return false, err

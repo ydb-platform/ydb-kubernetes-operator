@@ -56,6 +56,19 @@ spec:
                 description: (Optional) Additional custom resource labels that are
                   added to all resources
                 type: object
+              additionalSecrets:
+                description: 'Additional secret names that will be mounted into the
+                  well-known directory of every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`'
+                items:
+                  description: LocalObjectReference contains enough information to
+                    let you locate the referenced object inside the same namespace.
+                  properties:
+                    name:
+                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                  type: object
+                type: array
               affinity:
                 description: (Optional) If specified, the pod's scheduling constraints
                 properties:

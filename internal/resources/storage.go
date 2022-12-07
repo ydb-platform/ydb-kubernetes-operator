@@ -165,7 +165,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 		&StorageStatefulSetBuilder{
 			Storage: b.Unwrap(),
 			Labels:  storageLabels,
-			Config: restConfig,
+			RestConfig: restConfig,
 		},
 	)
 }

@@ -3,6 +3,7 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,7 +23,7 @@ const (
 
 type StorageStatefulSetBuilder struct {
 	*v1alpha1.Storage
-  RestConfig *rest.Config
+	RestConfig *rest.Config
 
 	Labels map[string]string
 }
@@ -442,10 +443,24 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	)
 
 	for _, secret := range b.Spec.AdditionalSecrets {
-		if exists, _ := checkSecretHasField(b.GetNamespace(), secret.Name, v1alpha1.YdbAuthToken, b.RestConfig); exists {
+		exists, err := checkSecretHasField(
+			b.GetNamespace(),
+			secret.Name,
+			v1alpha1.YdbAuthToken,
+			b.RestConfig,
+		)
+
+		if err != nil {
+			log.Default().Printf("Failed to inspect a secret %s: %s\n", secret.Name, err.Error())
+		} else if exists {
 			args = append(args,
 				"--auth-token-file",
-				fmt.Sprintf("%s/%s/%s", wellKnownDirForAdditionalSecrets, secret.Name, v1alpha1.YdbAuthToken),
+				fmt.Sprintf(
+					"%s/%s/%s",
+					wellKnownDirForAdditionalSecrets,
+					secret.Name,
+					v1alpha1.YdbAuthToken,
+				),
 			)
 		}
 	}
