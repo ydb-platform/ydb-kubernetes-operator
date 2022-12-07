@@ -5,6 +5,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -74,6 +75,17 @@ func (r *Storage) ValidateCreate() error {
 
 	if r.Spec.Nodes < minNodesPerErasure[r.Spec.Erasure] {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
+	}
+
+	reservedSecretNames := []string{
+		"database_encryption",
+		"datastreams",
+	}
+
+	for _, secret := range r.Spec.Secrets {
+		if slices.Contains(reservedSecretNames, secret.Name) {
+			return fmt.Errorf("the secret name %s is reserved, use another one", secret.Name)
+		}
 	}
 
 	// TODO(user): fill in your validation logic upon object creation.

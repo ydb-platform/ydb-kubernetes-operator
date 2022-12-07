@@ -179,7 +179,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
-	for _, secret := range b.Spec.AdditionalSecrets {
+	for _, secret := range b.Spec.Secrets {
 		volumes = append(volumes, corev1.Volume{
 			Name: secret.Name,
 			VolumeSource: corev1.VolumeSource{
@@ -386,7 +386,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	for _, secret := range b.Spec.AdditionalSecrets {
+	for _, secret := range b.Spec.Secrets {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      secret.Name,
 			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, secret.Name),
@@ -442,7 +442,7 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		"static",
 	)
 
-	for _, secret := range b.Spec.AdditionalSecrets {
+	for _, secret := range b.Spec.Secrets {
 		exists, err := checkSecretHasField(
 			b.GetNamespace(),
 			secret.Name,
