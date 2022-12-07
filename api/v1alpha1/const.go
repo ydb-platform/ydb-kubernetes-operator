@@ -23,7 +23,7 @@ const (
 	DiskPathPrefix      = "/dev/kikimr_ssd"
 	DiskNumberMaxDigits = 2
 	DiskFilePath        = "/data"
-	YdbAuthToken = "ydb-auth-token-file"
+	YdbAuthToken        = "ydb-auth-token-file"
 
 	ConfigDir      = "/opt/ydb/cfg"
 	ConfigFileName = "config.yaml"

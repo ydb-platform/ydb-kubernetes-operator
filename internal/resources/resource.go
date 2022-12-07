@@ -27,7 +27,6 @@ const (
 	localCertsVolumeName  = "init-main-shared-source-dir-volume"
 
 	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
-	additionalSecretVolumeName = "additional-secret-volume"
 
 	caBundleVolumeName = "ca-bundle-volume"
 

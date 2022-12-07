@@ -163,8 +163,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 		&StorageStatefulSetBuilder{
-			Storage: b.Unwrap(),
-			Labels:  storageLabels,
+			Storage:    b.Unwrap(),
+			Labels:     storageLabels,
 			RestConfig: restConfig,
 		},
 	)

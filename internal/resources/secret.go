@@ -2,7 +2,6 @@ package resources
 
 import (
 	"context"
-
 	"errors"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
