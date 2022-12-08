@@ -24,7 +24,6 @@ func checkSecretHasField(
 		CoreV1().
 		Secrets(namespace).
 		Get(context.TODO(), secretName, v1.GetOptions{})
-
 	if err != nil {
 		return false, err
 	}
