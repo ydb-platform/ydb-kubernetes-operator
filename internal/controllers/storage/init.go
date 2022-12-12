@@ -88,6 +88,14 @@ func (r *Reconciler) runInitScripts(
 	if err != nil {
 		if mismatchItemConfigGenerationRegexp.MatchString(stdout) {
 			r.Log.Info("Storage is already initialized, continuing...")
+
+			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+				Type:    InitStorageStepCondition,
+				Status:  "True",
+				Reason:  InitStorageStepReasonCompleted,
+				Message: "InitStorageStep counted as completed, Storage already initialized",
+			})
+			return r.setState(ctx, storage)
 		} else {
 			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 		}
