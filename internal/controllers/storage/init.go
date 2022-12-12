@@ -96,9 +96,9 @@ func (r *Reconciler) runInitScripts(
 				Message: "InitStorageStep counted as completed, Storage already initialized",
 			})
 			return r.setState(ctx, storage)
-		} else {
-			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 		}
+
+		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 	}
 
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
