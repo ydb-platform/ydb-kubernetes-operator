@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -55,9 +56,19 @@ const (
 
 	Stop     = true
 	Continue = false
+
+	annotationSkipInitialization   = "ydb.tech/skip-initialization"
+	// annotationSkipSetInitialStatus = "ydb.tech/set-initial-status"
+	// annotationSkipRunSelfCheck     = "ydb.tech/run-self-check"
+	// annotationSkipRunInitScripts   = "ydb.tech/run-init-scripts"
 )
 
 type ClusterState string
+
+func hasTrueAnnotation(b *resources.StorageClusterBuilder, annotation string) bool {
+	value, ok := b.Annotations[annotation]
+	return ok && value == "true"
+}
 
 func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
 	var stop bool
@@ -71,6 +82,33 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	if stop {
 		return result, err
 	}
+
+	// This block is special internal logic that skips all Storage initialization.
+	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
+	// does not make sense, since some nodes can be down for a long time (and it is okay, since
+	// database is healthy even with partial outage).
+	if hasTrueAnnotation(&storage, annotationSkipInitialization) {
+		if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"Skipping init",
+				"Skipping initialization due to skip annotation present, be careful!",
+			)
+			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+				Type:    StorageInitializedCondition,
+				Status:  "True",
+				Reason:  StorageInitializedReasonCompleted,
+				Message: "Storage initialization skipped",
+			})
+			_, result, err = r.setState(ctx, &storage)
+			return result, err
+		} else {
+			_, result, err = r.runSelfCheck(ctx, &storage, false)
+			return result, err
+		}
+	}
+
 	stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
 	if stop {
 		return result, err
