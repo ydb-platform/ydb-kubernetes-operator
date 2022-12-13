@@ -18,30 +18,27 @@ import (
 var mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# " +
 	"0.*ItemConfigGenerationExpected# 1.*")
 
-func (r *Reconciler) processSkipInitPipeline(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-) {
+func (r *Reconciler) processSkipInitPipeline(storage *resources.StorageClusterBuilder) {
 	r.Log.Info("running step processSkipInitPipeline")
 	r.Log.Info("Storage initialization disabled (with annotation), proceed with caution")
 
 	r.Recorder.Event(
 		storage,
 		corev1.EventTypeWarning,
-		"Skipping init",
+		"SkippingInit",
 		"Skipping initialization due to skip annotation present, be careful!",
 	)
 
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 		Type:    InitStorageStepCondition,
-		Status:  "True",
+		Status:  metav1.ConditionTrue,
 		Reason:  InitStorageStepReasonCompleted,
 		Message: "InitStorageStep not performed because initialization is skipped",
 	})
 
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 		Type:    StorageInitializedCondition,
-		Status:  "True",
+		Status:  metav1.ConditionTrue,
 		Reason:  StorageInitializedReasonCompleted,
 		Message: "Storage initialization skipped",
 	})
@@ -67,8 +64,11 @@ func (r *Reconciler) setInitialStatus(
 	// does not make sense, since some nodes can be down for a long time (and it is okay, since
 	// database is healthy even with partial outage).
 	if value, ok := storage.Annotations[annotationSkipInitialization]; ok && value == "true" {
-		r.processSkipInitPipeline(ctx, storage)
-		return r.setState(ctx, storage)
+		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
+			r.processSkipInitPipeline(storage)
+			return r.setState(ctx, storage)
+		}
+		return Stop, ctrl.Result{Requeue: false}, nil
 	}
 
 	changed := false
