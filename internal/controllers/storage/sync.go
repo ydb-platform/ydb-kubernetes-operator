@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,50 +74,12 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
-	// This block is special internal logic that skips all Storage initialization.
-	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
-	// does not make sense, since some nodes can be down for a long time (and it is okay, since
-	// database is healthy even with partial outage).
-	if value, ok := storage.Annotations[annotationSkipInitialization]; ok && value == "true" {
-		if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
-			r.Log.Info("Storage initialization disabled (with annotation), proceed with caution")
-
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeWarning,
-				"Skipping init",
-				"Skipping initialization due to skip annotation present, be careful!",
-			)
-
-			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-				Type:    StorageInitializedCondition,
-				Status:  "True",
-				Reason:  StorageInitializedReasonCompleted,
-				Message: "Storage initialization skipped",
-			})
-
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeNormal,
-				"ResourcesReady",
-				"Everything should be in sync",
-			)
-
-			storage.Status.State = string(Ready)
-			_, result, err = r.setState(ctx, &storage)
-			return result, err
-		}
-
-		_, result, err = r.runSelfCheck(ctx, &storage, false)
-		return result, err
-	}
-
-	stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
-	if stop {
-		return result, err
-	}
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &storage)
+		if stop {
+			return result, err
+		}
+		stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
 		if stop {
 			return result, err
 		}

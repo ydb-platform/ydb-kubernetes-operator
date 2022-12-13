@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -17,11 +18,59 @@ import (
 var mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# " +
 	"0.*ItemConfigGenerationExpected# 1.*")
 
+func (r *Reconciler) processSkipInitPipeline(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) {
+	r.Log.Info("running step processSkipInitPipeline")
+	r.Log.Info("Storage initialization disabled (with annotation), proceed with caution")
+
+	r.Recorder.Event(
+		storage,
+		corev1.EventTypeWarning,
+		"Skipping init",
+		"Skipping initialization due to skip annotation present, be careful!",
+	)
+
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:    InitStorageStepCondition,
+		Status:  "True",
+		Reason:  InitStorageStepReasonCompleted,
+		Message: "InitStorageStep not performed because initialization is skipped",
+	})
+
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:    StorageInitializedCondition,
+		Status:  "True",
+		Reason:  StorageInitializedReasonCompleted,
+		Message: "Storage initialization skipped",
+	})
+
+	r.Recorder.Event(
+		storage,
+		corev1.EventTypeNormal,
+		"ResourcesReady",
+		"Everything should be in sync",
+	)
+
+	storage.Status.State = string(Ready)
+}
+
 func (r *Reconciler) setInitialStatus(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
+
+	// This block is special internal logic that skips all Storage initialization.
+	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
+	// does not make sense, since some nodes can be down for a long time (and it is okay, since
+	// database is healthy even with partial outage).
+	if value, ok := storage.Annotations[annotationSkipInitialization]; ok && value == "true" {
+		r.processSkipInitPipeline(ctx, storage)
+		return r.setState(ctx, storage)
+	}
+
 	changed := false
 	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
