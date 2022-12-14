@@ -64,7 +64,8 @@ func (r *Reconciler) setInitialStatus(
 	// does not make sense, since some nodes can be down for a long time (and it is okay, since
 	// database is healthy even with partial outage).
 	if value, ok := storage.Annotations[annotationSkipInitialization]; ok && value == "true" {
-		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
+		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(storage.Status.Conditions, StorageInitializedCondition) {
 			r.processSkipInitPipeline(storage)
 			return r.setState(ctx, storage)
 		}
