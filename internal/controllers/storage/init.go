@@ -68,7 +68,7 @@ func (r *Reconciler) setInitialStatus(
 			r.processSkipInitPipeline(storage)
 			return r.setState(ctx, storage)
 		}
-		return Stop, ctrl.Result{Requeue: false}, nil
+		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
 	changed := false
