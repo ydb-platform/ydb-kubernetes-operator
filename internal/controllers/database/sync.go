@@ -19,6 +19,7 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -134,8 +135,11 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) waitForStatefulSetToScale(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale")
+func (r *Reconciler) waitForStatefulSetToScale(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step waitForStatefulSetToScale for Database")
 
 	if database.Spec.ServerlessResources == nil {
 		found := &appsv1.StatefulSet{}
@@ -156,22 +160,46 @@ func (r *Reconciler) waitForStatefulSetToScale(ctx context.Context, database *re
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		if found.Status.Replicas != database.Spec.Nodes {
-			msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d",
-				found.Status.Replicas,
-				database.Spec.Nodes,
+		podLabels := labels.Common(database.Name, make(map[string]string))
+		podLabels.Merge(map[string]string{
+			labels.ComponentKey: labels.DynamicComponent,
+		})
+
+		matchingLabels := client.MatchingLabels{}
+		for k, v := range podLabels {
+			matchingLabels[k] = v
+		}
+
+		podList := &corev1.PodList{}
+		opts := []client.ListOption{
+			client.InNamespace(database.Namespace),
+			matchingLabels,
+		}
+
+		err = r.List(ctx, podList, opts...)
+		if err != nil {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeNormal,
+				"Syncing",
+				fmt.Sprintf("Failed to list cluster pods: %s", err),
 			)
-			r.Recorder.Event(database, corev1.EventTypeNormal, "Provisioning", msg)
 			database.Status.State = string(Provisioning)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		runningPods := 0
+		for _, e := range podList.Items {
+			if e.Status.Phase == "Running" {
+				runningPods++
+			}
+		}
+
+		if runningPods != int(database.Spec.Nodes) {
+			msg := fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes)
+			r.Recorder.Event(database, corev1.EventTypeNormal, string(Provisioning), msg)
 			return r.setState(ctx, database)
 		}
-	}
-
-	if database.Status.State != string(Ready) &&
-		meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
-		r.Recorder.Event(database, corev1.EventTypeNormal, "ResourcesReady", "Resource are ready and DB is initialized")
-		database.Status.State = string(Ready)
-		return r.setState(ctx, database)
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil
@@ -372,6 +400,15 @@ func (r *Reconciler) handleTenantCreation(
 		Reason:  TenantInitializedReasonCompleted,
 		Message: "Tenant creation is complete",
 	})
+
+	r.Recorder.Event(
+		database,
+		corev1.EventTypeNormal,
+		"ResourcesReady",
+		"Resource are ready and DB is initialized",
+	)
+	database.Status.State = string(Ready)
+
 	return r.setState(ctx, database)
 }
 

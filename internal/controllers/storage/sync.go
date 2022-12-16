@@ -101,7 +101,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale")
+	r.Log.Info("running step waitForStatefulSetToScale for Storage")
 	found := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      storage.Name,
@@ -155,7 +155,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	}
 
 	if runningPods != int(storage.Spec.Nodes) {
-		msg := fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
+		msg := fmt.Sprintf("Waiting for number of running storage pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
 		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
 		storage.Status.State = string(Provisioning)
 		return r.setState(ctx, storage)
