@@ -28,9 +28,8 @@ const (
 
 	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
 
-	caBundleVolumeName = "ca-bundle-volume"
-
-	caBundleConfigMap = "init-container-cert-auths"
+	caBundleEnvName  = "CA_BUNDLE"
+	caBundleFileName = "userCABundle.crt"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	tmpCertsDir    = "/etc/temporary-certs"

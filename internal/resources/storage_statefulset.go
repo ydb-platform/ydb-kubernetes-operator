@@ -213,17 +213,6 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		})
 	}
 
-	if len(b.Spec.CABundle) > 0 {
-		volumes = append(volumes, corev1.Volume{
-			Name: caBundleVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{Name: caBundleConfigMap},
-				},
-			},
-		})
-	}
-
 	return volumes
 }
 
@@ -236,7 +225,6 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
 		Command:         command,
 		Args:            args,
-
 		SecurityContext: &corev1.SecurityContext{
 			RunAsUser: new(int64),
 		},
@@ -244,7 +232,14 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
 		Resources:    b.Spec.Resources,
 	}
-
+	if len(b.Spec.CABundle) > 0 {
+		container.Env = []corev1.EnvVar{
+			{
+				Name:  caBundleEnvName,
+				Value: string(b.Spec.CABundle),
+			},
+		}
+	}
 	return container
 }
 
@@ -266,14 +261,6 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
 			MountPath: systemCertsDir,
-		})
-	}
-
-	if len(b.Spec.CABundle) > 0 {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      caBundleVolumeName,
-			ReadOnly:  true,
-			MountPath: tmpCertsDir,
 		})
 	}
 
@@ -412,7 +399,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 	arg := ""
 
 	if len(b.Spec.CABundle) > 0 {
-		arg += fmt.Sprintf("cp %s/* %s/ && ", tmpCertsDir, localCertsDir)
+		arg += fmt.Sprintf("echo $%s > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
