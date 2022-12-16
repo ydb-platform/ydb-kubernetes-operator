@@ -141,65 +141,67 @@ func (r *Reconciler) waitForStatefulSetToScale(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale for Database")
 
-	if database.Spec.ServerlessResources == nil {
-		found := &appsv1.StatefulSet{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      database.Name,
-			Namespace: database.Namespace,
-		}, found)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-			}
-			r.Recorder.Event(
-				database,
-				corev1.EventTypeNormal,
-				"Syncing",
-				fmt.Sprintf("Failed to get StatefulSets: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
+	if database.Spec.ServerlessResources != nil {
+		return Continue, ctrl.Result{Requeue: false}, nil
+	}
 
-		podLabels := labels.Common(database.Name, make(map[string]string))
-		podLabels.Merge(map[string]string{
-			labels.ComponentKey: labels.DynamicComponent,
-		})
-
-		matchingLabels := client.MatchingLabels{}
-		for k, v := range podLabels {
-			matchingLabels[k] = v
+	found := &appsv1.StatefulSet{}
+	err := r.Get(ctx, types.NamespacedName{
+		Name:      database.Name,
+		Namespace: database.Namespace,
+	}, found)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeNormal,
+			"Syncing",
+			fmt.Sprintf("Failed to get StatefulSets: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
 
-		podList := &corev1.PodList{}
-		opts := []client.ListOption{
-			client.InNamespace(database.Namespace),
-			matchingLabels,
-		}
+	podLabels := labels.Common(database.Name, make(map[string]string))
+	podLabels.Merge(map[string]string{
+		labels.ComponentKey: labels.DynamicComponent,
+	})
 
-		err = r.List(ctx, podList, opts...)
-		if err != nil {
-			r.Recorder.Event(
-				database,
-				corev1.EventTypeNormal,
-				"Syncing",
-				fmt.Sprintf("Failed to list cluster pods: %s", err),
-			)
-			database.Status.State = string(Provisioning)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
+	matchingLabels := client.MatchingLabels{}
+	for k, v := range podLabels {
+		matchingLabels[k] = v
+	}
 
-		runningPods := 0
-		for _, e := range podList.Items {
-			if e.Status.Phase == "Running" {
-				runningPods++
-			}
-		}
+	podList := &corev1.PodList{}
+	opts := []client.ListOption{
+		client.InNamespace(database.Namespace),
+		matchingLabels,
+	}
 
-		if runningPods != int(database.Spec.Nodes) {
-			msg := fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes)
-			r.Recorder.Event(database, corev1.EventTypeNormal, string(Provisioning), msg)
-			return r.setState(ctx, database)
+	err = r.List(ctx, podList, opts...)
+	if err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeNormal,
+			"Syncing",
+			fmt.Sprintf("Failed to list cluster pods: %s", err),
+		)
+		database.Status.State = string(Provisioning)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	runningPods := 0
+	for _, e := range podList.Items {
+		if e.Status.Phase == "Running" {
+			runningPods++
 		}
+	}
+
+	if runningPods != int(database.Spec.Nodes) {
+		msg := fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes)
+		r.Recorder.Event(database, corev1.EventTypeNormal, string(Provisioning), msg)
+		return r.setState(ctx, database)
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil
