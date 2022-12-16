@@ -55,6 +55,8 @@ const (
 
 	Stop     = true
 	Continue = false
+
+	annotationSkipInitialization = "ydb.tech/skip-initialization"
 )
 
 type ClusterState string
@@ -71,12 +73,13 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	if stop {
 		return result, err
 	}
-	stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
-	if stop {
-		return result, err
-	}
+
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &storage)
+		if stop {
+			return result, err
+		}
+		stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
 		if stop {
 			return result, err
 		}
@@ -89,6 +92,7 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 			return result, err
 		}
 	}
+
 	_, result, err = r.runSelfCheck(ctx, &storage, false)
 	return result, err
 }
