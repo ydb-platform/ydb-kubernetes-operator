@@ -38,10 +38,10 @@ jobs:
           --wait 5m
           kubectl get nodes
       - uses: docker/build-push-action@v3
-          with:
-            push: false
-            # Get commit short sha within Github action workflow
-            tags: ydb-operator:${GITHUB_SHA::7} # Just name it somehow, we won't upload it anyway
+        with:
+          push: false
+          # Get commit short sha within Github action workflow
+          tags: ydb-operator:${GITHUB_SHA::7} # Just name it somehow, we won't upload it anyway
       - name: deploy-operator
         run: |
           kind load docker-image ydb-operator:${GITHUB_SHA::7}
