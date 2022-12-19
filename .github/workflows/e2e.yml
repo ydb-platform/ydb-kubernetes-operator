@@ -1,10 +1,9 @@
 name: run-e2e
 on:
   push:
-    branches:
-      - master
+    branches: [ "master" ]
   pull_request:
-  workflow_dispatch:
+    branches: [ "master" ]
 jobs:
   run-e2e-job:
     name: run-e2e-job
