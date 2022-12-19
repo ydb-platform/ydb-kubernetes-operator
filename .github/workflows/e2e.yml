@@ -34,7 +34,7 @@ jobs:
         run: |
           kind create cluster \
           --image=kindest/node:v1.21.14@sha256:9d9eb5fb26b4fbc0c6d95fa8c790414f9750dd583f5d7cee45d92e8c26670aa1 \
-          --config=./work/kind/kind-config.yaml \
+          --config=./e2e/kind-cluster-config.yaml
           --wait 5m
           kubectl get nodes
       - uses: docker/build-push-action@v3
