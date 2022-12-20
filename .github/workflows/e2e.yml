@@ -66,12 +66,14 @@ jobs:
           # TODO NOW, THIS COULD BE FULLY REPLACED WITH TESTS IN GOLANG! I WAIT FOR DATABASE PODS AS AN EXAMPLE ONLY!
           # REAL TESTS WILL BE WRITTEN IN GOLANG AND WILL USE THE INFRASTRUCTURE CREATED ABOVE!
           kubectl create namespace ydb
+
           kubectl apply -f ./e2e/manifests/storage.yaml
-          kubectl apply -f ./e2e/manifests/database.yaml
           # TODO namespace and labels are hardcoded in the next command, that is duplication.
           # We should get the label and its value from ./e2e/manifests/*.yaml
           kubectl wait --timeout=5m --for=condition=ready storage -n ydb ycydb
           kubectl wait --timeout=5m --for=condition=ready pod -n ydb -l ydb-cluster=kind-storage
+
+          kubectl apply -f ./e2e/manifests/database.yaml
           kubectl wait --timeout=5m --for=condition=ready database -n ydb database
           kubectl wait --timeout=5m --for=condition=ready pod -n ydb -l ydb-cluster=kind-database
       - name: teardown-k8s-cluster
