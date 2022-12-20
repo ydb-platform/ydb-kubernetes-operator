@@ -55,9 +55,10 @@ jobs:
           --set image.tag=current
           OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}')
           kubectl wait --for=condition=ready pod -n ydb-operator "$OPERATOR_POD_NAME"
-      - name: load-ydb-image
+      - name: pull-and-load-ydb-image
         run: |
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
+          docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
           kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
       - name: run-tests
         run: |
