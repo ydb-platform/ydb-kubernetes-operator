@@ -28,7 +28,7 @@ jobs:
           # Check everything is installed:
           go version
           kind version
-          kubectl version --client=true
+          kubectl version --short --client=true
           helm version
       - name: setup-k8s-cluster
         run: |
