@@ -37,7 +37,8 @@ jobs:
           --config=./e2e/kind-cluster-config.yaml \
           --wait 5m
           kubectl wait --for=condition=ready node -l worker=true
-      - uses: docker/build-push-action@v3
+      - name: build-operator-image
+        uses: docker/build-push-action@v3
         with:
           push: false
           # Get commit short sha within Github action workflow
