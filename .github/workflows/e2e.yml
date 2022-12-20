@@ -39,7 +39,7 @@ jobs:
           --config=./e2e/kind-cluster-config.yaml \
           --wait 5m
           kubectl wait --for=condition=ready node -l worker=true
-      - name: build-operator-image
+      - name: build-and-load-operator-image
         uses: docker/build-push-action@v3
         with:
           push: false
@@ -53,9 +53,9 @@ jobs:
           -f ./e2e/operator-values.yaml \
           --set image.repository=ydb-operator \
           --set image.tag=current
-          OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $0}')
+          OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}')
           kubectl wait --for=condition=ready pod -n ydb-operator "$OPERATOR_POD_NAME"
-      - name: prepare-ydb-image
+      - name: load-ydb-image
         run: |
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
           kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
