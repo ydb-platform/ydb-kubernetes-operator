@@ -5,7 +5,7 @@ metadata:
   namespace: ydb
 spec:
   image:
-    name: ydb:22.4.44  
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
   domain: Root
   nodes: 8
   resources:
