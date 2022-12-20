@@ -15,20 +15,20 @@ jobs:
           go-version: '^1.17'
       - name: install-dependencies
         run: |
-          # Validate go is present
-          go version
-          # Install and validate kind
           go install sigs.k8s.io/kind@v0.17.0 
-          kind version
-          # Install and validate kubectl
+
           curl -LO https://dl.k8s.io/release/v1.21.0/bin/linux/amd64/kubectl
           chmod +x kubectl
-          kubectl version --client=true
-          # Install and validate helm (quite brittle, fix ASAP)
+
           HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
           curl -LO https://get.helm.sh/"${HELM_PKG}"
           tar -zxvf "${HELM_PKG}"
           mv ./linux-amd64/helm .
+
+          # Check everything is installed:
+          go version
+          kind version
+          kubectl version --client=true
           helm version
       - name: setup-k8s-cluster
         run: |
