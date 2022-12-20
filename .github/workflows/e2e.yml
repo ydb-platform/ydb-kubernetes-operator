@@ -52,7 +52,8 @@ jobs:
           helm -n ydb-operator install --create-namespace ydb-operator ./deploy/ydb-operator \
           -f ./e2e/operator-values.yaml \
           --set image.repository=ydb-operator \
-          --set image.tag=current
+          --set image.tag=current \
+          --set image.imagePullPolicy=Never # This is not a mistake, the image should already be loaded into kind
           OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}')
           kubectl wait --for=condition=ready pod -n ydb-operator "$OPERATOR_POD_NAME"
       - name: pull-and-load-ydb-image

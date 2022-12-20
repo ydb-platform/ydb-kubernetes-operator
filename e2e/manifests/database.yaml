@@ -9,6 +9,8 @@ spec:
   domain: Root
   nodes: 8
   resources:
+    limits:
+      cpu: 300m
     storageUnits:
       - unitKind: ssd
         count: 1
