@@ -36,19 +36,20 @@ jobs:
           --image=kindest/node:v1.21.14@sha256:9d9eb5fb26b4fbc0c6d95fa8c790414f9750dd583f5d7cee45d92e8c26670aa1 \
           --config=./e2e/kind-cluster-config.yaml \
           --wait 5m
-          kubectl get nodes
+          kubectl wait --for=condition=ready node -l worker=true
       - uses: docker/build-push-action@v3
         with:
           push: false
           # Get commit short sha within Github action workflow
-          tags: ydb-operator:${GITHUB_SHA::7} # Just name it somehow, we won't upload it anyway
+          # Just a random string name, we aren't uploading anyway
+          tags: ydb-operator:current
       - name: deploy-operator
         run: |
-          kind load docker-image ydb-operator:${GITHUB_SHA::7}
+          kind load docker-image ydb-operator:current
           helm -n ydb-operator install --create-namespace ydb-operator ./deploy/ydb-operator \
           -f ./e2e/operator-values.yaml \
           --set image.repository=ydb-operator \
-          --set image.tag=${GITHUB_SHA::7}
+          --set image.tag=current
           # wait until operator is available, we can't wait until it's ready because of webhooks :'(
           sleep 20
       - name: run-tests
