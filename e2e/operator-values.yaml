@@ -1,6 +1,5 @@
 webhook:
   enabled: true
 
-  service:
-    type: ClusterIP
-    port: 9443
+  patch:
+    enabled: false
