@@ -37,6 +37,7 @@ jobs:
           kind version
           kubectl version --short --client=true
           helm version
+
       - name: setup-k8s-cluster
         run: |
           # TODO figure out how to do it without sudo.
