@@ -59,6 +59,7 @@ jobs:
           --set image.pullPolicy=Never \
           --set webhook.patch.enabled=false || sleep 100000
           # while true; do OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}'); kubectl logs -n ydb-operator $OPERATOR_POD_NAME || true; kubectl describe pod -n ydb-operator $OPERATOR_POD_NAME; sleep 30; done
+          #
           OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}')
           kubectl wait --timeout=5m --for=condition=ready pod -n ydb-operator $OPERATOR_POD_NAME
       - name: pull-and-load-ydb-image
