@@ -25,9 +25,11 @@ jobs:
           tar -zxvf "${HELM_PKG}"
           mv ./linux-amd64/helm .
 
+          echo $(pwd)
           echo "$(pwd)" >> $GITHUB_PATH
-
-          # Check everything is installed:
+      - name: check-dependencies
+          run: |
+          echo "$PATH"
           go version
           kind version
           kubectl version --short --client=true
