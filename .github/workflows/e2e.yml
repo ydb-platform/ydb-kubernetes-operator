@@ -39,23 +39,23 @@ jobs:
           --image=kindest/node:v1.21.14@sha256:9d9eb5fb26b4fbc0c6d95fa8c790414f9750dd583f5d7cee45d92e8c26670aa1 \
           --config=./e2e/kind-cluster-config.yaml
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
-      - name: build-and-load-operator-image
+      - name: build-operator-image
         uses: docker/build-push-action@v3
         with:
           push: false
           # Get commit short sha within Github action workflow
           # Just a random string name, we aren't uploading anyway
           tags: ydb-operator:current
-      - name: deploy-operator
+      - name: load-and-deploy-operator
         run: |
           kind load docker-image ydb-operator:current
           helm -n ydb-operator install --create-namespace ydb-operator ./deploy/ydb-operator \
           -f ./e2e/operator-values.yaml \
           --set image.repository=ydb-operator \
           --set image.tag=current \
-          --set image.imagePullPolicy=Never # This is not a mistake, the image should already be loaded into kind
+          --set image.pullPolicy=Never # This is not a mistake, the image should already be loaded into kind
           OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}')
-          kubectl wait --for=condition=ready pod -n ydb-operator "$OPERATOR_POD_NAME"
+          kubectl wait --timeout=5m --for=condition=ready pod -n ydb-operator "$OPERATOR_POD_NAME"
       - name: pull-and-load-ydb-image
         run: |
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
