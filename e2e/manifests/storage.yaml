@@ -10,7 +10,7 @@ spec:
   nodes: 8
   resources:
     limits:
-      cpu: 300m
+      cpu: 600m
   service:
     grpc:
       tls:
