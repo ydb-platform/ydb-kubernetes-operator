@@ -16,6 +16,8 @@ jobs:
       - name: install-dependencies
         run: |
           go install sigs.k8s.io/kind@v0.17.0 
+          pwd
+          which kind
 
           # TODO this way is too wordy and brittle, think of a better way
           curl -LO https://dl.k8s.io/release/v1.21.0/bin/linux/amd64/kubectl
@@ -39,7 +41,7 @@ jobs:
           helm version
       - name: setup-k8s-cluster
         run: |
-          kind create cluster \
+          sudo kind create cluster \
           --image=kindest/node:v1.21.14@sha256:9d9eb5fb26b4fbc0c6d95fa8c790414f9750dd583f5d7cee45d92e8c26670aa1 \
           --config=./e2e/kind-cluster-config.yaml \
           --wait 5m
