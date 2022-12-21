@@ -1,4 +1,3 @@
-{{- if and .Values.webhook.patch.enabled }}
 {{- if and .Values.webhook.enabled (not .Values.webhook.certManager.enabled) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -16,5 +15,4 @@ subjects:
   - kind: ServiceAccount
     name: {{ template "ydb.fullname" . }}-webhook
     namespace: {{ .Release.Namespace }}
-{{- end }}
 {{- end }}
