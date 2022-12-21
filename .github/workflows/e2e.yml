@@ -24,7 +24,7 @@ jobs:
           curl -LO https://get.helm.sh/"${HELM_PKG}"
           tar -zxvf "${HELM_PKG}"
           mv ./linux-amd64/helm .
-          echo $(pwd)
+
           echo "$(pwd)" >> $GITHUB_PATH
       - name: check-dependencies
         run: |
