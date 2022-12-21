@@ -37,14 +37,9 @@ jobs:
           kind version
           kubectl version --short --client=true
           helm version
-
       - name: setup-k8s-cluster
         run: |
-          # TODO figure out how to do it without sudo.
-          # Currently, otherwise kubectl is unlealthy... 
-          # Probably I screwed the rootless docker installation
-          KIND_PATH=$(which kind)
-          sudo "$KIND_PATH" create cluster \
+          kind create cluster \
           --image=kindest/node:v1.21.14@sha256:9d9eb5fb26b4fbc0c6d95fa8c790414f9750dd583f5d7cee45d92e8c26670aa1 \
           --config=./e2e/kind-cluster-config.yaml \
           --wait 5m
