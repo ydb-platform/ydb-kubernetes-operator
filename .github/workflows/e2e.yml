@@ -65,7 +65,7 @@ jobs:
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
           docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
           kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
-      - name: run-tests
+      - name: apply-resources
         run: |
           # TODO NOW, THIS COULD BE FULLY REPLACED WITH TESTS IN GOLANG! I WAIT FOR DATABASE PODS AS AN EXAMPLE ONLY!
           # REAL TESTS WILL BE WRITTEN IN GOLANG AND WILL USE THE INFRASTRUCTURE CREATED ABOVE!
@@ -77,10 +77,10 @@ jobs:
           # TODO namespace and labels are hardcoded in the next command, that is duplication.
           # We should get the label and its value from ./e2e/manifests/*.yaml
           kubectl wait --timeout=15m --for=condition=storageinitialized=true storage -n ydb ycydb
-          kubectl wait --timeout=1m --for=condition=ready pod -n ydb -l ydb-cluster=kind-storage
+          kubectl wait --for=condition=ready pod -n ydb -l ydb-cluster=kind-storage
 
-          kubectl wait --timeout=1m --for=condition=tenantinitialized=true  database -n ydb database
-          kubectl wait --timeout=1m --for=condition=ready pod -n ydb -l ydb-cluster=kind-database
+          kubectl wait --for=condition=tenantinitialized=true  database -n ydb database
+          kubectl wait --for=condition=ready pod -n ydb -l ydb-cluster=kind-database
 
           # Something as a reference for a more complicated check later. Be careful with the yaml indentation!
           # while true; do
