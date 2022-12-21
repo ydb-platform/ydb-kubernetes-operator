@@ -53,9 +53,8 @@ jobs:
           -f ./e2e/operator-values.yaml \
           --set image.repository=ydb-operator \
           --set image.tag=current \
-          --set image.pullPolicy=Never # This is not a mistake, the image should already be loaded into kind
-          OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}')
-          kubectl wait --timeout=5m --for=condition=ready pod -n ydb-operator "$OPERATOR_POD_NAME"
+          --set image.pullPolicy=Never & # This is not a mistake, the image should already be loaded into kind
+          while true; do OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}'); kubectl describe pod -n ydb-operator $OPERATOR_POD_NAME; sleep 30; done
       - name: pull-and-load-ydb-image
         run: |
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
