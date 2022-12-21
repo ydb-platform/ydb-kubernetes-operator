@@ -1,3 +1,4 @@
+{{- if and .Values.webhook.patch.enabled }}
 {{- if and .Values.webhook.enabled (not .Values.webhook.certManager.enabled) }}
 apiVersion: batch/v1
 kind: Job
@@ -62,5 +63,6 @@ spec:
 {{- if .Values.webhook.patch.securityContext }}
       securityContext:
 {{ toYaml .Values.webhook.patch.securityContext | indent 8 }}
+{{- end }}
 {{- end }}
 {{- end }}
