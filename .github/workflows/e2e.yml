@@ -37,7 +37,7 @@ jobs:
         run: |
           kind delete cluster
           kind create cluster \
-          --image=kindest/node:v1.25.3 \
+          --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
           --config=./e2e/kind-cluster-config.yaml
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
       - name: build-operator-image
