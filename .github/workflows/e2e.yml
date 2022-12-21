@@ -19,7 +19,12 @@ jobs:
 
           # TODO this way is too wordy and brittle, think of a better way
           curl -LO https://dl.k8s.io/release/v1.21.0/bin/linux/amd64/kubectl
-          # export PATH="$PATH:."
+          chmod +x ./kubectl
+
+          # TODO this is a hack, native github runners can work with 
+          # downloaded binaries locally, self-hosted can not
+          echo $PATH > ./old_PATH.txt
+          export PATH="$PATH:$(pwd)"
 
           # TODO this way is too wordy and brittle, think of a better way
           HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
@@ -79,3 +84,6 @@ jobs:
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster
+      - name: cleanup
+        run: |
+          export PATH="$(cat ./old_PATH.txt)"
