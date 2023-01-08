@@ -160,14 +160,6 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		storage.Status.State = string(Provisioning)
 		return r.setState(ctx, storage)
 	}
-
-	if storage.Status.State != string(Ready) &&
-		meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
-		r.Recorder.Event(storage, corev1.EventTypeNormal, "ResourcesReady", "Everything should be in sync")
-		storage.Status.State = string(Ready)
-		return r.setState(ctx, storage)
-	}
-
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 

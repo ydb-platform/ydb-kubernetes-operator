@@ -115,6 +115,15 @@ func (r *Reconciler) runInitScripts(
 			Reason:  StorageInitializedReasonCompleted,
 			Message: "Storage initialized successfully",
 		})
+
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			"ResourcesReady",
+			"Everything should be in sync",
+		)
+		storage.Status.State = string(Ready)
+
 		return r.setState(ctx, storage)
 	}
 
@@ -157,5 +166,6 @@ func (r *Reconciler) runInitScripts(
 		Reason:  InitStorageStepReasonCompleted,
 		Message: "InitStorageStep completed successfully",
 	})
+
 	return r.setState(ctx, storage)
 }

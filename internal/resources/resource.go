@@ -32,7 +32,6 @@ const (
 	caBundleFileName = "userCABundle.crt"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
-	tmpCertsDir    = "/etc/temporary-certs"
 	systemCertsDir = "/etc/ssl/certs"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
