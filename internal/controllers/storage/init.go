@@ -47,7 +47,7 @@ func (r *Reconciler) processSkipInitPipeline(storage *resources.StorageClusterBu
 		storage,
 		corev1.EventTypeNormal,
 		"ResourcesReady",
-		"Everything should be in sync",
+		"All resources are ready",
 	)
 
 	storage.Status.State = string(Ready)
@@ -120,7 +120,7 @@ func (r *Reconciler) runInitScripts(
 			storage,
 			corev1.EventTypeNormal,
 			"ResourcesReady",
-			"Everything should be in sync",
+			"All resources are ready",
 		)
 		storage.Status.State = string(Ready)
 
