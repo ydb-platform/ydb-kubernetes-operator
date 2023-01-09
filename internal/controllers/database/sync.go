@@ -406,8 +406,8 @@ func (r *Reconciler) handleTenantCreation(
 	r.Recorder.Event(
 		database,
 		corev1.EventTypeNormal,
-		"ResourcesReady",
-		"Resource are ready and DB is initialized",
+		"DatabaseReady",
+		"Database is initialized",
 	)
 	database.Status.State = string(Ready)
 
