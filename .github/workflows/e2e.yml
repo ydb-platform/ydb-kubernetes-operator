@@ -1,0 +1,96 @@
+name: run-e2e
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+jobs:
+  run-e2e-job:
+    name: run-e2e-job
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2          
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.17'
+      - name: install-dependencies
+        run: |
+          go install sigs.k8s.io/kind@v0.17.0 
+
+          curl -LO https://dl.k8s.io/release/v1.25.0/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+
+          HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
+          curl -LO https://get.helm.sh/"${HELM_PKG}"
+          tar -zxvf "${HELM_PKG}"
+          mv ./linux-amd64/helm .
+
+          echo "$(pwd)"
+          echo "$(pwd)" >> $GITHUB_PATH
+      - name: check-dependencies
+        run: |
+          go version
+          kind version
+          kubectl version --short --client=true
+          helm version
+      - name: setup-k8s-cluster
+        run: |
+          kind delete cluster
+          kind create cluster \
+          --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
+          --config=./e2e/kind-cluster-config.yaml
+          kubectl wait --timeout=5m --for=condition=ready node -l worker=true
+      - name: build-operator-image
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          # Get commit short sha within Github action workflow
+          # Just a random string name, we aren't uploading anyway
+          tags: kind/ydb-operator:current
+      - name: load-and-deploy-operator
+        run: |
+          docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+          kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+          kind load docker-image kind/ydb-operator:current
+          helm -n ydb-operator install --create-namespace ydb-operator ./deploy/ydb-operator \
+          -f ./e2e/operator-values.yaml \
+          --set image.repository=kind/ydb-operator \
+          --set image.tag=current \
+          --set image.pullPolicy=Never || sleep 100000
+          # while true; do OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}'); kubectl logs -n ydb-operator $OPERATOR_POD_NAME || true; kubectl describe pod -n ydb-operator $OPERATOR_POD_NAME; sleep 30; done
+          OPERATOR_POD_NAME=$(kubectl get pods -n ydb-operator |  awk '{if ($1 ~ "ydb-operator") print $1}')
+          kubectl wait --timeout=5m --for=condition=ready pod -n ydb-operator $OPERATOR_POD_NAME
+      - name: pull-and-load-ydb-image
+        run: |
+          # TODO would be cool to parse YDB image from manifests to avoid duplicating information
+          docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+          kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+      - name: apply-resources
+        run: |
+          # TODO NOW, THIS COULD BE FULLY REPLACED WITH TESTS IN GOLANG! I WAIT FOR DATABASE PODS AS AN EXAMPLE ONLY!
+          # REAL TESTS WILL BE WRITTEN IN GOLANG AND WILL USE THE INFRASTRUCTURE CREATED ABOVE!
+          kubectl create namespace ydb
+
+          kubectl apply -f ./e2e/manifests/storage.yaml
+          kubectl apply -f ./e2e/manifests/database.yaml
+
+          # TODO namespace and labels are hardcoded in the next command, that is duplication.
+          # We should get the label and its value from ./e2e/manifests/*.yaml
+          kubectl wait --timeout=15m --for=condition=storageinitialized=true storage -n ydb ycydb
+          kubectl wait --timeout=5m --for=condition=ready pod -n ydb -l ydb-cluster=kind-storage
+
+          kubectl wait --timeout=5m --for=condition=tenantinitialized=true  database -n ydb database
+          kubectl wait --timeout=5m --for=condition=ready pod -n ydb -l ydb-cluster=kind-database
+
+          # Something as a reference for a more complicated check later. Be careful with the yaml indentation!
+          # while true; do
+          #   LST=$(kubectl get pods -n ydb -l ydb-cluster=kind-storage -o=jsonpath="{.items[*].status.phase}")
+          #   for arg in "$(LST)"; do [[ $arg != "Running" ]] && exit 1; done; exit 0
+          # done
+
+          # TODO create a pod that will execute `select 1` against the cluster
+          # FIRST_DATABASE_POD_NAME=$(kubectl get pods -n ydb |  awk '{if ($1 ~ "database") print $1}')
+          # kubectl exec "$FIRST_DATABASE_POD_NAME" -n ydb -- bash
+      - name: teardown-k8s-cluster
+        run: |
+          kind delete cluster

@@ -1,0 +1,5 @@
+webhook:
+  enabled: true
+
+  patch:
+    enabled: false
