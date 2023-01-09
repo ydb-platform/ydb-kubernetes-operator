@@ -152,9 +152,6 @@ func (r *Reconciler) runInitScripts(
 
 	if err == nil && yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
 		token := auth.GetAuthTokenFromMetadata(ctx)
-		r.Log.Info("Here is the token: " + token)
-		// Just creating a temporary file with token contents instead of mounting it as a volume
-		// This solution is temporary anyway :)
 		cmd = append(
 			cmd,
 			"--token",

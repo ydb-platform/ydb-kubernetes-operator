@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
-	"google.golang.org/grpc/metadata"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -80,41 +79,35 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	// Sync is really our only entrypoint.
 	// Also, maybe we need this only on condition `enforce_static_user_credentials = true`?
 	// Right now we do it unconditionally.
-	ctx2, err := auth.AddUserTokenToCtx(
+	ctx, err = auth.AddUserTokenToCtx(
 		ctx,
 		storage.GetGRPCEndpoint(),
 		storage.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled,
-		r.Log.Info,
 	)
 	if err != nil {
 		return ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 	}
 
-	// Get field 'abc' from context grpc metadata
-	md, _ := metadata.FromOutgoingContext(ctx2)
-	r.Log.Info(fmt.Sprintf("Metadata values %v", md))
-
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
-		stop, result, err = r.setInitialStatus(ctx2, &storage)
+		stop, result, err = r.setInitialStatus(ctx, &storage)
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.waitForStatefulSetToScale(ctx2, &storage)
+		stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
 		if stop {
 			return result, err
 		}
-
-		stop, result, err = r.runSelfCheck(ctx2, &storage, false)
+		stop, result, err = r.runSelfCheck(ctx, &storage, false)
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.runInitScripts(ctx2, &storage)
+		stop, result, err = r.runInitScripts(ctx, &storage)
 		if stop {
 			return result, err
 		}
 	}
 
-	_, result, err = r.runSelfCheck(ctx2, &storage, false)
+	_, result, err = r.runSelfCheck(ctx, &storage, false)
 	return result, err
 }
 
