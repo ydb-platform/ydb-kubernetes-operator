@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"regexp"
 
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/auth"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -101,6 +103,14 @@ func (r *Reconciler) setInitialStatus(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
+type PartialYamlConfig struct {
+	DomainsConfig struct {
+		SecurityConfig struct {
+			EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
+		} `yaml:"security_config"`
+	} `yaml:"domains_config"`
+}
+
 func (r *Reconciler) runInitScripts(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
@@ -136,6 +146,24 @@ func (r *Reconciler) runInitScripts(
 			"-s", storage.GetGRPCEndpointWithProto(),
 		)
 	}
+
+	yamlConfig := PartialYamlConfig{}
+	err := yaml.Unmarshal([]byte(storage.Spec.Configuration), &yamlConfig)
+
+	if err == nil && yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+		token := auth.GetAuthTokenFromMetadata(ctx)
+		r.Log.Info("Here is the token: " + token)
+		// Just creating a temporary file with token contents instead of mounting it as a volume
+		// This solution is temporary anyway :)
+		cmd = append(
+			cmd,
+			"--token",
+			token,
+		)
+	} else if err != nil {
+		r.Log.Error(err, "Failed to parse YAML to determine enforce_user_token_requirement")
+	}
+
 	cmd = append(
 		cmd,
 		"admin", "blobstorage", "config", "init",
