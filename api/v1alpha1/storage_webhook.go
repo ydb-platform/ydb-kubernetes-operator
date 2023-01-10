@@ -71,7 +71,7 @@ func (r *Storage) ValidateCreate() error {
 	configuration := make(map[string]interface{})
 	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
 	if err != nil {
-		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %v", err)
+		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
 	}
 	var nodesNumber int32
 	if configuration["hosts"] == nil {
