@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"fmt"
 
+	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
@@ -67,13 +68,28 @@ var _ webhook.Validator = &Storage{}
 func (r *Storage) ValidateCreate() error {
 	storagelog.Info("validate create", "name", r.Name)
 
+	configuration := make(map[string]interface{})
+	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
+	if err != nil {
+		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %v", err)
+	}
+	var nodesNumber int32
+	if configuration["hosts"] == nil {
+		nodesNumber = r.Spec.Nodes
+	} else {
+		hosts, ok := configuration["hosts"].([]interface{})
+		if !ok {
+			return fmt.Errorf("failed to parse Storage.spec.configuration, error: invalid hosts section")
+		}
+		nodesNumber = int32(len(hosts))
+	}
+
 	minNodesPerErasure := map[ErasureType]int32{
 		ErasureMirror3DC: 9,
 		ErasureBlock42:   8,
 		None:             1,
 	}
-
-	if r.Spec.Nodes < minNodesPerErasure[r.Spec.Erasure] {
+	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
