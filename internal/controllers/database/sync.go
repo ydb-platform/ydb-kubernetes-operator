@@ -372,15 +372,17 @@ func (r *Reconciler) handleTenantCreation(
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, ErrIncorrectDatabaseResourcesConfiguration
 	}
+
 	tenant := cms.Tenant{
-		StorageEndpoint:      database.GetStorageEndpoint(),
+		StorageEndpoint:      database.GetStorageEndpointWithProto(),
 		Path:                 path,
 		StorageUnits:         storageUnits,
 		Shared:               shared,
 		SharedDatabasePath:   sharedDatabasePath,
-		UseGrpcSecureChannel: database.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled,
 	}
-	err := tenant.Create(ctx)
+
+	err := tenant.Create(ctx, database)
+
 	if err != nil {
 		r.Recorder.Event(
 			database,

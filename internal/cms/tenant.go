@@ -5,50 +5,59 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ydb-platform/ydb-go-genproto/Ydb_Cms_V1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Cms"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
-)
-
-const (
-	createDatabaseMethod = "/Ydb.Cms.V1.CmsService/CreateDatabase"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 var ErrEmptyReplyFromStorage = errors.New("empty reply from storage")
 
 type Tenant struct {
-	StorageEndpoint      string
-	Path                 string
-	StorageUnits         []ydbv1alpha1.StorageUnit
-	Shared               bool
-	SharedDatabasePath   string
-	UseGrpcSecureChannel bool
+	StorageEndpoint    string
+	Path               string
+	StorageUnits       []ydbv1alpha1.StorageUnit
+	Shared             bool
+	SharedDatabasePath string
 }
 
-func (t *Tenant) Create(ctx context.Context) error {
-	logger := log.FromContext(ctx)
-	client := grpc.Client{
-		Context: ctx,
-		Target:  t.StorageEndpoint,
+func (t *Tenant) Create(oldCtx context.Context, database *resources.DatabaseBuilder) error {
+	ctx := context.Background()
+	createDatabaseUrl := fmt.Sprintf("%s/%s", t.StorageEndpoint, database.Spec.Domain)
+	db, err := ydb.Open(
+		ctx,
+		createDatabaseUrl,
+		ydb.WithStaticCredentials("root", ""),
+	)
+	if err != nil {
+		return err
 	}
-	logger.Info(fmt.Sprintf("creating tenant, endpoint: %s, secure: %t, method: %s", t.StorageEndpoint, t.UseGrpcSecureChannel, createDatabaseMethod))
+
+	logger := log.FromContext(oldCtx)
+
+	defer func() {
+		if e := db.Close(ctx); e != nil {
+			logger.Error(e, "db close failed")
+		}
+	}()
+
+	client := Ydb_Cms_V1.NewCmsServiceClient(ydb.GRPCConn(db))
+	logger.Info(fmt.Sprintf("creating tenant, url: %s", createDatabaseUrl))
 	request := t.makeCreateDatabaseRequest()
 	logger.Info(fmt.Sprintf("creating tenant, request: %s", request))
-	response := &Ydb_Cms.CreateDatabaseResponse{}
-	grpcCallResult := client.Invoke(
-		createDatabaseMethod,
-		request,
-		response,
-		t.UseGrpcSecureChannel,
-	)
+	response, err := client.CreateDatabase(ctx, request)
+	if err != nil {
+		return err
+	}
 	if _, err := processDatabaseCreationResponse(response); err != nil {
 		return err
 	}
-	logger.Info(fmt.Sprintf("creating tenant, response: %s, err: %s", response, grpcCallResult))
-	return grpcCallResult
+	logger.Info(fmt.Sprintf("creating tenant, response: %s", response))
+	return nil
 }
 
 func (t *Tenant) makeCreateDatabaseRequest() *Ydb_Cms.CreateDatabaseRequest {
