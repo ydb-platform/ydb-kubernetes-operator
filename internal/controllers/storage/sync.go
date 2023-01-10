@@ -85,7 +85,7 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		storage.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled,
 	)
 	if err != nil {
-		return ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {

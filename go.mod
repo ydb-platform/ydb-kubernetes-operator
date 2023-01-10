@@ -8,14 +8,20 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.50.0
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20221215182650-986f9d10542f
-	google.golang.org/grpc v1.47.0
+	google.golang.org/grpc v1.50.1
 	google.golang.org/protobuf v1.28.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
+	gopkg.in/yaml.v3 v3.0.0
 	k8s.io/api v0.22.1
 	k8s.io/apimachinery v0.22.1
 	k8s.io/client-go v0.22.1
 	k8s.io/utils v0.0.0-20210802155522-efc7438f0176
 	sigs.k8s.io/controller-runtime v0.10.0
+)
+
+require (
+	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
+	github.com/jonboulle/clockwork v0.2.2 // indirect
+	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f // indirect
 )
 
 require (
@@ -39,7 +45,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
-	github.com/google/uuid v1.1.2 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
@@ -52,6 +58,7 @@ require (
 	github.com/prometheus/common v0.26.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/ydb-platform/ydb-go-sdk/v3 v3.42.2
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.0 // indirect

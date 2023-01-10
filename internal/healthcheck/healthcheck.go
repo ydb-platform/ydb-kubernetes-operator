@@ -2,40 +2,41 @@ package healthcheck
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/ydb-platform/ydb-go-genproto/Ydb_Monitoring_V1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
-	"google.golang.org/protobuf/proto"
-
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
+	"google.golang.org/protobuf/proto"
 )
 
-const (
-	selfCheckEndpoint = "/Ydb.Monitoring.V1.MonitoringService/SelfCheck"
-)
-
-func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
-	client := grpc.Client{
-		Context: ctx,
-		Target:  cluster.GetGRPCEndpoint(),
+func GetSelfCheckResult(oldCtx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
+	ctx := context.Background()
+	db, err := ydb.Open(
+		ctx,
+		fmt.Sprintf("%s/%s", cluster.GetGRPCEndpointWithProto(), cluster.Storage.Spec.Domain),
+		ydb.WithStaticCredentials("root", ""),
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	response := Ydb_Monitoring.SelfCheckResponse{}
-	err := client.Invoke(
-		selfCheckEndpoint,
-		&Ydb_Monitoring.SelfCheckRequest{},
-		&response,
-		cluster.Spec.Service.GRPC.TLSConfiguration.Enabled,
-	)
+	defer func() {
+		// TODO figure out how to log this nicely
+		_ = db.Close(ctx)
+		// if e := db.Close(ctx); e != nil {
+		// 	t.Fatalf("close failed: %+v", e)
+		// }
+	}()
+
+	client := Ydb_Monitoring_V1.NewMonitoringServiceClient(ydb.GRPCConn(db))
+	response, err := client.SelfCheck(ctx, &Ydb_Monitoring.SelfCheckRequest{})
 
 	result := &Ydb_Monitoring.SelfCheckResult{}
-	if err != nil {
-		return result, err
-	}
-
 	if err = proto.Unmarshal(response.Operation.Result.GetValue(), result); err != nil {
 		return result, err
 	}
 
-	return result, err
+	return result, nil
 }
