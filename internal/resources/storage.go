@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
@@ -46,15 +47,15 @@ func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
 
 func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
 	proto := api.GRPCProto
-	if b.IsGrpcSecure() {
+	if IsGrpcSecure(b.Storage) {
 		proto = api.GRPCSProto
 	}
 
 	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
 }
 
-func (b *StorageClusterBuilder) IsGrpcSecure() bool {
-	return b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled
+func IsGrpcSecure(s *v1alpha1.Storage) bool {
+	return s.Spec.Service.GRPC.TLSConfiguration != nil && s.Spec.Service.GRPC.TLSConfiguration.Enabled
 }
 
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {

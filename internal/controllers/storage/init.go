@@ -150,7 +150,14 @@ func (r *Reconciler) runInitScripts(
 	yamlConfig := PartialYamlConfig{}
 	err := yaml.Unmarshal([]byte(storage.Spec.Configuration), &yamlConfig)
 
-	if err == nil && yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+	if err != nil {
+		r.Log.Error(err, "Failed to parse YAML to determine `enforce_user_token_requirement`")
+		// TODO(@tarasov-egor) Parse Configuration once, somewhere in webhook, and fail to apply
+		// if something's missing. Here is not the place to fail!!!!
+		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+	}
+
+	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
 		token, err := connection.GetAuthToken(ctx, storage.GetGRPCEndpoint(), storage.IsGrpcSecure())
 		if err != nil {
 			r.Log.Error(err, "Failed to get auth token for blobstorage initialization")
@@ -161,8 +168,6 @@ func (r *Reconciler) runInitScripts(
 			"--token",
 			token,
 		)
-	} else if err != nil {
-		r.Log.Error(err, "Failed to parse YAML to determine `enforce_user_token_requirement`")
 	}
 
 	cmd = append(

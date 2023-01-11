@@ -374,11 +374,11 @@ func (r *Reconciler) handleTenantCreation(
 	}
 
 	tenant := cms.Tenant{
-		StorageEndpoint:      database.GetStorageEndpointWithProto(),
-		Path:                 path,
-		StorageUnits:         storageUnits,
-		Shared:               shared,
-		SharedDatabasePath:   sharedDatabasePath,
+		StorageEndpoint:    database.GetStorageEndpointWithProto(),
+		Path:               path,
+		StorageUnits:       storageUnits,
+		Shared:             shared,
+		SharedDatabasePath: sharedDatabasePath,
 	}
 
 	err := tenant.Create(ctx, database)

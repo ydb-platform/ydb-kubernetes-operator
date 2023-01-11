@@ -27,8 +27,8 @@ type Tenant struct {
 }
 
 func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder) error {
-	createDatabaseUrl := fmt.Sprintf("%s/%s", t.StorageEndpoint, database.Spec.Domain)
-	db, err := connection.Build(ctx, createDatabaseUrl)
+	createDatabaseURL := fmt.Sprintf("%s/%s", t.StorageEndpoint, database.Spec.Domain)
+	db, err := connection.Build(ctx, createDatabaseURL)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder
 	}()
 
 	client := Ydb_Cms_V1.NewCmsServiceClient(ydb.GRPCConn(db))
-	logger.Info(fmt.Sprintf("creating tenant, url: %s", createDatabaseUrl))
+	logger.Info(fmt.Sprintf("creating tenant, url: %s", createDatabaseURL))
 	request := t.makeCreateDatabaseRequest()
 	logger.Info(fmt.Sprintf("creating tenant, request: %s", request))
 	response, err := client.CreateDatabase(ctx, request)

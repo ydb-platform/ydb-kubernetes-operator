@@ -46,7 +46,7 @@ func GetAuthToken(ctx context.Context, grpcEndpoint string, secure bool) (string
 		DefaultRootUsername,
 		DefaultRootPassword,
 		grpcEndpoint,
-		buildConnectionOpts(secure)...
+		buildConnectionOpts(secure)...,
 	)
 
 	token, err := staticCredentials.Token(ctx)
@@ -66,11 +66,11 @@ func Build(ctx context.Context, grpcEndpointWithProto string) (ydb.Connection, e
 	)
 
 	if err != nil {
-		log.FromContext(ctx).Error(err, 
-		fmt.Sprintf(
-			"Failed to open grpc connection to YDB, endpoint %s",
-			grpcEndpointWithProto,
-		))
+		log.FromContext(ctx).Error(err,
+			fmt.Sprintf(
+				"Failed to open grpc connection to YDB, endpoint %s",
+				grpcEndpointWithProto,
+			))
 		return nil, err
 	}
 
