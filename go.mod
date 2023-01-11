@@ -8,8 +8,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.50.0
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20221215182650-986f9d10542f
-	google.golang.org/grpc v1.50.1
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v3 v3.0.0
 	k8s.io/api v0.22.1
 	k8s.io/apimachinery v0.22.1
@@ -19,13 +18,16 @@ require (
 )
 
 require (
-	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
-	github.com/jonboulle/clockwork v0.2.2 // indirect
-	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f // indirect
+	cloud.google.com/go/compute v1.13.0 // indirect
+	cloud.google.com/go/compute/metadata v0.2.1 // indirect
+	github.com/golang-jwt/jwt/v4 v4.4.3 // indirect
+	github.com/jonboulle/clockwork v0.3.0 // indirect
+	golang.org/x/sync v0.1.0 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
+	google.golang.org/grpc v1.52.0 // indirect
 )
 
 require (
-	cloud.google.com/go v0.54.0 // indirect
 	emperror.dev/errors v0.8.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.18 // indirect
@@ -43,7 +45,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
@@ -58,20 +60,20 @@ require (
 	github.com/prometheus/common v0.26.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/ydb-platform/ydb-go-sdk/v3 v3.42.2
+	github.com/ydb-platform/ydb-go-sdk/v3 v3.42.4
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	go.uber.org/zap v1.19.0 // indirect
+	go.uber.org/zap v1.19.0
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
-	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023 // indirect
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
-	golang.org/x/sys v0.0.0-20210817190340-bfb29a6856f2 // indirect
-	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/net v0.5.0 // indirect
+	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783 // indirect
+	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/term v0.4.0 // indirect
+	golang.org/x/text v0.6.0 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
+	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apiextensions-apiserver v0.22.1 // indirect

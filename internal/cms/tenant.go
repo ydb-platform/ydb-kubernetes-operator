@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -25,19 +26,15 @@ type Tenant struct {
 	SharedDatabasePath string
 }
 
-func (t *Tenant) Create(oldCtx context.Context, database *resources.DatabaseBuilder) error {
-	ctx := context.Background()
+func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder) error {
 	createDatabaseUrl := fmt.Sprintf("%s/%s", t.StorageEndpoint, database.Spec.Domain)
-	db, err := ydb.Open(
-		ctx,
-		createDatabaseUrl,
-		ydb.WithStaticCredentials("root", ""),
-	)
+
+	db, err := connection.Build(ctx, createDatabaseUrl)
 	if err != nil {
 		return err
 	}
 
-	logger := log.FromContext(oldCtx)
+	logger := log.FromContext(ctx)
 
 	defer func() {
 		if e := db.Close(ctx); e != nil {

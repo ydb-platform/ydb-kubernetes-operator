@@ -63,11 +63,11 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Database) (ctr
 	if stop {
 		return result, err
 	}
-	stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
-	if stop {
-		return result, err
-	}
 	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
+		stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
+		if stop {
+			return result, err
+		}
 		stop, result, err = r.setInitialStatus(ctx, &database)
 		if stop {
 			return result, err

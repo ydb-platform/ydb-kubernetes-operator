@@ -7,23 +7,26 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Monitoring_V1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"google.golang.org/protobuf/proto"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func GetSelfCheckResult(oldCtx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
-	ctx := context.Background()
-	db, err := ydb.Open(
-		ctx,
-		fmt.Sprintf("%s/%s", cluster.GetGRPCEndpointWithProto(), cluster.Storage.Spec.Domain),
-		ydb.WithStaticCredentials("root", ""),
+func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
+	getSelfCheckUrl := fmt.Sprintf(
+		"%s/%s",
+		cluster.GetGRPCEndpointWithProto(),
+		cluster.Storage.Spec.Domain,
 	)
+
+	db, err := connection.Build(ctx, getSelfCheckUrl)
+
 	if err != nil {
 		return nil, err
 	}
 
-	logger := log.FromContext(oldCtx)
+	logger := log.FromContext(ctx)
 
 	defer func() {
 		if e := db.Close(ctx); e != nil {

@@ -12,7 +12,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/auth"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -140,7 +140,7 @@ func (r *Reconciler) runInitScripts(
 	cmd := []string{
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
 	}
-	if storage.Spec.Service.GRPC.TLSConfiguration.Enabled {
+	if storage.IsGrpcSecure() {
 		cmd = append(
 			cmd,
 			"-s", storage.GetGRPCEndpointWithProto(),
@@ -151,14 +151,18 @@ func (r *Reconciler) runInitScripts(
 	err := yaml.Unmarshal([]byte(storage.Spec.Configuration), &yamlConfig)
 
 	if err == nil && yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		token := auth.GetAuthTokenFromMetadata(ctx)
+		token, err := connection.GetAuthToken(ctx, storage.GetGRPCEndpoint(), storage.IsGrpcSecure())
+		if err != nil {
+			r.Log.Error(err, "Failed to get auth token for blobstorage initialization")
+			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+		}
 		cmd = append(
 			cmd,
 			"--token",
 			token,
 		)
 	} else if err != nil {
-		r.Log.Error(err, "Failed to parse YAML to determine enforce_user_token_requirement")
+		r.Log.Error(err, "Failed to parse YAML to determine `enforce_user_token_requirement`")
 	}
 
 	cmd = append(

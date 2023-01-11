@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/auth"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -73,19 +72,6 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	stop, result, err = r.handleResourcesSync(ctx, &storage)
 	if stop {
 		return result, err
-	}
-
-	// TODO I truly have no idea what should be the ideal place for this logic...
-	// Sync is really our only entrypoint.
-	// Also, maybe we need this only on condition `enforce_static_user_credentials = true`?
-	// Right now we do it unconditionally.
-	ctx, err = auth.AddUserTokenToCtx(
-		ctx,
-		storage.GetGRPCEndpoint(),
-		storage.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled,
-	)
-	if err != nil {
-		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {

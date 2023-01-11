@@ -46,11 +46,15 @@ func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
 
 func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
 	proto := api.GRPCProto
-	if b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+	if b.IsGrpcSecure() {
 		proto = api.GRPCSProto
 	}
 
 	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
+}
+
+func (b *StorageClusterBuilder) IsGrpcSecure() bool {
+	return b.Spec.Service.GRPC.TLSConfiguration != nil && b.Spec.Service.GRPC.TLSConfiguration.Enabled
 }
 
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
