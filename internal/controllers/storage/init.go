@@ -140,7 +140,7 @@ func (r *Reconciler) runInitScripts(
 	cmd := []string{
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
 	}
-	if storage.IsGrpcSecure() {
+	if resources.IsGrpcSecure(storage.Storage) {
 		cmd = append(
 			cmd,
 			"-s", storage.GetGRPCEndpointWithProto(),
@@ -158,7 +158,11 @@ func (r *Reconciler) runInitScripts(
 	}
 
 	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		token, err := connection.GetAuthToken(ctx, storage.GetGRPCEndpoint(), storage.IsGrpcSecure())
+		token, err := connection.GetAuthToken(
+			ctx,
+			storage.GetGRPCEndpoint(),
+			resources.IsGrpcSecure(storage.Storage),
+		)
 		if err != nil {
 			r.Log.Error(err, "Failed to get auth token for blobstorage initialization")
 			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
