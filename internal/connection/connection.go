@@ -76,3 +76,10 @@ func Build(ctx context.Context, grpcEndpointWithProto string) (ydb.Connection, e
 
 	return db, nil
 }
+
+func Close(ctx context.Context, db ydb.Connection) {
+	logger := log.FromContext(ctx)
+	if err := db.Close(ctx); err != nil {
+		logger.Error(err, "db close failed")
+	}
+}

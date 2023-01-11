@@ -10,7 +10,6 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"google.golang.org/protobuf/proto"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
@@ -26,12 +25,8 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 		return nil, err
 	}
 
-	logger := log.FromContext(ctx)
-
 	defer func() {
-		if e := db.Close(ctx); e != nil {
-			logger.Error(e, "db close failed")
-		}
+		connection.Close(ctx, db)
 	}()
 
 	client := Ydb_Monitoring_V1.NewMonitoringServiceClient(ydb.GRPCConn(db))
