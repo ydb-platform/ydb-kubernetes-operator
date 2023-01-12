@@ -7,12 +7,11 @@ import (
 	"fmt"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 )
 
 const (
@@ -50,7 +49,6 @@ func GetAuthToken(ctx context.Context, grpcEndpoint string, secure bool) (string
 	)
 
 	token, err := staticCredentials.Token(ctx)
-
 	if err != nil {
 		return "", err
 	}
@@ -64,7 +62,6 @@ func Build(ctx context.Context, grpcEndpointWithProto string) (ydb.Connection, e
 		grpcEndpointWithProto,
 		ydb.WithStaticCredentials(DefaultRootUsername, DefaultRootPassword),
 	)
-
 	if err != nil {
 		log.FromContext(ctx).Error(err,
 			fmt.Sprintf(

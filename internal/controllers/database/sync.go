@@ -382,7 +382,6 @@ func (r *Reconciler) handleTenantCreation(
 	}
 
 	err := tenant.Create(ctx, database)
-
 	if err != nil {
 		r.Recorder.Event(
 			database,

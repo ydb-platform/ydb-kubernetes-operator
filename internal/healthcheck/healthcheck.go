@@ -22,7 +22,6 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 	)
 
 	db, err := connection.Build(ctx, getSelfCheckURL)
-
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +34,6 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 
 	client := Ydb_Monitoring_V1.NewMonitoringServiceClient(ydb.GRPCConn(db))
 	response, err := client.SelfCheck(ctx, &Ydb_Monitoring.SelfCheckRequest{})
-
 	if err != nil {
 		logger.Error(err, "Failed to call SelfCheck")
 		return nil, err

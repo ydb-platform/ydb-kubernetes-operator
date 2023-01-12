@@ -149,7 +149,6 @@ func (r *Reconciler) runInitScripts(
 
 	yamlConfig := PartialYamlConfig{}
 	err := yaml.Unmarshal([]byte(storage.Spec.Configuration), &yamlConfig)
-
 	if err != nil {
 		r.Log.Error(err, "Failed to parse YAML to determine `enforce_user_token_requirement`")
 		// TODO(@tarasov-egor) Parse Configuration once, somewhere in webhook, and fail to apply

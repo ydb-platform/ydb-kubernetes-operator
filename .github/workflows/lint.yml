@@ -6,6 +6,19 @@ on:
   pull_request:
   workflow_dispatch:
 jobs:
+  golangci:
+    name: golangci-lint
+    concurrency:
+      group: lint-golangci-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.48.0
+
   autoformatter:
     name: autoformat check
     concurrency:
@@ -30,17 +43,3 @@ jobs:
 
       - name: Check repository diff
         run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
-  golangci:
-    name: golangci-lint
-    concurrency:
-      group: lint-golangci-${{ github.ref }}
-      cancel-in-progress: true
-    runs-on: ubuntu-latest
-    needs: autoformatter
-    steps:
-      - uses: actions/checkout@v2
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: v1.48.0
-
