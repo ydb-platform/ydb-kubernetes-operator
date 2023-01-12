@@ -67,11 +67,11 @@ func generate(cr *v1alpha1.Storage, crDB *v1alpha1.Database) schema.Configuratio
 	}
 }
 
-func Build(cr *v1alpha1.Storage, crDB *v1alpha1.Database) (map[string]string, error) {
+func Build(cr *v1alpha1.Storage, crDB *v1alpha1.Database, rawYamlConfiguration string) (map[string]string, error) {
 	crdConfig := make(map[string]interface{})
 	generatedConfig := generate(cr, crDB)
 
-	err := yaml.Unmarshal([]byte(cr.Spec.Configuration), &crdConfig)
+	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &crdConfig)
 	if err != nil {
 		return nil, err
 	}
