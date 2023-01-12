@@ -157,14 +157,14 @@ func (r *Reconciler) runInitScripts(
 	}
 
 	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		token, err := connection.GetAuthToken(
+		token, authErr := connection.GetAuthToken(
 			ctx,
 			storage.GetGRPCEndpoint(),
 			resources.IsGrpcSecure(storage.Storage),
 		)
-		if err != nil {
-			r.Log.Error(err, "Failed to get auth token for blobstorage initialization")
-			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+		if authErr != nil {
+			r.Log.Error(authErr, "Failed to get auth token for blobstorage initialization")
+			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, authErr
 		}
 		cmd = append(
 			cmd,
