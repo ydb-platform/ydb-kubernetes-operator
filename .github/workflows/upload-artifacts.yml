@@ -47,6 +47,9 @@ jobs:
         # yc config profile create public-helm
         # echo "$CI_KEYS_PUBLIC_HELM" > public-helm-key.json
         # yc config --profile public-helm set service-account-key public-helm-key.json
+      env:
+        CI_KEYS_PRIVATE_DOCKER_HELM: ${{ secrets.CI_KEYS_PRIVATE_DOCKER_HELM }}
+        CI_KEYS_PUBLIC_DOCKER: ${{ secrets.CI_KEYS_PUBLIC_DOCKER }}
     - name: parse-version-from-chart
       run: | 
         VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p')
