@@ -38,7 +38,7 @@ jobs:
         CI_PUSHER_AUTHORIZATION_KEYS: ${{ secrets.CI_PUSHER_AUTHORIZATION_KEYS }}
     - name: parse-version-from-chart
       run: | 
-        VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p' | awk '{print $2}')
+        VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p')
         echo $VERSION
         echo "VERSION=$VERSION" >> $GITHUB_ENV
     - name: login-to-registries
