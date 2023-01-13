@@ -1,0 +1,45 @@
+name: lint
+on:
+  pull_request:
+    types:
+      - closed
+jobs:
+  if_merged:
+    if: github.event.pull_request.merged
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2          
+    - name: install-dependencies
+      run: |
+        HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
+        curl -LO https://get.helm.sh/"${HELM_PKG}"
+        tar -zxvf "${HELM_PKG}"
+        mv ./linux-amd64/helm .
+
+        echo "$(pwd)"
+        echo "$(pwd)" >> $GITHUB_PATH
+    - name: install-yc
+      run: |
+        curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+        echo "/root/yandex-cloud/bin/" >> $GITHUB_PATH
+    - name: initialize-yc
+      run: |
+        yc config profile create my-robot-profile
+        echo '${{ secrets.CI_PUSHER_AUTHORIZATION_KEYS }}' > key.json
+        yc config set service-account-key key.json
+    - name: parse-version-from-chart
+      run: | 
+        VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p' | awk '{print $2}')
+        echo "::set-env name=VERSION::$VERSION"
+    - name: login-to-registries
+      run: |
+        cat key.json | docker login --username json_key --password-stdin cr.yandex
+        yc iam create-token | helm registry login cr.yandex/crpl7ipeu79oseqhcgn2/charts -u iam --password-stdin
+    - name: build-and-push-operator-image
+      run: 
+        docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION" .
+        docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
+    - name: package-and-push-helm-chart
+      run: 
+        helm package ./deploy/ydb-operator
+        helm push /ydb-operator-"$VERSION".tg oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
