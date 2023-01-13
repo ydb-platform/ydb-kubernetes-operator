@@ -28,7 +28,7 @@ jobs:
     - name: install-yc
       run: |
         curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
-        echo "/root/yandex-cloud/bin/" >> $GITHUB_PATH
+        echo "~/yandex-cloud/bin/" >> $GITHUB_PATH
     - name: initialize-yc
       run: |
         yc config profile create my-robot-profile
@@ -49,5 +49,5 @@ jobs:
     - name: package-and-push-helm-chart
       run: 
         helm package ./deploy/ydb-operator
-        # mkdir charts
+        mkdir charts
         # helm push ./ydb-operator-"$VERSION".tgz oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
