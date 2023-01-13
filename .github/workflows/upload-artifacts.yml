@@ -32,7 +32,7 @@ jobs:
     - name: initialize-yc
       run: |
         yc config profile create my-robot-profile
-        echo '$CI_PUSHER_AUTHORIZATION_KEYS' > key.json
+        echo "'$CI_PUSHER_AUTHORIZATION_KEYS'" > key.json
         yc config set service-account-key key.json
       env:
         CI_PUSHER_AUTHORIZATION_KEYS: ${{ secrets.CI_PUSHER_AUTHORIZATION_KEYS }}
