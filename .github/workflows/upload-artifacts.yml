@@ -1,11 +1,18 @@
-name: lint
+name: upload_artifacts
 on:
+  push:
+    branches:
+      - master
   pull_request:
-    types:
-      - closed
+  workflow_dispatch:
+# on:
+#   pull_request:
+#     types:
+#       - closed
 jobs:
-  if_merged:
-    if: github.event.pull_request.merged
+  upload_artifacts:
+    environment: registries
+    # if: github.event.pull_request.merged
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2          
@@ -38,8 +45,9 @@ jobs:
     - name: build-and-push-operator-image
       run: 
         docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION" .
-        docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
+        # docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
     - name: package-and-push-helm-chart
       run: 
         helm package ./deploy/ydb-operator
-        helm push /ydb-operator-"$VERSION".tg oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
+        # mkdir charts
+        # helm push ./ydb-operator-"$VERSION".tgz oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
