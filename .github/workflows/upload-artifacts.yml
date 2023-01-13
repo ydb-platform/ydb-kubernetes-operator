@@ -22,8 +22,6 @@ jobs:
         curl -LO https://get.helm.sh/"${HELM_PKG}"
         tar -zxvf "${HELM_PKG}"
         mv ./linux-amd64/helm .
-
-        echo "$(pwd)"
         echo "$(pwd)" >> $GITHUB_PATH
     - name: install-yc
       run: |
@@ -31,15 +29,25 @@ jobs:
         echo "~/yandex-cloud/bin/" >> $GITHUB_PATH
     - name: initialize-yc
       run: |
-        yc config profile create my-robot-profile
-        echo "$CI_PUSHER_AUTHORIZATION_KEYS" > key.json
-        yc config set service-account-key key.json
-      env:
-        CI_PUSHER_AUTHORIZATION_KEYS: ${{ secrets.CI_PUSHER_AUTHORIZATION_KEYS }}
+        # Cloud: yc-ydbaas; catalogue: docker-images
+        yc config profile create private-docker-helm
+        echo "$CI_KEYS_PRIVATE_DOCKER_HELM" > private-docker-helm-key.json
+        yc config --profile private-docker-helm set service-account-key key.json
+
+        # TODO make this work, ask to create a service account
+        # Cloud: ycr-public-registries; catalogue: cloud-public-images
+        # yc config profile create public-docker
+        # echo "$CI_KEYS_PUBLIC_DOCKER" > public-docker-key.json
+        # yc config --profile public-docker set service-account-key key.json
+
+        # TODO make a set of AWS-compatible credentials and make this work as well
+        # Cloud: yc-ydb; bucket charts.ydb.tech
+        # yc config profile create public-helm
+        # echo "$CI_KEYS_PUBLIC_HELM" > public-helm-key.json
+        # yc config --profile public-helm set service-account-key key.json
     - name: parse-version-from-chart
       run: | 
         VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p')
-        echo $VERSION
         echo "VERSION=$VERSION" >> $GITHUB_ENV
     - name: login-to-registries
       run: |
@@ -48,9 +56,10 @@ jobs:
     - name: build-and-push-operator-image
       run: 
         docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:${{ env.VERSION }} .
-        # docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
+        docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
     - name: package-and-push-helm-chart
-      run: 
+      run: |
         helm package ./deploy/ydb-operator
-        mkdir charts
-        # helm push ./ydb-operator-"$VERSION".tgz oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
+        # mkdir charts
+        # cp ./ydb-operator-"$VERSION".tgz ./charts
+        helm push ./ydb-operator-"$VERSION".tgz oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
