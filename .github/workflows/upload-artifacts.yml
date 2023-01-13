@@ -38,14 +38,16 @@ jobs:
         CI_PUSHER_AUTHORIZATION_KEYS: ${{ secrets.CI_PUSHER_AUTHORIZATION_KEYS }}
     - name: parse-version-from-chart
       run: | 
-        echo "VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p' | awk '{print $2}')" >> $GITHUB_ENV
+        VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p' | awk '{print $2}')
+        echo $VERSION
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
     - name: login-to-registries
       run: |
         cat key.json | docker login --username json_key --password-stdin cr.yandex
         yc iam create-token | helm registry login cr.yandex/crpl7ipeu79oseqhcgn2/charts -u iam --password-stdin
     - name: build-and-push-operator-image
       run: 
-        docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION" .
+        docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:${{ env.VERSION }} .
         # docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
     - name: package-and-push-helm-chart
       run: 
