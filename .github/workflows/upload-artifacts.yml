@@ -45,10 +45,10 @@ jobs:
         yc iam create-token | helm registry login cr.yandex/crpl7ipeu79oseqhcgn2/charts -u iam --password-stdin
     - name: build-and-push-operator-image
       run: 
-        docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:${{ env.VERSION }} .
-        # docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:${{ env.VERSION }}
+        docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION" .
+        # docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
     - name: package-and-push-helm-chart
       run: 
         helm package ./deploy/ydb-operator
         mkdir charts
-        # helm push ./ydb-operator-${{ env.VERSION }}.tgz oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
+        # helm push ./ydb-operator-"$VERSION".tgz oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
