@@ -31,7 +31,6 @@ jobs:
         echo "~/yandex-cloud/bin/" >> $GITHUB_PATH
     - name: initialize-yc
       run: |
-        echo ${{ secrets.CI_PUSHER_AUTHORIZATION_KEYS }} | sed 's/./& /g'
         yc config profile create my-robot-profile
         echo '$CI_PUSHER_AUTHORIZATION_KEYS' > key.json
         yc config set service-account-key key.json
