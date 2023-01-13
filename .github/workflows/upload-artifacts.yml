@@ -5,6 +5,7 @@ on:
       - master
   pull_request:
   workflow_dispatch:
+# TODO enable this to run post-merge when well-tested
 # on:
 #   pull_request:
 #     types:
@@ -12,6 +13,7 @@ on:
 jobs:
   upload_artifacts:
     environment: registries
+    # TODO enable this to run post-merge when well-tested
     # if: github.event.pull_request.merged
     runs-on: ubuntu-latest
     steps:
@@ -32,27 +34,33 @@ jobs:
         # Cloud: yc-ydbaas; catalogue: docker-images
         yc config profile create private-docker-helm
         echo "$CI_KEYS_PRIVATE_DOCKER_HELM" > private-docker-helm-key.json
-        yc config --profile private-docker-helm set service-account-key key.json
+        yc config --profile private-docker-helm set service-account-key private-docker-helm-key.json
 
-        # TODO make this work, ask to create a service account
+        # TODO not enough permissions to create a SA here, ask someone
         # Cloud: ycr-public-registries; catalogue: cloud-public-images
         # yc config profile create public-docker
         # echo "$CI_KEYS_PUBLIC_DOCKER" > public-docker-key.json
-        # yc config --profile public-docker set service-account-key key.json
+        # yc config --profile public-docker set service-account-key public-docker-key.json
 
         # TODO make a set of AWS-compatible credentials and make this work as well
         # Cloud: yc-ydb; bucket charts.ydb.tech
         # yc config profile create public-helm
         # echo "$CI_KEYS_PUBLIC_HELM" > public-helm-key.json
-        # yc config --profile public-helm set service-account-key key.json
+        # yc config --profile public-helm set service-account-key public-helm-key.json
     - name: parse-version-from-chart
       run: | 
         VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p')
         echo "VERSION=$VERSION" >> $GITHUB_ENV
     - name: login-to-registries
       run: |
-        cat key.json | docker login --username json_key --password-stdin cr.yandex
-        yc iam create-token | helm registry login cr.yandex/crpl7ipeu79oseqhcgn2/charts -u iam --password-stdin
+        cat private-docker-helm-key.json | docker login --username json_key --password-stdin cr.yandex
+        yc --profile private-docker-helm iam create-token | helm registry login cr.yandex/crpl7ipeu79oseqhcgn2/charts -u iam --password-stdin
+
+        # TODO not enough permissions to create a SA here, ask someone
+        # cat public-docker-key.json | docker login --username json_key --password-stdin cr.yandex
+
+        # TODO login into S3 bucket
+        # ??? 
     - name: build-and-push-operator-image
       run: 
         docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:${{ env.VERSION }} .
