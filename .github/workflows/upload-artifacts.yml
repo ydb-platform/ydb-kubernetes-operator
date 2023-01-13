@@ -65,7 +65,7 @@ jobs:
         # TODO login into S3 bucket
         # ??? 
     - name: build-and-push-operator-image
-      run: 
+      run: |
         docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:${{ env.VERSION }} .
         docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
     - name: package-and-push-helm-chart
