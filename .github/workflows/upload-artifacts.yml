@@ -1,3 +1,6 @@
+# Implicit requirements
+# runner must have `docker` and `curl` installed (true on github-runners)
+
 name: upload-artifacts
 on:
   push:
@@ -24,7 +27,6 @@ jobs:
         curl -LO https://get.helm.sh/"${HELM_PKG}"
         tar -zxvf "${HELM_PKG}"
         mv ./linux-amd64/helm .
-        # helm plugin install https://github.com/hypnoglow/helm-s3.git --version 0.14.0
         echo "$(pwd)" >> $GITHUB_PATH
     - name: install-aws-cli
       uses: unfor19/install-aws-cli-action@v1
@@ -82,4 +84,12 @@ jobs:
         # Make sure that latest version is available in `helm repo search` later
         mkdir charts
         cp ./ydb-operator-"$VERSION".tgz ./charts
-        helm repo index charts --url https://charts.ydb.tech
+
+        # Grab an old index, merge current chart into it, and upload back
+        aws --endpoint-url=https://storage.yandexcloud.net \
+          s3 cp s3://charts.ydb.tech/index.yaml ./old-index.yaml
+
+        helm repo index charts --merge ./old-index.yaml --url https://charts.ydb.tech
+
+        aws s3 --endpoint-url=https://storage.yandexcloud.net \
+          cp ./charts/index.yaml s3://charts.ydb.tech/index.yaml
