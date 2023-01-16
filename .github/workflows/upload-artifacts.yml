@@ -1,4 +1,4 @@
-name: upload_artifacts
+name: upload-artifacts
 on:
   push:
     branches:
@@ -11,7 +11,7 @@ on:
 #     types:
 #       - closed
 jobs:
-  upload_artifacts:
+  upload-artifacts:
     environment: registries
     # TODO enable this to run post-merge when well-tested
     # if: github.event.pull_request.merged
