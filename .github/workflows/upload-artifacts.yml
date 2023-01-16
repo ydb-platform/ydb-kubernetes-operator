@@ -64,7 +64,6 @@ jobs:
         # Public:
         docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION" .
         docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
-
         # Private:
         # no rebuild will happen, docker will fetch from cache and just retag:
         docker build -t cr.yandex/crpsjg1coh47p81vh2lc/ydb-kubernetes-operator:"$VERSION" .
