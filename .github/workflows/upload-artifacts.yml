@@ -2,19 +2,12 @@
 # runner must have `docker` and `curl` installed (true on github-runners)
 
 name: upload-artifacts
-# on:
-#   push:
-#     branches:
-#       - master
-#   pull_request:
-#   workflow_dispatch:
 on:
-  pull_request:
-    types:
-      - closed
+  push:
+    branches:
+      - master
 jobs:
   upload-artifacts:
-    if: github.event.pull_request.merged
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2          
