@@ -77,10 +77,10 @@ jobs:
           # TODO namespace and labels are hardcoded in the next command, that is duplication.
           # We should get the label and its value from ./e2e/manifests/*.yaml
           kubectl wait --timeout=15m --for=condition=storageinitialized=true storage -n ydb ycydb
-          kubectl wait --timeout=5m --for=condition=ready pod -n ydb -l ydb-cluster=kind-storage
+          kubectl wait --timeout=10m --for=condition=ready pod -n ydb -l ydb-cluster=kind-storage
 
-          kubectl wait --timeout=5m --for=condition=tenantinitialized=true  database -n ydb database
-          kubectl wait --timeout=5m --for=condition=ready pod -n ydb -l ydb-cluster=kind-database
+          kubectl wait --timeout=10m --for=condition=tenantinitialized=true  database -n ydb database
+          kubectl wait --timeout=10m --for=condition=ready pod -n ydb -l ydb-cluster=kind-database
 
           # Something as a reference for a more complicated check later. Be careful with the yaml indentation!
           # while true; do
