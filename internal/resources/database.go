@@ -84,11 +84,7 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 
 	var optionalBuilders []ResourceBuilder
 
-	rawYamlConfiguration := b.Storage.Spec.Configuration
-	if b.Database.Spec.Configuration != "" {
-		rawYamlConfiguration = b.Database.Spec.Configuration
-	}
-	cfg, _ := configuration.Build(b.Storage, b.Unwrap(), rawYamlConfiguration)
+	cfg, _ := configuration.Build(b.Storage, b.Unwrap())
 
 	optionalBuilders = append(
 		optionalBuilders,

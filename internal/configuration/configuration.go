@@ -79,8 +79,19 @@ func tryFillMissingSections(
 	}
 }
 
-func Build(cr *v1alpha1.Storage, crDB *v1alpha1.Database, rawYamlConfiguration string) (map[string]string, error) {
+func Build(cr *v1alpha1.Storage, crDB *v1alpha1.Database) (map[string]string, error) {
 	config := make(map[string]interface{})
+
+	// If any kind of configuration exists on Database object, then
+	// it will be used to fully override storage object.
+	// This is a temporary solution that should go away when it would
+	// be possible to override Database configuration partially.
+	var rawYamlConfiguration string
+	if crDB != nil && crDB.Spec.Configuration != "" {
+		rawYamlConfiguration = crDB.Spec.Configuration
+	} else {
+		rawYamlConfiguration = cr.Spec.Configuration
+	}
 
 	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
 	if err != nil {
