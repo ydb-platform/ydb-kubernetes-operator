@@ -4,12 +4,9 @@ metadata:
   name: database-sample
 spec:
   image:
-    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22
-  nodes: 6
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+  nodes: 3
   resources:
-    containerResources:
-      limits:
-        cpu: 100m
     storageUnits:
       - count: 1
         unitKind: ssd
