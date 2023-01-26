@@ -21,6 +21,8 @@ For steps on how to deploy and use YDB Kubernetes Operator, please refer to [doc
 
 To build and test operator locally, do the following:
 
+0. Make sure you have `go` 1.19 installed
+
 1. Generate CustomResourceDefinitions:
   ```bash
   make manifests
