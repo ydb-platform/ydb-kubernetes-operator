@@ -21,7 +21,7 @@ jobs:
           image-id: fd80o2eikcn22b229tsa
           cores: 16
           disk-type: network-ssd-nonreplicated
-          disk-size: 279GB
+          disk-size: 465GB
           memory: 32GB
           core-fraction: 100
           subnet-id: e9bm73bk6gh9ag8clm2o
@@ -55,6 +55,9 @@ jobs:
 
           echo "$(pwd)" >> $GITHUB_PATH
           echo "$HOME/go/bin" >> $GITHUB_PATH
+      - name: configure-system
+        run: |
+          ulimit -n 2048
       - name: check-dependencies
         run: |
           gcc --version
