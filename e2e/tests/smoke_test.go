@@ -260,7 +260,7 @@ var _ = Describe("Operator smoke test", func() {
 	})
 
 	AfterEach(func() {
-		k8sClient.Delete(ctx, &namespace)
+		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
 		time.Sleep(10 * time.Second)
 	})
 })

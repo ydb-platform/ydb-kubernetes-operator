@@ -13,6 +13,9 @@ jobs:
           go-version: '1.19'
       - name: install-dependencies
         run: |
+          apt-get install build-essentials
+          echo $(which gcc)
+
           go install sigs.k8s.io/kind@v0.17.0 
 
           curl -LO https://dl.k8s.io/release/v1.25.0/bin/linux/amd64/kubectl
