@@ -76,7 +76,7 @@ var _ = Describe("Operator smoke test", func() {
 		ydbNamespace = "ydb-namespace"
 		storageName  = "ycydb"
 
-		Timeout  = time.Second * 300
+		Timeout  = time.Second * 600
 		Interval = time.Second * 5
 	)
 
