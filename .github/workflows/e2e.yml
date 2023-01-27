@@ -57,7 +57,7 @@ jobs:
           echo "$HOME/go/bin" >> $GITHUB_PATH
       - name: configure-system
         run: |
-          ulimit -n 2048
+          ulimit -n 65536
       - name: check-dependencies
         run: |
           gcc --version
