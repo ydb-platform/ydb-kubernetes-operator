@@ -87,7 +87,6 @@ jobs:
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster
-
   stop-runner:
     name: Stop self-hosted YC runner
     needs:
