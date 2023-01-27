@@ -78,6 +78,8 @@ var _ = Describe("Operator smoke test", func() {
 
 		Timeout  = time.Second * 600
 		Interval = time.Second * 5
+
+		YdbImage = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
 	)
 
 	storageConfig, err := ioutil.ReadFile(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
@@ -118,7 +120,7 @@ var _ = Describe("Operator smoke test", func() {
 			Domain:    "Root",
 			Resources: corev1.ResourceRequirements{},
 			Image: v1alpha1.PodImage{
-				Name:           "ydb:22.4.44",
+				Name:           YdbImage,
 				PullPolicyName: &defaultPolicy,
 			},
 			AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
@@ -179,7 +181,7 @@ var _ = Describe("Operator smoke test", func() {
 			},
 			Domain: "Root",
 			Image: v1alpha1.PodImage{
-				Name:           "ydb:22.4.44",
+				Name:           YdbImage,
 				PullPolicyName: &defaultPolicy,
 			},
 			AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
