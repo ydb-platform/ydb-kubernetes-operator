@@ -40,6 +40,12 @@ jobs:
           sudo apt-get install -y build-essential
           echo $(which gcc)
 
+          pwd
+          ls
+
+          export GOPATH=/home/runner/actions-runner/go
+          echo "GOPATH=/home/runner/actions-runner/go" >> $GITHUB_ENV
+
           go install sigs.k8s.io/kind@v0.17.0 
 
           curl -LO https://dl.k8s.io/release/v1.25.0/bin/linux/amd64/kubectl
