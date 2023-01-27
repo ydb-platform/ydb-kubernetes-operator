@@ -30,6 +30,7 @@ jobs:
           echo "$(pwd)" >> $GITHUB_PATH
       - name: check-dependencies
         run: |
+          gcc --version
           go version
           kind version
           kubectl version --short --client=true
