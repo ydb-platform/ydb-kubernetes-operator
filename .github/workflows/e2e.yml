@@ -2,10 +2,33 @@ name: run-e2e
 on:
   pull_request:
     branches: [ "master" ]
-jobs:
+jobs:                                             
+  start-runner:
+    name: Start self-hosted YC runner
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: b1gmgbhccra2qca8v5g6
+          image-id: fd80o2eikcn22b229tsa
+          cores: 16
+          disk-type: network-ssd-nonreplicated
+          disk-size: 279GB
+          memory: 32GB
+          core-fraction: 100
+          subnet-id: e9bm73bk6gh9ag8clm2o
   run-e2e-job:
     name: run-e2e-job
-    runs-on: self-hosted
+    needs: start-runner
+    runs-on: ${{ needs.start-runner.outputs.label }}
     steps:
       - uses: actions/checkout@v2          
       - uses: actions/setup-go@v3
@@ -64,3 +87,19 @@ jobs:
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster
+  stop-runner:
+    name: Stop self-hosted YC runner
+    needs:
+      - start-runner
+      - run-e2e-job
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-runner.outputs.label }}
+          instance-id: ${{ needs.start-runner.outputs.instance-id }}
