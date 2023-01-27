@@ -57,7 +57,8 @@ jobs:
           echo "$HOME/go/bin" >> $GITHUB_PATH
       - name: configure-system
         run: |
-          ulimit -n 65536
+          sudo sysctl fs.inotify.max_user_instances=1280
+          sudo sysctl fs.inotify.max_user_watches=655360
       - name: check-dependencies
         run: |
           gcc --version
