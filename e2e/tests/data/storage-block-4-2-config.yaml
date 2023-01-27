@@ -1,0 +1,156 @@
+static_erasure: block-4-2
+host_configs:
+  - drive:
+      - path: SectorMap:1:1
+        type: SSD
+    host_config_id: 1
+hosts:
+- host: ycydb-0
+  host_config_id: 1
+  walle_location:
+    body: 1
+    data_center: 'zone-a'
+    rack: '1'
+- host: ycydb-1
+  host_config_id: 1
+  walle_location:
+    body: 2
+    data_center: 'zone-a'
+    rack: '2'
+- host: ycydb-2
+  host_config_id: 1
+  walle_location:
+    body: 3
+    data_center: 'zone-a'
+    rack: '3'
+- host: ycydb-3
+  host_config_id: 1
+  walle_location:
+    body: 4
+    data_center: 'zone-a'
+    rack: '4'
+- host: ycydb-4
+  host_config_id: 1
+  walle_location:
+    body: 5
+    data_center: 'zone-a'
+    rack: '5'
+- host: ycydb-5
+  host_config_id: 1
+  walle_location:
+    body: 6
+    data_center: 'zone-a'
+    rack: '6'
+- host: ycydb-6
+  host_config_id: 1
+  walle_location:
+    body: 7
+    data_center: 'zone-a'
+    rack: '7'
+- host: ycydb-7
+  host_config_id: 1
+  walle_location:
+    body: 8
+    data_center: 'zone-a'
+    rack: '8'
+domains_config:
+  domain:
+  # There can be only one root domain in a cluster. Domain name prefixes all scheme objects names, e.g. full name of a table table1 in database db1 
+  # in a cluster with domains_config.domain.name parameter set to Root would be equal to /Root/db1/table1
+  - name: Root
+    storage_pool_types:
+    - kind: ssd
+      pool_config:
+        box_id: 1
+        # fault tolerance mode name - none, block-4-2, or mirror-3-dc. 
+        # See docs for more details https://ydb.tech/en/docs/deploy/configuration/config#domains-blob
+        erasure_species: block-4-2
+        kind: ssd
+        pdisk_filter:
+        - property:
+          - type: SSD # device type to match host_configs.drive.type
+        vdisk_kind: Default
+  state_storage:
+  - ring:
+      node: [1, 2, 3, 4, 5, 6, 7, 8]
+      nto_select: 5
+    ssid: 1
+table_service_config:
+  sql_version: 1
+actor_system_config:
+  executor:         
+  - name: System    
+    threads: 1
+    type: BASIC
+  - name: User      
+    threads: 1
+    type: BASIC
+  - name: Batch     
+    threads: 1      
+    type: BASIC
+  - name: IO        
+    threads: 1
+    time_per_mailbox_micro_secs: 100
+    type: IO
+  - name: IC        
+    spin_threshold: 10
+    threads: 4      
+    time_per_mailbox_micro_secs: 100
+    type: BASIC
+  scheduler:
+    progress_threshold: 10000
+    resolution: 256
+    spin_threshold: 0
+blob_storage_config:    # configuration of static blobstorage group.
+  service_set:
+    groups:
+    - erasure_species: block-4-2  # fault tolerance mode name for the static group
+      rings:           # in block-4-2 must have exactly 1 ring or availability zone.
+      - fail_domains:
+        - vdisk_locations:
+          - node_id: ycydb-0
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: ycydb-1
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: ycydb-2
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: ycydb-3
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: ycydb-4
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: ycydb-5
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: ycydb-6
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: ycydb-7
+            pdisk_category: SSD
+            path: SectorMap:1:1
+channel_profile_config:
+  profile:
+  - channel:
+    - erasure_species: block-4-2
+      pdisk_category: 1
+      storage_pool_kind: ssd
+    - erasure_species: block-4-2
+      pdisk_category: 1
+      storage_pool_kind: ssd
+    - erasure_species: block-4-2
+      pdisk_category: 1
+      storage_pool_kind: ssd
+    profile_id: 0
+grpc_config:
+    port: 2135
