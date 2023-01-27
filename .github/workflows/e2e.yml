@@ -44,6 +44,7 @@ jobs:
           echo "HOME=/actions-runner" >> $GITHUB_ENV
 
           go install sigs.k8s.io/kind@v0.17.0 
+          which kind
 
           curl -LO https://dl.k8s.io/release/v1.25.0/bin/linux/amd64/kubectl
           chmod +x ./kubectl
@@ -54,6 +55,7 @@ jobs:
           mv ./linux-amd64/helm .
 
           echo "$(pwd)" >> $GITHUB_PATH
+          echo "$HOME/go/bin" >> $GITHUB_PATH
       - name: check-dependencies
         run: |
           gcc --version
