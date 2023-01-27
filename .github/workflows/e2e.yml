@@ -13,7 +13,8 @@ jobs:
           go-version: '1.19'
       - name: install-dependencies
         run: |
-          apt-get install build-essentials
+          sudo apt-get update 
+          sudo install -y build-essentials
           echo $(which gcc)
 
           go install sigs.k8s.io/kind@v0.17.0 
