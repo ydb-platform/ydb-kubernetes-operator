@@ -2,24 +2,21 @@ package tests
 
 import (
 	"context"
-	// "fmt"
-	"os/exec"
-	"strings"
-
 	"io/ioutil"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 func PodIsReady(conditions []corev1.PodCondition) bool {
@@ -134,7 +131,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	databaseSample := v1alpha1.Database{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "database",
+			Name:      "database",
 			Namespace: ydbNamespace,
 		},
 		Spec: v1alpha1.DatabaseSpec{
@@ -160,7 +157,7 @@ var _ = Describe("Operator smoke test", func() {
 					},
 					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
 				},
-				Datastreams: v1alpha1.DatastreamsService {
+				Datastreams: v1alpha1.DatastreamsService{
 					TLSConfiguration: &v1alpha1.TLSConfiguration{
 						Enabled: false,
 					},
@@ -170,17 +167,17 @@ var _ = Describe("Operator smoke test", func() {
 					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
 				},
 			},
-			Datastreams: &v1alpha1.DatastreamsConfig {
+			Datastreams: &v1alpha1.DatastreamsConfig{
 				Enabled: false,
 			},
-			Monitoring: &v1alpha1.MonitoringOptions {
+			Monitoring: &v1alpha1.MonitoringOptions{
 				Enabled: false,
 			},
 			StorageClusterRef: v1alpha1.StorageRef{
 				Name:      storageName,
 				Namespace: ydbNamespace,
 			},
-			Domain:           "Root",
+			Domain: "Root",
 			Image: v1alpha1.PodImage{
 				Name:           "ydb:22.4.44",
 				PullPolicyName: &defaultPolicy,
@@ -259,9 +256,7 @@ var _ = Describe("Operator smoke test", func() {
 			Expect(PodIsReady(pod.Status.Conditions)).To(BeTrue())
 		}
 
-
 		Expect(runSelect1(databaseSample)).To(Succeed())
-
 	})
 
 	AfterEach(func() {

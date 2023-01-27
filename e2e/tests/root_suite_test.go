@@ -8,7 +8,6 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/scheme"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -17,9 +16,11 @@ import (
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
-var cfg *rest.Config
-var k8sClient client.Client
-var testEnv *envtest.Environment
+var (
+	cfg       *rest.Config
+	k8sClient client.Client
+	testEnv   *envtest.Environment
+)
 
 func TestStorage(t *testing.T) {
 	RegisterFailHandler(Fail)
