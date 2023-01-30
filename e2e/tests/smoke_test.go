@@ -73,7 +73,6 @@ func bringYdbCliToPod(namespace string, name string, ydbHome string) error {
 		fmt.Sprintf("%v/ydb/bin/ydb", os.ExpandEnv("$HOME")),
 		fmt.Sprintf("%v:%v/ydb", name, ydbHome),
 	}
-	args = append(args)
 	result := exec.Command("kubectl", args...)
 	_, err := result.Output()
 	return err
