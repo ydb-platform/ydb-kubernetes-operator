@@ -53,7 +53,10 @@ jobs:
           tar -zxvf "${HELM_PKG}"
           mv ./linux-amd64/helm .
 
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-ydb/install.sh | bash
+
           echo "$(pwd)" >> $GITHUB_PATH
+          echo "$HOME/ydb/bin" >> $GITHUB_PATH
           echo "$HOME/go/bin" >> $GITHUB_PATH
       - name: configure-system
         run: |

@@ -2,7 +2,9 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -19,7 +21,7 @@ import (
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
-func PodIsReady(conditions []corev1.PodCondition) bool {
+func podIsReady(conditions []corev1.PodCondition) bool {
 	for _, condition := range conditions {
 		if condition.Type == "Ready" && condition.Status == "True" {
 			return true
@@ -49,6 +51,34 @@ func constructAntiAffinityFor(key, value string) *corev1.Affinity {
 	}
 }
 
+func execInPod(namespace string, name string, cmd []string) (string, error) {
+	args := []string{
+		"-n",
+		namespace,
+		"exec",
+		name,
+		"--",
+	}
+	args = append(args, cmd...)
+	result := exec.Command("kubectl", args...)
+	stdout, err := result.Output()
+	return string(stdout), err
+}
+
+func bringYdbCliToPod(namespace string, name string, ydbHome string) error {
+	args := []string{
+		"-n",
+		namespace,
+		"cp",
+		fmt.Sprintf("%v/ydb/bin/ydb", os.ExpandEnv("$HOME")),
+		fmt.Sprintf("%v:%v/ydb", name, ydbHome),
+	}
+	args = append(args)
+	result := exec.Command("kubectl", args...)
+	_, err := result.Output()
+	return err
+}
+
 func installOperatorWithHelm(namespace string) bool {
 	args := []string{
 		"-n",
@@ -73,13 +103,15 @@ var _ = Describe("Operator smoke test", func() {
 	var namespace corev1.Namespace
 
 	const (
-		ydbNamespace = "ydb-namespace"
-		storageName  = "ycydb"
-
 		Timeout  = time.Second * 600
 		Interval = time.Second * 5
 
-		YdbImage = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
+		ydbImage = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
+		ydbNamespace = "ydb"
+		ydbHome = "/home/ydb"
+		storageName  = "storage"
+		databaseName = "database"
+		defaultDomain = "Root"
 	)
 
 	storageConfig, err := ioutil.ReadFile(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
@@ -117,10 +149,10 @@ var _ = Describe("Operator smoke test", func() {
 					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
 				},
 			},
-			Domain:    "Root",
+			Domain:    defaultDomain,
 			Resources: corev1.ResourceRequirements{},
 			Image: v1alpha1.PodImage{
-				Name:           YdbImage,
+				Name:           ydbImage,
 				PullPolicyName: &defaultPolicy,
 			},
 			AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
@@ -133,7 +165,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	databaseSample := v1alpha1.Database{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "database",
+			Name:      databaseName,
 			Namespace: ydbNamespace,
 		},
 		Spec: v1alpha1.DatabaseSpec{
@@ -179,9 +211,9 @@ var _ = Describe("Operator smoke test", func() {
 				Name:      storageName,
 				Namespace: ydbNamespace,
 			},
-			Domain: "Root",
+			Domain: defaultDomain,
 			Image: v1alpha1.PodImage{
-				Name:           YdbImage,
+				Name:           ydbImage,
 				PullPolicyName: &defaultPolicy,
 			},
 			AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
@@ -229,7 +261,7 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(len(storagePods.Items)).Should(BeEquivalentTo(storageSample.Spec.Nodes))
 		for _, pod := range storagePods.Items {
 			Expect(pod.Status.Phase).To(BeEquivalentTo("Running"))
-			Expect(PodIsReady(pod.Status.Conditions)).To(BeTrue())
+			Expect(podIsReady(pod.Status.Conditions)).To(BeTrue())
 		}
 
 		By("waiting until database is ready...")
@@ -255,10 +287,34 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(len(databasePods.Items)).Should(BeEquivalentTo(databaseSample.Spec.Nodes))
 		for _, pod := range databasePods.Items {
 			Expect(pod.Status.Phase).To(BeEquivalentTo("Running"))
-			Expect(PodIsReady(pod.Status.Conditions)).To(BeTrue())
+			Expect(podIsReady(pod.Status.Conditions)).To(BeTrue())
 		}
 
-		Expect(runSelect1(databaseSample)).To(Succeed())
+		firstDBPod := databasePods.Items[0].Name
+
+		Expect(bringYdbCliToPod(ydbNamespace, firstDBPod, ydbHome)).To(Succeed())
+
+		out, err := execInPod(ydbNamespace, firstDBPod, []string{
+			fmt.Sprintf("%v/ydb", ydbHome),
+			"-d",
+			"/" + defaultDomain,
+			"-e",
+			"grpc://localhost:2135",
+			"yql",
+			"-s",
+			"select 1",
+		})
+
+		Expect(err).To(BeNil())
+
+		// `yql` gives output in the following format:
+		// ┌─────────┐
+		// | column0 |
+		// ├─────────┤
+		// | 1       |
+		// └─────────┘
+		Expect(strings.ReplaceAll(out, "\n", "")).
+			To(MatchRegexp(".*column0.*1.*"))
 	})
 
 	AfterEach(func() {
@@ -266,9 +322,3 @@ var _ = Describe("Operator smoke test", func() {
 		time.Sleep(10 * time.Second)
 	})
 })
-
-func runSelect1(database v1alpha1.Database) error {
-	// TODO create a pod that will execute `select 1` against the cluster
-	// databasePods.Items[0].Name
-	return nil
-}

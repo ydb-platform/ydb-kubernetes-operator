@@ -5,49 +5,49 @@ host_configs:
         type: SSD
     host_config_id: 1
 hosts:
-- host: ycydb-0
+- host: storage-0
   host_config_id: 1
   walle_location:
     body: 1
     data_center: 'zone-a'
     rack: '1'
-- host: ycydb-1
+- host: storage-1
   host_config_id: 1
   walle_location:
     body: 2
     data_center: 'zone-a'
     rack: '2'
-- host: ycydb-2
+- host: storage-2
   host_config_id: 1
   walle_location:
     body: 3
     data_center: 'zone-a'
     rack: '3'
-- host: ycydb-3
+- host: storage-3
   host_config_id: 1
   walle_location:
     body: 4
     data_center: 'zone-a'
     rack: '4'
-- host: ycydb-4
+- host: storage-4
   host_config_id: 1
   walle_location:
     body: 5
     data_center: 'zone-a'
     rack: '5'
-- host: ycydb-5
+- host: storage-5
   host_config_id: 1
   walle_location:
     body: 6
     data_center: 'zone-a'
     rack: '6'
-- host: ycydb-6
+- host: storage-6
   host_config_id: 1
   walle_location:
     body: 7
     data_center: 'zone-a'
     rack: '7'
-- host: ycydb-7
+- host: storage-7
   host_config_id: 1
   walle_location:
     body: 8
@@ -108,35 +108,35 @@ blob_storage_config:    # configuration of static blobstorage group.
       rings:           # in block-4-2 must have exactly 1 ring or availability zone.
       - fail_domains:
         - vdisk_locations:
-          - node_id: ycydb-0
+          - node_id: storage-0
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: ycydb-1
+          - node_id: storage-1
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: ycydb-2
+          - node_id: storage-2
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: ycydb-3
+          - node_id: storage-3
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: ycydb-4
+          - node_id: storage-4
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: ycydb-5
+          - node_id: storage-5
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: ycydb-6
+          - node_id: storage-6
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: ycydb-7
+          - node_id: storage-7
             pdisk_category: SSD
             path: SectorMap:1:1
 channel_profile_config:
