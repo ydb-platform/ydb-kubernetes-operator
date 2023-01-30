@@ -106,11 +106,11 @@ var _ = Describe("Operator smoke test", func() {
 		Timeout  = time.Second * 600
 		Interval = time.Second * 5
 
-		ydbImage = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
-		ydbNamespace = "ydb"
-		ydbHome = "/home/ydb"
-		storageName  = "storage"
-		databaseName = "database"
+		ydbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
+		ydbNamespace  = "ydb"
+		ydbHome       = "/home/ydb"
+		storageName   = "storage"
+		databaseName  = "database"
 		defaultDomain = "Root"
 	)
 
