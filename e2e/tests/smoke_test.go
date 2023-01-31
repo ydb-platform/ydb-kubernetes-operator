@@ -14,11 +14,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -373,14 +371,13 @@ var _ = Describe("Operator smoke test", func() {
 			}
 		}()
 
-
 		err = cmd.Start()
 		Expect(err).ToNot(HaveOccurred())
 
 		select {
-			case <- finished:
-			case <- time.After(Timeout):
-				Fail("Storage didn't reach Ready state")
+		case <-finished:
+		case <-time.After(Timeout):
+			Fail("Storage didn't reach Ready state")
 		}
 
 		err = cmd.Process.Kill()
