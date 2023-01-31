@@ -347,7 +347,7 @@ var _ = Describe("Operator smoke test", func() {
 		fmt.Println("tracking storage state changes...")
 		seenStatuses := []string{}
 
-		cmd := exec.Command( //nolint:gosec
+		watchCmd := exec.Command( //nolint:gosec
 			"kubectl",
 			"-n",
 			ydbNamespace,
@@ -356,17 +356,17 @@ var _ = Describe("Operator smoke test", func() {
 			storageSample.Name,
 			"--watch",
 		)
-		cmdReader, err := cmd.StdoutPipe()
+		watchReader, err := watchCmd.StdoutPipe()
 		Expect(err).ToNot(HaveOccurred())
 
-		scanner := bufio.NewScanner(cmdReader)
-		finished := make(chan bool)
+		scanner := bufio.NewScanner(watchReader)
+		isStorageReady := make(chan bool)
 		go func() {
 			for scanner.Scan() {
-				text := scanner.Text()
+				line := scanner.Text()
 				// Each line looks like:
 				// storage Initializing 42s
-				fields := strings.Fields(text)
+				fields := strings.Fields(line)
 				Expect(len(fields)).To(Equal(3))
 				curStatus := fields[1]
 				// Skipping the header of `kubectl` output:
@@ -376,21 +376,21 @@ var _ = Describe("Operator smoke test", func() {
 				}
 				seenStatuses = append(seenStatuses, curStatus)
 				if curStatus == ReadyStatus {
-					finished <- true
+					isStorageReady <- true
 				}
 			}
 		}()
 
-		err = cmd.Start()
+		err = watchCmd.Start()
 		Expect(err).ToNot(HaveOccurred())
 
 		select {
-		case <-finished:
+		case <-isStorageReady:
 		case <-time.After(Timeout):
 			Fail("Storage didn't reach Ready state")
 		}
 
-		err = cmd.Process.Kill()
+		err = watchCmd.Process.Kill()
 		Expect(err).ToNot(HaveOccurred())
 
 		expectedChanges := map[string]string{
