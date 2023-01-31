@@ -24,6 +24,7 @@ import (
 )
 
 const (
+	Pending      ClusterState = "Pending"
 	Provisioning ClusterState = "Provisioning"
 	Initializing ClusterState = "Initializing"
 	Ready        ClusterState = "Ready"
@@ -286,7 +287,7 @@ func (r *Reconciler) setInitialStatus(
 		})
 		changed = true
 	}
-	if database.Status.State != string(Initializing) {
+	if database.Status.State == string(Pending) {
 		database.Status.State = string(Initializing)
 		changed = true
 	}

@@ -91,7 +91,7 @@ func (r *Reconciler) setInitialStatus(
 		})
 		changed = true
 	}
-	if storage.Status.State != string(Initializing) {
+	if storage.Status.State == string(Pending) {
 		storage.Status.State = string(Initializing)
 		changed = true
 	}
