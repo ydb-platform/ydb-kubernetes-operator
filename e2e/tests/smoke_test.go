@@ -22,9 +22,23 @@ import (
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
+const (
+	Timeout  = time.Second * 600
+	Interval = time.Second * 5
+
+	ydbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
+	ydbNamespace  = "ydb"
+	ydbHome       = "/home/ydb"
+	storageName   = "storage"
+	databaseName  = "database"
+	defaultDomain = "Root"
+
+	ReadyStatus = "Ready"
+)
+
 func podIsReady(conditions []corev1.PodCondition) bool {
 	for _, condition := range conditions {
-		if condition.Type == "Ready" && condition.Status == "True" {
+		if condition.Type == ReadyStatus && condition.Status == "True" {
 			return true
 		}
 	}
@@ -117,20 +131,6 @@ func uninstallOperatorWithHelm(namespace string) bool {
 var _ = Describe("Operator smoke test", func() {
 	var ctx context.Context
 	var namespace corev1.Namespace
-
-	const (
-		Timeout  = time.Second * 600
-		Interval = time.Second * 5
-
-		ydbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
-		ydbNamespace  = "ydb"
-		ydbHome       = "/home/ydb"
-		storageName   = "storage"
-		databaseName  = "database"
-		defaultDomain = "Root"
-
-		ReadyStatus = "Ready"
-	)
 
 	storageConfig, err := ioutil.ReadFile(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
 	Expect(err).To(BeNil())
@@ -347,7 +347,7 @@ var _ = Describe("Operator smoke test", func() {
 		fmt.Println("tracking storage state changes...")
 		seenStatuses := []string{}
 
-		cmd := exec.Command(
+		cmd := exec.Command( //nolint:gosec
 			"kubectl",
 			"-n",
 			ydbNamespace,
@@ -375,7 +375,7 @@ var _ = Describe("Operator smoke test", func() {
 					continue
 				}
 				seenStatuses = append(seenStatuses, curStatus)
-				if curStatus == "Ready" {
+				if curStatus == ReadyStatus {
 					finished <- true
 				}
 			}
@@ -396,7 +396,7 @@ var _ = Describe("Operator smoke test", func() {
 		expectedChanges := map[string]string{
 			"Pending":      "Initializing",
 			"Initializing": "Provisioning",
-			"Provisioning": "Ready",
+			"Provisioning": ReadyStatus,
 		}
 		for i := 1; i < len(seenStatuses); i++ {
 			if seenStatuses[i-1] != seenStatuses[i] {
