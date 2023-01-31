@@ -128,6 +128,8 @@ var _ = Describe("Operator smoke test", func() {
 		storageName   = "storage"
 		databaseName  = "database"
 		defaultDomain = "Root"
+
+		ReadyStatus = "Ready"
 	)
 
 	storageConfig, err := ioutil.ReadFile(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
@@ -269,7 +271,7 @@ var _ = Describe("Operator smoke test", func() {
 				metav1.ConditionTrue,
 			)
 		}, Timeout, Interval).Should(BeTrue())
-		Expect(storage.Status.State).To(BeEquivalentTo("Ready"))
+		Expect(storage.Status.State).To(BeEquivalentTo(ReadyStatus))
 
 		fmt.Println("checking that all the storage pods are running and ready...")
 
@@ -296,7 +298,7 @@ var _ = Describe("Operator smoke test", func() {
 				metav1.ConditionTrue,
 			)
 		}, Timeout, Interval).Should(BeTrue())
-		Expect(database.Status.State).To(BeEquivalentTo("Ready"))
+		Expect(database.Status.State).To(BeEquivalentTo(ReadyStatus))
 
 		fmt.Println("checking that all the database pods are running and ready...")
 		databasePods := corev1.PodList{}
@@ -345,7 +347,15 @@ var _ = Describe("Operator smoke test", func() {
 		fmt.Println("tracking storage state changes...")
 		seenStatuses := []string{}
 
-		cmd := exec.Command("kubectl", "-n", ydbNamespace, "get", "storage", storageSample.Name, "--watch")
+		cmd := exec.Command(
+			"kubectl",
+			"-n",
+			ydbNamespace,
+			"get",
+			"storage",
+			storageSample.Name,
+			"--watch",
+		)
 		cmdReader, err := cmd.StdoutPipe()
 		Expect(err).ToNot(HaveOccurred())
 
