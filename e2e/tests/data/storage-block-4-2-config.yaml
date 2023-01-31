@@ -4,55 +4,6 @@ host_configs:
       - path: SectorMap:1:1
         type: SSD
     host_config_id: 1
-hosts:
-- host: storage-0
-  host_config_id: 1
-  walle_location:
-    body: 1
-    data_center: 'zone-a'
-    rack: '1'
-- host: storage-1
-  host_config_id: 1
-  walle_location:
-    body: 2
-    data_center: 'zone-a'
-    rack: '2'
-- host: storage-2
-  host_config_id: 1
-  walle_location:
-    body: 3
-    data_center: 'zone-a'
-    rack: '3'
-- host: storage-3
-  host_config_id: 1
-  walle_location:
-    body: 4
-    data_center: 'zone-a'
-    rack: '4'
-- host: storage-4
-  host_config_id: 1
-  walle_location:
-    body: 5
-    data_center: 'zone-a'
-    rack: '5'
-- host: storage-5
-  host_config_id: 1
-  walle_location:
-    body: 6
-    data_center: 'zone-a'
-    rack: '6'
-- host: storage-6
-  host_config_id: 1
-  walle_location:
-    body: 7
-    data_center: 'zone-a'
-    rack: '7'
-- host: storage-7
-  host_config_id: 1
-  walle_location:
-    body: 8
-    data_center: 'zone-a'
-    rack: '8'
 domains_config:
   domain:
   # There can be only one root domain in a cluster. Domain name prefixes all scheme objects names, e.g. full name of a table table1 in database db1 
