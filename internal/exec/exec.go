@@ -2,8 +2,8 @@ package exec
 
 import (
 	"bytes"
-	"fmt"
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -47,7 +47,7 @@ func InPod(
 
 	var stdout, stderr bytes.Buffer
 	err = exec.StreamWithContext(
-		context.TODO(), 
+		context.TODO(),
 		remotecommand.StreamOptions{
 			Stdin:  nil,
 			Stdout: &stdout,
