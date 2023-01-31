@@ -292,7 +292,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		Command:         command,
 		Args:            args,
 		LivenessProbe: &corev1.Probe{
-			Handler: corev1.Handler{
+			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
 					Port: intstr.FromInt(v1alpha1.GRPCPort),
 				},

@@ -215,7 +215,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		Args:            args,
 		Env:             b.buildEnv(),
 		LivenessProbe: &corev1.Probe{
-			Handler: corev1.Handler{
+			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
 					Port: intstr.FromInt(v1alpha1.GRPCPort),
 				},
