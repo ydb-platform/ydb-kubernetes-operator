@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -21,9 +22,23 @@ import (
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
+const (
+	Timeout  = time.Second * 600
+	Interval = time.Second * 5
+
+	ydbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
+	ydbNamespace  = "ydb"
+	ydbHome       = "/home/ydb"
+	storageName   = "storage"
+	databaseName  = "database"
+	defaultDomain = "Root"
+
+	ReadyStatus = "Ready"
+)
+
 func podIsReady(conditions []corev1.PodCondition) bool {
 	for _, condition := range conditions {
-		if condition.Type == "Ready" && condition.Status == "True" {
+		if condition.Type == ReadyStatus && condition.Status == "True" {
 			return true
 		}
 	}
@@ -97,21 +112,25 @@ func installOperatorWithHelm(namespace string) bool {
 	return strings.Contains(string(stdout), "deployed")
 }
 
+func uninstallOperatorWithHelm(namespace string) bool {
+	args := []string{
+		"-n",
+		namespace,
+		"uninstall",
+		"ydb-operator",
+	}
+	result := exec.Command("helm", args...)
+	stdout, err := result.Output()
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(string(stdout), "uninstalled")
+}
+
 var _ = Describe("Operator smoke test", func() {
 	var ctx context.Context
 	var namespace corev1.Namespace
-
-	const (
-		Timeout  = time.Second * 600
-		Interval = time.Second * 5
-
-		ydbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
-		ydbNamespace  = "ydb"
-		ydbHome       = "/home/ydb"
-		storageName   = "storage"
-		databaseName  = "database"
-		defaultDomain = "Root"
-	)
 
 	storageConfig, err := ioutil.ReadFile(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
 	Expect(err).To(BeNil())
@@ -121,106 +140,109 @@ var _ = Describe("Operator smoke test", func() {
 
 	defaultPolicy := corev1.PullIfNotPresent
 
-	storageSample := v1alpha1.Storage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      storageName,
-			Namespace: ydbNamespace,
-		},
-		Spec: v1alpha1.StorageSpec{
-			Nodes:         8,
-			Configuration: string(storageConfig),
-			Erasure:       "block-4-2",
-			DataStore:     []corev1.PersistentVolumeClaimSpec{},
-			Service: v1alpha1.StorageServices{
-				GRPC: v1alpha1.GRPCService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Interconnect: v1alpha1.InterconnectService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Status: v1alpha1.StatusService{
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-			},
-			Domain:    defaultDomain,
-			Resources: corev1.ResourceRequirements{},
-			Image: v1alpha1.PodImage{
-				Name:           ydbImage,
-				PullPolicyName: &defaultPolicy,
-			},
-			AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
-			Affinity:         storageAntiAffinity,
-			Monitoring: &v1alpha1.MonitoringOptions{
-				Enabled: false,
-			},
-		},
-	}
+	var storageSample *v1alpha1.Storage
+	var databaseSample *v1alpha1.Database
 
-	databaseSample := v1alpha1.Database{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      databaseName,
-			Namespace: ydbNamespace,
-		},
-		Spec: v1alpha1.DatabaseSpec{
-			Nodes: 8,
-			Resources: &v1alpha1.DatabaseResources{
-				StorageUnits: []v1alpha1.StorageUnit{
-					{
-						UnitKind: "ssd",
-						Count:    1,
-					},
-				},
-			},
-			Service: v1alpha1.DatabaseServices{
-				GRPC: v1alpha1.GRPCService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Interconnect: v1alpha1.InterconnectService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Datastreams: v1alpha1.DatastreamsService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Status: v1alpha1.StatusService{
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-			},
-			Datastreams: &v1alpha1.DatastreamsConfig{
-				Enabled: false,
-			},
-			Monitoring: &v1alpha1.MonitoringOptions{
-				Enabled: false,
-			},
-			StorageClusterRef: v1alpha1.StorageRef{
+	BeforeEach(func() {
+		storageSample = &v1alpha1.Storage{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      storageName,
 				Namespace: ydbNamespace,
 			},
-			Domain: defaultDomain,
-			Image: v1alpha1.PodImage{
-				Name:           ydbImage,
-				PullPolicyName: &defaultPolicy,
+			Spec: v1alpha1.StorageSpec{
+				Nodes:         8,
+				Configuration: string(storageConfig),
+				Erasure:       "block-4-2",
+				DataStore:     []corev1.PersistentVolumeClaimSpec{},
+				Service: v1alpha1.StorageServices{
+					GRPC: v1alpha1.GRPCService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+					Interconnect: v1alpha1.InterconnectService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+					Status: v1alpha1.StatusService{
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+				},
+				Domain:    defaultDomain,
+				Resources: corev1.ResourceRequirements{},
+				Image: v1alpha1.PodImage{
+					Name:           ydbImage,
+					PullPolicyName: &defaultPolicy,
+				},
+				AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
+				Affinity:         storageAntiAffinity,
+				Monitoring: &v1alpha1.MonitoringOptions{
+					Enabled: false,
+				},
 			},
-			AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
-			Affinity:         databaseAntiAffinity,
-		},
-	}
+		}
 
-	BeforeEach(func() {
+		databaseSample = &v1alpha1.Database{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      databaseName,
+				Namespace: ydbNamespace,
+			},
+			Spec: v1alpha1.DatabaseSpec{
+				Nodes: 8,
+				Resources: &v1alpha1.DatabaseResources{
+					StorageUnits: []v1alpha1.StorageUnit{
+						{
+							UnitKind: "ssd",
+							Count:    1,
+						},
+					},
+				},
+				Service: v1alpha1.DatabaseServices{
+					GRPC: v1alpha1.GRPCService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+					Interconnect: v1alpha1.InterconnectService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+					Datastreams: v1alpha1.DatastreamsService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+					Status: v1alpha1.StatusService{
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+				},
+				Datastreams: &v1alpha1.DatastreamsConfig{
+					Enabled: false,
+				},
+				Monitoring: &v1alpha1.MonitoringOptions{
+					Enabled: false,
+				},
+				StorageClusterRef: v1alpha1.StorageRef{
+					Name:      storageName,
+					Namespace: ydbNamespace,
+				},
+				Domain: defaultDomain,
+				Image: v1alpha1.PodImage{
+					Name:           ydbImage,
+					PullPolicyName: &defaultPolicy,
+				},
+				AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
+				Affinity:         databaseAntiAffinity,
+			},
+		}
+
 		ctx = context.Background()
 		namespace = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -232,11 +254,11 @@ var _ = Describe("Operator smoke test", func() {
 	})
 
 	It("general smoke pipeline, create storage + database", func() {
-		By("issuing create commands...")
-		Expect(k8sClient.Create(ctx, &storageSample)).Should(Succeed())
-		Expect(k8sClient.Create(ctx, &databaseSample)).Should(Succeed())
+		fmt.Println("issuing create commands...")
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 
-		By("waiting until storage is ready...")
+		fmt.Println("waiting until storage is ready...")
 		storage := v1alpha1.Storage{}
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
@@ -249,9 +271,9 @@ var _ = Describe("Operator smoke test", func() {
 				metav1.ConditionTrue,
 			)
 		}, Timeout, Interval).Should(BeTrue())
-		Expect(storage.Status.State).To(BeEquivalentTo("Ready"))
+		Expect(storage.Status.State).To(BeEquivalentTo(ReadyStatus))
 
-		By("checking until all the storage pods are running and ready...")
+		fmt.Println("checking that all the storage pods are running and ready...")
 
 		storagePods := corev1.PodList{}
 		Expect(k8sClient.List(ctx, &storagePods, client.InNamespace(ydbNamespace), client.MatchingLabels{
@@ -263,7 +285,7 @@ var _ = Describe("Operator smoke test", func() {
 			Expect(podIsReady(pod.Status.Conditions)).To(BeTrue())
 		}
 
-		By("waiting until database is ready...")
+		fmt.Println("waiting until database is ready...")
 		database := v1alpha1.Database{}
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
@@ -276,9 +298,9 @@ var _ = Describe("Operator smoke test", func() {
 				metav1.ConditionTrue,
 			)
 		}, Timeout, Interval).Should(BeTrue())
-		Expect(database.Status.State).To(BeEquivalentTo("Ready"))
+		Expect(database.Status.State).To(BeEquivalentTo(ReadyStatus))
 
-		By("checking until all the database pods are running and ready...")
+		fmt.Println("checking that all the database pods are running and ready...")
 		databasePods := corev1.PodList{}
 		Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(ydbNamespace), client.MatchingLabels{
 			"ydb-cluster": "kind-database",
@@ -314,10 +336,81 @@ var _ = Describe("Operator smoke test", func() {
 		// └─────────┘
 		Expect(strings.ReplaceAll(out, "\n", "")).
 			To(MatchRegexp(".*column0.*1.*"))
+
+		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+	})
+
+	It("status.State goes Pending -> Provisioning -> Initializing -> Ready", func() {
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+
+		fmt.Println("tracking storage state changes...")
+		seenStatuses := []string{}
+
+		watchCmd := exec.Command( //nolint:gosec
+			"kubectl",
+			"-n",
+			ydbNamespace,
+			"get",
+			"storage",
+			storageSample.Name,
+			"--watch",
+		)
+		watchReader, err := watchCmd.StdoutPipe()
+		Expect(err).ToNot(HaveOccurred())
+
+		scanner := bufio.NewScanner(watchReader)
+		isStorageReady := make(chan bool)
+		go func() {
+			for scanner.Scan() {
+				line := scanner.Text()
+				// Each line looks like:
+				// storage Initializing 42s
+				fields := strings.Fields(line)
+				Expect(len(fields)).To(Equal(3))
+				curStatus := fields[1]
+				// Skipping the header of `kubectl` output:
+				// NAME STATUS AGE
+				if curStatus == "STATUS" {
+					continue
+				}
+				seenStatuses = append(seenStatuses, curStatus)
+				if curStatus == ReadyStatus {
+					isStorageReady <- true
+				}
+			}
+		}()
+
+		err = watchCmd.Start()
+		Expect(err).ToNot(HaveOccurred())
+
+		select {
+		case <-isStorageReady:
+		case <-time.After(Timeout):
+			Fail("Storage didn't reach Ready state")
+		}
+
+		err = watchCmd.Process.Kill()
+		Expect(err).ToNot(HaveOccurred())
+
+		expectedChanges := map[string]string{
+			"Pending":      "Initializing",
+			"Initializing": "Provisioning",
+			"Provisioning": ReadyStatus,
+		}
+		for i := 1; i < len(seenStatuses); i++ {
+			if seenStatuses[i-1] != seenStatuses[i] {
+				Expect(expectedChanges[seenStatuses[i-1]]).To(Equal(seenStatuses[i]))
+			}
+		}
+
+		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 	})
 
 	AfterEach(func() {
+		Expect(uninstallOperatorWithHelm(ydbNamespace)).Should(BeTrue())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
-		time.Sleep(10 * time.Second)
+		// TODO wait until namespace is deleted properly
+		time.Sleep(40 * time.Second)
 	})
 })

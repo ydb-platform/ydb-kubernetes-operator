@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestStorage(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logf.SetLogger(zap.New(zap.WriteTo(os.Stdout), zap.UseDevMode(true)))
 
 	By("using existing test environment...")
 	useExistingCluster := true

@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Client struct {
@@ -29,7 +30,7 @@ func (client *Client) Invoke(method string, input interface{}, output interface{
 	if secure {
 		opts = append(opts, buildSystemTLSStoreOption())
 	} else {
-		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	conn, err := grpc.Dial(client.Target, opts...)

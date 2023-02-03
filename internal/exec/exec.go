@@ -2,6 +2,7 @@ package exec
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -45,12 +46,15 @@ func InPod(
 	}
 
 	var stdout, stderr bytes.Buffer
-	err = exec.Stream(remotecommand.StreamOptions{
-		Stdin:  nil,
-		Stdout: &stdout,
-		Stderr: &stderr,
-		Tty:    false,
-	})
+	err = exec.StreamWithContext(
+		context.TODO(),
+		remotecommand.StreamOptions{
+			Stdin:  nil,
+			Stdout: &stdout,
+			Stderr: &stderr,
+			Tty:    false,
+		},
+	)
 	if err != nil {
 		return stdout.String(), stderr.String(), errors.Wrapf(
 			err,
