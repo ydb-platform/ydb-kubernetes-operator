@@ -279,15 +279,13 @@ func (r *Reconciler) setState(
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else {
-		if oldStatus != storage.Status.State {
-			r.Recorder.Event(
-				storageCr,
-				corev1.EventTypeNormal,
-				"StatusChanged",
-				fmt.Sprintf("Storage moved from %s to %s", oldStatus, storage.Status.State),
-			)
-		}
+	} else if oldStatus != storage.Status.State {
+		r.Recorder.Event(
+			storageCr,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storage.Status.State),
+		)
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
