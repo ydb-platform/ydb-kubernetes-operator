@@ -24,7 +24,7 @@ jobs:
           disk-size: 465GB
           memory: 32GB
           core-fraction: 100
-          subnet-id: e9bm73bk6gh9ag8clm2o
+          subnet-id: e2l1tgr6mcpegktc5vce
   run-e2e-job:
     name: run-e2e-job
     needs: start-runner
