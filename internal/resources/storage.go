@@ -23,13 +23,10 @@ func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	return StorageClusterBuilder{cr}
 }
 
-func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() bool {
-	changed := false
+func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() {
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
-		changed = true
 	}
-	return changed
 }
 
 func (b *StorageClusterBuilder) Unwrap() *api.Storage {
