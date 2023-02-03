@@ -1,3 +1,3 @@
 ## Storage state machine schema
 
-[](./storage-state-machine-schema.svg)
+![Image of a storage state machine](./storage-state-machine-schema.svg)
