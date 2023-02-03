@@ -132,6 +132,10 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		}
 	}
 
+	for _, volume := range b.Spec.Volumes {
+		volumes = append(volumes, *volume)
+	}
+
 	return volumes
 }
 
@@ -294,6 +298,13 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 				MountPath: "/tls/datastreams", // fixme const
 			})
 		}
+	}
+
+	for _, volume := range b.Spec.Volumes {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      volume.Name,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalVolumes, volume.Name),
+		})
 	}
 
 	return volumeMounts

@@ -35,7 +35,16 @@ const (
 	defaultDomain = "Root"
 
 	ReadyStatus = "Ready"
+	// This is the directory that is used to store temporary files to be propagated into pods.
+	// For example, in `hostPath` volume testing.
+	// It works like this: for 8 kind workers, we create 8 folders: /tmp/worker-1/volume,
+	// and each of them is propagated to /home/tmp/volume of each of the workers.
+	// We have to make 8 copies on host kind runner, because duplicate mounts in docker
+	// are not allowed.
+	TmpFilesDir = "/home/tmp"
 )
+
+var HostPathDirectoryType corev1.HostPathType = "Directory"
 
 func podIsReady(conditions []corev1.PodCondition) bool {
 	for _, condition := range conditions {
@@ -127,6 +136,27 @@ func uninstallOperatorWithHelm(namespace string) bool {
 	}
 
 	return strings.Contains(string(stdout), "uninstalled")
+}
+
+func makeVolumeForKindWorkers(nWorkers int, name string, content string) {
+	for i := 1; i <= nWorkers; i++ {
+		tmpVolumeDir := fmt.Sprintf("/tmp/worker-%v/volume", strconv.FormatInt(int64(i), 10))
+		Expect(os.Mkdir(tmpVolumeDir, 0o777)).To(Succeed())
+
+		sampleFile, err := os.Create(fmt.Sprintf("%v/%v", tmpVolumeDir, name))
+		Expect(err).ToNot(HaveOccurred())
+
+		bytesWritten, err := sampleFile.Write([]byte(content))
+		Expect(bytesWritten).To(Equal(len(content)))
+		Expect(err).ToNot(HaveOccurred())
+	}
+}
+
+func cleanupFilesForKindWorkers(nWorkers int) {
+	for i := 1; i <= nWorkers; i++ {
+		tmpHostDir := fmt.Sprintf("/tmp/worker-%v/volume", strconv.FormatInt(int64(i), 10))
+		Expect(os.RemoveAll(tmpHostDir)).Should(Succeed())
+	}
 }
 
 var _ = Describe("Operator smoke test", func() {
@@ -365,7 +395,7 @@ var _ = Describe("Operator smoke test", func() {
 		}, Timeout, Interval).Should(BeTrue())
 
 		By("tracking storage state changes...")
-		events, err := clientset.CoreV1().Events(ydbNamespace).List(context.Background(), 
+		events, err := clientset.CoreV1().Events(ydbNamespace).List(context.Background(),
 			metav1.ListOptions{TypeMeta: metav1.TypeMeta{Kind: "Storage"}})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -383,32 +413,95 @@ var _ = Describe("Operator smoke test", func() {
 			}
 		}
 	})
+
+	It("[storage|database].Spec.Volumes gets propagated into pods", func() {
+		By("preparing test file...")
+		tmpHostFilename := "sample-file"
+		tmpFileContent := "abc"
+
+		makeVolumeForKindWorkers(8, tmpHostFilename, tmpFileContent)
+		defer func() {
+			cleanupFilesForKindWorkers(8)
 		}()
 
-		err = watchCmd.Start()
+		By("issuing create commands...")
+
+		storageSample.Spec.Volumes = append(storageSample.Spec.Volumes, &corev1.Volume{
+			Name: "sample-volume",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: fmt.Sprintf("%v/volume", TmpFilesDir),
+					Type: &HostPathDirectoryType,
+				},
+			},
+		})
+
+		databaseSample.Spec.Volumes = append(storageSample.Spec.Volumes, &corev1.Volume{
+			Name: "sample-volume",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: fmt.Sprintf("%v/volume", TmpFilesDir),
+					Type: &HostPathDirectoryType,
+				},
+			},
+		})
+
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+
+		By("waiting until storage is ready...")
+		storage := v1alpha1.Storage{}
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: ydbNamespace,
+			}, &storage)).Should(Succeed())
+			return storage.Status.State == ReadyStatus
+		}, Timeout, Interval).Should(BeTrue())
+
+		storagePods := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &storagePods, client.InNamespace(ydbNamespace), client.MatchingLabels{
+			"ydb-cluster": "kind-storage",
+		})).Should(Succeed())
+
+		By("checking the volume has propagated into a storage pod...")
+		firstStoragePod := storagePods.Items[0]
+		output, err := execInPod(storage.Namespace, firstStoragePod.Name, []string{
+			"cat",
+			fmt.Sprintf("%v/%v", "/opt/ydb/volumes/sample-volume", tmpHostFilename),
+		})
 		Expect(err).ToNot(HaveOccurred())
+		Expect(output).To(Equal(tmpFileContent))
 
-		select {
-		case <-isStorageReady:
-		case <-time.After(Timeout):
-			Fail("Storage didn't reach Ready state")
-		}
+		By("waiting until database is ready...")
+		database := v1alpha1.Database{}
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name,
+				Namespace: ydbNamespace,
+			}, &database)).Should(Succeed())
+			return database.Status.State == ReadyStatus
+		}, Timeout, Interval).Should(BeTrue())
 
-		err = watchCmd.Process.Kill()
+		databasePods := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(ydbNamespace), client.MatchingLabels{
+			"ydb-cluster": "kind-database",
+		})).Should(Succeed())
+
+		By("checking the volume has propagated into a database pod...")
+		firstDatabasePod := databasePods.Items[0]
+		output, err = execInPod(database.Namespace, firstDatabasePod.Name, []string{
+			"cat",
+			fmt.Sprintf("%v/%v", "/opt/ydb/volumes/sample-volume", tmpHostFilename),
+		})
 		Expect(err).ToNot(HaveOccurred())
-
-		expectedChanges := map[string]string{
-			"Pending":      "Initializing",
-			"Initializing": "Provisioning",
-			"Provisioning": ReadyStatus,
-		}
-		for i := 1; i < len(seenStatuses); i++ {
-			if seenStatuses[i-1] != seenStatuses[i] {
-				Expect(expectedChanges[seenStatuses[i-1]]).To(Equal(seenStatuses[i]))
-			}
-		}
-
-		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		Expect(output).To(Equal(tmpFileContent))
 	})
 
 	AfterEach(func() {

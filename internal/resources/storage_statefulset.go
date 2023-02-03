@@ -197,6 +197,10 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		})
 	}
 
+	for _, volume := range b.Spec.Volumes {
+		volumes = append(volumes, *volume)
+	}
+
 	if b.areAnyCertificatesAddedToStore() {
 		volumes = append(volumes, corev1.Volume{
 			Name: systemCertsVolumeName,
@@ -387,6 +391,13 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      secret.Name,
 			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, secret.Name),
+		})
+	}
+
+	for _, volume := range b.Spec.Volumes {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      volume.Name,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalVolumes, volume.Name),
 		})
 	}
 

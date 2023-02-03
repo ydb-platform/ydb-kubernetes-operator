@@ -91,12 +91,12 @@ func (r *Reconciler) setInitStorageCompleted(
 	storage *resources.StorageClusterBuilder,
 	message string,
 ) (bool, ctrl.Result, error) {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitStorageStepCondition,
-			Status:  "True",
-			Reason:  InitStorageStepReasonCompleted,
-			Message: "InitStorageStep completed!",
-		})
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:    InitStorageStepCondition,
+		Status:  "True",
+		Reason:  InitStorageStepReasonCompleted,
+		Message: "InitStorageStep completed!",
+	})
 
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 		Type:    StorageReadyCondition,

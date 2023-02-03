@@ -72,6 +72,13 @@ jobs:
       - name: setup-k8s-cluster
         run: |
           kind delete cluster
+
+          # Setup mount points for kind workers. 
+          # /tmp/worker-i -> /home/tmp in i-th worker
+          for i in 1 2 3 4 5 6 7 8; do 
+            mkdir /tmp/worker-${i}
+          done
+
           kind create cluster \
           --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
           --config=./e2e/kind-cluster-config.yaml
