@@ -46,7 +46,6 @@ const (
 	StorageReadyReasonInProgress = ReasonInProgress
 	StorageReadyReasonCompleted  = ReasonCompleted
 
-
 	Stop     = true
 	Continue = false
 

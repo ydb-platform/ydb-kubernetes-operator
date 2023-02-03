@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -365,7 +364,7 @@ var _ = Describe("Operator smoke test", func() {
 		}, Timeout, Interval).Should(BeTrue())
 
 		By("tracking storage state changes...")
-		events, err := clientset.CoreV1().Events(ydbNamespace).List(context.Background(), 
+		events, err := clientset.CoreV1().Events(ydbNamespace).List(context.Background(),
 			metav1.ListOptions{TypeMeta: metav1.TypeMeta{Kind: "Storage"}})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -382,33 +381,6 @@ var _ = Describe("Operator smoke test", func() {
 				Expect(allowedChanges[match[1]]).To(BeEquivalentTo(match[2]))
 			}
 		}
-	})
-		}()
-
-		err = watchCmd.Start()
-		Expect(err).ToNot(HaveOccurred())
-
-		select {
-		case <-isStorageReady:
-		case <-time.After(Timeout):
-			Fail("Storage didn't reach Ready state")
-		}
-
-		err = watchCmd.Process.Kill()
-		Expect(err).ToNot(HaveOccurred())
-
-		expectedChanges := map[string]string{
-			"Pending":      "Initializing",
-			"Initializing": "Provisioning",
-			"Provisioning": ReadyStatus,
-		}
-		for i := 1; i < len(seenStatuses); i++ {
-			if seenStatuses[i-1] != seenStatuses[i] {
-				Expect(expectedChanges[seenStatuses[i-1]]).To(Equal(seenStatuses[i]))
-			}
-		}
-
-		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 	})
 
 	AfterEach(func() {
