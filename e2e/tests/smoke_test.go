@@ -26,7 +26,7 @@ const (
 	Timeout  = time.Second * 600
 	Interval = time.Second * 5
 
-	ydbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
+	ydbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.5.10"
 	ydbNamespace  = "ydb"
 	ydbHome       = "/home/ydb"
 	storageName   = "storage"
