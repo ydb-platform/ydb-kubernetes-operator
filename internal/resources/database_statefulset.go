@@ -222,6 +222,12 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 			},
 		},
 		VolumeMounts: b.buildVolumeMounts(),
+		SecurityContext: &corev1.SecurityContext{
+			Privileged: ptr.Bool(false),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{"SYS_RAWIO"},
+			},
+		},
 	}
 
 	ports := []corev1.ContainerPort{{
