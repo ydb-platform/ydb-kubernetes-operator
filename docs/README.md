@@ -1,16 +1,18 @@
-## Docs
-
 This folder has some info that may be useful in development.
 
 ## Writing tests
+
+### Categories
 
 Tests for the operator have naturally splitted up into three categories:
 
 #### Small
 
 These tests are simple unit tests that do not simulate any Kubernetes infrastructure.
-Useful for testing basic logic chunks of the operator. Grep by "Testing labels" for
-example.
+Useful for testing basic logic chunks of the operator. 
+
+These tests are located directly next to the files which they are testing. Grep for `label.go` and 
+`label_test.go` for a simple self-contained example.
 
 #### Medium
 
