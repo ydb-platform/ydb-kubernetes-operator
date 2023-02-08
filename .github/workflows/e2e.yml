@@ -2,7 +2,7 @@ name: run-e2e
 on:
   pull_request:
     branches: [ "master" ]
-jobs:                                             
+jobs:
   start-runner:
     name: Start self-hosted YC runner
     runs-on: ubuntu-latest
@@ -30,20 +30,20 @@ jobs:
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
     steps:
-      - uses: actions/checkout@v2          
+      - uses: actions/checkout@v2
       - uses: actions/setup-go@v3
         with:
           go-version: '1.19'
       - name: install-dependencies
         run: |
-          sudo apt-get update 
+          sudo apt-get update
           sudo apt-get install -y build-essential
           echo $(which gcc)
 
           export HOME=/actions-runner
           echo "HOME=/actions-runner" >> $GITHUB_ENV
 
-          go install sigs.k8s.io/kind@v0.17.0 
+          go install sigs.k8s.io/kind@v0.17.0
 
           curl -LO https://dl.k8s.io/release/v1.25.0/bin/linux/amd64/kubectl
           chmod +x ./kubectl
@@ -90,8 +90,8 @@ jobs:
       - name: pull-and-load-ydb-image
         run: |
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
-          docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
-          kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+          docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.5.10
+          kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.5.10
       - name: run-tests
         run: |
           go test -p 1 ./...
