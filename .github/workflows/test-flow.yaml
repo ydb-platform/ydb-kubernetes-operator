@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - automate-tags
+
 jobs:
   tag-job: 
     runs-on: ubuntu-latest
