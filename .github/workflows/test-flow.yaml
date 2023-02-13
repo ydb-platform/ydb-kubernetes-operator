@@ -6,9 +6,12 @@ on:
 jobs:
   job1: 
     runs-on: ubuntu-latest
+    outputs:
+      output1: ${{ steps.step1.outputs.tagcreated }}
     steps:
     - uses: actions/checkout@v2          
-    - uses: butlerlogic/action-autotag@stable
+    - id: step1
+      uses: butlerlogic/action-autotag@stable
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
@@ -31,3 +34,4 @@ jobs:
     - run: |
         echo ${{needs.job1.result}}
         echo ${{toJson(needs.job1.outputs)}}
+        echo ${{needs.job1.outputs.output1)}}
