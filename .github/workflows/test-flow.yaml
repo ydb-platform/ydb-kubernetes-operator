@@ -18,15 +18,15 @@ jobs:
   echo-things:
     runs-on: ubuntu-latest
     needs: tag-job
-    if: ${{ needs.tag.tagcreated == 'yes' }}
+    if: ${{ needs.tag-job.outputs.tagcreated == 'yes' }}
     steps:
     - uses: actions/checkout@v2          
     - run: |
-        echo ${{ needs.tag.tagcreated }}
+        echo ${{ needs.tag-job.outputs.tagcreated }}
   unconditional:
     runs-on: ubuntu-latest
     needs: tag-job
     steps:
     - uses: actions/checkout@v2          
     - run: |
-        echo ${{ needs.tag-job.tagcreated }}
+        echo ${{ needs.tag-job.outputs.tagcreated }}
