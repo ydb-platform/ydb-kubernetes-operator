@@ -38,13 +38,9 @@ const (
 	ReasonNotRequired = "NotRequired"
 	ReasonCompleted   = "Completed"
 
-	InitStorageStepCondition        = "InitStorageStep"
-	InitStorageStepReasonInProgress = ReasonInProgress
-	InitStorageStepReasonCompleted  = ReasonCompleted
-
-	StorageReadyCondition        = "StorageReady"
-	StorageReadyReasonInProgress = ReasonInProgress
-	StorageReadyReasonCompleted  = ReasonCompleted
+	StorageInitializedCondition        = "StorageReady"
+	StorageInitializedReasonInProgress = ReasonInProgress
+	StorageInitializedReasonCompleted  = ReasonCompleted
 
 	Stop     = true
 	Continue = false
@@ -67,7 +63,7 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageReadyCondition) {
+	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &storage)
 		if stop {
 			return result, err
