@@ -1,0 +1,32 @@
+name: tag
+on:
+  push:
+    branches:
+      - automate-tags
+jobs:
+  tag-job: 
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2          
+    - uses: butlerlogic/action-autotag@stable
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        strategy: regex
+        root: "/deploy/ydb-operator/Chart.yaml"
+        regex_pattern: 'version:[\s]*(["]?[0-9\.]{3,}["]?)'
+  echo-things:
+    runs-on: ubuntu-latest
+    needs: tag-job
+    if: ${{ needs.tag.tagcreated == 'yes' }}
+    steps:
+    - uses: actions/checkout@v2          
+    - run: |
+        echo ${{ needs.tag.tagcreated }}
+  unconditional:
+    runs-on: ubuntu-latest
+    needs: tag-job
+    steps:
+    - uses: actions/checkout@v2          
+    - run: |
+        echo ${{ needs.tag.tagcreated }}
