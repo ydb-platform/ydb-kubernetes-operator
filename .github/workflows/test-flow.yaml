@@ -30,7 +30,4 @@ jobs:
     - uses: actions/checkout@v2          
     - run: |
         echo ${{needs.job1.result}}
-        echo ${{needs.job1.outputs.tagcreated}}
-        echo ${{needs.job1.outputs.version}}
-        echo ${{needs.job1.outputs.tagsha}}
-        echo ${{needs.job1.outputs.tagname}}
+        echo ${{fromJson(needs.job1.outputs)}}
