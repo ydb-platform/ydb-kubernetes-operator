@@ -7,21 +7,24 @@ on:
     branches:
       - master
 jobs:
-  tag: 
+  tag-job: 
     runs-on: ubuntu-latest
+    outputs:
+      tagcreated: ${{steps.tag-step.outputs.tagcreated}}
     steps:
     - uses: actions/checkout@v2          
-    - uses: butlerlogic/action-autotag@stable
+    - id: tag-step
+      uses: butlerlogic/action-autotag@stable
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         strategy: regex
-        root: "/deploy/ydb-operator/Chart.yaml"
+        root: "./deploy/ydb-operator/Chart.yaml"
         regex_pattern: 'version:[\s]*(["]?[0-9\.]{3,}["]?)'
   upload-artifacts:
     runs-on: ubuntu-latest
     needs: tag
-    if: ${{ needs.tag.tagcreated == 'yes' }}
+    if: ${{ needs.tag-job.outputs.tagcreated == 'yes' }}
     steps:
     - uses: actions/checkout@v2          
     - name: install-dependencies
