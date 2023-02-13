@@ -34,4 +34,4 @@ jobs:
     - run: |
         echo ${{needs.job1.result}}
         echo ${{toJson(needs.job1.outputs)}}
-        echo ${{needs.job1.outputs.output1)}}
+        echo ${{needs.job1.outputs.output1}}
