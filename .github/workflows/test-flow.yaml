@@ -13,7 +13,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         strategy: regex
-        root: "/deploy/ydb-operator/Chart.yaml"
+        root: "./deploy/ydb-operator/Chart.yaml"
         regex_pattern: 'version:[\s]*(["]?[0-9\.]{3,}["]?)'
   echo-things:
     runs-on: ubuntu-latest
@@ -29,4 +29,4 @@ jobs:
     steps:
     - uses: actions/checkout@v2          
     - run: |
-        echo ${{ needs.tag.tagcreated }}
+        echo ${{ needs.tag-job.tagcreated }}
