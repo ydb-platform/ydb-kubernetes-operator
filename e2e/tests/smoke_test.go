@@ -1,13 +1,13 @@
 package tests
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -251,30 +251,35 @@ var _ = Describe("Operator smoke test", func() {
 		}
 		Expect(k8sClient.Create(ctx, &namespace)).Should(Succeed())
 		Expect(installOperatorWithHelm(ydbNamespace)).Should(BeTrue())
+		time.Sleep(time.Second * 10)
 	})
 
 	It("general smoke pipeline, create storage + database", func() {
-		fmt.Println("issuing create commands...")
+		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
 
-		fmt.Println("waiting until storage is ready...")
 		storage := v1alpha1.Storage{}
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
 				Namespace: ydbNamespace,
 			}, &storage)).Should(Succeed())
+
 			return meta.IsStatusConditionPresentAndEqual(
 				storage.Status.Conditions,
-				"StorageInitialized",
+				"StorageReady",
 				metav1.ConditionTrue,
-			)
+			) && storage.Status.State == ReadyStatus
 		}, Timeout, Interval).Should(BeTrue())
-		Expect(storage.Status.State).To(BeEquivalentTo(ReadyStatus))
 
-		fmt.Println("checking that all the storage pods are running and ready...")
-
+		By("checking that all the storage pods are running and ready...")
 		storagePods := corev1.PodList{}
 		Expect(k8sClient.List(ctx, &storagePods, client.InNamespace(ydbNamespace), client.MatchingLabels{
 			"ydb-cluster": "kind-storage",
@@ -285,7 +290,7 @@ var _ = Describe("Operator smoke test", func() {
 			Expect(podIsReady(pod.Status.Conditions)).To(BeTrue())
 		}
 
-		fmt.Println("waiting until database is ready...")
+		By("waiting until database is ready...")
 		database := v1alpha1.Database{}
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
@@ -296,11 +301,10 @@ var _ = Describe("Operator smoke test", func() {
 				database.Status.Conditions,
 				"TenantInitialized",
 				metav1.ConditionTrue,
-			)
+			) && database.Status.State == ReadyStatus
 		}, Timeout, Interval).Should(BeTrue())
-		Expect(database.Status.State).To(BeEquivalentTo(ReadyStatus))
 
-		fmt.Println("checking that all the database pods are running and ready...")
+		By("checking that all the database pods are running and ready...")
 		databasePods := corev1.PodList{}
 		Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(ydbNamespace), client.MatchingLabels{
 			"ydb-cluster": "kind-database",
@@ -336,75 +340,47 @@ var _ = Describe("Operator smoke test", func() {
 		// └─────────┘
 		Expect(strings.ReplaceAll(out, "\n", "")).
 			To(MatchRegexp(".*column0.*1.*"))
-
-		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
 	})
 
-	It("status.State goes Pending -> Provisioning -> Initializing -> Ready", func() {
+	It("storage.State goes Pending -> Preparing -> Provisioning -> Initializing -> Ready", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-
-		fmt.Println("tracking storage state changes...")
-		seenStatuses := []string{}
-
-		watchCmd := exec.Command( //nolint:gosec
-			"kubectl",
-			"-n",
-			ydbNamespace,
-			"get",
-			"storage",
-			storageSample.Name,
-			"--watch",
-		)
-		watchReader, err := watchCmd.StdoutPipe()
-		Expect(err).ToNot(HaveOccurred())
-
-		scanner := bufio.NewScanner(watchReader)
-		isStorageReady := make(chan bool)
-		go func() {
-			for scanner.Scan() {
-				line := scanner.Text()
-				// Each line looks like:
-				// storage Initializing 42s
-				fields := strings.Fields(line)
-				Expect(len(fields)).To(Equal(3))
-				curStatus := fields[1]
-				// Skipping the header of `kubectl` output:
-				// NAME STATUS AGE
-				if curStatus == "STATUS" {
-					continue
-				}
-				seenStatuses = append(seenStatuses, curStatus)
-				if curStatus == ReadyStatus {
-					isStorageReady <- true
-				}
-			}
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 		}()
 
-		err = watchCmd.Start()
+		By("waiting until storage is ready...")
+		storage := v1alpha1.Storage{}
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: ydbNamespace,
+			}, &storage)).Should(Succeed())
+
+			return meta.IsStatusConditionPresentAndEqual(
+				storage.Status.Conditions,
+				"StorageReady",
+				metav1.ConditionTrue,
+			) && storage.Status.State == ReadyStatus
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("tracking storage state changes...")
+		events, err := clientset.CoreV1().Events(ydbNamespace).List(context.Background(),
+			metav1.ListOptions{TypeMeta: metav1.TypeMeta{Kind: "Storage"}})
 		Expect(err).ToNot(HaveOccurred())
 
-		select {
-		case <-isStorageReady:
-		case <-time.After(Timeout):
-			Fail("Storage didn't reach Ready state")
+		allowedChanges := map[string]string{
+			"Pending":      "Preparing",
+			"Preparing":    "Provisioning",
+			"Provisioning": "Initializing",
+			"Initializing": ReadyStatus,
 		}
-
-		err = watchCmd.Process.Kill()
-		Expect(err).ToNot(HaveOccurred())
-
-		expectedChanges := map[string]string{
-			"Pending":      "Initializing",
-			"Initializing": "Provisioning",
-			"Provisioning": ReadyStatus,
-		}
-		for i := 1; i < len(seenStatuses); i++ {
-			if seenStatuses[i-1] != seenStatuses[i] {
-				Expect(expectedChanges[seenStatuses[i-1]]).To(Equal(seenStatuses[i]))
+		re := regexp.MustCompile(`Storage moved from ([a-zA-Z]+) to ([a-zA-Z]+)`)
+		for _, event := range events.Items {
+			if event.Reason == "StatusChanged" {
+				match := re.FindStringSubmatch(event.Message)
+				Expect(allowedChanges[match[1]]).To(BeEquivalentTo(match[2]))
 			}
 		}
-
-		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 	})
 
 	AfterEach(func() {

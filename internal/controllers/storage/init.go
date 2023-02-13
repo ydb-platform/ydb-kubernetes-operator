@@ -18,7 +18,10 @@ import (
 var mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# " +
 	"0.*ItemConfigGenerationExpected# 1.*")
 
-func (r *Reconciler) processSkipInitPipeline(storage *resources.StorageClusterBuilder) {
+func (r *Reconciler) processSkipInitPipeline(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
 	r.Log.Info("running step processSkipInitPipeline")
 	r.Log.Info("Storage initialization disabled (with annotation), proceed with caution")
 
@@ -29,28 +32,11 @@ func (r *Reconciler) processSkipInitPipeline(storage *resources.StorageClusterBu
 		"Skipping initialization due to skip annotation present, be careful!",
 	)
 
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    InitStorageStepCondition,
-		Status:  metav1.ConditionTrue,
-		Reason:  InitStorageStepReasonCompleted,
-		Message: "InitStorageStep not performed because initialization is skipped",
-	})
-
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    StorageInitializedCondition,
-		Status:  metav1.ConditionTrue,
-		Reason:  StorageInitializedReasonCompleted,
-		Message: "Storage initialization skipped",
-	})
-
-	r.Recorder.Event(
+	return r.setInitStorageCompleted(
+		ctx,
 		storage,
-		corev1.EventTypeNormal,
-		"ResourcesReady",
-		"All resources are ready",
+		"Storage initialization not performed because initialization is skipped",
 	)
-
-	storage.Status.State = string(Ready)
 }
 
 func (r *Reconciler) setInitialStatus(
@@ -66,8 +52,7 @@ func (r *Reconciler) setInitialStatus(
 	if value, ok := storage.Annotations[annotationSkipInitialization]; ok && value == "true" {
 		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil ||
 			meta.IsStatusConditionFalse(storage.Status.Conditions, StorageInitializedCondition) {
-			r.processSkipInitPipeline(storage)
-			return r.setState(ctx, storage)
+			return r.processSkipInitPipeline(ctx, storage)
 		}
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
@@ -78,21 +63,12 @@ func (r *Reconciler) setInitialStatus(
 			Type:    StorageInitializedCondition,
 			Status:  "False",
 			Reason:  StorageInitializedReasonInProgress,
-			Message: "Storage initialization in progress",
-		})
-		changed = true
-	}
-	if meta.FindStatusCondition(storage.Status.Conditions, InitStorageStepCondition) == nil {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitStorageStepCondition,
-			Status:  "False",
-			Reason:  InitStorageStepReasonInProgress,
-			Message: "InitStorageStep is required",
+			Message: "Storage is not ready yet",
 		})
 		changed = true
 	}
 	if storage.Status.State == string(Pending) {
-		storage.Status.State = string(Initializing)
+		storage.Status.State = string(Preparing)
 		changed = true
 	}
 	if changed {
@@ -101,31 +77,34 @@ func (r *Reconciler) setInitialStatus(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) runInitScripts(
+func (r *Reconciler) setInitStorageCompleted(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+	message string,
+) (bool, ctrl.Result, error) {
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:    StorageInitializedCondition,
+		Status:  "True",
+		Reason:  StorageInitializedReasonCompleted,
+		Message: message,
+	})
+
+	storage.Status.State = string(Ready)
+	return r.setState(ctx, storage)
+}
+
+func (r *Reconciler) initializeStorage(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
-	podName := fmt.Sprintf("%s-0", storage.Name)
 
-	if meta.IsStatusConditionTrue(storage.Status.Conditions, InitStorageStepCondition) {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    StorageInitializedCondition,
-			Status:  "True",
-			Reason:  StorageInitializedReasonCompleted,
-			Message: "Storage initialized successfully",
-		})
-
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeNormal,
-			"ResourcesReady",
-			"All resources are ready",
-		)
-		storage.Status.State = string(Ready)
-
+	if storage.Status.State == string(Provisioning) {
+		storage.Status.State = string(Initializing)
 		return r.setState(ctx, storage)
 	}
+
+	podName := fmt.Sprintf("%s-0", storage.Name)
 
 	cmd := []string{
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
@@ -147,25 +126,22 @@ func (r *Reconciler) runInitScripts(
 	if err != nil {
 		if mismatchItemConfigGenerationRegexp.MatchString(stdout) {
 			r.Log.Info("Storage is already initialized, continuing...")
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeNormal,
+				"InitializingStorage",
+				"Storage initialization attempted and skipped, storage already initialized",
+			)
 
-			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-				Type:    InitStorageStepCondition,
-				Status:  "True",
-				Reason:  InitStorageStepReasonCompleted,
-				Message: "InitStorageStep counted as completed, Storage already initialized",
-			})
-			return r.setState(ctx, storage)
+			return r.setInitStorageCompleted(
+				ctx,
+				storage,
+				"Storage already initialized",
+			)
 		}
 
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 	}
 
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    InitStorageStepCondition,
-		Status:  "True",
-		Reason:  InitStorageStepReasonCompleted,
-		Message: "InitStorageStep completed successfully",
-	})
-
-	return r.setState(ctx, storage)
+	return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
 }
