@@ -18,12 +18,12 @@ When you increment the version in `Chart.yaml` and your PR is merged into master
 is automatically extracted from the Chart like this:
 
 ```
-version: 0.4.22  ->  0.4.22
+"version: 0.4.22"  ->  "0.4.22"
 ```
 
-If the version is new, then:
+If the version is new (no previous commit was tagged with this version), then:
 
-- this merge commit gets tagged;
+- this merge commit gets tagged with version extracted from `Chart.yaml`;
 - new docker image is built and uploaded to `cr.yandex/yc/ydb-kubernetes-operator`;
 - new chart version is uploaded to https://charts.ydb.tech.
 
