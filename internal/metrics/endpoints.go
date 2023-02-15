@@ -15,8 +15,8 @@ type Service struct {
 func getMetricsServices(services []string) []Service {
 	_ = services
 
-	metricsServices := make([]Service, 0, len(storageMetricsServices))
-	for _, serviceName := range storageMetricsServices {
+	metricsServices := make([]Service, 0, len(services))
+	for _, serviceName := range services {
 		var servicePath string
 		if serviceName == "ydb" || serviceName == "ydb_serverless" {
 			servicePath = fmt.Sprintf(MetricEndpointFormat, serviceName+"/name_label=name")
