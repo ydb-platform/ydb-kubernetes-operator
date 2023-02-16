@@ -283,13 +283,13 @@ func (r *Reconciler) processSkipInitPipeline(
 		database,
 		corev1.EventTypeWarning,
 		"SkippingInit",
-		"Skipping initialization due to skip annotation present, be careful!",
+		"Skipping database creation due to skip annotation present, be careful!",
 	)
 
 	return r.setInitDatabaseCompleted(
 		ctx,
 		database,
-		"Database initialization not performed because initialization is skipped",
+		"Database creation not performed because initialization is skipped",
 	)
 }
 

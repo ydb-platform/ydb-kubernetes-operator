@@ -13,10 +13,10 @@ CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 ENVTEST_K8S_VERSION = 1.21
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go1.19 env GOBIN))
-GOBIN=$(shell go1.19 env GOPATH)/bin
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
 else
-GOBIN=$(shell go1.19 env GOBIN)
+GOBIN=$(shell go env GOBIN)
 endif
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
@@ -54,21 +54,28 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 	$(CONTROLLER_GEN) object:headerFile="build/hack/boilerplate.go.txt" paths="./..."
 
 fmt: ## Run go fmt against code.
-	go1.19 fmt ./...
+	go fmt ./...
 
 vet: ## Run go vet against code.
-	go1.19 vet ./...
+	go vet ./...
 
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go1.19 test ./... -coverprofile cover.out
+test: manifests generate fmt vet envtest docker-build ## Run tests.
+	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator
+	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
+	kind load docker-image cr.yandex/yc/ydb-operator:latest --name kind-ydb-operator
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
+
+.PHONY: clean
+clean:
+	kind delete cluster --name kind-ydb-operator
 
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go1.19 build -o bin/manager cmd/ydb-kubernetes-operator/main.go
+	go build -o bin/manager cmd/ydb-kubernetes-operator/main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go1.19 run ./cmd/ydb-kubernetes-operator/main.go
+	go run ./cmd/ydb-kubernetes-operator/main.go
 
 docker-build: ## Build docker image with the manager.
 	docker build -t ${IMG} .
@@ -111,9 +118,9 @@ define go-get-tool
 set -e ;\
 TMP_DIR=$$(mktemp -d) ;\
 cd $$TMP_DIR ;\
-go1.19 mod init tmp ;\
+go mod init tmp ;\
 echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go1.19 install $(2) ;\
+GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
