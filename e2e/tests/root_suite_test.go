@@ -3,6 +3,7 @@ package tests
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -42,6 +43,10 @@ var _ = BeforeSuite(func() {
 	cfg, err := testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
+
+	if useExistingCluster && !(strings.Contains(cfg.Host, "127.0.0.1") || strings.Contains(cfg.Host, "localhost")) {
+		Fail("You are trying to run e2e tests against some real cluster, not the local `kind` cluster!")
+	}
 
 	err = v1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
