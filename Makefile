@@ -59,15 +59,22 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-test: manifests generate fmt vet envtest ## Run tests.
+test: manifests generate fmt vet envtest docker-build ## Run tests.
+	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator
+	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
+	kind load docker-image cr.yandex/yc/ydb-operator:latest --name kind-ydb-operator
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
+
+.PHONY: clean
+clean:
+	kind delete cluster --name kind-ydb-operator
 
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/ydb-kubernetes-operator/main.go
 
-docker-build: test ## Build docker image with the manager.
+docker-build: ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
 docker-push: ## Push docker image with the manager.

@@ -173,6 +173,13 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.TopologySpreadConstraints != nil {
+		in, out := &in.TopologySpreadConstraints, &out.TopologySpreadConstraints
+		*out = make([]v1.TopologySpreadConstraint, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.AdditionalLabels != nil {
 		in, out := &in.AdditionalLabels, &out.AdditionalLabels
 		*out = make(map[string]string, len(*in))
@@ -420,7 +427,7 @@ func (in *Service) DeepCopyInto(out *Service) {
 	}
 	if in.IPFamilyPolicy != nil {
 		in, out := &in.IPFamilyPolicy, &out.IPFamilyPolicy
-		*out = new(v1.IPFamilyPolicyType)
+		*out = new(v1.IPFamilyPolicy)
 		**out = **in
 	}
 }
@@ -614,6 +621,13 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 	if in.Tolerations != nil {
 		in, out := &in.Tolerations, &out.Tolerations
 		*out = make([]v1.Toleration, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.TopologySpreadConstraints != nil {
+		in, out := &in.TopologySpreadConstraints, &out.TopologySpreadConstraints
+		*out = make([]v1.TopologySpreadConstraint, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
