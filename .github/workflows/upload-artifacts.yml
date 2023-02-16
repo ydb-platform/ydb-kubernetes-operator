@@ -23,7 +23,7 @@ jobs:
         regex_pattern: 'version:[\s]*(["]?[0-9\.]{3,}["]?)'
   upload-artifacts:
     runs-on: ubuntu-latest
-    needs: tag
+    needs: tag-job
     if: ${{ needs.tag-job.outputs.tagcreated == 'yes' }}
     steps:
     - uses: actions/checkout@v2          
