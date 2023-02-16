@@ -85,7 +85,6 @@ jobs:
           tags: kind/ydb-operator:current
       - name: load-and-deploy-operator
         run: |
-          docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
           kind load docker-image kind/ydb-operator:current
       - name: pull-and-load-ydb-image
         run: |
