@@ -44,8 +44,6 @@ const (
 
 	Stop     = true
 	Continue = false
-
-	annotationSkipInitialization = "ydb.tech/skip-initialization"
 )
 
 type ClusterState string

@@ -13,10 +13,10 @@ CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 ENVTEST_K8S_VERSION = 1.21
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
+ifeq (,$(shell go1.19 env GOBIN))
+GOBIN=$(shell go1.19 env GOPATH)/bin
 else
-GOBIN=$(shell go env GOBIN)
+GOBIN=$(shell go1.19 env GOBIN)
 endif
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
@@ -54,23 +54,23 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 	$(CONTROLLER_GEN) object:headerFile="build/hack/boilerplate.go.txt" paths="./..."
 
 fmt: ## Run go fmt against code.
-	go fmt ./...
+	go1.19 fmt ./...
 
 vet: ## Run go vet against code.
-	go vet ./...
+	go1.19 vet ./...
 
 test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go1.19 test ./... -coverprofile cover.out
 
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/ydb-kubernetes-operator/main.go
+	go1.19 build -o bin/manager cmd/ydb-kubernetes-operator/main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/ydb-kubernetes-operator/main.go
+	go1.19 run ./cmd/ydb-kubernetes-operator/main.go
 
-docker-build: test ## Build docker image with the manager.
+docker-build: ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
 docker-push: ## Push docker image with the manager.
@@ -111,9 +111,9 @@ define go-get-tool
 set -e ;\
 TMP_DIR=$$(mktemp -d) ;\
 cd $$TMP_DIR ;\
-go mod init tmp ;\
+go1.19 mod init tmp ;\
 echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
+GOBIN=$(PROJECT_DIR)/bin go1.19 install $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef

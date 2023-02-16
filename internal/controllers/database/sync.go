@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
@@ -272,11 +273,41 @@ func (r *Reconciler) handleResourcesSync(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
+func (r *Reconciler) processSkipInitPipeline(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step processSkipInitPipeline")
+	r.Log.Info("Database initialization disabled (with annotation), proceed with caution")
+
+	r.Recorder.Event(
+		database,
+		corev1.EventTypeWarning,
+		"SkippingInit",
+		"Skipping initialization due to skip annotation present, be careful!",
+	)
+
+	return r.setInitDatabaseCompleted(
+		ctx,
+		database,
+		"Database initialization not performed because initialization is skipped",
+	)
+}
+
 func (r *Reconciler) setInitialStatus(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
+
+	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == "true" {
+		if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(database.Status.Conditions, TenantInitializedCondition) {
+			return r.processSkipInitPipeline(ctx, database)
+		}
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+	}
+
 	changed := false
 	if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
@@ -295,6 +326,22 @@ func (r *Reconciler) setInitialStatus(
 		return r.setState(ctx, database)
 	}
 	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func (r *Reconciler) setInitDatabaseCompleted(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+	message string,
+) (bool, ctrl.Result, error) {
+	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+		Type:    TenantInitializedCondition,
+		Status:  "True",
+		Reason:  TenantInitializedReasonCompleted,
+		Message: message,
+	})
+
+	database.Status.State = string(Ready)
+	return r.setState(ctx, database)
 }
 
 func (r *Reconciler) handleTenantCreation(
@@ -397,12 +444,6 @@ func (r *Reconciler) handleTenantCreation(
 		"Initialized",
 		fmt.Sprintf("Tenant %s created", tenant.Path),
 	)
-	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    TenantInitializedCondition,
-		Status:  "True",
-		Reason:  TenantInitializedReasonCompleted,
-		Message: "Tenant creation is complete",
-	})
 
 	r.Recorder.Event(
 		database,
@@ -410,9 +451,12 @@ func (r *Reconciler) handleTenantCreation(
 		"DatabaseReady",
 		"Database is initialized",
 	)
-	database.Status.State = string(Ready)
 
-	return r.setState(ctx, database)
+	return r.setInitDatabaseCompleted(
+		ctx,
+		database,
+		"Database initialization is completed",
+	)
 }
 
 func (r *Reconciler) setState(

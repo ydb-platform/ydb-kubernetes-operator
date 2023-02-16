@@ -144,6 +144,10 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 }
 
 func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.TopologySpreadConstraint {
+	if len(b.Spec.TopologySpreadConstraints) > 0 {
+		return b.Spec.TopologySpreadConstraints
+	}
+
 	if b.Spec.Erasure != v1alpha1.ErasureMirror3DC {
 		return []corev1.TopologySpreadConstraint{}
 	}
