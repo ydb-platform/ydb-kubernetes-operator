@@ -100,7 +100,7 @@ func (r *Database) ValidateCreate() error {
 
 	if r.Spec.Domain != "" && r.Spec.Path != "" {
 		if !strings.HasPrefix(r.Spec.Path, fmt.Sprintf("/%s", r.Spec.Domain)) {
-			return errors.New(fmt.Sprintf("incorrect database path, must start with domain: \"/%s\"", r.Spec.Domain))
+			return fmt.Errorf("incorrect database path, must start with domain: \"/%s\"", r.Spec.Domain)
 		}
 	}
 
