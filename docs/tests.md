@@ -47,7 +47,7 @@ kind delete cluster --name=local-kind
 kind create cluster \
  --image=kindest/node:v1.21.14@sha256:9d9eb5fb26b4fbc0c6d95fa8c790414f9750dd583f5d7cee45d92e8c26670aa1 \
  --name=local-kind \
- --config=./e2e/tests/kind-cluster-config.yaml \
+ --config=./e2e/kind-cluster-config.yaml \
  --wait 5m
 
 # Switch your local kubeconfig to the newly created cluster:
