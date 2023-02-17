@@ -153,6 +153,11 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 		*out = new(MonitoringOptions)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.CABundle != nil {
+		in, out := &in.CABundle, &out.CABundle
+		*out = make([]byte, len(*in))
+		copy(*out, *in)
+	}
 	in.Image.DeepCopyInto(&out.Image)
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector

@@ -81,7 +81,6 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 		},
 		Spec: corev1.PodSpec{
 			Containers:                []corev1.Container{b.buildContainer()},
-			InitContainers:            b.Spec.InitContainers,
 			NodeSelector:              b.Spec.NodeSelector,
 			Affinity:                  b.Spec.Affinity,
 			Tolerations:               b.Spec.Tolerations,
@@ -94,6 +93,18 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			},
 		},
 	}
+
+	// InitContainer only needed for CaBundle manipulation for now,
+	// may be probably used for other stuff later
+	if b.areAnyCertificatesAddedToStore() {
+		podTemplate.Spec.InitContainers = append(
+			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
+			b.Spec.InitContainers...,
+		)
+	} else {
+		podTemplate.Spec.InitContainers = b.Spec.InitContainers
+	}
+
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
@@ -133,7 +144,105 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		}
 	}
 
+	if b.areAnyCertificatesAddedToStore() {
+		volumes = append(volumes, corev1.Volume{
+			Name: systemCertsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+
+		volumes = append(volumes, corev1.Volume{
+			Name: localCertsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+	}
+
 	return volumes
+}
+
+func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
+	command, args := b.buildCaStorePatchingInitContainerArgs()
+
+	container := corev1.Container{
+		Name:            "ydb-storage-init-container",
+		Image:           b.Spec.Image.Name,
+		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		Command:         command,
+		Args:            args,
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser: new(int64),
+		},
+
+		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
+	}
+	var containerResources corev1.ResourceRequirements
+	if b.Spec.Resources != nil {
+		containerResources = b.Spec.Resources.ContainerResources
+	} else if b.Spec.SharedResources != nil {
+		containerResources = b.Spec.SharedResources.ContainerResources
+	}
+	container.Resources = containerResources
+
+	if len(b.Spec.CABundle) > 0 {
+		container.Env = []corev1.EnvVar{
+			{
+				Name:  caBundleEnvName,
+				Value: string(b.Spec.CABundle),
+			},
+		}
+	}
+	return container
+}
+
+func (b *DatabaseStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
+	return len(b.Spec.CABundle) > 0 ||
+		b.Spec.Service.GRPC.TLSConfiguration.Enabled ||
+		b.Spec.Service.Interconnect.TLSConfiguration.Enabled ||
+		b.Spec.Service.Datastreams.TLSConfiguration.Enabled
+}
+
+func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
+	volumeMounts := []corev1.VolumeMount{}
+
+	if b.areAnyCertificatesAddedToStore() {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      localCertsVolumeName,
+			MountPath: localCertsDir,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      systemCertsVolumeName,
+			MountPath: systemCertsDir,
+		})
+	}
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      grpcTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: "/tls/grpc", // fixme const
+		})
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      interconnectTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: "/tls/interconnect", // fixme const
+		})
+	}
+
+	if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      datastreamsTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: "/tls/datastreams", // fixme const
+		})
+	}
+	return volumeMounts
 }
 
 func buildTLSVolume(name string, configuration *v1alpha1.TLSConfiguration) corev1.Volume { // fixme move somewhere?
@@ -303,7 +412,45 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		}
 	}
 
+	if b.areAnyCertificatesAddedToStore() {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      localCertsVolumeName,
+			MountPath: localCertsDir,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      systemCertsVolumeName,
+			MountPath: systemCertsDir,
+		})
+	}
+
 	return volumeMounts
+}
+
+func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]string, []string) {
+	command := []string{"/bin/bash", "-c"}
+
+	arg := ""
+
+	if len(b.Spec.CABundle) > 0 {
+		arg += fmt.Sprintf("echo $%s > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
+	}
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt && ", localCertsDir) // fixme const
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt && ", localCertsDir) // fixme const
+	}
+
+	if arg != "" {
+		arg += "update-ca-certificates"
+	}
+
+	args := []string{arg}
+
+	return command, args
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {

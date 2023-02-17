@@ -111,13 +111,13 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			NodeSelector: b.Spec.NodeSelector,
 			Affinity:     b.Spec.Affinity,
 			Tolerations:  b.Spec.Tolerations,
+			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},
-			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 		},
 	}
 

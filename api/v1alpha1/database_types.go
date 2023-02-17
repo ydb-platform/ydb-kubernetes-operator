@@ -85,6 +85,11 @@ type DatabaseSpec struct {
 	// +optional
 	Monitoring *MonitoringOptions `json:"monitoring,omitempty"`
 
+	// User-defined root certificate authority that is added to system trust
+	// store of Storage pods on startup.
+	// +optional
+	CABundle []byte `json:"caBundle,omitempty"`
+
 	// (Optional) YDBVersion sets the explicit version of the YDB image
 	// Default: ""
 	// +optional
