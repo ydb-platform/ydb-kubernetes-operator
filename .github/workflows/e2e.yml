@@ -74,9 +74,8 @@ jobs:
           # This installs kube-apiserver and etcd binaries for `medium` 
           # class tests. Refer to the writing tests docs for more info.
           make envtest
-          # TODO figure out later. sorry, for some reason github-runner 
-          # didn't pick setup-envtest up into path and I was in a hurry.
-          "$HOME/go/bin/"setup-envtest use 1.26
+          ./bin/setup-envtest use 1.26
+          echo $KUBEBUILDER_ASSETS
       - name: setup-k8s-cluster
         run: |
           kind delete cluster
