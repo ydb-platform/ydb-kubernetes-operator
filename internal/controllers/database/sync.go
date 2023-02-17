@@ -408,7 +408,7 @@ func (r *Reconciler) handleTenantCreation(
 			)
 			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
 		}
-		sharedDatabasepath = v1alpha1.GetDatabasePath(sharedDatabaseCr)
+		sharedDatabasePath = v1alpha1.GetDatabasePath(sharedDatabaseCr)
 	default:
 		// TODO: move this logic to webhook
 		r.Recorder.Event(
