@@ -58,9 +58,6 @@ jobs:
           echo "$(pwd)" >> $GITHUB_PATH
           echo "$HOME/ydb/bin" >> $GITHUB_PATH
           echo "$HOME/go/bin" >> $GITHUB_PATH
-
-          make envtest
-          setup-envtest use 1.26
       - name: configure-system
         run: |
           sudo sysctl fs.inotify.max_user_instances=1280
@@ -79,6 +76,12 @@ jobs:
           --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
           --config=./e2e/kind-cluster-config.yaml
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
+      - name: setup-medium-test-class-binaries
+        run: |
+          # This installs kube-apiserver and etcd binaries for `medium` 
+          # class tests. Refer to the writing tests docs for more info.
+          make envtest
+          setup-envtest use 1.26
       - name: build-operator-image
         uses: docker/build-push-action@v3
         with:
