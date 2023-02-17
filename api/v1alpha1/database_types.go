@@ -99,6 +99,11 @@ type DatabaseSpec struct {
 	// +optional
 	CABundle []byte `json:"caBundle,omitempty"`
 
+	// Secret names that will be mounted into the well-known directory of
+	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
+	// +optional
+	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
+
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/

@@ -2362,6 +2362,19 @@ spec:
                       type: object
                     type: array
                 type: object
+              secrets:
+                description: 'Secret names that will be mounted into the well-known
+                  directory of every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`'
+                items:
+                  description: LocalObjectReference contains enough information to
+                    let you locate the referenced object inside the same namespace.
+                  properties:
+                    name:
+                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                  type: object
+                type: array
               serverlessResources:
                 description: (Optional) If specified, created database will be "serverless".
                 properties:

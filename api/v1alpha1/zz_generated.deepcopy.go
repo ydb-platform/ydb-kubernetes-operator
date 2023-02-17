@@ -159,6 +159,17 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 		*out = make([]byte, len(*in))
 		copy(*out, *in)
 	}
+	if in.Secrets != nil {
+		in, out := &in.Secrets, &out.Secrets
+		*out = make([]*v1.LocalObjectReference, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.LocalObjectReference)
+				**out = **in
+			}
+		}
+	}
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
 		*out = make(map[string]string, len(*in))
