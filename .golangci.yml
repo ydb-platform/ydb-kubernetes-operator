@@ -207,6 +207,7 @@ issues:
   # Default: []
   exclude:
     - "has been deprecated since Go 1.16"
+    - "Consider pre-allocating.*"
 
   # Independently from option `exclude` we use default exclude patterns,
   # it can be disabled by this option. To list all
