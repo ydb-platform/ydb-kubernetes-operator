@@ -349,7 +349,7 @@ func (r *Reconciler) handleTenantCreation(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleTenantCreation")
 
-	path := database.GetPath()
+	path := v1alpha1.GetDatabasePath(database.Database)
 	var storageUnits []v1alpha1.StorageUnit
 	var shared bool
 	var sharedDatabasePath string
@@ -408,7 +408,7 @@ func (r *Reconciler) handleTenantCreation(
 			)
 			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
 		}
-		sharedDatabasePath = fmt.Sprintf(v1alpha1.TenantNameFormat, sharedDatabaseCr.Spec.Domain, sharedDatabaseCr.Name)
+		sharedDatabasepath = v1alpha1.GetDatabasePath(sharedDatabaseCr)
 	default:
 		// TODO: move this logic to webhook
 		r.Recorder.Event(

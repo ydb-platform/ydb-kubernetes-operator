@@ -56,13 +56,6 @@ func (b *DatabaseBuilder) GetStorageEndpoint() string {
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
-func (b *DatabaseBuilder) GetPath() string {
-	if b.Spec.Path == "" {
-		return api.GetDatabasePath(b.Database)
-	}
-	return b.Spec.Path
-}
-
 func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 	if b.Spec.ServerlessResources != nil {
 		return []ResourceBuilder{}

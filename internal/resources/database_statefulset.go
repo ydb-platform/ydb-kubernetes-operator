@@ -480,7 +480,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	db := NewDatabase(b.DeepCopy())
 	db.Storage = b.Storage
 
-	tenantName := fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name) // FIXME: PATH
+	tenantName := v1alpha1.GetDatabasePath(b.Database)
 
 	args := []string{
 		"server",
