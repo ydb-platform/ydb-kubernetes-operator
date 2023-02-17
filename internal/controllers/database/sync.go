@@ -214,7 +214,7 @@ func (r *Reconciler) handleResourcesSync(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
 
-	for _, builder := range database.GetResourceBuilders() {
+	for _, builder := range database.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(database)
 
 		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {
