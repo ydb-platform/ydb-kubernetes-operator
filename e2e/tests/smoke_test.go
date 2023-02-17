@@ -34,13 +34,6 @@ const (
 	defaultDomain = "Root"
 
 	ReadyStatus = "Ready"
-	// This is the directory that is used to store temporary files to be propagated into pods.
-	// For example, in `hostPath` volume testing.
-	// It works like this: for 8 kind workers, we create 8 folders: /tmp/worker-1/volume,
-	// and each of them is propagated to /home/tmp/volume of each of the workers.
-	// We have to make 8 copies on host kind runner, because duplicate mounts in docker
-	// are not allowed.
-	TmpFilesDir = "/home/tmp"
 )
 
 var HostPathDirectoryType corev1.HostPathType = "Directory"
@@ -283,7 +276,7 @@ var _ = Describe("Operator smoke test", func() {
 
 			return meta.IsStatusConditionPresentAndEqual(
 				storage.Status.Conditions,
-				"StorageInitialized",
+				"StorageReady",
 				metav1.ConditionTrue,
 			) && storage.Status.State == ReadyStatus
 		}, Timeout, Interval).Should(BeTrue())
@@ -367,7 +360,7 @@ var _ = Describe("Operator smoke test", func() {
 
 			return meta.IsStatusConditionPresentAndEqual(
 				storage.Status.Conditions,
-				"StorageInitialized",
+				"StorageReady",
 				metav1.ConditionTrue,
 			) && storage.Status.State == ReadyStatus
 		}, Timeout, Interval).Should(BeTrue())
