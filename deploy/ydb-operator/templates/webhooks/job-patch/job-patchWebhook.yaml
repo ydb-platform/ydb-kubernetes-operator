@@ -41,7 +41,6 @@ spec:
             - --webhook-name={{ template "ydb.fullname" . }}-webhook
             - --namespace={{ .Release.Namespace }}
             - --secret-name={{ template "ydb.fullname" . }}-webhook
-            - --patch-validating=false
             - --patch-failure-policy=Fail
           resources:
 {{ toYaml .Values.webhook.patch.resources | indent 12 }}

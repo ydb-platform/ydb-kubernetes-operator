@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,6 +24,10 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databases,verbs=create;update,versions=v1alpha1,name=mutate-database.ydb.tech,admissionReviewVersions=v1
 
 var _ webhook.Defaulter = &Database{}
+
+func GetDatabasePath(r *Database) string {
+	return fmt.Sprintf(TenantNameFormat, r.Spec.Domain, r.Name) // FIXME: review later in context of multiple namespaces
+}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *Database) Default() {
@@ -63,7 +68,11 @@ func (r *Database) Default() {
 	}
 
 	if r.Spec.Domain == "" {
-		r.Spec.Domain = DefaultDatabaseDomain // FIXME
+		r.Spec.Domain = DefaultDatabaseDomain // FIXME: default domain should be "Root", not "root"
+	}
+
+	if r.Spec.Path == "" {
+		r.Spec.Path = GetDatabasePath(r)
 	}
 
 	if r.Spec.Encryption == nil {
@@ -89,6 +98,12 @@ var _ webhook.Validator = &Database{}
 func (r *Database) ValidateCreate() error {
 	databaselog.Info("validate create", "name", r.Name)
 
+	if r.Spec.Domain != "" && r.Spec.Path != "" {
+		if !strings.HasPrefix(r.Spec.Path, fmt.Sprintf("/%s", r.Spec.Domain)) {
+			return fmt.Errorf("incorrect database path, must start with domain: \"/%s\"", r.Spec.Domain)
+		}
+	}
+
 	if r.Spec.Resources == nil && r.Spec.SharedResources == nil && r.Spec.ServerlessResources == nil {
 		return errors.New("incorrect database resources configuration, must be one of: Resources, SharedResources, ServerlessResources")
 	}
@@ -101,7 +116,19 @@ func (r *Database) ValidateCreate() error {
 func (r *Database) ValidateUpdate(old runtime.Object) error {
 	databaselog.Info("validate update", "name", r.Name)
 
-	// TODO(user): fill in your validation logic upon object update.
+	oldDatabase, _ := old.(*Database)
+	if r.Spec.Domain != oldDatabase.Spec.Domain {
+		return errors.New("database domain cannot be changed")
+	}
+
+	oldDatabasePath := oldDatabase.Spec.Path
+	if oldDatabase.Spec.Path == "" {
+		oldDatabasePath = GetDatabasePath(r)
+	}
+	if r.Spec.Path != oldDatabasePath {
+		return errors.New("database path cannot be changed")
+	}
+
 	return nil
 }
 

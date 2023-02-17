@@ -57,7 +57,10 @@ func (b *DatabaseBuilder) GetStorageEndpoint() string {
 }
 
 func (b *DatabaseBuilder) GetPath() string {
-	return fmt.Sprintf(api.TenantNameFormat, b.Spec.Domain, b.Name)
+	if b.Spec.Path == "" {
+		return api.GetDatabasePath(b.Database)
+	}
+	return b.Spec.Path
 }
 
 func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {

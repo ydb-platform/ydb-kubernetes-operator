@@ -38,18 +38,12 @@ const (
 	ReasonNotRequired = "NotRequired"
 	ReasonCompleted   = "Completed"
 
-	InitStorageStepCondition        = "InitStorageStep"
-	InitStorageStepReasonInProgress = ReasonInProgress
-	InitStorageStepReasonCompleted  = ReasonCompleted
-
-	StorageReadyCondition        = "StorageReady"
-	StorageReadyReasonInProgress = ReasonInProgress
-	StorageReadyReasonCompleted  = ReasonCompleted
+	StorageInitializedCondition        = "StorageReady"
+	StorageInitializedReasonInProgress = ReasonInProgress
+	StorageInitializedReasonCompleted  = ReasonCompleted
 
 	Stop     = true
 	Continue = false
-
-	annotationSkipInitialization = "ydb.tech/skip-initialization"
 )
 
 type ClusterState string
@@ -67,7 +61,7 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageReadyCondition) {
+	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &storage)
 		if stop {
 			return result, err
@@ -279,15 +273,13 @@ func (r *Reconciler) setState(
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else {
-		if oldStatus != storage.Status.State {
-			r.Recorder.Event(
-				storageCr,
-				corev1.EventTypeNormal,
-				"StatusChanged",
-				fmt.Sprintf("Storage moved from %s to %s", oldStatus, storage.Status.State),
-			)
-		}
+	} else if oldStatus != storage.Status.State {
+		r.Recorder.Event(
+			storageCr,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storage.Status.State),
+		)
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil

@@ -112,6 +112,16 @@ type StorageSpec struct {
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 
+	// (Optional) If specified, the pod's topologySpreadConstraints.
+	// All topologySpreadConstraints are ANDed.
+	// +optional
+	// +patchMergeKey=topologyKey
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=topologyKey
+	// +listMapKey=whenUnsatisfiable
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
+
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`

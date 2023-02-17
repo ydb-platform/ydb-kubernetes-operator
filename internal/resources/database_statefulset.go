@@ -80,11 +80,12 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
-			Containers:     []corev1.Container{b.buildContainer()},
-			InitContainers: b.Spec.InitContainers,
-			NodeSelector:   b.Spec.NodeSelector,
-			Affinity:       b.Spec.Affinity,
-			Tolerations:    b.Spec.Tolerations,
+			Containers:                []corev1.Container{b.buildContainer()},
+			InitContainers:            b.Spec.InitContainers,
+			NodeSelector:              b.Spec.NodeSelector,
+			Affinity:                  b.Spec.Affinity,
+			Tolerations:               b.Spec.Tolerations,
+			TopologySpreadConstraints: b.Spec.TopologySpreadConstraints,
 
 			Volumes: b.buildVolumes(),
 
@@ -226,6 +227,12 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 			},
 		},
 		VolumeMounts: b.buildVolumeMounts(),
+		SecurityContext: &corev1.SecurityContext{
+			Privileged: ptr.Bool(false),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{"SYS_RAWIO"},
+			},
+		},
 	}
 
 	ports := []corev1.ContainerPort{{

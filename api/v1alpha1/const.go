@@ -32,6 +32,8 @@ const (
 	DaemonBinaryName = "ydbd"
 
 	TenantNameFormat = "/%s/%s"
+
+	AnnotationSkipInitialization = "ydb.tech/skip-initialization"
 )
 
 type ErasureType string

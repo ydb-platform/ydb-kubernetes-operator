@@ -35,7 +35,7 @@ func (r *Reconciler) processSkipInitPipeline(
 	return r.setInitStorageCompleted(
 		ctx,
 		storage,
-		"InitStorageStep not performed because initialization is skipped",
+		"Storage initialization not performed because initialization is skipped",
 	)
 }
 
@@ -49,29 +49,20 @@ func (r *Reconciler) setInitialStatus(
 	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
 	// does not make sense, since some nodes can be down for a long time (and it is okay, since
 	// database is healthy even with partial outage).
-	if value, ok := storage.Annotations[annotationSkipInitialization]; ok && value == "true" {
-		if meta.FindStatusCondition(storage.Status.Conditions, InitStorageStepCondition) == nil ||
-			meta.IsStatusConditionFalse(storage.Status.Conditions, InitStorageStepCondition) {
+	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == "true" {
+		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(storage.Status.Conditions, StorageInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, storage)
 		}
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
 	changed := false
-	if meta.FindStatusCondition(storage.Status.Conditions, InitStorageStepCondition) == nil {
+	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitStorageStepCondition,
+			Type:    StorageInitializedCondition,
 			Status:  "False",
-			Reason:  InitStorageStepReasonInProgress,
-			Message: "InitStorageStep is required",
-		})
-		changed = true
-	}
-	if meta.FindStatusCondition(storage.Status.Conditions, StorageReadyCondition) == nil {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    StorageReadyCondition,
-			Status:  "False",
-			Reason:  StorageReadyReasonInProgress,
+			Reason:  StorageInitializedReasonInProgress,
 			Message: "Storage is not ready yet",
 		})
 		changed = true
@@ -92,16 +83,9 @@ func (r *Reconciler) setInitStorageCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    InitStorageStepCondition,
+		Type:    StorageInitializedCondition,
 		Status:  "True",
-		Reason:  InitStorageStepReasonCompleted,
-		Message: "InitStorageStep completed!",
-	})
-
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    StorageReadyCondition,
-		Status:  "True",
-		Reason:  StorageReadyReasonCompleted,
+		Reason:  StorageInitializedReasonCompleted,
 		Message: message,
 	})
 
@@ -115,14 +99,7 @@ func (r *Reconciler) initializeStorage(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
 
-	if meta.IsStatusConditionFalse(storage.Status.Conditions, InitStorageStepCondition) {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    InitStorageStepCondition,
-			Status:  "True",
-			Reason:  InitStorageStepReasonInProgress,
-			Message: "InitStorageStep in progress",
-		})
-
+	if storage.Status.State == string(Provisioning) {
 		storage.Status.State = string(Initializing)
 		return r.setState(ctx, storage)
 	}
@@ -158,12 +135,12 @@ func (r *Reconciler) initializeStorage(
 			return r.setInitStorageCompleted(
 				ctx,
 				storage,
-				"InitStorageStep counted as completed, Storage already initialized",
+				"Storage already initialized",
 			)
 		}
 
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 	}
 
-	return r.setInitStorageCompleted(ctx, storage, "InitStorageStep completed successfully")
+	return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
 }
