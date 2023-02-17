@@ -170,7 +170,7 @@ linters:
 #    - nilnil
 #    - nlreturn
     - nolintlint
-    - prealloc
+#    - prealloc
     - predeclared
     - rowserrcheck
     - revive

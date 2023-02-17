@@ -466,7 +466,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]
 	}
 
 	if arg != "" {
-		arg += "update-ca-certificates"
+		arg += updateCACertificatesBin
 	}
 
 	args := []string{arg}
