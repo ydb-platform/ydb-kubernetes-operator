@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/onsi/ginkgo" //nolint:all
-	. "github.com/onsi/gomega" //nolint:all
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubectl/pkg/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"

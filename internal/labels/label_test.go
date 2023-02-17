@@ -3,8 +3,8 @@ package labels_test
 import (
 	"testing"
 
-	. "github.com/onsi/ginkgo" //nolint:all
-	. "github.com/onsi/gomega" //nolint:all
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
