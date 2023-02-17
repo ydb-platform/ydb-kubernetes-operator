@@ -69,6 +69,14 @@ jobs:
           kind version
           kubectl version --short --client=true
           helm version
+      - name: setup-medium-test-class-binaries
+        run: |
+          # This installs kube-apiserver and etcd binaries for `medium` 
+          # class tests. Refer to the writing tests docs for more info.
+          make envtest
+          # TODO figure out later. sorry, for some reason github-runner 
+          # didn't pick setup-envtest up into path and I was in a hurry.
+          "$HOME/go/bin/"setup-envtest use 1.26
       - name: setup-k8s-cluster
         run: |
           kind delete cluster
@@ -76,12 +84,6 @@ jobs:
           --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
           --config=./e2e/kind-cluster-config.yaml
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
-      - name: setup-medium-test-class-binaries
-        run: |
-          # This installs kube-apiserver and etcd binaries for `medium` 
-          # class tests. Refer to the writing tests docs for more info.
-          make envtest
-          setup-envtest use 1.26
       - name: build-operator-image
         uses: docker/build-push-action@v3
         with:
