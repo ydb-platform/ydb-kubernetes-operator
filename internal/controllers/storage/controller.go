@@ -86,6 +86,8 @@ func ignoreDeletionPredicate() predicate.Predicate {
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller := ctrl.NewControllerManagedBy(mgr).For(&ydbv1alpha1.Storage{})
 
+	r.Recorder = mgr.GetEventRecorderFor("Storage")
+
 	if r.WithServiceMonitors {
 		controller = controller.
 			Owns(&monitoringv1.ServiceMonitor{})
