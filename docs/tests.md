@@ -22,17 +22,17 @@ This would not actually spin up physical Pods though, we would test only that al
 resources have persisted in etcd! No real cluster is being created at this point.
 
 These tests are also located directly next to the files which they are testing. Grep
-for `storage/controller_test.go` for an example. 
+for `storage/controller_test.go` for an example.
 
 ##### !! Warning !! while writing medium tests.
 
-Since `StatefulSet` controller is NOT running (only apiserver and etcd are running in 
-this lightweight scenario), no `Pod`s will be created and it is useless to try to `get` 
-pods within such tests. Only the object that are directly created by the operator 
-(`StatefulSet`s, `ConfigMap`s and `Secret`s) will be created. If you want to test 
-some changes in Pod template, the correct way is to get the `StatefulSet` object
-and query it's `Spec.Template.WhateverYouNeed` field to see the changes reflected
-in the pod template of `StatefulSet` itself.
+Since `StatefulSet` controller is NOT running (only apiserver and etcd are running in
+this lightweight scenario), no `Pod`s will be created and it is useless to try to
+`get` pods within such tests. Only the object that are directly created by the
+operator (`StatefulSet`s, `ConfigMap`s and `Secret`s) will be created. If you want to
+test some changes in Pod template, the correct way is to get the `StatefulSet` object
+and query it's `Spec.Template.WhateverYouNeed` field to see the changes reflected in
+the pod template of `StatefulSet` itself.
 
 #### End to end
 
@@ -45,6 +45,28 @@ one of those pods to check that YDB is actually up and running!
 E2E tests are located in [e2e](../e2e) folder.
 
 ## Running tests
+
+Currently we run all the tests together all the time, we'll add a snippet on how to
+launch tests of fixed size later!
+
+#### Prerequisites for medium
+
+Run the following (from the root of the repository):
+
+```
+make envtest
+./bin/setup-envtest 1.26
+echo $KUBEBUILDER_ASSETS
+```
+
+If you're on Linux this variable should look like this:
+`/path/to/.local/share/kubebuilder-envtest/k8s/1.26.1-linux-amd64`. If you're on Mac,
+it's probably something similar.
+
+This snippet will install kube-apiserver and etcd binaries and put them in a location
+which the testing framework knows about and will find the binaries during tests.
+
+#### Prerequisites for end to end
 
 In order to run end to end tests, you have to install `Kind`.
 [Refer to official docs](https://kind.sigs.k8s.io/docs/user/quick-start/#installation).
@@ -68,7 +90,7 @@ kubectl config use-context kind-local-kind
 # cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
 # kind/ydb-operator:current
 
-# You have to download the ydb image and build the operator image yourself. Then, explicitly 
+# You have to download the ydb image and build the operator image yourself. Then, explicitly
 # upload them into the kind cluster. Refer to `./github/e2e.yaml` github workflow which essentially
 # does the same thing.
 kind --name local-kind load docker-image kind/ydb-operator:current

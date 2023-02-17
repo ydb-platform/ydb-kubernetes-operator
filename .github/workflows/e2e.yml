@@ -75,7 +75,6 @@ jobs:
           # class tests. Refer to the writing tests docs for more info.
           make envtest
           ./bin/setup-envtest use 1.26
-          echo $KUBEBUILDER_ASSETS
       - name: setup-k8s-cluster
         run: |
           kind delete cluster
