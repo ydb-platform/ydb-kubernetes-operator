@@ -46,6 +46,11 @@ type StorageSpec struct {
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 
+	// (Optional) YDBVersion sets the explicit version of the YDB image
+	// Default: ""
+	// +optional
+	YDBVersion string `json:"version,omitempty"`
+
 	// Container image information
 	// +required
 	Image PodImage `json:"image,omitempty"`
@@ -65,11 +70,6 @@ type StorageSpec struct {
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 	// +optional
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
-
-	// (Optional) YDBVersion sets the explicit version of the YDB image
-	// Default: ""
-	// +optional
-	YDBVersion string `json:"version,omitempty"`
 
 	// (Optional) Monitoring sets configuration options for YDB observability
 	// Default: ""

@@ -141,6 +141,7 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 		*out = new(ServerlessDatabaseResources)
 		**out = **in
 	}
+	in.Image.DeepCopyInto(&out.Image)
 	if in.InitContainers != nil {
 		in, out := &in.InitContainers, &out.InitContainers
 		*out = make([]v1.Container, len(*in))
@@ -158,7 +159,6 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 		*out = make([]byte, len(*in))
 		copy(*out, *in)
 	}
-	in.Image.DeepCopyInto(&out.Image)
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
 		*out = make(map[string]string, len(*in))
