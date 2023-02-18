@@ -75,6 +75,7 @@ jobs:
           # class tests. Refer to the writing tests docs for more info.
           make envtest
           ./bin/setup-envtest use 1.26
+          echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
       - name: setup-k8s-cluster
         run: |
           kind delete cluster
