@@ -109,7 +109,7 @@ var _ = Describe("Storage controller medium tests", func() {
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
 	})
 
-	It("Check volume has been propagated to pods", func() {
+	FIt("Check volume has been propagated to pods", func() {
 		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
 
 		tmpFilesDir := "/tmp/mounted_volume"

@@ -74,7 +74,7 @@ jobs:
           # This installs kube-apiserver and etcd binaries for `medium` 
           # class tests. Refer to the writing tests docs for more info.
           make envtest
-          ./bin/setup-envtest use 1.26
+          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
           echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
       - name: setup-k8s-cluster
         run: |
