@@ -109,7 +109,7 @@ var _ = Describe("Storage controller medium tests", func() {
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
 	})
 
-	FIt("Check volume has been propagated to pods", func() {
+	It("Check volume has been propagated to pods", func() {
 		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
 
 		tmpFilesDir := "/tmp/mounted_volume"
@@ -147,7 +147,6 @@ var _ = Describe("Storage controller medium tests", func() {
 
 		storageSS := storageStatefulSets.Items[0]
 		volumes := storageSS.Spec.Template.Spec.Volumes
-		fmt.Printf("%#v\n", volumes)
 		// Pod Template always has `ydb-config` mounted as a volume, plus in
 		// this test it also has our test volume. So two in total:
 		Expect(len(volumes)).To(Equal(1 + 1))
