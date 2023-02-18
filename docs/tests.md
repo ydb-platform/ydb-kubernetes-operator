@@ -28,11 +28,12 @@ for `storage/controller_test.go` for an example.
 
 Since `StatefulSet` controller is NOT running (only apiserver and etcd are running in
 this lightweight scenario), no `Pod`s will be created and it is useless to try to
-`get` pods within such tests. Only the object that are directly created by the
+`get` pods within such tests. Only the objects that are directly created by the
 operator (`StatefulSet`s, `ConfigMap`s and `Secret`s) will be created. If you want to
-test some changes in Pod template, the correct way is to get the `StatefulSet` object
-and query it's `Spec.Template.WhateverYouNeed` field to see the changes reflected in
-the pod template of `StatefulSet` itself.
+test some changes in `Pod` template, the correct way is to get the `StatefulSet`
+object and query it's `Spec.Template.WhateverYouNeed` field to see the changes
+reflected in the pod template of `StatefulSet` itself. Again, refer to
+`storage/controller_test.go` for an example.
 
 #### End to end
 
@@ -73,7 +74,7 @@ In order to run end to end tests, you have to install `Kind`.
 
 Typical snippet to run e2e tests follows:
 
-```
+```bash
 # In case you had other cluster previously, delete it
 kind delete cluster --name=local-kind
 
