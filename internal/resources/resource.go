@@ -40,6 +40,8 @@ const (
 	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
 	defaultEncryptionSecretKey                = "key"
 	defaultPin                                = "EmptyPin"
+
+	updateCACertificatesBin = "update-ca-certificates"
 )
 
 type ResourceBuilder interface {

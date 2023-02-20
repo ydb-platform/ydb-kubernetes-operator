@@ -70,6 +70,15 @@ type DatabaseSpec struct {
 	// +optional
 	PublicHost string `json:"publicHost,omitempty"`
 
+	// (Optional) YDBVersion sets the explicit version of the YDB image
+	// Default: ""
+	// +optional
+	YDBVersion string `json:"version,omitempty"`
+
+	// (Optional) YDB Image
+	// +optional
+	Image PodImage `json:"image,omitempty"`
+
 	// List of initialization containers belonging to the pod.
 	// Init containers are executed in order prior to containers being started. If any
 	// init container fails, the pod is considered to have failed and is handled according
@@ -91,14 +100,15 @@ type DatabaseSpec struct {
 	// +optional
 	Monitoring *MonitoringOptions `json:"monitoring,omitempty"`
 
-	// (Optional) YDBVersion sets the explicit version of the YDB image
-	// Default: ""
+	// User-defined root certificate authority that is added to system trust
+	// store of Storage pods on startup.
 	// +optional
-	YDBVersion string `json:"version,omitempty"`
+	CABundle []byte `json:"caBundle,omitempty"`
 
-	// (Optional) YDB Image
+	// Secret names that will be mounted into the well-known directory of
+	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
 	// +optional
-	Image PodImage `json:"image,omitempty"`
+	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
 
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.

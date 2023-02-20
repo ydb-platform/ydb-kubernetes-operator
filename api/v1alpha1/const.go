@@ -31,9 +31,9 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	TenantNameFormat = "/%s/%s"
-
 	AnnotationSkipInitialization = "ydb.tech/skip-initialization"
+
+	legacyTenantNameFormat = "/%s/%s"
 )
 
 type ErasureType string
