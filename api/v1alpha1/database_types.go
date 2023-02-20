@@ -28,6 +28,12 @@ type DatabaseSpec struct {
 	// +optional
 	Encryption *EncryptionConfig `json:"encryption,omitempty"`
 
+	// Additional volumes that will be mounted into the well-known directory of
+	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+	// Only `hostPath` volume type is supported for now.
+	// +optional
+	Volumes []*corev1.Volume `json:"volumes,omitempty"`
+
 	// Datastreams config
 	// +optional
 	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`

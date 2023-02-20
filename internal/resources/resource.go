@@ -27,6 +27,7 @@ const (
 	localCertsVolumeName  = "init-main-shared-source-dir-volume"
 
 	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
+	wellKnownDirForAdditionalVolumes = "/opt/ydb/volumes"
 
 	caBundleEnvName  = "CA_BUNDLE"
 	caBundleFileName = "userCABundle.crt"

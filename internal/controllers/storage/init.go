@@ -132,7 +132,6 @@ func (r *Reconciler) initializeStorage(
 				"InitializingStorage",
 				"Storage initialization attempted and skipped, storage already initialized",
 			)
-
 			return r.setInitStorageCompleted(
 				ctx,
 				storage,

@@ -147,6 +147,10 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		}
 	}
 
+	for _, volume := range b.Spec.Volumes {
+		volumes = append(volumes, *volume)
+	}
+
 	for _, secret := range b.Spec.Secrets {
 		volumes = append(volumes, corev1.Volume{
 			Name: secret.Name,
@@ -424,6 +428,13 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 				MountPath: "/tls/datastreams", // fixme const
 			})
 		}
+	}
+
+	for _, volume := range b.Spec.Volumes {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      volume.Name,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalVolumes, volume.Name),
+		})
 	}
 
 	if b.areAnyCertificatesAddedToStore() {

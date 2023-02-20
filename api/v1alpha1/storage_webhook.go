@@ -104,7 +104,14 @@ func (r *Storage) ValidateCreate() error {
 		}
 	}
 
-	// TODO(user): fill in your validation logic upon object creation.
+	if r.Spec.Volumes != nil {
+		for _, volume := range r.Spec.Volumes {
+			if volume.HostPath == nil {
+				return fmt.Errorf("unsupported volume source, %v. Only hostPath is supported ", volume.VolumeSource)
+			}
+		}
+	}
+
 	return nil
 }
 
