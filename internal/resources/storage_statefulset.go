@@ -107,17 +107,17 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
-			Containers:   []corev1.Container{b.buildContainer()},
-			NodeSelector: b.Spec.NodeSelector,
-			Affinity:     b.Spec.Affinity,
-			Tolerations:  b.Spec.Tolerations,
+			Containers:                []corev1.Container{b.buildContainer()},
+			NodeSelector:              b.Spec.NodeSelector,
+			Affinity:                  b.Spec.Affinity,
+			Tolerations:               b.Spec.Tolerations,
+			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},
-			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 		},
 	}
 
@@ -415,7 +415,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 	}
 
 	if arg != "" {
-		arg += "update-ca-certificates"
+		arg += updateCACertificatesBin
 	}
 
 	args := []string{arg}

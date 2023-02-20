@@ -26,7 +26,14 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 var _ webhook.Defaulter = &Database{}
 
 func GetDatabasePath(r *Database) string {
-	return fmt.Sprintf(TenantNameFormat, r.Spec.Domain, r.Name) // FIXME: review later in context of multiple namespaces
+	if r.Spec.Path != "" {
+		return r.Spec.Path
+	}
+	return GetLegacyDatabasePath(r)
+}
+
+func GetLegacyDatabasePath(r *Database) string {
+	return fmt.Sprintf(legacyTenantNameFormat, r.Spec.Domain, r.Name) // FIXME: review later in context of multiple namespaces
 }
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
@@ -72,7 +79,7 @@ func (r *Database) Default() {
 	}
 
 	if r.Spec.Path == "" {
-		r.Spec.Path = GetDatabasePath(r)
+		r.Spec.Path = GetLegacyDatabasePath(r)
 	}
 
 	if r.Spec.Encryption == nil {
@@ -121,11 +128,7 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 		return errors.New("database domain cannot be changed")
 	}
 
-	oldDatabasePath := oldDatabase.Spec.Path
-	if oldDatabase.Spec.Path == "" {
-		oldDatabasePath = GetDatabasePath(r)
-	}
-	if r.Spec.Path != oldDatabasePath {
+	if GetDatabasePath(oldDatabase) != GetDatabasePath(r) {
 		return errors.New("database path cannot be changed")
 	}
 

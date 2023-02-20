@@ -5,6 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
@@ -56,14 +57,7 @@ func (b *DatabaseBuilder) GetStorageEndpoint() string {
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
-func (b *DatabaseBuilder) GetPath() string {
-	if b.Spec.Path == "" {
-		return api.GetDatabasePath(b.Database)
-	}
-	return b.Spec.Path
-}
-
-func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
+func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	if b.Spec.ServerlessResources != nil {
 		return []ResourceBuilder{}
 	}
@@ -196,7 +190,12 @@ func (b *DatabaseBuilder) GetResourceBuilders() []ResourceBuilder {
 
 	optionalBuilders = append(
 		optionalBuilders,
-		&DatabaseStatefulSetBuilder{Database: b.Unwrap(), Labels: databaseLabels, Storage: b.Storage},
+		&DatabaseStatefulSetBuilder{
+			Database:   b.Unwrap(),
+			Labels:     databaseLabels,
+			RestConfig: restConfig,
+			Storage:    b.Storage,
+		},
 	)
 
 	return optionalBuilders
