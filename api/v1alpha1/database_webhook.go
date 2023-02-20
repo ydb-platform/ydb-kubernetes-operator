@@ -115,7 +115,14 @@ func (r *Database) ValidateCreate() error {
 		return errors.New("incorrect database resources configuration, must be one of: Resources, SharedResources, ServerlessResources")
 	}
 
-	// TODO(user): fill in your validation logic upon object creation.
+	if r.Spec.Volumes != nil {
+		for _, volume := range r.Spec.Volumes {
+			if volume.HostPath == nil {
+				return fmt.Errorf("unsupported volume source, %v. Only hostPath is supported ", volume.VolumeSource)
+			}
+		}
+	}
+
 	return nil
 }
 
