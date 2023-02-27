@@ -49,7 +49,7 @@ func (r *Reconciler) setInitialStatus(
 	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
 	// does not make sense, since some nodes can be down for a long time (and it is okay, since
 	// database is healthy even with partial outage).
-	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == "true" {
+	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
 		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil ||
 			meta.IsStatusConditionFalse(storage.Status.Conditions, StorageInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, storage)

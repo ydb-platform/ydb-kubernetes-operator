@@ -299,7 +299,7 @@ func (r *Reconciler) setInitialStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
 
-	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == "true" {
+	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
 		if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil ||
 			meta.IsStatusConditionFalse(database.Status.Conditions, TenantInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, database)

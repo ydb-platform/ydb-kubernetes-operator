@@ -36,6 +36,8 @@ const (
 	AnnotationDisableLivenessProbe   = "ydb.tech/disable-liveness-probe"
 	AnnotationDataCenter             = "ydb.tech/data-center"
 
+	AnnotationValueTrue = "true"
+
 	legacyTenantNameFormat = "/%s/%s"
 )
 
