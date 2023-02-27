@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	configVolumeName                 = "ydb-config"
-	annotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
+	configVolumeName = "ydb-config"
 )
 
 type StorageStatefulSetBuilder struct {
@@ -69,7 +68,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[annotationUpdateStrategyOnDelete]; ok && value == "true" {
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete]; ok && value == "true" {
 		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
 			Type: "OnDelete",
 		}
@@ -299,13 +298,6 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
 		Command:         command,
 		Args:            args,
-		LivenessProbe: &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(v1alpha1.GRPCPort),
-				},
-			},
-		},
 
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: ptr.Bool(false),
@@ -324,6 +316,16 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 
 		VolumeMounts: b.buildVolumeMounts(),
 		Resources:    b.Spec.Resources,
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != "true" {
+		container.LivenessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				TCPSocket: &corev1.TCPSocketAction{
+					Port: intstr.FromInt(v1alpha1.GRPCPort),
+				},
+			},
+		}
 	}
 
 	var volumeDeviceList []corev1.VolumeDevice // todo decide on PVC volumeMode?

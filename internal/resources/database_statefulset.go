@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,6 +27,8 @@ type DatabaseStatefulSetBuilder struct {
 	Storage *v1alpha1.Storage
 }
 
+var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
+
 func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	sts, ok := obj.(*appsv1.StatefulSet)
 	if !ok {
@@ -47,6 +50,12 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		RevisionHistoryLimit: ptr.Int32(10),
 		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Name),
 		Template:             b.buildPodTemplateSpec(),
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete]; ok && value == "true" {
+		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
+			Type: "OnDelete",
+		}
 	}
 
 	return nil
@@ -342,13 +351,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		Command:         command,
 		Args:            args,
 		Env:             b.buildEnv(),
-		LivenessProbe: &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(v1alpha1.GRPCPort),
-				},
-			},
-		},
+
 		VolumeMounts: b.buildVolumeMounts(),
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: ptr.Bool(false),
@@ -356,6 +359,16 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 				Add: []corev1.Capability{"SYS_RAWIO"},
 			},
 		},
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != "true" {
+		container.LivenessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				TCPSocket: &corev1.TCPSocketAction{
+					Port: intstr.FromInt(v1alpha1.GRPCPort),
+				},
+			},
+		}
 	}
 
 	ports := []corev1.ContainerPort{{
@@ -552,6 +565,15 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		publicPortOption,
 		strconv.Itoa(v1alpha1.GRPCPort),
 	)
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDataCenter]; ok {
+		if annotationDataCenterPattern.MatchString(value) {
+			args = append(args,
+				"--data-center",
+				value,
+			)
+		}
+	}
 
 	return command, args
 }
