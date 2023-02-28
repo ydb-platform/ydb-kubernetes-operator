@@ -31,7 +31,12 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	AnnotationSkipInitialization = "ydb.tech/skip-initialization"
+	AnnotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
+	AnnotationSkipInitialization     = "ydb.tech/skip-initialization"
+	AnnotationDisableLivenessProbe   = "ydb.tech/disable-liveness-probe"
+	AnnotationDataCenter             = "ydb.tech/data-center"
+
+	AnnotationValueTrue = "true"
 
 	legacyTenantNameFormat = "/%s/%s"
 )
