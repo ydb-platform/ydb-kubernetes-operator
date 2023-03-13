@@ -21,6 +21,9 @@ nodeSelector: {}
 
 nameOverride: ""
 fullnameOverride: ""
+# storage:
+#   username: ""
+#   password: ""
 
 ## Resource quotas
 ## ref: http://kubernetes.io/docs/user-guide/compute-resources/

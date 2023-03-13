@@ -16,8 +16,10 @@ const (
 
 func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
 	client := grpc.Client{
-		Context: ctx,
-		Target:  cluster.GetGRPCEndpoint(),
+		Context:      ctx,
+		Target:       cluster.GetGRPCEndpoint(),
+		TLS:          cluster.Spec.Service.GRPC.TLSConfiguration.Enabled,
+		DatabaseName: cluster.Name,
 	}
 
 	response := Ydb_Monitoring.SelfCheckResponse{}

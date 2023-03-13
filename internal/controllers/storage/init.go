@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
@@ -113,6 +114,14 @@ func (r *Reconciler) initializeStorage(
 		cmd = append(
 			cmd,
 			"-s", storage.GetGRPCEndpointWithProto(),
+		)
+	}
+	if len(os.Getenv("YDB_TOKEN")) != 0 {
+		r.Log.Info("connect with token")
+		cmd = append(
+			cmd,
+			"-k",
+			os.Getenv("YDB_TOKEN"),
 		)
 	}
 	cmd = append(

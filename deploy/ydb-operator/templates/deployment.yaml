@@ -50,6 +50,15 @@ spec:
             - containerPort: {{ .Values.webhook.service.port }}
               name: webhook
               protocol: TCP
+          {{- if ne (empty .Values.storage) true }}
+          {{- if and (gt (len .Values.storage.username) 0) (gt (len .Values.storage.password) 0) }}
+          env:
+            - name: YDB_STATIC_USERNAME
+              value: {{ .Values.storage.username }}
+            - name: YDB_STATIC_PASSWORD
+              value: {{ .Values.storage.password }}
+          {{- end }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /readyz
