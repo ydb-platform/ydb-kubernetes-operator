@@ -25,6 +25,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 
 	utilruntime.Must(ydbv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
