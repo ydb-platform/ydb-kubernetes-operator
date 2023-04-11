@@ -6,7 +6,7 @@ jobs:
   waiter-for-approval:
     runs-on: ubuntu-latest
     steps:
-      - name: run
+      - name: What does this job even do?
         run: |
           echo "This job was either triggered by maintainer's pull request or explicitly allowed to run by maintainers."
           echo "This means that another job, e2e.yml, with access to secrets will run shortly."
