@@ -1,11 +1,19 @@
+# Implicit requirements
+# runner must have `docker` and `curl` installed (true on github-runners)
+
 name: run-tests
 on:
-  pull_request:
-    branches: [ "master" ]
+  workflow_run:
+    workflows: ["waiter-for-approval"]
+    types:
+      - completed
 jobs:
   start-runner:
     name: start-self-hosted-yc-runner
     runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
