@@ -5,8 +5,10 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: {{ template "ydb.fullname" . }}-webhook
   {{- if .Values.webhook.certManager.enabled }}
+  {{- if .Values.webhook.certManager.injectCA }}
   annotations:
     cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "ydb.fullname" . }}-webhook
+  {{- end }}
   {{- end }}
 webhooks:
   {{- $webhookFqdn := .Values.webhook.service.fqdn -}}
@@ -70,8 +72,10 @@ kind: MutatingWebhookConfiguration
 metadata:
   name: {{ template "ydb.fullname" . }}-webhook
   {{- if .Values.webhook.certManager.enabled }}
+  {{- if .Values.webhook.certManager.injectCA }}
   annotations:
     cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "ydb.fullname" . }}-webhook
+  {{- end }}
   {{- end }}
 webhooks:
   {{- $webhookFqdn := .Values.webhook.service.fqdn -}}
