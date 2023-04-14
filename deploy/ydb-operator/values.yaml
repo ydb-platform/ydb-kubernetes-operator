@@ -59,12 +59,14 @@ webhook:
     ## Arbitrary fqdn for WebhookConfiguration instead of a default Service cluster fqdn:
     #  fqdn: example.org
 
-  ## If enabled, generate a self-signed certificate, then patch the webhook configurations with the generated data.
+  ## If createSecret is true, then generate a self-signed certificate for service.
+  ## If patchWebhook is true, then patch the webhook configurations with the generated data.
   ## On chart upgrades (or if the secret exists) the cert will not be re-generated. You can use this to provide your own
   ## certs ahead of time if you wish.
   ##
   patch:
-    enabled: true
+    createSecret: true
+    patchWebhook: true
     image:
       repository: k8s.gcr.io/ingress-nginx/kube-webhook-certgen
       tag: v1.0
