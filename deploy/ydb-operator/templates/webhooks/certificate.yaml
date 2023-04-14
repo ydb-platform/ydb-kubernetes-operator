@@ -37,9 +37,9 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ template "ydb.fullname" . }}-admission
+  name: {{ template "ydb.fullname" . }}-webhook
 spec:
-  secretName: {{ template "ydb.fullname" . }}-admission
+  secretName: {{ template "ydb.fullname" . }}-webhook
   duration: {{ .Values.webhook.certManager.admissionCert.duration | default "8760h0m0s" | quote }}
   issuerRef:
     {{- if .Values.webhook.certManager.issuerRef }}

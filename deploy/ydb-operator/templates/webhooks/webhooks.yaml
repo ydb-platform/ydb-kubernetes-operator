@@ -4,6 +4,10 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: {{ template "ydb.fullname" . }}-webhook
+  {{- if .Values.webhook.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "ydb.fullname" . }}-webhook
+  {{- end }}
 webhooks:
   {{- $webhookFqdn := .Values.webhook.service.fqdn -}}
   {{- $webhookPort := .Values.webhook.service.port -}}
@@ -65,6 +69,10 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   name: {{ template "ydb.fullname" . }}-webhook
+  {{- if .Values.webhook.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "ydb.fullname" . }}-webhook
+  {{- end }}
 webhooks:
   {{- $webhookFqdn := .Values.webhook.service.fqdn -}}
   {{- $webhookPort := .Values.webhook.service.port -}}
