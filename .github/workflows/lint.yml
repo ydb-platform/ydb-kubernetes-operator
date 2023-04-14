@@ -1,10 +1,9 @@
 name: lint
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["waiter-for-approval"]
+    types:
+      - completed
 jobs:
   golangci:
     name: golangci-lint
