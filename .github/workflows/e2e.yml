@@ -17,11 +17,11 @@ jobs:
     steps:
       - name: check-if-can-run
         run: |
-          members=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          members=$(curl -s -H "Authorization: token ${{ secrets.READ_ORG_SECRET }}" \
           "https://api.github.com/orgs/ydb-platform/members" | jq -r '.[].login')
           echo "$members"
           echo "$members" | grep "${{ github.event.pull_request.user.login }}"
-          if echo "$members" | grep "${{ github.event.pull_request.user.login }}"; then
+          if echo "$members" | grep -qw "${{ github.event.pull_request.user.login }}"; then
             echo "Author belongs to organization, proceeding..."
           else
             echo "Author does not belong to organization, checking for approval..."
