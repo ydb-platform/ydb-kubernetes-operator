@@ -26,7 +26,7 @@ jobs:
               echo "PR has been approved, proceeding..."
             else
               echo "Please, wait for maintainer approval."
-              echo "The pipeline will be relaunched automatically."
+              echo "The pipeline will be relaunched automatically afterwards."
               exit 1
             fi
           fi
