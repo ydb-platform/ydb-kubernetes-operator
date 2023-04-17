@@ -22,6 +22,9 @@ jobs:
             echo "Author belongs to organization, proceeding..."
           else
             echo "Author does not belong to organization, checking for approval..."
+            echo "${{ github.event }}"
+            echo "${{ github.event.review }}"
+            echo "${{ github.event.review.state }}"
             PR_STATUS="${{ github.event.review.state }}"
             if [ "$PR_STATUS" = "approved" ]; then
               echo "PR has been approved, proceeding..."
