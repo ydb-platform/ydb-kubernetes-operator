@@ -21,8 +21,8 @@ jobs:
           if echo "$members" | grep -qw "${{ github.event.pull_request.user.login }}"; then
             echo "Author belongs to organization, proceeding..."
           else
-            echo "Author does not belong to organization"
-            if  ${{ github.event.review.state }} == 'approved'; then
+            echo "Author does not belong to organization, checking for approval..."
+            if [ ${{ github.event.review.state }} = 'approved' ]; then
               echo "PR has been approved, proceeding..."
             else
               echo "Please, wait for maintainer approval."
