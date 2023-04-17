@@ -10,13 +10,26 @@ jobs:
   start-runner:
     name: start-self-hosted-yc-runner
     runs-on: ubuntu-latest
-    if: >
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
     steps:
+      - name: check-if-can-run
+        run: |
+          members=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/orgs/ydb-platform/members" | jq -r '.[].login')
+          if echo "$members" | grep -qw "${{ github.event.pull_request.user.login }}"; then
+            echo "Author belongs to organization, proceeding..."
+          else
+            echo "Author does not belong to organization"
+            if  ${{ github.event.review.state }} == 'approved'; then
+              echo "PR has been approved, proceeding..."
+            else
+              echo "Please, wait for maintainer approval."
+              echo "The pipeline will be relaunched automatically."
+              exit 1
+            fi
+          fi
       - name: start-yc-runner
         id: start-yc-runner
         uses: yc-actions/yc-github-runner@v1
