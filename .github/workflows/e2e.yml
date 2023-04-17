@@ -18,7 +18,9 @@ jobs:
         run: |
           members=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           "https://api.github.com/orgs/ydb-platform/members" | jq -r '.[].login')
-          if echo "$members" | grep -qw "${{ github.event.pull_request.user.login }}"; then
+          echo "$members"
+          echo "$members" | grep "${{ github.event.pull_request.user.login }}"
+          if echo "$members" | grep "${{ github.event.pull_request.user.login }}"; then
             echo "Author belongs to organization, proceeding..."
           else
             echo "Author does not belong to organization, checking for approval..."
