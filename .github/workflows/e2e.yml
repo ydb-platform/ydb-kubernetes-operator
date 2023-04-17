@@ -7,7 +7,6 @@ on:
     branches:
       - 'master'
 jobs:
-
   start-runner:
     name: start-self-hosted-yc-runner
     runs-on: ubuntu-latest
