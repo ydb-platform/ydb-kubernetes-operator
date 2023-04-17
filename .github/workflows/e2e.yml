@@ -2,11 +2,10 @@
 # runner must have `docker` and `curl` installed (true on github-runners)
 
 name: run-tests
-on:
-  workflow_run:
-    workflows: ["waiter-for-approval"]
-    types:
-      - completed
+on: 
+  pull_request_target:
+    branches:
+      - 'master'
 jobs:
   start-runner:
     name: start-self-hosted-yc-runner
@@ -37,8 +36,17 @@ jobs:
     name: run-tests-job
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
+    outputs:
+      result: ${{ steps.run-tests.outputs.result }}
     steps:
-      - uses: actions/checkout@v2
+      - name: checkout-pr
+        uses: actions/checkout@v3
+        if: github.event.pull_request.head.sha != ''
+        with:
+            ref: ${{ github.event.pull_request.head.sha }}
+      - name: checkout
+        uses: actions/checkout@v3
+        if: github.event.pull_request.head.sha == ''
       - uses: actions/setup-go@v3
         with:
           go-version: '1.19'

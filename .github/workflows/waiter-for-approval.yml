@@ -1,13 +1,11 @@
-name: waiter-for-approval
-on:
-  pull_request:
-    branches: [ "master" ]
+name: Run tests
+on: 
+  pull_request_target:
+    branches:
+      - 'master'
+      
 jobs:
-  waiter-for-approval:
-    runs-on: ubuntu-latest
-    steps:
-      - name: What does this job even do?
-        run: |
-          echo "This job was either triggered by maintainer's pull request or explicitly allowed to run by maintainers."
-          echo "This means that another job, e2e.yml, with access to secrets will run shortly."
-          echo "Secrets are necessary to create an external runner in Y.Cloud that is powerful enough to run tests."
+  build_and_test:
+    uses: ./.github/workflows/build_and_test_ondemand.yml
+    if: github.event.review.state == 'approved'
+    secrets: inherit
