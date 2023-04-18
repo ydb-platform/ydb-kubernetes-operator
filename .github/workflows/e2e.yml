@@ -18,11 +18,11 @@ jobs:
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
-      if: >- 
-        ${{ (github.event.action == "opened" && 
-             github.event.pull_request.author_association == "MEMBER") ||
-            (github.event.action == "labeled" && 
-             github.event.label.name == "ok-to-test") }}
+      if: |
+        (github.event.action == "opened" && 
+         github.event.pull_request.author_association == "MEMBER") ||
+        (github.event.action == "labeled" && 
+         github.event.label.name == "ok-to-test")
     steps:
       - name: start-yc-runner
         id: start-yc-runner
