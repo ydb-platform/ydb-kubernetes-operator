@@ -26,14 +26,10 @@ jobs:
     steps:
       - name: logging
         run: |
-          echo a
-          echo ${{ toJSON(github.pull_request) }}
           echo b
-          echo ${{ toJSON(github.event.pull_request) }}
+          echo '${{ toJSON(github.event.pull_request) }}'
           echo c
           echo ${{ github.event.pull_request }}
-          echo d
-          echo ${{ github.pull_request }}
           echo e
           echo ${{ github.event_name }}
           echo f
