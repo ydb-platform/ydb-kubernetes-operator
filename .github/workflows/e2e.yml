@@ -15,10 +15,10 @@ jobs:
   start-runner:
     name: start-self-hosted-yc-runner
     if: |
-      (github.event.action == "opened" && 
-       github.event.pull_request.author_association == "MEMBER") ||
-      (github.event.action == "labeled" && 
-       github.event.label.name == "ok-to-test")
+      (github.event.action == 'opened' && 
+       github.event.pull_request.author_association == 'MEMBER') ||
+      (github.event.action == 'labeled' && 
+       github.event.label.name == 'ok-to-test')
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
