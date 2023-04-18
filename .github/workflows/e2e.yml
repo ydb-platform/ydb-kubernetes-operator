@@ -14,11 +14,11 @@ on:
 jobs:
   start-runner:
     name: start-self-hosted-yc-runner
-    if: |
-      (github.event.action == 'opened' && 
-       github.event.pull_request.author_association == 'MEMBER') ||
-      (github.event.action == 'labeled' && 
-       github.event.label.name == 'ok-to-test')
+    # if: |
+    #   (github.event_name == 'opened' && 
+    #    github.event.pull_request.author_association == 'MEMBER') ||
+    #   (github.event_name == 'labeled' && 
+    #    github.event.label.name == 'ok-to-test')
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
@@ -26,15 +26,25 @@ jobs:
     steps:
       - name: logging
         run: |
-          echo *
+          echo a
+          echo ${{ toJSON(github.pull_request) }}
+          echo b
+          echo ${{ toJSON(github.event.pull_request) }}
+          echo c
+          echo ${{ github.event.pull_request }}
+          echo d
+          echo ${{ github.pull_request }}
+          echo e
+          echo ${{ github.event_name }}
+          echo f
           echo ${{ github.event.action }}
-          echo *
+          echo g
           echo ${{ github.event.pull_request.author_association }}
-          echo *
+          echo h
           echo ${{ github.event.action }}
-          echo *
+          echo i
           echo ${{ github.event.label.name }}
-          echo *
+          echo j
       - name: start-yc-runner
         id: start-yc-runner
         uses: yc-actions/yc-github-runner@v1
@@ -144,7 +154,7 @@ jobs:
       - start-runner
       - run-tests-job
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+    if: ${{ always() }} 
     steps:
       - name: stop-yc-runner
         uses: yc-actions/yc-github-runner@v1
