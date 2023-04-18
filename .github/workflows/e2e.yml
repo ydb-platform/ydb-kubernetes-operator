@@ -16,7 +16,7 @@ jobs:
     name: start-self-hosted-yc-runner
     if: |
       (github.event.action == 'opened' && 
-       contains(fromJSON('["MEMBER", "COLLABORATOR"]'), 
+       contains(fromJSON('["MEMBER", "COLLABORATOR"]')),
                 github.event.pull_request.author_association) ||
       (github.event.action == 'labeled' && 
        github.event.label.name == 'ok-to-test')
