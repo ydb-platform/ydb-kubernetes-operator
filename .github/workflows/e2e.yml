@@ -14,16 +14,27 @@ on:
 jobs:
   start-runner:
     name: start-self-hosted-yc-runner
+    if: |
+      (github.event.action == "opened" && 
+       github.event.pull_request.author_association == "MEMBER") ||
+      (github.event.action == "labeled" && 
+       github.event.label.name == "ok-to-test")
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
-      if: |
-        (github.event.action == "opened" && 
-         github.event.pull_request.author_association == "MEMBER") ||
-        (github.event.action == "labeled" && 
-         github.event.label.name == "ok-to-test")
     steps:
+      - name: logging
+        run: |
+          echo *
+          echo ${{ github.event.action }}
+          echo *
+          echo ${{ github.event.pull_request.author_association }}
+          echo *
+          echo ${{ github.event.action }}
+          echo *
+          echo ${{ github.event.label.name }}
+          echo *
       - name: start-yc-runner
         id: start-yc-runner
         uses: yc-actions/yc-github-runner@v1
