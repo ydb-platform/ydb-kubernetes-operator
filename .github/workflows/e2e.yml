@@ -6,35 +6,24 @@ on:
   pull_request_target:
     branches:
       - 'master'
+    types:
+      - 'opened'
+      - 'synchronize'
+      - 'reopened'
+      - 'labeled'
 jobs:
-
   start-runner:
     name: start-self-hosted-yc-runner
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+      if: >- 
+        ${{ (github.event.action == "opened" && 
+             github.event.pull_request.author_association == "MEMBER") ||
+            (github.event.action == "labeled" && 
+             github.event.label.name == "ok-to-test") }}
     steps:
-      - name: check-if-can-run
-        run: |
-          echo "${{ github.event }}"
-          echo "${{ github.event.review }}"
-          echo "${{ github.event.review.state }}"
-          members=$(curl -s -H "Authorization: token ${{ secrets.READ_ORG_SECRET }}" \
-          "https://api.github.com/orgs/ydb-platform/members" | jq -r '.[].login')
-          if echo "$members" | grep -qw "${{ github.event.pull_request.user.login }}"; then
-            echo "Author belongs to organization, proceeding..."
-          else
-            echo "Author does not belong to organization, checking for approval..."
-            PR_STATUS="${{ github.event.review.state }}"
-            if [ "$PR_STATUS" = "approved" ]; then
-              echo "PR has been approved, proceeding..."
-            else
-              echo "Please, wait for maintainer approval."
-              echo "The pipeline will be relaunched automatically afterwards."
-              exit 1
-            fi
-          fi
       - name: start-yc-runner
         id: start-yc-runner
         uses: yc-actions/yc-github-runner@v1
