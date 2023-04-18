@@ -14,33 +14,17 @@ on:
 jobs:
   start-runner:
     name: start-self-hosted-yc-runner
-    # if: |
-    #   (github.event_name == 'opened' && 
-    #    github.event.pull_request.author_association == 'MEMBER') ||
-    #   (github.event_name == 'labeled' && 
-    #    github.event.label.name == 'ok-to-test')
+    if: |
+      (github.event.action == 'opened' && 
+       contains(fromJSON('["MEMBER", "COLLABORATOR"]'), 
+                github.event.pull_request.author_association) ||
+      (github.event.action == 'labeled' && 
+       github.event.label.name == 'ok-to-test')
     runs-on: ubuntu-latest
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
     steps:
-      - name: logging
-        run: |
-          echo b
-          echo '${{ toJSON(github.event.pull_request) }}'
-          echo c
-          echo ${{ github.event.pull_request }}
-          echo e
-          echo ${{ github.event_name }}
-          echo f
-          echo ${{ github.event.action }}
-          echo g
-          echo ${{ github.event.pull_request.author_association }}
-          echo h
-          echo ${{ github.event.action }}
-          echo i
-          echo ${{ github.event.label.name }}
-          echo j
       - name: start-yc-runner
         id: start-yc-runner
         uses: yc-actions/yc-github-runner@v1
