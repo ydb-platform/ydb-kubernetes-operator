@@ -56,7 +56,9 @@ jobs:
     concurrency:
       group: lint-golangci-${{ github.ref }}
       cancel-in-progress: true
-    needs: smart-checkout
+    needs: 
+      - smart-checkout
+      - start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
     steps:
       - name: golangci-lint
@@ -68,7 +70,9 @@ jobs:
     concurrency:
       group: lint-autoformat-${{ github.ref }}
       cancel-in-progress: true
-    needs: smart-checkout
+    needs: 
+      - smart-checkout
+      - start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
     steps:
       - name: Install Go
@@ -88,7 +92,9 @@ jobs:
         run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
   run-tests-job:
     name: run-tests-job
-    needs: smart-checkout
+    needs: 
+      - smart-checkout
+      - start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
     outputs:
       result: ${{ steps.run-tests.outputs.result }}
