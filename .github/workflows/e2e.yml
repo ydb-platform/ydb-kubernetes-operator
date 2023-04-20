@@ -39,6 +39,46 @@ jobs:
           memory: 32GB
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
+  golangci:
+    name: golangci-lint
+    concurrency:
+      group: lint-golangci-${{ github.ref }}
+      cancel-in-progress: true
+    needs: start-runner
+    runs-on: ${{ needs.start-runner.outputs.label }}
+    steps:
+      - name: smart-checkout
+        uses: ./.github/actions/smart-checkout
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.48.0
+  autoformatter:
+    name: autoformat check
+    concurrency:
+      group: lint-autoformat-${{ github.ref }}
+      cancel-in-progress: true
+    needs: start-runner
+    runs-on: ${{ needs.start-runner.outputs.label }}
+    steps:
+      - name: smart-checkout
+        uses: ./.github/actions/smart-checkout
+
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Install utilities
+        run: |
+          go install mvdan.cc/gofumpt@v0.3.1
+          go install github.com/rinchsan/gosimports/cmd/gosimports@v0.1.5
+
+      - name: format all files with auto-formatter
+        run: bash ./.github/scripts/format-all-go-code.sh "$PWD"
+
+      - name: Check repository diff
+        run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
   run-tests-job:
     name: run-tests-job
     needs: start-runner
@@ -46,14 +86,8 @@ jobs:
     outputs:
       result: ${{ steps.run-tests.outputs.result }}
     steps:
-      - name: checkout-pr
-        uses: actions/checkout@v3
-        if: github.event.pull_request.head.sha != ''
-        with:
-            ref: ${{ github.event.pull_request.head.sha }}
-      - name: checkout
-        uses: actions/checkout@v3
-        if: github.event.pull_request.head.sha == ''
+      - name: smart-checkout
+        uses: ./.github/actions/smart-checkout
       - uses: actions/setup-go@v3
         with:
           go-version: '1.19'
