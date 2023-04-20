@@ -20,7 +20,7 @@ jobs:
        contains(github.event.pull_request.labels.*.name, 'ok-to-test')
     runs-on: ubuntu-latest
     outputs:
-      label: ${{ steps.start-yc-runner.outputs.label }}
+      runner-label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
     steps:
       - name: start-yc-runner
@@ -42,6 +42,8 @@ jobs:
     name: setup-runner
     needs: start-runner
     runs-on: ${{ needs.start-runner.outputs.label }}
+    outputs:
+      runner-label: ${{ needs.start-runner.outputs.runner-label }}
     steps:
       - name: setup-go
         uses: actions/setup-go@v3
@@ -52,8 +54,9 @@ jobs:
           echo "HOME=/actions-runner" >> $GITHUB_ENV
   smart-checkout:
     name: smart-checkout
-    needs: setup-runner
-    runs-on: ${{ needs.start-runner.outputs.label }}
+    needs: 
+      - setup-runner
+    runs-on: ${{ needs.setup-runner.outputs.runner-label }}
     steps:
       - name: checkout-when-fork-source
         uses: actions/checkout@v3
@@ -69,10 +72,9 @@ jobs:
       group: lint-golangci-${{ github.ref }}
       cancel-in-progress: true
     needs: 
-      - start-runner
       - setup-runner
       - smart-checkout
-    runs-on: ${{ needs.start-runner.outputs.label }}
+    runs-on: ${{ needs.setup-runner.outputs.runner-label }}
     steps:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
@@ -84,10 +86,9 @@ jobs:
       group: lint-autoformat-${{ github.ref }}
       cancel-in-progress: true
     needs: 
-      - start-runner
       - setup-runner
       - smart-checkout
-    runs-on: ${{ needs.start-runner.outputs.label }}
+    runs-on: ${{ needs.setup-runner.outputs.runner-label }}
     steps:
       - name: Install utilities
         run: |
@@ -100,10 +101,9 @@ jobs:
   run-tests:
     name: run-tests
     needs: 
-      - start-runner
       - setup-runner
       - smart-checkout
-    runs-on: ${{ needs.start-runner.outputs.label }}
+    runs-on: ${{ needs.setup-runner.outputs.runner-label }}
     outputs:
       result: ${{ steps.run-tests.outputs.result }}
     steps:
@@ -179,7 +179,7 @@ jobs:
   stop-runner:
     name: stop-runner
     needs:
-      - start-runner
+      - setup-runner
       - run-tests
       - lint
       - code-format-check
