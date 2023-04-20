@@ -13,7 +13,6 @@ on:
       - 'labeled'
 jobs:
   start-runner:
-    name: start-self-hosted-yc-runner
     if: |
       (contains(fromJSON('["opened","synchronize"]'), github.event.action) && 
        contains(fromJSON('["MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)) ||
@@ -39,9 +38,8 @@ jobs:
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
   setup-runner:
-    name: setup-runner
     needs: start-runner
-    runs-on: ${{ needs.start-runner.outputs.label }}
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
     outputs:
       runner-label: ${{ needs.start-runner.outputs.runner-label }}
     steps:
@@ -53,7 +51,6 @@ jobs:
         run: |
           echo "HOME=/actions-runner" >> $GITHUB_ENV
   smart-checkout:
-    name: smart-checkout
     needs: 
       - setup-runner
     runs-on: ${{ needs.setup-runner.outputs.runner-label }}
@@ -67,7 +64,6 @@ jobs:
         uses: actions/checkout@v3
         if: github.event.pull_request.head.sha == ''
   lint:
-    name: lint
     concurrency:
       group: lint-golangci-${{ github.ref }}
       cancel-in-progress: true
@@ -81,7 +77,6 @@ jobs:
         with:
           version: v1.48.0
   code-format-check:
-    name: code-format-check
     concurrency:
       group: lint-autoformat-${{ github.ref }}
       cancel-in-progress: true
@@ -99,7 +94,6 @@ jobs:
       - name: Check repository diff
         run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
   run-tests:
-    name: run-tests
     needs: 
       - setup-runner
       - smart-checkout
@@ -177,7 +171,6 @@ jobs:
         run: |
           kind delete cluster
   stop-runner:
-    name: stop-runner
     needs:
       - setup-runner
       - run-tests
@@ -192,5 +185,5 @@ jobs:
           mode: stop
           yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-runner.outputs.label }}
-          instance-id: ${{ needs.start-runner.outputs.instance-id }}
+          label: ${{ needs.setup-runner.outputs.label }}
+          instance-id: ${{ needs.setup-runner.outputs.instance-id }}
