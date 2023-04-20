@@ -39,16 +39,27 @@ jobs:
           memory: 32GB
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
+  smart-checkout:
+    name: smart-checkout
+    needs: start-runner
+    runs-on: ${{ needs.start-runner.outputs.label }}
+    steps:
+      - name: checkout-when-fork-source
+        uses: actions/checkout@v3
+        if: github.event.pull_request.head.sha != ''
+        with:
+            ref: ${{ github.event.pull_request.head.sha }}
+      - name: checkout-when-this-repo-source
+        uses: actions/checkout@v3
+        if: github.event.pull_request.head.sha == ''
   golangci:
     name: golangci-lint
     concurrency:
       group: lint-golangci-${{ github.ref }}
       cancel-in-progress: true
-    needs: start-runner
+    needs: smart-checkout
     runs-on: ${{ needs.start-runner.outputs.label }}
     steps:
-      - name: smart-checkout
-        uses: ./.github/actions/smart-checkout
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
@@ -58,12 +69,9 @@ jobs:
     concurrency:
       group: lint-autoformat-${{ github.ref }}
       cancel-in-progress: true
-    needs: start-runner
+    needs: smart-checkout
     runs-on: ${{ needs.start-runner.outputs.label }}
     steps:
-      - name: smart-checkout
-        uses: ./.github/actions/smart-checkout
-
       - name: Install Go
         uses: actions/setup-go@v3
         with:
@@ -81,13 +89,11 @@ jobs:
         run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
   run-tests-job:
     name: run-tests-job
-    needs: start-runner
+    needs: smart-checkout
     runs-on: ${{ needs.start-runner.outputs.label }}
     outputs:
       result: ${{ steps.run-tests.outputs.result }}
     steps:
-      - name: smart-checkout
-        uses: ./.github/actions/smart-checkout
       - uses: actions/setup-go@v3
         with:
           go-version: '1.19'
