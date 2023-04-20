@@ -51,8 +51,8 @@ jobs:
       - name: checkout-when-this-repo-source
         uses: actions/checkout@v3
         if: github.event.pull_request.head.sha == ''
-  golangci:
-    name: golangci-lint
+  lint:
+    name: lint
     concurrency:
       group: lint-golangci-${{ github.ref }}
       cancel-in-progress: true
@@ -65,8 +65,8 @@ jobs:
         uses: golangci/golangci-lint-action@v2
         with:
           version: v1.48.0
-  autoformatter:
-    name: autoformat check
+  code-format-check:
+    name: code-format-check
     concurrency:
       group: lint-autoformat-${{ github.ref }}
       cancel-in-progress: true
@@ -90,8 +90,8 @@ jobs:
 
       - name: Check repository diff
         run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
-  run-tests-job:
-    name: run-tests-job
+  run-tests:
+    name: run-tests
     needs: 
       - smart-checkout
       - start-runner
@@ -176,7 +176,9 @@ jobs:
     name: stop-runner
     needs:
       - start-runner
-      - run-tests-job
+      - run-tests
+      - lint
+      - code-format-check
     runs-on: ubuntu-latest
     if: ${{ always() }} 
     steps:
