@@ -37,23 +37,10 @@ jobs:
           memory: 32GB
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
-  setup-runner:
-    needs: start-runner
-    runs-on: ${{ needs.start-runner.outputs.runner-label }}
-    outputs:
-      runner-label: ${{ needs.start-runner.outputs.runner-label }}
-    steps:
-      - name: setup-go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.19
-      - name: setup-env-vars
-        run: |
-          echo "HOME=/actions-runner" >> $GITHUB_ENV
   smart-checkout:
     needs: 
-      - setup-runner
-    runs-on: ${{ needs.setup-runner.outputs.runner-label }}
+      - start-runner
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
     steps:
       - name: checkout-when-fork-source
         uses: actions/checkout@v3
@@ -68,10 +55,14 @@ jobs:
       group: lint-golangci-${{ github.ref }}
       cancel-in-progress: true
     needs: 
-      - setup-runner
+      - start-runner
       - smart-checkout
-    runs-on: ${{ needs.setup-runner.outputs.runner-label }}
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
     steps:
+      - name: setup-go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
@@ -81,10 +72,14 @@ jobs:
       group: lint-autoformat-${{ github.ref }}
       cancel-in-progress: true
     needs: 
-      - setup-runner
+      - start-runner
       - smart-checkout
-    runs-on: ${{ needs.setup-runner.outputs.runner-label }}
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
     steps:
+      - name: setup-go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
       - name: Install utilities
         run: |
           go install mvdan.cc/gofumpt@v0.3.1
@@ -95,21 +90,24 @@ jobs:
         run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
   run-tests:
     needs: 
-      - setup-runner
+      - start-runner
       - smart-checkout
-    runs-on: ${{ needs.setup-runner.outputs.runner-label }}
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
     outputs:
       result: ${{ steps.run-tests.outputs.result }}
     steps:
-      - uses: actions/setup-go@v3
+      - name: setup-go
+        uses: actions/setup-go@v3
         with:
-          go-version: '1.19'
+          go-version: 1.19
       - name: install-dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
 
           go install sigs.k8s.io/kind@v0.17.0
+
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
 
           curl -LO https://dl.k8s.io/release/v1.25.0/bin/linux/amd64/kubectl
           chmod +x ./kubectl
@@ -172,7 +170,7 @@ jobs:
           kind delete cluster
   stop-runner:
     needs:
-      - setup-runner
+      - start-runner
       - run-tests
       - lint
       - code-format-check
@@ -185,5 +183,5 @@ jobs:
           mode: stop
           yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.setup-runner.outputs.label }}
-          instance-id: ${{ needs.setup-runner.outputs.instance-id }}
+          label: ${{ needs.start-runner.outputs.label }}
+          instance-id: ${{ needs.start-runner.outputs.instance-id }}
