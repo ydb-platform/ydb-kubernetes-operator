@@ -12,8 +12,8 @@ on:
       - 'reopened'
       - 'labeled'
 jobs:
-
   start-runner:
+
     name: start-self-hosted-yc-runner
     if: |
       (github.event.action == 'opened' && 
