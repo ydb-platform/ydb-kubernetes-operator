@@ -1,7 +1,7 @@
 package testobjects
 
 import (
-	"io/ioutil"
+	"os"
 
 	. "github.com/onsi/gomega" //nolint:all
 	corev1 "k8s.io/api/core/v1"
@@ -42,7 +42,7 @@ func constructAntiAffinityFor(key, value string) *corev1.Affinity {
 }
 
 func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
-	storageConfig, err := ioutil.ReadFile(storageYamlConfigPath)
+	storageConfig, err := os.ReadFile(storageYamlConfigPath)
 
 	defaultPolicy := corev1.PullIfNotPresent
 

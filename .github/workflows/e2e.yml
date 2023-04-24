@@ -13,16 +13,14 @@ on:
       - 'labeled'
 jobs:
   start-runner:
-    name: start-self-hosted-yc-runner
+    if: |
+      (contains(fromJSON('["opened","synchronize"]'), github.event.action) && 
+       contains(fromJSON('["MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)) ||
+       contains(github.event.pull_request.labels.*.name, 'ok-to-test')
     runs-on: ubuntu-latest
     outputs:
-      label: ${{ steps.start-yc-runner.outputs.label }}
+      runner-label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
-      if: |
-        (github.event.action == "opened" && 
-         github.event.pull_request.author_association == "MEMBER") ||
-        (github.event.action == "labeled" && 
-         github.event.label.name == "ok-to-test")
     steps:
       - name: start-yc-runner
         id: start-yc-runner
@@ -39,29 +37,79 @@ jobs:
           memory: 32GB
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
-  run-tests-job:
-    name: run-tests-job
-    needs: start-runner
-    runs-on: ${{ needs.start-runner.outputs.label }}
-    outputs:
-      result: ${{ steps.run-tests.outputs.result }}
+  smart-checkout:
+    needs: 
+      - start-runner
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
     steps:
-      - name: checkout-pr
+      - name: checkout-when-fork-source
         uses: actions/checkout@v3
         if: github.event.pull_request.head.sha != ''
         with:
             ref: ${{ github.event.pull_request.head.sha }}
-      - name: checkout
+      - name: checkout-when-this-repo-source
         uses: actions/checkout@v3
         if: github.event.pull_request.head.sha == ''
-      - uses: actions/setup-go@v3
+  lint:
+    concurrency:
+      group: lint-golangci-${{ github.ref }}
+      cancel-in-progress: true
+    needs: 
+      - start-runner
+      - smart-checkout
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
+    steps:
+      - name: setup-go
+        uses: actions/setup-go@v3
         with:
-          go-version: '1.19'
+          go-version: 1.19
+      - name: set-env-vars
+        run: |
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.48.0
+  code-format-check:
+    concurrency:
+      group: lint-autoformat-${{ github.ref }}
+      cancel-in-progress: true
+    needs: 
+      - start-runner
+      - smart-checkout
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
+    steps:
+      - name: setup-go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      - name: set-env-vars
+        run: |
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
+      - name: Install utilities
+        run: |
+          go install mvdan.cc/gofumpt@v0.3.1
+          go install github.com/rinchsan/gosimports/cmd/gosimports@v0.1.5
+      - name: format all files with auto-formatter
+        run: bash ./.github/scripts/format-all-go-code.sh "$PWD"
+      - name: Check repository diff
+        run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
+  run-tests:
+    needs: 
+      - start-runner
+      - smart-checkout
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
+    outputs:
+      result: ${{ steps.run-tests.outputs.result }}
+    steps:
+      - name: setup-go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
       - name: install-dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
-          echo $(which gcc)
 
           export HOME=/actions-runner
           echo "HOME=/actions-runner" >> $GITHUB_ENV
@@ -128,12 +176,13 @@ jobs:
         run: |
           kind delete cluster
   stop-runner:
-    name: stop-runner
     needs:
       - start-runner
-      - run-tests-job
+      - run-tests
+      - lint
+      - code-format-check
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+    if: ${{ always() }} 
     steps:
       - name: stop-yc-runner
         uses: yc-actions/yc-github-runner@v1
@@ -141,5 +190,5 @@ jobs:
           mode: stop
           yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-runner.outputs.label }}
+          label: ${{ needs.start-runner.outputs.runner-label }}
           instance-id: ${{ needs.start-runner.outputs.instance-id }}
