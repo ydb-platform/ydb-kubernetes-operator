@@ -121,6 +121,17 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 		*out = new(EncryptionConfig)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Volumes != nil {
+		in, out := &in.Volumes, &out.Volumes
+		*out = make([]*v1.Volume, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.Volume)
+				(*in).DeepCopyInto(*out)
+			}
+		}
+	}
 	if in.Datastreams != nil {
 		in, out := &in.Datastreams, &out.Datastreams
 		*out = new(DatastreamsConfig)
@@ -619,6 +630,17 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 				in, out := &(*in)[i], &(*out)[i]
 				*out = new(v1.LocalObjectReference)
 				**out = **in
+			}
+		}
+	}
+	if in.Volumes != nil {
+		in, out := &in.Volumes, &out.Volumes
+		*out = make([]*v1.Volume, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.Volume)
+				(*in).DeepCopyInto(*out)
 			}
 		}
 	}
