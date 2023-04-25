@@ -36,8 +36,8 @@ Common labels
 {{- define "ydb.labels" -}}
 helm.sh/chart: {{ include "ydb.chart" . }}
 {{ include "ydb.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- if or (.Chart.AppVersion) (.Values.image.tag) }}
+app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
