@@ -57,13 +57,13 @@ webhook:
     #  nodePort: 9443
     #
     ## Arbitrary fqdn for WebhookConfiguration instead of a default Service cluster fqdn:
-    #  fqdn: example.org
+    fqdn: example.org
     #
     ## PathPrefix for WebhookConfiguration url when fqdn used
     ## Set variable to true and use default template <namespace>/<release>
     #  enableDefaultPathPrefix: false
-    ## Instead of default use your own custom pathPrefix
-    #  customPathPrefix: ""
+    ## Instead of default template allowed using your own custom pathPrefix
+    #  customPathPrefix: "/haha"
 
 
   ## If patch enabled, then generate a self-signed certificate for service.
