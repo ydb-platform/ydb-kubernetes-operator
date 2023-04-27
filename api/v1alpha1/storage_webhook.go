@@ -112,12 +112,22 @@ func (r *Storage) ValidateCreate() error {
 		}
 	}
 
+	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
+	if crdCheckError != nil {
+		return crdCheckError
+	}
+
 	return nil
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
+
+	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
+	if crdCheckError != nil {
+		return crdCheckError
+	}
 
 	// TODO(user): fill in your validation logic upon object update.
 	return nil

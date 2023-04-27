@@ -56,7 +56,7 @@ Run the following (from the root of the repository):
 
 ```
 make envtest
-./bin/setup-envtest 1.26
+./bin/setup-envtest use 1.26
 echo $KUBEBUILDER_ASSETS
 ```
 

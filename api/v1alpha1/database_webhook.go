@@ -15,7 +15,10 @@ import (
 // log is for logging in this package.
 var databaselog = logf.Log.WithName("database-resource")
 
+var manager ctrl.Manager
+
 func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	manager = mgr
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		Complete()
@@ -123,6 +126,11 @@ func (r *Database) ValidateCreate() error {
 		}
 	}
 
+	crdCheckError := checkMonitoringCRD(manager, databaselog, r.Spec.Monitoring != nil)
+	if crdCheckError != nil {
+		return crdCheckError
+	}
+
 	return nil
 }
 
@@ -137,6 +145,11 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 
 	if GetDatabasePath(oldDatabase) != GetDatabasePath(r) {
 		return errors.New("database path cannot be changed")
+	}
+
+	crdCheckError := checkMonitoringCRD(manager, databaselog, r.Spec.Monitoring != nil)
+	if crdCheckError != nil {
+		return crdCheckError
 	}
 
 	return nil
