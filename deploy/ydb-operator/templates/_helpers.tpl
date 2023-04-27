@@ -52,11 +52,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 
 {{/*
-Create webhooks pathPrefix when fqdn url being used
+Create webhooks pathPrefix used by service fqdn url
 */}}
 {{- define "ydb.webhookPathPrefix" -}}
-{{- default "" .Values.webhook.service.pathPrefix -}}
-{{- if and .Values.webhook.service.pathPrefix (kindIs "bool" .Values.webhook.service.pathPrefix) -}}
+{{- if .Values.webhook.service.enableDefaultPathPrefix -}}
 {{- printf "/%s/%s" .Release.Namespace ( include "ydb.fullname" . ) -}}
 {{- end }}
+{{- if .Values.webhook.service.customPathPrefix -}}
+{{- .Values.webhook.service.customPathPrefix -}}
 {{- end }}
+{{- end -}}
