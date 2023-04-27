@@ -57,7 +57,15 @@ webhook:
     #  nodePort: 9443
     #
     ## Arbitrary fqdn for WebhookConfiguration instead of a default Service cluster fqdn:
-    #  fqdn: example.org
+    fqdn: example.org
+
+    ## PathPrefix for WebhookConfiguration url when fqdn used
+    ## Set variable to true to use default template <namespace>/<release> or
+    ## write yout own pathPrefix
+    pathPrefix: ""
+    # pathPrefix: true
+    # pathPrefix: "/myPrefix"
+
 
   ## If patch enabled, then generate a self-signed certificate for service.
   ## When injectCA is true should inject the webhook configurations with generated caBundle.
