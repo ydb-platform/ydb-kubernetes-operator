@@ -57,7 +57,7 @@ webhook:
     #  nodePort: 9443
     #
     ## Arbitrary fqdn for WebhookConfiguration instead of a default Service cluster fqdn:
-    fqdn: example.org
+    #  fqdn: example.org
     #
     ## PathPrefix for WebhookConfiguration url when fqdn used
     ## Set variable to true and use default template <namespace>/<release>
