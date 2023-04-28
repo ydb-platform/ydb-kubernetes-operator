@@ -49,3 +49,16 @@ Selector labels
 app.kubernetes.io/name: {{ include "ydb.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+
+{{/*
+Create webhooks pathPrefix used by service fqdn url
+*/}}
+{{- define "ydb.webhookPathPrefix" -}}
+{{- if .Values.webhook.service.enableDefaultPathPrefix -}}
+{{- printf "/%s/%s" .Release.Namespace ( include "ydb.fullname" . ) -}}
+{{- end }}
+{{- if .Values.webhook.service.customPathPrefix -}}
+{{- .Values.webhook.service.customPathPrefix -}}
+{{- end }}
+{{- end -}}

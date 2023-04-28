@@ -58,6 +58,13 @@ webhook:
     #
     ## Arbitrary fqdn for WebhookConfiguration instead of a default Service cluster fqdn:
     #  fqdn: example.org
+    #
+    ## PathPrefix for WebhookConfiguration url when fqdn used
+    ## Set variable to true and use default template <namespace>/<release>
+    #  enableDefaultPathPrefix: false
+    ## Instead of default template allowed using your own custom pathPrefix
+    #  customPathPrefix: "/haha"
+
 
   ## If patch enabled, then generate a self-signed certificate for service.
   ## When injectCA is true should inject the webhook configurations with generated caBundle.
