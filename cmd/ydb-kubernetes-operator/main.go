@@ -15,6 +15,7 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 )
 
@@ -86,6 +87,21 @@ func main() {
 		WithServiceMonitors: enableServiceMonitors,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Storage")
+		os.Exit(1)
+	}
+
+	if err = (&monitoring.DatabaseMonitoringReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DatabaseMonitoring")
+		os.Exit(1)
+	}
+	if err = (&monitoring.StorageMonitoringReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "StorageMonitoring")
 		os.Exit(1)
 	}
 
