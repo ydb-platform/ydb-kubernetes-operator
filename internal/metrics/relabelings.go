@@ -12,5 +12,6 @@ func GetMetricsRelabelings(metricsService string) []*v1.RelabelConfig {
 		TargetLabel:  "__name__",
 		Regex:        "(.*)",
 		Replacement:  fmt.Sprintf("%s_$1", metricsService),
+		Action:       "replace",
 	}}
 }
