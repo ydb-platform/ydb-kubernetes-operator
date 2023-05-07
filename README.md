@@ -20,3 +20,5 @@ For steps on how to deploy and use YDB Kubernetes Operator, please refer to [doc
 ## Development
 
 Refer to the operator [development docs](./docs).
+
+Just a random change!
