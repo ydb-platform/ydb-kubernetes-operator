@@ -3,7 +3,7 @@
 
 name: run-tests
 on: 
-  pull_request:
+  pull_request_target:
     branches:
       - 'master'
     types:
@@ -16,7 +16,7 @@ jobs:
     if: |
       (github.event.action == 'opened') &&
        !contains(fromJSON('["MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), 
-        github.event.pull_request.author_association) 
+          github.event.pull_request.author_association) 
     runs-on: ubuntu-latest
     steps:
       - name: comment-if-waiting-on-ok
@@ -32,7 +32,8 @@ jobs:
   start-runner:
     if: |
       (contains(fromJSON('["opened","synchronize"]'), github.event.action) && 
-       contains(fromJSON('["MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), github.event.pull_request.author_association)) ||
+       contains(fromJSON('["MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), 
+         github.event.pull_request.author_association)) ||
        contains(github.event.pull_request.labels.*.name, 'ok-to-test')
     runs-on: ubuntu-latest
     outputs:
