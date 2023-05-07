@@ -61,12 +61,19 @@ jobs:
             const { owner, repo } = context.repo;
             const prNumber = context.payload.pull_request.number;
             const labelToRemove = 'ok-to-test';
-            await github.rest.issues.removeLabel({
-              owner,
-              repo,
-              issue_number: prNumber,
-              name: labelToRemove
-            });
+            try {
+              const result = await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: prNumber,
+                name: labelToRemove
+              });
+            } catch(e) {
+              // ignore the 404 error that arises
+              // when the label did not exist for the
+              // organization member
+              console.log(e);
+            }
   smart-checkout:
     needs: 
       - start-runner
