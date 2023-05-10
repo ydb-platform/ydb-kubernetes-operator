@@ -2,8 +2,12 @@ package monitoring
 
 import (
 	"context"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	monitoring "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	dbctrl "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
+	core "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -11,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 // DatabaseMonitoringReconciler reconciles a DatabaseMonitoring object
@@ -27,14 +31,12 @@ type DatabaseMonitoringReconciler struct {
 //+kubebuilder:rbac:groups=ydb.tech,resources=databasemonitorings/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ydb.tech,resources=databasemonitorings/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
 func (r *DatabaseMonitoringReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var dbMon ydbv1alpha1.DatabaseMonitoring
+	cr := &api.DatabaseMonitoring{}
 
-	if err := r.Get(ctx, req.NamespacedName, &dbMon); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, cr); err != nil {
 		if apierrs.IsNotFound(err) {
 			logger.Info("DatabaseMonitoring has been deleted")
 			return ctrl.Result{}, nil
@@ -43,11 +45,57 @@ func (r *DatabaseMonitoringReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	result, err := r.Sync(ctx, &dbMon)
-	if err != nil {
-		logger.Error(err, "unexpected Sync error")
+	db, err := r.waitForDatabase(ctx, cr)
+
+	if db == nil {
+		return ctrl.Result{RequeueAfter: DefaultRequeueDelay2}, err
 	}
-	return result, err
+
+	syncer := &Syncer{
+		Client:          r.Client,
+		Recorder:        r.Recorder,
+		Scheme:          r.Scheme,
+		metricsServices: metrics.GetDatabaseMetricsServices(),
+		Object:          cr,
+	}
+	return syncer.Sync(ctx, db)
+}
+
+func (r *DatabaseMonitoringReconciler) waitForDatabase(ctx context.Context, cr *api.DatabaseMonitoring) (*api.Database, error) {
+	ns := cr.Spec.DatabaseClusterRef.Namespace
+
+	if ns == "" {
+		ns = cr.GetNamespace()
+	}
+
+	nsName := types.NamespacedName{
+		Name:      cr.Spec.DatabaseClusterRef.Name,
+		Namespace: ns,
+	}
+
+	found := &api.Database{}
+
+	if err := r.Get(ctx, nsName, found); err != nil {
+		if apierrs.IsNotFound(err) {
+			r.Recorder.Eventf(cr, core.EventTypeNormal, "Pending",
+				"Unknown YDB Database cluster %s",
+				nsName.String())
+			return nil, nil
+		}
+		r.Recorder.Eventf(cr, core.EventTypeWarning, "Error",
+			"Unable to find YDB Database %s: %s", nsName.String(), err.Error())
+		return nil, err
+	} else {
+		if found.Status.State != string(dbctrl.Ready) {
+			r.Recorder.Eventf(cr, core.EventTypeNormal, "Pending",
+				"YDB Database %s state %s is not ready",
+				nsName.String(), found.Status.State)
+			return nil, nil
+
+		}
+	}
+
+	return found, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -55,7 +103,7 @@ func (r *DatabaseMonitoringReconciler) SetupWithManager(mgr ctrl.Manager) error 
 	r.Recorder = mgr.GetEventRecorderFor("DatabaseMonitoring")
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ydbv1alpha1.DatabaseMonitoring{}).
-		Owns(&monitoringv1.ServiceMonitor{}).
+		For(&api.DatabaseMonitoring{}).
+		Owns(&monitoring.ServiceMonitor{}).
 		Complete(r)
 }

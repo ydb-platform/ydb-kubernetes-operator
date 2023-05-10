@@ -2,45 +2,106 @@ package monitoring
 
 import (
 	"context"
+	storagectrl "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
+	core "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 // StorageMonitoringReconciler reconciles a StorageMonitoring object
 type StorageMonitoringReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Recorder record.EventRecorder
+	Scheme   *runtime.Scheme
 }
 
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ydb.ydb.tech,resources=storagemonitorings,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ydb.ydb.tech,resources=storagemonitorings/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ydb.ydb.tech,resources=storagemonitorings/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the StorageMonitoring object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.4/pkg/reconcile
 func (r *StorageMonitoringReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
+	cr := &api.StorageMonitoring{}
 
-	// TODO(user): your logic here
+	if err := r.Get(ctx, req.NamespacedName, cr); err != nil {
+		if apierrs.IsNotFound(err) {
+			logger.Info("StorageMonitoring has been deleted")
+			return ctrl.Result{}, nil
+		}
+		logger.Error(err, "unable to get StorageMonitoring")
+		return ctrl.Result{}, err
+	}
 
-	return ctrl.Result{}, nil
+	storage, err := r.waitForStorage(ctx, cr)
+
+	if storage == nil {
+		return ctrl.Result{RequeueAfter: DefaultRequeueDelay2}, err
+	}
+
+	syncer := &Syncer{
+		Client:          r.Client,
+		Recorder:        r.Recorder,
+		Scheme:          r.Scheme,
+		metricsServices: metrics.GetStorageMetricsServices(),
+
+		Object: cr,
+	}
+	return syncer.Sync(ctx, storage)
+
+}
+
+func (r *StorageMonitoringReconciler) waitForStorage(ctx context.Context, cr *api.StorageMonitoring) (*api.Storage, error) {
+	ns := cr.Spec.StorageRef.Namespace
+
+	if ns == "" {
+		ns = cr.GetNamespace()
+	}
+
+	nsName := types.NamespacedName{
+		Name:      cr.Spec.StorageRef.Name,
+		Namespace: ns,
+	}
+
+	found := &api.Storage{}
+
+	if err := r.Get(ctx, nsName, found); err != nil {
+		if apierrs.IsNotFound(err) {
+			r.Recorder.Eventf(cr, core.EventTypeNormal, "Pending",
+				"Unknown YDB Storage %s",
+				nsName.String())
+			return nil, nil
+		}
+		r.Recorder.Eventf(cr, core.EventTypeWarning, "Error",
+			"Unable to find YDB Storage %s: %s", nsName.String(), err.Error())
+		return nil, err
+	} else {
+		if found.Status.State != string(storagectrl.Ready) {
+			r.Recorder.Eventf(cr, core.EventTypeNormal, "Pending",
+				"YDB Storage %s state %s is not ready",
+				nsName.String(), found.Status.State)
+			return nil, nil
+
+		}
+	}
+	return found, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *StorageMonitoringReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.Recorder = mgr.GetEventRecorderFor("DatabaseMonitoring")
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ydbv1alpha1.StorageMonitoring{}).
+		For(&api.StorageMonitoring{}).
 		Complete(r)
 }
