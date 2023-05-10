@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	DefaultRequeueDelay2 = 25 * time.Second
+	DefaultRequeueDelay = 10 * time.Second
 )
 
 type Syncer struct {

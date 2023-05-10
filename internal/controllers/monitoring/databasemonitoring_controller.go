@@ -48,7 +48,7 @@ func (r *DatabaseMonitoringReconciler) Reconcile(ctx context.Context, req ctrl.R
 	db, err := r.waitForDatabase(ctx, cr)
 
 	if db == nil {
-		return ctrl.Result{RequeueAfter: DefaultRequeueDelay2}, err
+		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	syncer := &Syncer{

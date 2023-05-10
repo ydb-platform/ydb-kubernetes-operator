@@ -46,7 +46,7 @@ func (r *StorageMonitoringReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	storage, err := r.waitForStorage(ctx, cr)
 
 	if storage == nil {
-		return ctrl.Result{RequeueAfter: DefaultRequeueDelay2}, err
+		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	syncer := &Syncer{
