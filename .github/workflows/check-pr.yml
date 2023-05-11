@@ -24,11 +24,12 @@ jobs:
             const response = await github.rest.orgs.checkMembershipForUser({
               org: context.payload.organization.login,
               username: context.payload.pull_request.user.login
-            })
-            core.setOutput('is-org-member', 'false')
-            if (response.status == '204') {
-              core.setOutput('is-org-member', 'true')
-            }
+            });
+            // How to interpret status code: 
+            // https://docs.github.com/en/rest/orgs/members?apiVersion=2022-11-28#check-organization-membership-for-a-user
+            console.log(response.status);
+            core.setOutput('is-org-member', JSON.stringify(response.status == '204'));
+            console.log(JSON.stringify(response.status == '204'));
       - name: comment-if-waiting-on-ok
         if: ${{ steps.check-if-organization-member.outputs.is-org-member == 'false' }}
         uses: actions/github-script@v6
@@ -39,7 +40,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Hi! Thank you for contributing!\nThe tests on this PR will run after a maintainer adds an `ok-to-test` label to this PR manually. Thank you for your patience!'
-            })
+            });
   run-tests:
     needs: check-if-test-running-allowed
     uses: ./.github/workflows/run-tests.yml
