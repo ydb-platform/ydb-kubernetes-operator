@@ -11,6 +11,15 @@ on:
       - 'reopened'
       - 'labeled'
 jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: debug
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: |
+            console.log(context.payload)
   check-if-test-running-allowed:
     runs-on: ubuntu-latest
     outputs:
@@ -19,6 +28,7 @@ jobs:
       - name: check-if-organization-member
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           script: |
             const { data: isMember } = await github.rest.orgs.checkMembershipForUser({
               org: context.payload.organization.login,
