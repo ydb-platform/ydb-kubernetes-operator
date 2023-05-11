@@ -42,7 +42,8 @@ jobs:
               body: 'Hi! Thank you for contributing!\nThe tests on this PR will run after a maintainer adds an `ok-to-test` label to this PR manually. Thank you for your patience!'
             });
   run-tests:
-    needs: check-if-test-running-allowed
+    needs: 
+      - check-if-test-running-allowed
+    # if: needs.check-if-test-running-allowed.outputs.is-org-member == 'true'
     uses: ./.github/workflows/run-tests.yml
-    if: ${{ needs.check-if-test-running-allowed.outputs.is-org-member == 'true' }}
     secrets: inherit
