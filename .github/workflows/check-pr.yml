@@ -11,15 +11,15 @@ on:
       - 'reopened'
       - 'labeled'
 jobs:
-  debug:
-    runs-on: ubuntu-latest
-    steps:
-      - name: debug
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          script: |
-            console.log(context.payload)
+  # debug:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: debug
+  #       uses: actions/github-script@v6
+  #       with:
+  #         github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #         script: |
+  #           console.log(context.payload)
   check-if-test-running-allowed:
     runs-on: ubuntu-latest
     outputs:
@@ -30,11 +30,13 @@ jobs:
         with:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           script: |
-            const { data: isMember } = await github.rest.orgs.checkMembershipForUser({
+            const response = await github.rest.orgs.checkMembershipForUser({
               org: context.payload.organization.login,
               username: context.payload.pull_request.user.login
             })
-            core.setOutput("is-org-member", isMember)
+            console.log('response: ', response)
+            console.log('Member status: ', response.data)
+            core.setOutput("is-org-member", response.data)
       - name: comment-if-waiting-on-ok
         if: ${{ steps.check-if-organization-member.outputs.is-org-member == 'false' }}
         uses: actions/github-script@v6
