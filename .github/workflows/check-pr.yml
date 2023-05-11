@@ -27,10 +27,10 @@ jobs:
             })
             # How to interpret status code: 
             # https://docs.github.com/en/rest/orgs/members?apiVersion=2022-11-28#check-organization-membership-for-a-user
-            core.setOutput('is-org-member', 'false')
-            if (response.status == '204') {
-              core.setOutput('is-org-member', 'true')
-            }
+            # core.setOutput('is-org-member', 'false')
+            # if (response.status == '204') {
+            #   core.setOutput('is-org-member', 'true')
+            # }
       - name: comment-if-waiting-on-ok
         if: ${{ steps.check-if-organization-member.outputs.is-org-member == 'false' }}
         uses: actions/github-script@v6
