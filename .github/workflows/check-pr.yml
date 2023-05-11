@@ -11,12 +11,12 @@ on:
       - 'reopened'
       - 'labeled'
 jobs:
-  check-if-test-running-allowed:
+  check_if_test_running_allowed:
     runs-on: ubuntu-latest
     outputs:
-      is-org-member: ${{ steps.check-if-org-member.outputs.is-org-member }}
+      is_org_member: ${{ steps.check_if_org_member.outputs.is_org_member }}
     steps:
-      - name: check-if-org-member
+      - name: check_if_org_member
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
@@ -28,14 +28,14 @@ jobs:
             // How to interpret status code: 
             // https://docs.github.com/en/rest/orgs/members?apiVersion=2022-11-28#check-organization-membership-for-a-user
             console.log(response.status);
-            core.setOutput('is-org-member', JSON.stringify(response.status == '204'));
+            core.setOutput('is_org_member', JSON.stringify(response.status == '204'));
             console.log(JSON.stringify(response.status == '204'));
       - name: debug
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           script: |
-            console.log(steps.check-if-org-member.outputs);
+            console.log(steps.check_if_org_member.outputs);
       - name: comment-if-waiting-on-ok
         if: ${{ steps.check-if-org-member.outputs.is-org-member == 'false' }}
         uses: actions/github-script@v6
@@ -47,9 +47,20 @@ jobs:
               repo: context.repo.repo,
               body: 'Hi! Thank you for contributing!\nThe tests on this PR will run after a maintainer adds an `ok-to-test` label to this PR manually. Thank you for your patience!'
             });
+  job-debug:
+    runs-on: ubuntu-latest
+    needs: 
+      - check_if_test_running_allowed
+    steps:
+      - name: debug
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: |
+            console.log(needs.check_if_test_running_allowed.outputs.is_org_member);
   run-tests:
     needs: 
-      - check-if-test-running-allowed
-    if: needs.check-if-test-running-allowed.outputs.is-org-member == 'true'
+      - check_if_test_running_allowed
+    if: needs.check_if_test_running_allowed.outputs.is_org_member == 'true'
     uses: ./.github/workflows/run-tests.yml
     secrets: inherit
