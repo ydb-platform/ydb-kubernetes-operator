@@ -14,9 +14,9 @@ jobs:
   check-if-test-running-allowed:
     runs-on: ubuntu-latest
     outputs:
-      is-org-member: ${{ steps.check-if-organization-member.outputs.is-org-member }}
+      is-org-member: ${{ steps.check-if-org-member.outputs.is-org-member }}
     steps:
-      - name: check-if-organization-member
+      - name: check-if-org-member
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
@@ -30,8 +30,14 @@ jobs:
             console.log(response.status);
             core.setOutput('is-org-member', JSON.stringify(response.status == '204'));
             console.log(JSON.stringify(response.status == '204'));
+      - name: debug
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          script: |
+            console.log(steps.check-if-org-member.outputs);
       - name: comment-if-waiting-on-ok
-        if: ${{ steps.check-if-organization-member.outputs.is-org-member == 'false' }}
+        if: ${{ steps.check-if-org-member.outputs.is-org-member == 'false' }}
         uses: actions/github-script@v6
         with:
           script: |
@@ -44,6 +50,6 @@ jobs:
   run-tests:
     needs: 
       - check-if-test-running-allowed
-    # if: needs.check-if-test-running-allowed.outputs.is-org-member == 'true'
+    if: needs.check-if-test-running-allowed.outputs.is-org-member == 'true'
     uses: ./.github/workflows/run-tests.yml
     secrets: inherit
