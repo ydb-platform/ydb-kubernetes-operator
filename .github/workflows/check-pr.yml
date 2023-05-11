@@ -14,7 +14,7 @@ jobs:
   check-if-test-running-allowed:
     runs-on: ubuntu-latest
     outputs:
-      test-running-allowed: ${{ steps.check-if-organization-member.outputs.is-member }}
+      is-org-member: ${{ steps.check-if-organization-member.outputs.is-org-member }}
     steps:
       - name: check-if-organization-member
         uses: actions/github-script@v6
@@ -24,9 +24,9 @@ jobs:
               org: context.payload.organization.login,
               username: context.payload.pull_request.user.login
             })
-            core.setOutput("is-member", isMember)
+            core.setOutput("is-org-member", isMember)
       - name: comment-if-waiting-on-ok
-        if: ${{ steps.check-if-organization-member.outputs.is-member == 'false' }}
+        if: ${{ steps.check-if-organization-member.outputs.is-org-member == 'false' }}
         uses: actions/github-script@v6
         with:
           script: |
@@ -37,6 +37,7 @@ jobs:
               body: 'Hi! Thank you for contributing!\nThe tests on this PR will run after a maintainer adds an `ok-to-test` label to this PR manually. Thank you for your patience!'
             })
   run-tests:
-    if: ${{ steps.check-if-organization-member.outputs.is-member == 'true' }}
+    needs: check-if-test-running-allowed
     uses: ./.github/workflows/run-tests.yml
+    if: ${{ needs.check-if-test-running-allowed.outputs.is-org-member == 'true' }}
     secrets: inherit
