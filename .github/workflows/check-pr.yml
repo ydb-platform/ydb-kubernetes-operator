@@ -20,7 +20,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const { data: isMember } = await github.orgs.checkMembershipForUser({
+            const { data: isMember } = await github.rest.orgs.checkMembershipForUser({
               org: context.payload.organization.login,
               username: context.payload.pull_request.user.login
             })
