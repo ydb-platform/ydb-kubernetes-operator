@@ -14,9 +14,9 @@ jobs:
   check_if_test_running_allowed:
     runs-on: ubuntu-latest
     outputs:
-      is_org_member: ${{ steps.check_if_org_member.outputs.is_org_member }}
+      is_org_member: ${{ steps.check_if_org_member.outputs.result }}
     steps:
-      - name: check_if_org_member
+      - id: check_if_org_member
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
@@ -27,15 +27,7 @@ jobs:
             });
             // How to interpret status code: 
             // https://docs.github.com/en/rest/orgs/members?apiVersion=2022-11-28#check-organization-membership-for-a-user
-            console.log(response.status);
-            core.setOutput('is_org_member', JSON.stringify(response.status == '204'));
-            console.log(JSON.stringify(response.status == '204'));
-      - name: debug
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          script: |
-            console.log(context.steps);
+            return JSON.stringify(response.status == '204');
       - name: comment-if-waiting-on-ok
         if: ${{ steps.check-if-org-member.outputs.is-org-member == 'false' }}
         uses: actions/github-script@v6
@@ -57,7 +49,7 @@ jobs:
         with:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           script: |
-            console.log(needs.check_if_test_running_allowed.outputs.is_org_member);
+            console.log(context.needs.check_if_test_running_allowed.outputs.is_org_member);
   run-tests:
     needs: 
       - check_if_test_running_allowed
