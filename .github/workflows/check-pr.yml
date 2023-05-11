@@ -1,0 +1,42 @@
+name: check-pr
+on: 
+  pull_request:
+    branches:
+      - 'master'
+    paths-ignore:
+      - 'docs/**'
+    types:
+      - 'opened'
+      - 'synchronize'
+      - 'reopened'
+      - 'labeled'
+jobs:
+  check-if-test-running-allowed:
+    runs-on: ubuntu-latest
+    outputs:
+      test-running-allowed: ${{ steps.check-if-organization-member.outputs.is-member }}
+    steps:
+      - name: check-if-organization-member
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: isMember } = await github.orgs.checkMembershipForUser({
+              org: context.payload.organization.login,
+              username: context.payload.pull_request.user.login
+            })
+            core.setOutput("is-member", isMember)
+      - name: comment-if-waiting-on-ok
+        if: ${{ steps.check-if-organization-member.outputs.is-member == 'false' }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Hi! Thank you for contributing!\nThe tests on this PR will run after a maintainer adds an `ok-to-test` label to this PR manually. Thank you for your patience!'
+            })
+  run-tests:
+    if: ${{ steps.check-if-organization-member.outputs.is-member == 'true' }}
+    uses: ./.github/workflows/run-tests.yml
+    secrets: inherit
