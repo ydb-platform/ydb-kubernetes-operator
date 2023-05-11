@@ -8,7 +8,6 @@ on:
 
 jobs:
   start-runner:
-    if: ${{ steps.check-if-organization-member.outputs.is-member == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       runner-label: ${{ steps.start-yc-runner.outputs.label }}
