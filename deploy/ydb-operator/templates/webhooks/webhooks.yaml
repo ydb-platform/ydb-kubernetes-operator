@@ -87,7 +87,7 @@ webhooks:
       - v1
     clientConfig:
       {{- if not (empty $webhookFqdn) }}
-      url: https://{{ $webhookFqdn }}:{{ $webhookPort }}/mutate-ydb-tech-v1alpha1-storage
+      url: https://{{ $webhookFqdn }}:{{ $webhookPort }}{{ template "ydb.webhookPathPrefix" . }}/mutate-ydb-tech-v1alpha1-storage
       {{- else}}
       service:
         name: {{ template "ydb.fullname" . }}-webhook
