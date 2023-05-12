@@ -37,7 +37,7 @@ jobs:
 
             const labels = context.payload.pull_request.labels;
             const okToTestLabel = labels.find(
-              label => label.name === 'ok-to-test'
+              label => label.name == 'ok-to-test'
             );
             return okToTestLabel;
       - name: comment-if-waiting-on-ok
