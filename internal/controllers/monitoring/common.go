@@ -67,6 +67,7 @@ func (r *Syncer) Sync(ctx context.Context, obj client.Object) (ctrl.Result, erro
 	}
 
 	monitor := builder.Placeholder(obj)
+	monitor.SetName(r.Object.GetName())
 
 	result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, monitor, func() error {
 		if err := builder.Build(monitor); err != nil {
