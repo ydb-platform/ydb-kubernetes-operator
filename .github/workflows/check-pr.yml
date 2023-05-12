@@ -43,7 +43,8 @@ jobs:
             console.log(okToTestLabel);
             return okToTestLabel !== undefined;
       - name: comment-if-waiting-on-ok
-        if: steps.check-ownership-membership.outputs.result == 'false'
+        if: steps.check-ownership-membership.outputs.result == 'false' &&
+            github.*** == 'opened'
         uses: actions/github-script@v6
         with:
           script: |
