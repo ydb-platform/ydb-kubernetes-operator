@@ -90,19 +90,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&monitoring.DatabaseMonitoringReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "DatabaseMonitoring")
-		os.Exit(1)
-	}
-	if err = (&monitoring.StorageMonitoringReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "StorageMonitoring")
-		os.Exit(1)
+	if enableServiceMonitors {
+		if err = (&monitoring.DatabaseMonitoringReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "DatabaseMonitoring")
+			os.Exit(1)
+		}
+		if err = (&monitoring.StorageMonitoringReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "StorageMonitoring")
+			os.Exit(1)
+		}
 	}
 
 	if !disableWebhooks {
