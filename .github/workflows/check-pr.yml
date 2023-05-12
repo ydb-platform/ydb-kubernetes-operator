@@ -21,30 +21,28 @@ jobs:
         with:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           script: |
-            // const userLogin = context.payload.pull_request.user.login;
-            // if (context.payload.repository.owner.login == userLogin) {
-            //   return true;
-            // }
-            // const response = await github.rest.orgs.checkMembershipForUser({
-            //   org: context.payload.organization.login,
-            //   username: userLogin,
-            // });
+            const userLogin = context.payload.pull_request.user.login;
+            if (context.payload.repository.owner.login == userLogin) {
+              return true;
+            }
+            const response = await github.rest.orgs.checkMembershipForUser({
+              org: context.payload.organization.login,
+              username: userLogin,
+            });
             // How to interpret status code: 
             // https://docs.github.com/en/rest/orgs/members?apiVersion=2022-11-28#check-organization-membership-for-a-user
-            // if (response.status == '204') {
-            //   return true;
-            // }
+            if (response.status == '204') {
+              return true;
+            }
 
             const labels = context.payload.pull_request.labels;
-            console.log(labels);
             const okToTestLabel = labels.find(
               label => label.name == 'ok-to-test'
             );
-            console.log(okToTestLabel);
             return okToTestLabel !== undefined;
       - name: comment-if-waiting-on-ok
         if: steps.check-ownership-membership.outputs.result == 'false' &&
-            github.*** == 'opened'
+            github.event.action == 'opened'
         uses: actions/github-script@v6
         with:
           script: |
