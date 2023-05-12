@@ -41,7 +41,7 @@ jobs:
               label => label.name == 'ok-to-test'
             );
             console.log(okToTestLabel);
-            return okToTestLabel;
+            return okToTestLabel !== undefined;
       - name: comment-if-waiting-on-ok
         if: steps.check-ownership-membership.outputs.result == 'false'
         uses: actions/github-script@v6
