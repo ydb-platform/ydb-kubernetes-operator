@@ -31,7 +31,8 @@ func SetupK8STestManager(testCtx *context.Context, k8sClient *client.Client, con
 	_, curfile, _, _ := runtime.Caller(0)
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join(curfile, "..", "..", "..", "deploy", "ydb-operator", "crds"),
+			filepath.Join(filepath.Dir(curfile), "..", "..", "deploy", "ydb-operator", "crds"),
+			filepath.Join(filepath.Dir(curfile), "extra_crds"),
 		},
 		ErrorIfCRDPathMissing: true,
 		UseExistingCluster:    &useExistingCluster,
