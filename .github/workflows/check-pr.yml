@@ -40,6 +40,7 @@ jobs:
             const okToTestLabel = labels.find(
               label => label.name == 'ok-to-test'
             );
+            console.log(okToTestLabel);
             return okToTestLabel;
       - name: comment-if-waiting-on-ok
         if: steps.check-ownership-membership.outputs.result == 'false'
