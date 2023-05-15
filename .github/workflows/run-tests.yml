@@ -28,26 +28,6 @@ jobs:
           memory: 32GB
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
-      - name: cleanup-test-label
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const prNumber = context.payload.pull_request.number;
-            const labelToRemove = 'ok-to-test';
-            try {
-              const result = await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: prNumber,
-                name: labelToRemove
-              });
-            } catch(e) {
-              // ignore the 404 error that arises
-              // when the label did not exist for the
-              // organization member
-              console.log(e);
-            }
   smart-checkout:
     needs: 
       - start-runner
