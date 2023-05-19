@@ -26,9 +26,9 @@ type StorageMonitoringReconciler struct {
 
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ydb.ydb.tech,resources=storagemonitorings,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ydb.ydb.tech,resources=storagemonitorings/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ydb.ydb.tech,resources=storagemonitorings/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ydb.tech,resources=storagemonitorings,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ydb.tech,resources=storagemonitorings/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ydb.tech,resources=storagemonitorings/finalizers,verbs=update
 
 func (r *StorageMonitoringReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)

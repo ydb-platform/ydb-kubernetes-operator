@@ -38,6 +38,9 @@ resources:
   kind: DatabaseMonitoring
   path: github.com/ydb-platform/ydb-operator/api/v1alpha1
   version: v1alpha1
+  webhooks:
+    validation: true
+    webhookVersion: v1
 - api:
     crdVersion: v1
     namespaced: true
@@ -47,4 +50,7 @@ resources:
   kind: StorageMonitoring
   path: github.com/ydb-platform/ydb-operator/api/v1alpha1
   version: v1alpha1
+  webhooks:
+    validation: true
+    webhookVersion: v1
 version: "3"

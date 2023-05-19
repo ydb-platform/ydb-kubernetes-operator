@@ -116,6 +116,13 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Database")
 			os.Exit(1)
 		}
+
+		if err = ydbv1alpha1.RegisterMonitoringValidatingWebhook(mgr, enableServiceMonitors); err != nil {
+			setupLog.Error(err, "unable to create webhooks", "webhooks",
+				[]string{"DatabaseMonitoring", "StorageMonitoring"})
+			os.Exit(1)
+
+		}
 	}
 	//+kubebuilder:scaffold:builder
 
