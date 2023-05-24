@@ -10,7 +10,7 @@ The YDB Kubernetes operator deploys and manages YDB resources in a Kubernetes cl
 
 ## Limitations
 
-- The Operator currently runs on Yandex Cloud and Amazon EKS, other cloud providers have not been tested.
+- The Operator currently runs on [Amazon EKS](https://aws.amazon.com/eks/) and [Yandex Managed Service for Kubernetes®](https://cloud.yandex.com/en/services/managed-kubernetes), other cloud providers have not yet been tested.
 - The Operator has not been tested with [Istio](https://istio.io/).
 
 ## Usage
