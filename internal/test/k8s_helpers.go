@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive,stylecheck
+	. "github.com/onsi/gomega"    //nolint:revive,stylecheck
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,7 +30,7 @@ func SetupK8STestManager(testCtx *context.Context, k8sClient *client.Client, con
 	useExistingCluster := false
 
 	// FIXME: find a better way?
-	_, curfile, _, _ := runtime.Caller(0)
+	_, curfile, _, _ := runtime.Caller(0) //nolint:dogsled
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join(curfile, "..", "..", "..", "deploy", "ydb-operator", "crds"),
