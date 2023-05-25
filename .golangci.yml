@@ -241,4 +241,5 @@ issues:
       linters:
         - unused
         - unparam
-
+    - text: 'shadow: declaration of "err" shadows declaration at'
+      linters: [ govet ]
