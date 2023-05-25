@@ -2,19 +2,19 @@ package monitoring
 
 import (
 	"context"
-	storagectrl "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
+
 	core "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	storagectrl "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
 
 // StorageMonitoringReconciler reconciles a StorageMonitoring object
@@ -58,7 +58,6 @@ func (r *StorageMonitoringReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		Object: cr,
 	}
 	return syncer.Sync(ctx, storage)
-
 }
 
 func (r *StorageMonitoringReconciler) waitForStorage(ctx context.Context, cr *api.StorageMonitoring) (*api.Storage, error) {

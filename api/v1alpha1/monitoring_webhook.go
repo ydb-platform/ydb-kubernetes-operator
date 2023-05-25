@@ -3,6 +3,8 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/go-logr/logr"
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-	"strings"
 )
 
 // generateValidatePath is a copy from controller-runtime
@@ -33,9 +34,8 @@ func RegisterMonitoringValidatingWebhook(mgr ctrl.Manager, enableServiceMonitori
 
 	srv := mgr.GetWebhookServer()
 
-	var registerWebHook = func(typ runtime.Object, logName string) error {
+	registerWebHook := func(typ runtime.Object, logName string) error {
 		gvk, err := apiutil.GVKForObject(typ, mgr.GetScheme())
-
 		if err != nil {
 			return err
 		}
@@ -86,8 +86,10 @@ type monitoringValidationHandler struct {
 	decoder                 *admission.Decoder
 }
 
-var _ inject.Client = &monitoringValidationHandler{}
-var _ admission.Handler = &monitoringValidationHandler{}
+var (
+	_ inject.Client     = &monitoringValidationHandler{}
+	_ admission.Handler = &monitoringValidationHandler{}
+)
 
 func (v *monitoringValidationHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if !v.enableServiceMonitoring {

@@ -3,9 +3,18 @@ package monitoring_test
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"testing"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
@@ -13,13 +22,6 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"path/filepath"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"testing"
 )
 
 var (
@@ -101,7 +103,6 @@ func createMockSvc(name string, parentKind string, parent client.Object) {
 	}
 	svc.SetOwnerReferences(ref)
 	Expect(k8sClient.Update(ctx, svc)).Should(Succeed())
-
 }
 
 func createMockDbAndSvc() {
@@ -200,7 +201,6 @@ var _ = Describe("StorageMonitoring tests", func() {
 				}
 				return false
 			}, 15, 1).Should(BeTrue())
-
 		})
 	})
 })

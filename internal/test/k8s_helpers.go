@@ -2,19 +2,21 @@ package test
 
 import (
 	"context"
+	"path/filepath"
+	"runtime"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"k8s.io/kubectl/pkg/scheme"
-	"path/filepath"
-	"runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 type Reconciler interface {
