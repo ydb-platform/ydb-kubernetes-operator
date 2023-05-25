@@ -28,7 +28,7 @@ func generateValidatePath(gvk schema.GroupVersionKind) string {
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-databasemonitoring,mutating=false,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databasemonitorings,verbs=create,versions=v1alpha1,name=vdatabasemonitoring.kb.io,admissionReviewVersions=v1
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-storagemonitoring,mutating=false,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storagemonitorings,verbs=create,versions=v1alpha1,name=vstoragemonitoring.kb.io,admissionReviewVersions=v1
 
-func RegisterMonitoringValidatingWebhook(mgr ctrl.Manager, enbSvcMon bool) error {
+func RegisterMonitoringValidatingWebhook(mgr ctrl.Manager, enableServiceMonitoring bool) error {
 	// We are using low-level api here because we need pass client to handler
 
 	srv := mgr.GetWebhookServer()
@@ -44,9 +44,9 @@ func RegisterMonitoringValidatingWebhook(mgr ctrl.Manager, enbSvcMon bool) error
 		logf.Log.WithName("monitoring-webhooks").Info("Registering a validating webhook", "GVK", gvk, "path", path)
 		srv.Register(path, &webhook.Admission{
 			Handler: &monitoringValidationHandler{
-				logger:    logf.Log.WithName(logName),
-				enbSvcMon: enbSvcMon,
-				mgr:       mgr,
+				logger:                  logf.Log.WithName(logName),
+				enableServiceMonitoring: enableServiceMonitoring,
+				mgr:                     mgr,
 			},
 		})
 		return nil
@@ -79,18 +79,18 @@ func ensureNoServiceMonitor(ctx context.Context, client client.Client, namespace
 }
 
 type monitoringValidationHandler struct {
-	enbSvcMon bool
-	logger    logr.Logger
-	client    client.Client
-	mgr       ctrl.Manager
-	decoder   *admission.Decoder
+	enableServiceMonitoring bool
+	logger                  logr.Logger
+	client                  client.Client
+	mgr                     ctrl.Manager
+	decoder                 *admission.Decoder
 }
 
 var _ inject.Client = &monitoringValidationHandler{}
 var _ admission.Handler = &monitoringValidationHandler{}
 
 func (v *monitoringValidationHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	if !v.enbSvcMon {
+	if !v.enableServiceMonitoring {
 		return webhook.Denied("the ydb-operator is running without a service monitoring feature.")
 	}
 
