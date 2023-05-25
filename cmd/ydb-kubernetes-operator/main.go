@@ -15,6 +15,7 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 )
 
@@ -89,6 +90,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	if enableServiceMonitors {
+		if err = (&monitoring.DatabaseMonitoringReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "DatabaseMonitoring")
+			os.Exit(1)
+		}
+		if err = (&monitoring.StorageMonitoringReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "StorageMonitoring")
+			os.Exit(1)
+		}
+	}
+
 	if !disableWebhooks {
 		if err = (&ydbv1alpha1.Storage{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Storage")
@@ -96,6 +114,12 @@ func main() {
 		}
 		if err = (&ydbv1alpha1.Database{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Database")
+			os.Exit(1)
+		}
+
+		if err = ydbv1alpha1.RegisterMonitoringValidatingWebhook(mgr, enableServiceMonitors); err != nil {
+			setupLog.Error(err, "unable to create webhooks", "webhooks",
+				[]string{"DatabaseMonitoring", "StorageMonitoring"})
 			os.Exit(1)
 		}
 	}

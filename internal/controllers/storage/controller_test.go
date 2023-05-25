@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -23,11 +22,6 @@ import (
 var (
 	k8sClient client.Client
 	ctx       context.Context
-)
-
-const (
-	Timeout  = time.Second * 600
-	Interval = time.Second * 5
 )
 
 func TestAPIs(t *testing.T) {
@@ -95,7 +89,7 @@ var _ = Describe("Storage controller medium tests", func() {
 				}
 			}
 			return foundStatefulSet
-		}, Timeout, Interval).Should(BeTrue())
+		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		storageSS := storageStatefulSets.Items[0]
 		volumes := storageSS.Spec.Template.Spec.Volumes

@@ -66,6 +66,54 @@ webhooks:
         resources:
           - databases
     sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      {{- if not (empty $webhookFqdn) }}
+      url: https://{{ $webhookFqdn }}:{{ $webhookPort }}{{ template "ydb.webhookPathPrefix" . }}/validate-ydb-tech-v1alpha1-databasemonitoring
+      {{- else}}
+      service:
+        name: {{ template "ydb.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        port: {{ $webhookPort }}
+        path: /validate-ydb-tech-v1alpha1-databasemonitoring
+      {{- end}}
+    failurePolicy: Fail
+    name: validate-databasemonitoring.ydb.tech
+    rules:
+      - apiGroups:
+          - ydb.tech
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - databasemonitorings
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      {{- if not (empty $webhookFqdn) }}
+      url: https://{{ $webhookFqdn }}:{{ $webhookPort }}{{ template "ydb.webhookPathPrefix" . }}/validate-ydb-tech-v1alpha1-storagemonitoring
+      {{- else}}
+      service:
+        name: {{ template "ydb.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        port: {{ $webhookPort }}
+        path: /validate-ydb-tech-v1alpha1-storagemonitoring
+      {{- end}}
+    failurePolicy: Fail
+    name: validate-storagemonitoring.ydb.tech
+    rules:
+      - apiGroups:
+          - ydb.tech
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - storagemonitorings
+    sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
