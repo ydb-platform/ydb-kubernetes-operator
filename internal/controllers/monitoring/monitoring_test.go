@@ -162,7 +162,7 @@ var _ = Describe("Create DatabaseMonitoring", func() {
 					}
 				}
 				return false
-			}, 15, 1).Should(BeTrue())
+			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
 })
@@ -200,7 +200,7 @@ var _ = Describe("StorageMonitoring tests", func() {
 					}
 				}
 				return false
-			}, 15, 1).Should(BeTrue())
+			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
 })

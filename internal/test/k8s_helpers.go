@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2" //nolint:revive,stylecheck
 	. "github.com/onsi/gomega"    //nolint:revive,stylecheck
@@ -17,6 +18,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+)
+
+const (
+	Timeout  = 30 * time.Second
+	Interval = 1 * time.Second
 )
 
 type Reconciler interface {
