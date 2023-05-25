@@ -2,39 +2,12 @@
 # runner must have `docker` and `curl` installed (true on github-runners)
 
 name: run-tests
-on: 
-  pull_request_target:
-    branches:
-      - 'master'
-    types:
-      - 'opened'
-      - 'synchronize'
-      - 'reopened'
-      - 'labeled'
+
+on:
+  workflow_call:
+
 jobs:
-  comment-if-waiting-on-ok:
-    if: |
-      (github.event.action == 'opened') &&
-       !contains(fromJSON('["MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), 
-          github.event.pull_request.author_association) 
-    runs-on: ubuntu-latest
-    steps:
-      - name: comment-if-waiting-on-ok
-        uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Hi! Thank you for contributing!\nThe tests on this PR will run after a maintainer adds an `ok-to-test` label to this PR manually. Thank you for your patience!'
-            })
   start-runner:
-    if: |
-      (contains(fromJSON('["opened","synchronize"]'), github.event.action) && 
-       contains(fromJSON('["MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), 
-         github.event.pull_request.author_association)) ||
-       contains(github.event.pull_request.labels.*.name, 'ok-to-test')
     runs-on: ubuntu-latest
     outputs:
       runner-label: ${{ steps.start-yc-runner.outputs.label }}
@@ -55,26 +28,6 @@ jobs:
           memory: 32GB
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
-      - name: cleanup-test-label
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const prNumber = context.payload.pull_request.number;
-            const labelToRemove = 'ok-to-test';
-            try {
-              const result = await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: prNumber,
-                name: labelToRemove
-              });
-            } catch(e) {
-              // ignore the 404 error that arises
-              // when the label did not exist for the
-              // organization member
-              console.log(e);
-            }
   smart-checkout:
     needs: 
       - start-runner
@@ -220,7 +173,7 @@ jobs:
       - lint
       - code-format-check
     runs-on: ubuntu-latest
-    if: ${{ needs.start-runner.result != 'skipped' }}
+    if: always()
     steps:
       - name: stop-yc-runner
         uses: yc-actions/yc-github-runner@v1
