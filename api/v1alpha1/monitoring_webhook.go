@@ -56,11 +56,7 @@ func RegisterMonitoringValidatingWebhook(mgr ctrl.Manager, enableServiceMonitori
 		return err
 	}
 
-	if err := registerWebHook(&StorageMonitoring{}, "storagemonitoring-resource"); err != nil {
-		return err
-	}
-
-	return nil
+	return registerWebHook(&StorageMonitoring{}, "storagemonitoring-resource")
 }
 
 func ensureNoServiceMonitor(ctx context.Context, client client.Client, namespace string, name string) error {

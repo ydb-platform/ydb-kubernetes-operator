@@ -121,7 +121,6 @@ func main() {
 			setupLog.Error(err, "unable to create webhooks", "webhooks",
 				[]string{"DatabaseMonitoring", "StorageMonitoring"})
 			os.Exit(1)
-
 		}
 	}
 	//+kubebuilder:scaffold:builder

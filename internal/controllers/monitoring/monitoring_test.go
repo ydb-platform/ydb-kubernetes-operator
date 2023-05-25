@@ -105,7 +105,7 @@ func createMockSvc(name string, parentKind string, parent client.Object) {
 	Expect(k8sClient.Update(ctx, svc)).Should(Succeed())
 }
 
-func createMockDbAndSvc() {
+func createMockDBAndSvc() {
 	GinkgoHelper()
 
 	db := testobjects.DefaultDatabase()
@@ -132,7 +132,7 @@ func createMockStorageAndSvc() {
 var _ = Describe("Create DatabaseMonitoring", func() {
 	When("Database is already ready", func() {
 		It("We must create ServiceMonitor", func() {
-			createMockDbAndSvc()
+			createMockDBAndSvc()
 
 			dbMon := api.DatabaseMonitoring{
 				ObjectMeta: metav1.ObjectMeta{
