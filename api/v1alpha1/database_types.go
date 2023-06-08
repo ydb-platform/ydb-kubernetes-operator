@@ -141,6 +141,10 @@ type DatabaseSpec struct {
 	// (Optional) Additional custom resource annotations that are added to all resources
 	// +optional
 	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
+
+	// (Optional) If specified, the pod's priorityClassName.
+	// +optional
+	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
 type DatabaseResources struct {
