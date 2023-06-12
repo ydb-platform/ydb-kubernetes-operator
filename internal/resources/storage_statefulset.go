@@ -110,6 +110,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			NodeSelector:              b.Spec.NodeSelector,
 			Affinity:                  b.Spec.Affinity,
 			Tolerations:               b.Spec.Tolerations,
+			PriorityClassName:         b.Spec.PriorityClassName,
 			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 
 			Volumes: b.buildVolumes(),

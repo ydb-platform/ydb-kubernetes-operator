@@ -96,6 +96,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			NodeSelector:              b.Spec.NodeSelector,
 			Affinity:                  b.Spec.Affinity,
 			Tolerations:               b.Spec.Tolerations,
+			PriorityClassName:         b.Spec.PriorityClassName,
 			TopologySpreadConstraints: b.Spec.TopologySpreadConstraints,
 
 			Volumes: b.buildVolumes(),

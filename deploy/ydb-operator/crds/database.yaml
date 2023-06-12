@@ -2286,6 +2286,9 @@ spec:
                 maxLength: 255
                 pattern: /[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
                 type: string
+              priorityClassName:
+                description: (Optional) If specified, the pod's priorityClassName.
+                type: string
               publicHost:
                 description: '(Optional) Public host to advertise on discovery requests
                   Default: ""'

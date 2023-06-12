@@ -2445,6 +2445,9 @@ spec:
                 description: Number of nodes (pods) in the cluster
                 format: int32
                 type: integer
+              priorityClassName:
+                description: (Optional) If specified, the pod's priorityClassName.
+                type: string
               resources:
                 description: '(Optional) Storage container resource limits. Any container
                   limits can be specified. Default: (not specified)'
