@@ -134,12 +134,21 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	if b.Spec.HostNetwork {
 		podTemplate.Spec.HostNetwork = true
-		podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
 	}
 
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateDnsPolicy]; ok {
+		annotatedDnsPolicy := corev1.DNSPolicy(value)
+		switch annotatedDnsPolicy {
+		case corev1.DNSClusterFirstWithHostNet, corev1.DNSClusterFirst, corev1.DNSDefault, corev1.DNSNone:
+			podTemplate.Spec.DNSPolicy = annotatedDnsPolicy
+		default:
+		}
+	}
+
 	return podTemplate
 }
 
