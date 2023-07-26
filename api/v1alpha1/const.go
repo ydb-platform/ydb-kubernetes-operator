@@ -32,7 +32,7 @@ const (
 	DaemonBinaryName = "ydbd"
 
 	AnnotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
-	AnnotationUpdateDnsPolicy        = "ydb.tech/update-dns-policy"
+	AnnotationUpdateDNSPolicy        = "ydb.tech/update-dns-policy"
 	AnnotationSkipInitialization     = "ydb.tech/skip-initialization"
 	AnnotationDisableLivenessProbe   = "ydb.tech/disable-liveness-probe"
 	AnnotationDataCenter             = "ydb.tech/data-center"
