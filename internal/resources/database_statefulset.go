@@ -587,6 +587,20 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		}
 	}
 
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationNodeHost]; ok {
+		args = append(args,
+			"--node-host",
+			value,
+		)
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationNodeDomain]; ok {
+		args = append(args,
+			"--node-domain",
+			value,
+		)
+	}
+
 	return command, args
 }
 
