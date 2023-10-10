@@ -11,6 +11,7 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -26,9 +27,16 @@ type Tenant struct {
 	SharedDatabasePath string
 }
 
-func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder) error {
+func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder, credentials ydbCredentials.Credentials) error {
 	createDatabaseURL := fmt.Sprintf("%s/%s", t.StorageEndpoint, database.Spec.Domain)
-	db, err := connection.Build(ctx, createDatabaseURL)
+	conn := connection.NewYDBConnection(
+		ctx,
+		createDatabaseURL,
+		resources.IsGrpcSecure(database.Storage),
+		credentials,
+	)
+
+	db, err := conn.Open()
 	if err != nil {
 		return err
 	}
@@ -36,7 +44,7 @@ func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder
 	logger := log.FromContext(ctx)
 
 	defer func() {
-		connection.Close(ctx, db)
+		conn.Close(db)
 	}()
 
 	client := Ydb_Cms_V1.NewCmsServiceClient(ydb.GRPCConn(db))

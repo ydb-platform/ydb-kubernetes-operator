@@ -10,18 +10,25 @@ import (
 	"google.golang.org/protobuf/proto"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
+func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder, credentials ydbCredentials.Credentials) (*Ydb_Monitoring.SelfCheckResult, error) {
 	getSelfCheckURL := fmt.Sprintf(
 		"%s/%s",
 		cluster.GetGRPCEndpointWithProto(),
 		cluster.Storage.Spec.Domain,
 	)
+	conn := connection.NewYDBConnection(
+		ctx,
+		getSelfCheckURL,
+		resources.IsGrpcSecure(cluster.Storage),
+		credentials,
+	)
 
-	db, err := connection.Build(ctx, getSelfCheckURL)
+	db, err := conn.Open()
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +36,7 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 	logger := log.FromContext(ctx)
 
 	defer func() {
-		connection.Close(ctx, db)
+		conn.Close(db)
 	}()
 
 	client := Ydb_Monitoring_V1.NewMonitoringServiceClient(ydb.GRPCConn(db))

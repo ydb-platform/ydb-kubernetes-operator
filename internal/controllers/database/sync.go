@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
@@ -37,6 +38,9 @@ const (
 	TenantInitializedCondition        = "TenantInitialized"
 	TenantInitializedReasonInProgress = "InProgres"
 	TenantInitializedReasonCompleted  = "Completed"
+
+	DefaulRootUsername = "root"
+	DefaulRootPassword = ""
 
 	Stop     = true
 	Continue = false
@@ -381,7 +385,13 @@ func (r *Reconciler) handleTenantCreation(
 		SharedDatabasePath: sharedDatabasePath,
 	}
 
-	err := tenant.Create(ctx, database)
+	credentials, err := r.getAuthCredentials(ctx, database)
+	if err != nil {
+		r.Log.Error(err, "Error connecting to YDB storage %s", database.Storage.Name)
+		return Stop, ctrl.Result{RequeueAfter: TenantCreationRequeueDelay}, err
+	}
+
+	err = tenant.Create(ctx, database, credentials)
 	if err != nil {
 		r.Recorder.Event(
 			database,
@@ -444,4 +454,65 @@ func (r *Reconciler) setState(
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+}
+
+func (r *Reconciler) getAuthCredentials(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (ydbCredentials.Credentials, error) {
+	switch auth := database.Storage.Spec.Auth; {
+	case auth.AccessToken != nil:
+		token, err := r.getSecretKey(
+			ctx,
+			database.Storage.Namespace,
+			auth.AccessToken.SecretKeyRef,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return ydbCredentials.NewAccessTokenCredentials(token), nil
+	case auth.StaticCredentials != nil:
+		endpoint := database.GetStorageEndpointWithProto()
+		opts := resources.GetStorageGRPCOptions(database.Storage)
+		username := auth.StaticCredentials.Username
+		password := DefaulRootPassword
+		if auth.StaticCredentials.SecretKeyRef != nil {
+			var err error
+			password, err = r.getSecretKey(
+				ctx,
+				database.Storage.Namespace,
+				auth.StaticCredentials.SecretKeyRef,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return ydbCredentials.NewStaticCredentials(username, password, endpoint, opts...), nil
+	default:
+		return ydbCredentials.NewAnonymousCredentials(), nil
+	}
+}
+
+func (r *Reconciler) getSecretKey(
+	ctx context.Context,
+	namespace string,
+	secretKeyRef *corev1.SecretKeySelector,
+) (string, error) {
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{
+		Name:      secretKeyRef.Name,
+		Namespace: namespace,
+	}, secret)
+	if err != nil {
+		return "", err
+	}
+	secretVal, exist := secret.Data[secretKeyRef.Key]
+	if !exist {
+		return "", fmt.Errorf(
+			"key %s does not exist in secretData %s",
+			secretKeyRef.Key,
+			secretKeyRef.Name,
+		)
+	}
+	return string(secretVal), nil
 }

@@ -8,65 +8,36 @@ import (
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-const (
-	DefaultRootUsername = "root"
-	DefaultRootPassword = ""
-)
-
-func buildSystemTLSStoreOption() grpc.DialOption {
-	certPool, _ := x509.SystemCertPool()
-	// TODO(shmel1k@): figure out min allowed TLS version?
-	tlsCredentials := credentials.NewTLS(&tls.Config{ //nolint
-		RootCAs: certPool,
-	})
-	return grpc.WithTransportCredentials(tlsCredentials)
+type YDBConnection struct {
+	ctx         context.Context
+	endpoint    string
+	secure      bool
+	credentials ydbCredentials.Credentials
 }
 
-func buildConnectionOpts(secure bool) []grpc.DialOption {
-	var opts []grpc.DialOption
-
-	if secure {
-		opts = append(opts, buildSystemTLSStoreOption())
-	} else {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewYDBConnection(ctx context.Context, endpoint string, secure bool, credentials ydbCredentials.Credentials) *YDBConnection {
+	return &YDBConnection{
+		ctx:         ctx,
+		endpoint:    endpoint,
+		secure:      secure,
+		credentials: credentials,
 	}
-
-	return opts
 }
 
-func GetAuthToken(ctx context.Context, grpcEndpoint string, secure bool) (string, error) {
-	staticCredentials := ydbCredentials.NewStaticCredentials(
-		DefaultRootUsername,
-		DefaultRootPassword,
-		grpcEndpoint,
-		buildConnectionOpts(secure)...,
-	)
-
-	token, err := staticCredentials.Token(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return token, nil
-}
-
-func Build(ctx context.Context, grpcEndpointWithProto string) (ydb.Connection, error) {
+func (conn *YDBConnection) Open() (*ydb.Driver, error) {
 	db, err := ydb.Open(
-		ctx,
-		grpcEndpointWithProto,
-		ydb.WithStaticCredentials(DefaultRootUsername, DefaultRootPassword),
+		conn.ctx,
+		conn.endpoint,
+		conn.getOptions()...,
 	)
 	if err != nil {
-		log.FromContext(ctx).Error(err,
+		log.FromContext(conn.ctx).Error(err,
 			fmt.Sprintf(
 				"Failed to open grpc connection to YDB, endpoint %s",
-				grpcEndpointWithProto,
+				conn.endpoint,
 			))
 		return nil, err
 	}
@@ -74,9 +45,27 @@ func Build(ctx context.Context, grpcEndpointWithProto string) (ydb.Connection, e
 	return db, nil
 }
 
-func Close(ctx context.Context, db ydb.Connection) {
-	logger := log.FromContext(ctx)
-	if err := db.Close(ctx); err != nil {
+func (conn *YDBConnection) Close(db *ydb.Driver) {
+	logger := log.FromContext(conn.ctx)
+	if err := db.Close(conn.ctx); err != nil {
 		logger.Error(err, "db close failed")
 	}
+}
+
+func (conn *YDBConnection) getOptions() []ydb.Option {
+	var opts []ydb.Option
+
+	opts = append(opts, ydb.WithCredentials(conn.credentials))
+
+	if conn.secure {
+		certPool, _ := x509.SystemCertPool()
+		// TODO(shmel1k@): figure out min allowed TLS version?
+		opts = append(opts, ydb.WithTLSConfig(&tls.Config{ //nolint
+			RootCAs: certPool,
+		}))
+	} else {
+		opts = append(opts, ydb.WithTLSSInsecureSkipVerify())
+	}
+
+	return opts
 }

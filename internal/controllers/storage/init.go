@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"regexp"
 
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -103,14 +101,6 @@ func (r *Reconciler) setInitialStatus(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-type PartialYamlConfig struct {
-	DomainsConfig struct {
-		SecurityConfig struct {
-			EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
-		} `yaml:"security_config"`
-	} `yaml:"domains_config"`
-}
-
 func (r *Reconciler) runInitScripts(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
@@ -140,32 +130,27 @@ func (r *Reconciler) runInitScripts(
 	cmd := []string{
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
 	}
-	if resources.IsGrpcSecure(storage.Storage) {
-		cmd = append(
-			cmd,
-			"-s", storage.GetGRPCEndpointWithProto(),
-		)
-	}
 
-	yamlConfig := PartialYamlConfig{}
-	err := yaml.Unmarshal([]byte(storage.Spec.Configuration), &yamlConfig)
+	// Append server address to connect
+	cmd = append(
+		cmd,
+		"-s", storage.GetGRPCEndpointWithProto(),
+	)
+
+	credentials, err := r.getAuthCredentials(ctx, storage)
 	if err != nil {
-		r.Log.Error(err, "Failed to parse YAML to determine `enforce_user_token_requirement`")
-		// TODO(@tarasov-egor) Parse Configuration once, somewhere in webhook, and fail to apply
-		// if something's missing. Here is not the place to fail!!!!
+		r.Log.Error(err, "Error connecting to YDB storage %s", storage.Name)
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
 	}
 
-	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		token, authErr := connection.GetAuthToken(
-			ctx,
-			storage.GetGRPCEndpoint(),
-			resources.IsGrpcSecure(storage.Storage),
-		)
-		if authErr != nil {
-			r.Log.Error(authErr, "Failed to get auth token for blobstorage initialization")
-			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, authErr
-		}
+	token, err := credentials.Token(ctx)
+	if err != nil {
+		r.Log.Error(err, "Error getting token for YDB credentials %s", storage.Name)
+		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+	}
+
+	// Append security token if necessary
+	if token != "" {
 		cmd = append(
 			cmd,
 			"--token",

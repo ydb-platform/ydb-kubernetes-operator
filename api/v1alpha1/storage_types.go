@@ -27,6 +27,11 @@ type StorageSpec struct {
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`
 
+	// (Optional) Auth services parameter overrides
+	// Default: (not specified)
+	// +optional
+	Auth *AuthOptions `json:"auth,omitempty"`
+
 	// (Optional) Storage services parameter overrides
 	// Default: (not specified)
 	// +optional

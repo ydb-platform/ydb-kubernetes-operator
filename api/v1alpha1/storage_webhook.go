@@ -1,8 +1,10 @@
 package v1alpha1
 
 import (
+	"errors"
 	"fmt"
 
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
@@ -18,6 +20,14 @@ func (r *Storage) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		Complete()
+}
+
+type YDBConfiguration struct {
+	DomainsConfig struct {
+		SecurityConfig struct {
+			EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
+		} `yaml:"security_config"`
+	} `yaml:"domains_config"`
 }
 
 //+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
@@ -51,6 +61,12 @@ func (r *Storage) Default() {
 	if r.Spec.Monitoring == nil {
 		r.Spec.Monitoring = &MonitoringOptions{
 			Enabled: false,
+		}
+	}
+
+	if r.Spec.Auth == nil {
+		r.Spec.Auth = &AuthOptions{
+			Anonymous: true,
 		}
 	}
 
@@ -88,6 +104,22 @@ func (r *Storage) ValidateCreate() error {
 		}
 	}
 
+	yamlConfig := YDBConfiguration{}
+	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
+	if err != nil {
+		return errors.New("failed parse 'spec.configuration' to determine `enforce_user_token_requirement`")
+	}
+
+	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+		if r.Spec.Auth.Anonymous {
+			return errors.New("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: true`")
+		}
+	} else {
+		if !r.Spec.Auth.Anonymous {
+			return errors.New("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: false` ")
+		}
+	}
+
 	// TODO(user): fill in your validation logic upon object creation.
 	return nil
 }
@@ -95,6 +127,22 @@ func (r *Storage) ValidateCreate() error {
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
+
+	yamlConfig := YDBConfiguration{}
+	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
+	if err != nil {
+		return errors.New("failed to parse 'spec.configuration' to determine `enforce_user_token_requirement`")
+	}
+
+	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+		if r.Spec.Auth.Anonymous {
+			return errors.New("empty field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: true`")
+		}
+	} else {
+		if !r.Spec.Auth.Anonymous {
+			return errors.New("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: false` ")
+		}
+	}
 
 	// TODO(user): fill in your validation logic upon object update.
 	return nil
