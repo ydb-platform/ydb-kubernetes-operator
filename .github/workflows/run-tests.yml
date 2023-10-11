@@ -1,0 +1,185 @@
+# Implicit requirements
+# runner must have `docker` and `curl` installed (true on github-runners)
+
+name: run-tests
+
+on:
+  workflow_call:
+
+jobs:
+  start-runner:
+    runs-on: ubuntu-latest
+    outputs:
+      runner-label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: start-yc-runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: b1gmgbhccra2qca8v5g6
+          image-id: fd80o2eikcn22b229tsa
+          cores: 16
+          disk-type: network-ssd-nonreplicated
+          disk-size: 465GB
+          memory: 32GB
+          core-fraction: 100
+          subnet-id: e9bu12i8ocv6q8kl83ru
+  smart-checkout:
+    needs: 
+      - start-runner
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
+    steps:
+      - name: checkout-when-fork-source
+        uses: actions/checkout@v3
+        if: github.event.pull_request.head.sha != ''
+        with:
+            ref: ${{ github.event.pull_request.head.sha }}
+      - name: checkout-when-this-repo-source
+        uses: actions/checkout@v3
+        if: github.event.pull_request.head.sha == ''
+  lint:
+    concurrency:
+      group: lint-golangci-${{ github.ref }}
+      cancel-in-progress: true
+    needs: 
+      - start-runner
+      - smart-checkout
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
+    steps:
+      - name: setup-go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      - name: set-env-vars
+        run: |
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.48.0
+  code-format-check:
+    concurrency:
+      group: lint-autoformat-${{ github.ref }}
+      cancel-in-progress: true
+    needs: 
+      - start-runner
+      - smart-checkout
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
+    steps:
+      - name: setup-go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      - name: set-env-vars
+        run: |
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
+      - name: Install utilities
+        run: |
+          go install mvdan.cc/gofumpt@v0.3.1
+          go install github.com/rinchsan/gosimports/cmd/gosimports@v0.1.5
+      - name: format all files with auto-formatter
+        run: bash ./.github/scripts/format-all-go-code.sh "$PWD"
+      - name: Check repository diff
+        run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
+  run-tests:
+    needs: 
+      - start-runner
+      - smart-checkout
+    runs-on: ${{ needs.start-runner.outputs.runner-label }}
+    outputs:
+      result: ${{ steps.run-tests.outputs.result }}
+    steps:
+      - name: setup-go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      - name: install-dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+          export HOME=/actions-runner
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
+
+          go install sigs.k8s.io/kind@v0.17.0
+
+          curl -LO https://dl.k8s.io/release/v1.25.0/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+
+          HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
+          curl -LO https://get.helm.sh/"${HELM_PKG}"
+          tar -zxvf "${HELM_PKG}"
+          mv ./linux-amd64/helm .
+
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-ydb/install.sh | bash
+
+          echo "$(pwd)" >> $GITHUB_PATH
+          echo "$HOME/ydb/bin" >> $GITHUB_PATH
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+      - name: configure-system
+        run: |
+          sudo sysctl fs.inotify.max_user_instances=1280
+          sudo sysctl fs.inotify.max_user_watches=655360
+      - name: check-dependencies
+        run: |
+          gcc --version
+          go version
+          kind version
+          kubectl version --short --client=true
+          helm version
+      - name: setup-medium-test-class-binaries
+        run: |
+          # This installs kube-apiserver and etcd binaries for `medium` 
+          # class tests. Refer to the writing tests docs for more info.
+          make envtest
+          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
+          echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
+      - name: setup-k8s-cluster
+        run: |
+          kind delete cluster
+          kind create cluster \
+          --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
+          --config=./e2e/kind-cluster-config.yaml
+          kubectl wait --timeout=5m --for=condition=ready node -l worker=true
+      - name: build-operator-image
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          # Get commit short sha within Github action workflow
+          # Just a random string name, we aren't uploading anyway
+          tags: kind/ydb-operator:current
+      - name: load-and-deploy-operator
+        run: |
+          kind load docker-image kind/ydb-operator:current
+      - name: pull-and-load-ydb-image
+        run: |
+          # TODO would be cool to parse YDB image from manifests to avoid duplicating information
+          docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+          kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+      - name: run-tests
+        run: |
+          go test -p 1 ./...
+      - name: teardown-k8s-cluster
+        run: |
+          kind delete cluster
+  stop-runner:
+    needs:
+      - start-runner
+      - run-tests
+      - lint
+      - code-format-check
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: stop-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-runner.outputs.runner-label }}
+          instance-id: ${{ needs.start-runner.outputs.instance-id }}

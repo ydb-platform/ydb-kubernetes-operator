@@ -4,16 +4,13 @@ metadata:
   name: database-minikube-sample
 spec:
   image:
-    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
   nodes: 1
   domain: Root
   service:
     grpc:
       externalHost: localhost
   resources:
-    containerResources:
-      limits:
-        cpu: 500m
     storageUnits:
       - count: 1
         unitKind: ssd

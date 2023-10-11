@@ -3,12 +3,15 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"log"
+	"regexp"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -18,10 +21,13 @@ import (
 
 type DatabaseStatefulSetBuilder struct {
 	*v1alpha1.Database
+	RestConfig *rest.Config
 
 	Labels  map[string]string
 	Storage *v1alpha1.Storage
 }
+
+var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
 
 func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	sts, ok := obj.(*appsv1.StatefulSet)
@@ -44,6 +50,12 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		RevisionHistoryLimit: ptr.Int32(10),
 		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Name),
 		Template:             b.buildPodTemplateSpec(),
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete]; ok && value == v1alpha1.AnnotationValueTrue {
+		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
+			Type: "OnDelete",
+		}
 	}
 
 	return nil
@@ -80,11 +92,12 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
-			Containers:     []corev1.Container{b.buildContainer()},
-			InitContainers: b.Spec.InitContainers,
-			NodeSelector:   b.Spec.NodeSelector,
-			Affinity:       b.Spec.Affinity,
-			Tolerations:    b.Spec.Tolerations,
+			Containers:                []corev1.Container{b.buildContainer()},
+			NodeSelector:              b.Spec.NodeSelector,
+			Affinity:                  b.Spec.Affinity,
+			Tolerations:               b.Spec.Tolerations,
+			PriorityClassName:         b.Spec.PriorityClassName,
+			TopologySpreadConstraints: b.Spec.TopologySpreadConstraints,
 
 			Volumes: b.buildVolumes(),
 
@@ -93,9 +106,32 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			},
 		},
 	}
+
+	// InitContainer only needed for CaBundle manipulation for now,
+	// may be probably used for other stuff later
+	if b.areAnyCertificatesAddedToStore() {
+		podTemplate.Spec.InitContainers = append(
+			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
+			b.Spec.InitContainers...,
+		)
+	} else {
+		podTemplate.Spec.InitContainers = b.Spec.InitContainers
+	}
+
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateDNSPolicy]; ok {
+		switch value {
+		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
+			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
+		case "":
+			podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirst
+		default:
+		}
+	}
+
 	return podTemplate
 }
 
@@ -132,7 +168,120 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		}
 	}
 
+	for _, volume := range b.Spec.Volumes {
+		volumes = append(volumes, *volume)
+	}
+
+	for _, secret := range b.Spec.Secrets {
+		volumes = append(volumes, corev1.Volume{
+			Name: secret.Name,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secret.Name,
+				},
+			},
+		})
+	}
+
+	if b.areAnyCertificatesAddedToStore() {
+		volumes = append(volumes, corev1.Volume{
+			Name: systemCertsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+
+		volumes = append(volumes, corev1.Volume{
+			Name: localCertsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		})
+	}
+
 	return volumes
+}
+
+func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
+	command, args := b.buildCaStorePatchingInitContainerArgs()
+
+	container := corev1.Container{
+		Name:            "ydb-storage-init-container",
+		Image:           b.Spec.Image.Name,
+		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		Command:         command,
+		Args:            args,
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser: new(int64),
+		},
+
+		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
+	}
+	var containerResources corev1.ResourceRequirements
+	if b.Spec.Resources != nil {
+		containerResources = b.Spec.Resources.ContainerResources
+	} else if b.Spec.SharedResources != nil {
+		containerResources = b.Spec.SharedResources.ContainerResources
+	}
+	container.Resources = containerResources
+
+	if len(b.Spec.CABundle) > 0 {
+		container.Env = []corev1.EnvVar{
+			{
+				Name:  caBundleEnvName,
+				Value: string(b.Spec.CABundle),
+			},
+		}
+	}
+	return container
+}
+
+func (b *DatabaseStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
+	return len(b.Spec.CABundle) > 0 ||
+		b.Spec.Service.GRPC.TLSConfiguration.Enabled ||
+		b.Spec.Service.Interconnect.TLSConfiguration.Enabled ||
+		b.Spec.Service.Datastreams.TLSConfiguration.Enabled
+}
+
+func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
+	volumeMounts := []corev1.VolumeMount{}
+
+	if b.areAnyCertificatesAddedToStore() {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      localCertsVolumeName,
+			MountPath: localCertsDir,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      systemCertsVolumeName,
+			MountPath: systemCertsDir,
+		})
+	}
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      grpcTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: "/tls/grpc", // fixme const
+		})
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      interconnectTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: "/tls/interconnect", // fixme const
+		})
+	}
+
+	if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      datastreamsTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: "/tls/datastreams", // fixme const
+		})
+	}
+	return volumeMounts
 }
 
 func buildTLSVolume(name string, configuration *v1alpha1.TLSConfiguration) corev1.Volume { // fixme move somewhere?
@@ -214,14 +363,24 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		Command:         command,
 		Args:            args,
 		Env:             b.buildEnv(),
-		LivenessProbe: &corev1.Probe{
-			Handler: corev1.Handler{
+
+		VolumeMounts: b.buildVolumeMounts(),
+		SecurityContext: &corev1.SecurityContext{
+			Privileged: ptr.Bool(false),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{"SYS_RAWIO"},
+			},
+		},
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != v1alpha1.AnnotationValueTrue {
+		container.LivenessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
 					Port: intstr.FromInt(v1alpha1.GRPCPort),
 				},
 			},
-		},
-		VolumeMounts: b.buildVolumeMounts(),
+		}
 	}
 
 	ports := []corev1.ContainerPort{{
@@ -296,7 +455,59 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		}
 	}
 
+	for _, volume := range b.Spec.Volumes {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      volume.Name,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalVolumes, volume.Name),
+		})
+	}
+
+	if b.areAnyCertificatesAddedToStore() {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      localCertsVolumeName,
+			MountPath: localCertsDir,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      systemCertsVolumeName,
+			MountPath: systemCertsDir,
+		})
+	}
+
+	for _, secret := range b.Spec.Secrets {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      secret.Name,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, secret.Name),
+		})
+	}
+
 	return volumeMounts
+}
+
+func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]string, []string) {
+	command := []string{"/bin/bash", "-c"}
+
+	arg := ""
+
+	if len(b.Spec.CABundle) > 0 {
+		arg += fmt.Sprintf("echo $%s > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
+	}
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt && ", localCertsDir) // fixme const
+	}
+
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt && ", localCertsDir) // fixme const
+	}
+
+	if arg != "" {
+		arg += updateCACertificatesBin
+	}
+
+	args := []string{arg}
+
+	return command, args
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
@@ -305,7 +516,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	db := NewDatabase(b.DeepCopy())
 	db.Storage = b.Storage
 
-	tenantName := fmt.Sprintf(v1alpha1.TenantNameFormat, b.Spec.Domain, b.Name)
+	tenantName := v1alpha1.GetDatabasePath(b.Database)
 
 	args := []string{
 		"server",
@@ -326,6 +537,29 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		db.GetStorageEndpointWithProto(),
 	}
 
+	for _, secret := range b.Spec.Secrets {
+		exists, err := checkSecretHasField(
+			b.GetNamespace(),
+			secret.Name,
+			v1alpha1.YdbAuthToken,
+			b.RestConfig,
+		)
+
+		if err != nil {
+			log.Default().Printf("Failed to inspect a secret %s: %s\n", secret.Name, err.Error())
+		} else if exists {
+			args = append(args,
+				"--auth-token-file",
+				fmt.Sprintf(
+					"%s/%s/%s",
+					wellKnownDirForAdditionalSecrets,
+					secret.Name,
+					v1alpha1.YdbAuthToken,
+				),
+			)
+		}
+	}
+
 	if b.Spec.Service.GRPC.ExternalHost == "" {
 		service := fmt.Sprintf(interconnectServiceNameFormat, b.GetName())
 		b.Spec.Service.GRPC.ExternalHost = fmt.Sprintf("%s.%s.svc.cluster.local", service, b.GetNamespace()) // FIXME .svc.cluster.local
@@ -343,6 +577,29 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		publicPortOption,
 		strconv.Itoa(v1alpha1.GRPCPort),
 	)
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDataCenter]; ok {
+		if annotationDataCenterPattern.MatchString(value) {
+			args = append(args,
+				"--data-center",
+				value,
+			)
+		}
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationNodeHost]; ok {
+		args = append(args,
+			"--node-host",
+			value,
+		)
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationNodeDomain]; ok {
+		args = append(args,
+			"--node-domain",
+			value,
+		)
+	}
 
 	return command, args
 }

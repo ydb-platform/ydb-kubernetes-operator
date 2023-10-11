@@ -51,6 +51,11 @@ type StorageSpec struct {
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 
+	// (Optional) YDBVersion sets the explicit version of the YDB image
+	// Default: ""
+	// +optional
+	YDBVersion string `json:"version,omitempty"`
+
 	// Container image information
 	// +required
 	Image PodImage `json:"image,omitempty"`
@@ -71,11 +76,6 @@ type StorageSpec struct {
 	// +optional
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
-	// (Optional) YDBVersion sets the explicit version of the YDB image
-	// Default: ""
-	// +optional
-	YDBVersion string `json:"version,omitempty"`
-
 	// (Optional) Monitoring sets configuration options for YDB observability
 	// Default: ""
 	// +optional
@@ -90,6 +90,12 @@ type StorageSpec struct {
 	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
 	// +optional
 	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
+
+	// Additional volumes that will be mounted into the well-known directory of
+	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+	// Only `hostPath` volume type is supported for now.
+	// +optional
+	Volumes []*corev1.Volume `json:"volumes,omitempty"`
 
 	// Whether host network should be enabled. Automatically sets
 	// `dnsPolicy` to `clusterFirstWithHostNet`.
@@ -111,6 +117,16 @@ type StorageSpec struct {
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 
+	// (Optional) If specified, the pod's topologySpreadConstraints.
+	// All topologySpreadConstraints are ANDed.
+	// +optional
+	// +patchMergeKey=topologyKey
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=topologyKey
+	// +listMapKey=whenUnsatisfiable
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
+
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
@@ -118,6 +134,10 @@ type StorageSpec struct {
 	// (Optional) Additional custom resource annotations that are added to all resources
 	// +optional
 	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
+
+	// (Optional) If specified, the pod's priorityClassName.
+	// +optional
+	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
 // StorageStatus defines the observed state of Storage

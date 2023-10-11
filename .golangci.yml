@@ -170,7 +170,7 @@ linters:
 #    - nilnil
 #    - nlreturn
     - nolintlint
-    - prealloc
+#    - prealloc
     - predeclared
     - rowserrcheck
     - revive
@@ -241,4 +241,5 @@ issues:
       linters:
         - unused
         - unparam
-
+    - text: 'shadow: declaration of "err" shadows declaration at'
+      linters: [ govet ]

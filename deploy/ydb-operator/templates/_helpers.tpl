@@ -36,8 +36,8 @@ Common labels
 {{- define "ydb.labels" -}}
 helm.sh/chart: {{ include "ydb.chart" . }}
 {{ include "ydb.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- if or (.Chart.AppVersion) (.Values.image.tag) }}
+app.kubernetes.io/version: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
@@ -49,3 +49,16 @@ Selector labels
 app.kubernetes.io/name: {{ include "ydb.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+
+{{/*
+Create webhooks pathPrefix used by service fqdn url
+*/}}
+{{- define "ydb.webhookPathPrefix" -}}
+{{- if .Values.webhook.service.enableDefaultPathPrefix -}}
+{{- printf "/%s/%s" .Release.Namespace ( include "ydb.fullname" . ) -}}
+{{- end }}
+{{- if .Values.webhook.service.customPathPrefix -}}
+{{- .Values.webhook.service.customPathPrefix -}}
+{{- end }}
+{{- end -}}

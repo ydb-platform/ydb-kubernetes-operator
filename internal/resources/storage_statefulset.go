@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	configVolumeName                 = "ydb-config"
-	annotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
+	configVolumeName = "ydb-config"
 )
 
 type StorageStatefulSetBuilder struct {
@@ -69,7 +68,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[annotationUpdateStrategyOnDelete]; ok && value == "true" {
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete]; ok && value == v1alpha1.AnnotationValueTrue {
 		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
 			Type: "OnDelete",
 		}
@@ -107,17 +106,18 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
-			Containers:   []corev1.Container{b.buildContainer()},
-			NodeSelector: b.Spec.NodeSelector,
-			Affinity:     b.Spec.Affinity,
-			Tolerations:  b.Spec.Tolerations,
+			Containers:                []corev1.Container{b.buildContainer()},
+			NodeSelector:              b.Spec.NodeSelector,
+			Affinity:                  b.Spec.Affinity,
+			Tolerations:               b.Spec.Tolerations,
+			PriorityClassName:         b.Spec.PriorityClassName,
+			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},
-			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
 		},
 	}
 
@@ -134,16 +134,30 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	if b.Spec.HostNetwork {
 		podTemplate.Spec.HostNetwork = true
-		podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
 	}
 
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateDNSPolicy]; ok {
+		switch value {
+		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
+			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
+		case "":
+			podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirst
+		default:
+		}
+	}
+
 	return podTemplate
 }
 
 func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.TopologySpreadConstraint {
+	if len(b.Spec.TopologySpreadConstraints) > 0 {
+		return b.Spec.TopologySpreadConstraints
+	}
+
 	if b.Spec.Erasure != v1alpha1.ErasureMirror3DC {
 		return []corev1.TopologySpreadConstraint{}
 	}
@@ -195,6 +209,10 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 				},
 			},
 		})
+	}
+
+	for _, volume := range b.Spec.Volumes {
+		volumes = append(volumes, *volume)
 	}
 
 	if b.areAnyCertificatesAddedToStore() {
@@ -291,13 +309,6 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
 		Command:         command,
 		Args:            args,
-		LivenessProbe: &corev1.Probe{
-			Handler: corev1.Handler{
-				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(v1alpha1.GRPCPort),
-				},
-			},
-		},
 
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: ptr.Bool(false),
@@ -316,6 +327,16 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 
 		VolumeMounts: b.buildVolumeMounts(),
 		Resources:    b.Spec.Resources,
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != v1alpha1.AnnotationValueTrue {
+		container.LivenessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				TCPSocket: &corev1.TCPSocketAction{
+					Port: intstr.FromInt(v1alpha1.GRPCPort),
+				},
+			},
+		}
 	}
 
 	var volumeDeviceList []corev1.VolumeDevice // todo decide on PVC volumeMode?
@@ -390,6 +411,13 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
+	for _, volume := range b.Spec.Volumes {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      volume.Name,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalVolumes, volume.Name),
+		})
+	}
+
 	return volumeMounts
 }
 
@@ -411,7 +439,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 	}
 
 	if arg != "" {
-		arg += "update-ca-certificates"
+		arg += updateCACertificatesBin
 	}
 
 	args := []string{arg}

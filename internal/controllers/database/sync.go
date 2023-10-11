@@ -18,13 +18,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 const (
+	Pending      ClusterState = "Pending"
 	Provisioning ClusterState = "Provisioning"
 	Initializing ClusterState = "Initializing"
 	Ready        ClusterState = "Ready"
@@ -39,9 +40,6 @@ const (
 	TenantInitializedReasonInProgress = "InProgres"
 	TenantInitializedReasonCompleted  = "Completed"
 
-	DefaulRootUsername = "root"
-	DefaulRootPassword = ""
-
 	Stop     = true
 	Continue = false
 )
@@ -51,7 +49,7 @@ var ErrIncorrectDatabaseResourcesConfiguration = errors.New("incorrect database 
 
 type ClusterState string
 
-func (r *Reconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Database) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -86,7 +84,7 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *ydbv1alpha1.Database) (ctr
 
 func (r *Reconciler) waitForClusterResources(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForClusterResources")
-	storage := &ydbv1alpha1.Storage{}
+	storage := &v1alpha1.Storage{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      database.Spec.StorageClusterRef.Name,
 		Namespace: database.Spec.StorageClusterRef.Namespace,
@@ -217,7 +215,7 @@ func (r *Reconciler) handleResourcesSync(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
 
-	for _, builder := range database.GetResourceBuilders() {
+	for _, builder := range database.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(database)
 
 		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {
@@ -275,11 +273,41 @@ func (r *Reconciler) handleResourcesSync(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
+func (r *Reconciler) processSkipInitPipeline(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step processSkipInitPipeline")
+	r.Log.Info("Database initialization disabled (with annotation), proceed with caution")
+
+	r.Recorder.Event(
+		database,
+		corev1.EventTypeWarning,
+		"SkippingInit",
+		"Skipping database creation due to skip annotation present, be careful!",
+	)
+
+	return r.setInitDatabaseCompleted(
+		ctx,
+		database,
+		"Database creation not performed because initialization is skipped",
+	)
+}
+
 func (r *Reconciler) setInitialStatus(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
+
+	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
+		if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(database.Status.Conditions, TenantInitializedCondition) {
+			return r.processSkipInitPipeline(ctx, database)
+		}
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+	}
+
 	changed := false
 	if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
@@ -290,7 +318,7 @@ func (r *Reconciler) setInitialStatus(
 		})
 		changed = true
 	}
-	if database.Status.State != string(Initializing) {
+	if database.Status.State == string(Pending) {
 		database.Status.State = string(Initializing)
 		changed = true
 	}
@@ -300,14 +328,30 @@ func (r *Reconciler) setInitialStatus(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
+func (r *Reconciler) setInitDatabaseCompleted(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+	message string,
+) (bool, ctrl.Result, error) {
+	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+		Type:    TenantInitializedCondition,
+		Status:  "True",
+		Reason:  TenantInitializedReasonCompleted,
+		Message: message,
+	})
+
+	database.Status.State = string(Ready)
+	return r.setState(ctx, database)
+}
+
 func (r *Reconciler) handleTenantCreation(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleTenantCreation")
 
-	path := database.GetPath()
-	var storageUnits []ydbv1alpha1.StorageUnit
+	path := v1alpha1.GetDatabasePath(database.Database)
+	var storageUnits []v1alpha1.StorageUnit
 	var shared bool
 	var sharedDatabasePath string
 	switch {
@@ -318,7 +362,7 @@ func (r *Reconciler) handleTenantCreation(
 		storageUnits = database.Spec.SharedResources.StorageUnits
 		shared = true
 	case database.Spec.ServerlessResources != nil:
-		sharedDatabaseCr := &ydbv1alpha1.Database{}
+		sharedDatabaseCr := &v1alpha1.Database{}
 		err := r.Get(ctx, types.NamespacedName{
 			Name:      database.Spec.ServerlessResources.SharedDatabaseRef.Name,
 			Namespace: database.Spec.ServerlessResources.SharedDatabaseRef.Namespace,
@@ -365,7 +409,7 @@ func (r *Reconciler) handleTenantCreation(
 			)
 			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
 		}
-		sharedDatabasePath = fmt.Sprintf(ydbv1alpha1.TenantNameFormat, sharedDatabaseCr.Spec.Domain, sharedDatabaseCr.Name)
+		sharedDatabasePath = v1alpha1.GetDatabasePath(sharedDatabaseCr)
 	default:
 		// TODO: move this logic to webhook
 		r.Recorder.Event(
@@ -407,12 +451,6 @@ func (r *Reconciler) handleTenantCreation(
 		"Initialized",
 		fmt.Sprintf("Tenant %s created", tenant.Path),
 	)
-	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    TenantInitializedCondition,
-		Status:  "True",
-		Reason:  TenantInitializedReasonCompleted,
-		Message: "Tenant creation is complete",
-	})
 
 	r.Recorder.Event(
 		database,
@@ -420,16 +458,19 @@ func (r *Reconciler) handleTenantCreation(
 		"DatabaseReady",
 		"Database is initialized",
 	)
-	database.Status.State = string(Ready)
 
-	return r.setState(ctx, database)
+	return r.setInitDatabaseCompleted(
+		ctx,
+		database,
+		"Database initialization is completed",
+	)
 }
 
 func (r *Reconciler) setState(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	databaseCr := &ydbv1alpha1.Database{}
+	databaseCr := &v1alpha1.Database{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: database.Namespace,
 		Name:      database.Name,
@@ -473,9 +514,9 @@ func (r *Reconciler) getAuthCredentials(
 		return ydbCredentials.NewAccessTokenCredentials(token), nil
 	case auth.StaticCredentials != nil:
 		endpoint := database.GetStorageEndpointWithProto()
-		opts := resources.GetStorageGRPCOptions(database.Storage)
+		opts := resources.GetGRPCDialOptions(database.Storage)
 		username := auth.StaticCredentials.Username
-		password := DefaulRootPassword
+		password := v1alpha1.DefaultRootPassword
 		if auth.StaticCredentials.SecretKeyRef != nil {
 			var err error
 			password, err = r.getSecretKey(

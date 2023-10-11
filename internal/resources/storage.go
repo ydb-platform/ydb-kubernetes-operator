@@ -28,13 +28,10 @@ func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	return StorageClusterBuilder{cr}
 }
 
-func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() bool {
-	changed := false
+func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() {
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
-		changed = true
 	}
-	return changed
 }
 
 func (b *StorageClusterBuilder) Unwrap() *api.Storage {
@@ -58,7 +55,7 @@ func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
 	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
 }
 
-func GetStorageGRPCOptions(s *api.Storage) []grpc.DialOption {
+func GetGRPCDialOptions(s *api.Storage) []grpc.DialOption {
 	var opts []grpc.DialOption
 	if IsGrpcSecure(s) {
 		certPool, _ := x509.SystemCertPool()

@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	"errors"
 	"fmt"
 
 	"gopkg.in/yaml.v3"
@@ -22,12 +21,10 @@ func (r *Storage) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-type YDBConfiguration struct {
-	DomainsConfig struct {
-		SecurityConfig struct {
-			EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
-		} `yaml:"security_config"`
-	} `yaml:"domains_config"`
+type DomainsConfig struct {
+	SecurityConfig struct {
+		EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
+	} `yaml:"security_config"`
 }
 
 //+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
@@ -83,13 +80,37 @@ var _ webhook.Validator = &Storage{}
 func (r *Storage) ValidateCreate() error {
 	storagelog.Info("validate create", "name", r.Name)
 
+	configuration := make(map[string]interface{})
+	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
+	if err != nil {
+		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
+	}
+	var nodesNumber int32
+	if configuration["hosts"] == nil {
+		nodesNumber = r.Spec.Nodes
+	} else {
+		hosts, ok := configuration["hosts"].([]interface{})
+		if !ok {
+			return fmt.Errorf("failed to parse Storage.spec.configuration, error: invalid hosts section")
+		}
+		nodesNumber = int32(len(hosts))
+	}
+
+	if configuration["domains_config"] != nil {
+		if domainsConfig, ok := configuration["domains_config"].(DomainsConfig); ok {
+			authEnabled := domainsConfig.SecurityConfig.EnforceUserTokenRequirement
+			if (authEnabled && r.Spec.Auth.Anonymous) || (!authEnabled && !r.Spec.Auth.Anonymous) {
+				return fmt.Errorf("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+			}
+		}
+	}
+
 	minNodesPerErasure := map[ErasureType]int32{
 		ErasureMirror3DC: 9,
 		ErasureBlock42:   8,
 		None:             1,
 	}
-
-	if r.Spec.Nodes < minNodesPerErasure[r.Spec.Erasure] {
+	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
@@ -103,24 +124,20 @@ func (r *Storage) ValidateCreate() error {
 			return fmt.Errorf("the secret name %s is reserved, use another one", secret.Name)
 		}
 	}
-
-	yamlConfig := YDBConfiguration{}
-	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
-	if err != nil {
-		return errors.New("failed parse 'spec.configuration' to determine `enforce_user_token_requirement`")
-	}
-
-	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		if r.Spec.Auth.Anonymous {
-			return errors.New("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: true`")
-		}
-	} else {
-		if !r.Spec.Auth.Anonymous {
-			return errors.New("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: false` ")
-		}
-	}
-
 	// TODO(user): fill in your validation logic upon object creation.
+	if r.Spec.Volumes != nil {
+		for _, volume := range r.Spec.Volumes {
+			if volume.HostPath == nil {
+				return fmt.Errorf("unsupported volume source, %v. Only hostPath is supported ", volume.VolumeSource)
+			}
+		}
+	}
+
+	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
+	if crdCheckError != nil {
+		return crdCheckError
+	}
+
 	return nil
 }
 
@@ -128,20 +145,24 @@ func (r *Storage) ValidateCreate() error {
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
 
-	yamlConfig := YDBConfiguration{}
-	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
+	configuration := make(map[string]interface{})
+	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
 	if err != nil {
-		return errors.New("failed to parse 'spec.configuration' to determine `enforce_user_token_requirement`")
+		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
 	}
 
-	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		if r.Spec.Auth.Anonymous {
-			return errors.New("empty field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: true`")
+	if configuration["domains_config"] != nil {
+		if domainsConfig, ok := configuration["domains_config"].(DomainsConfig); ok {
+			authEnabled := domainsConfig.SecurityConfig.EnforceUserTokenRequirement
+			if (authEnabled && r.Spec.Auth.Anonymous) || (!authEnabled && !r.Spec.Auth.Anonymous) {
+				return fmt.Errorf("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+			}
 		}
-	} else {
-		if !r.Spec.Auth.Anonymous {
-			return errors.New("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: false` ")
-		}
+	}
+
+	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
+	if crdCheckError != nil {
+		return crdCheckError
 	}
 
 	// TODO(user): fill in your validation logic upon object update.

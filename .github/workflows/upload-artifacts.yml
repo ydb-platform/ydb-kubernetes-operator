@@ -1,0 +1,101 @@
+# Implicit requirements
+# runner must have `docker` and `curl` installed (true on github-runners)
+
+name: upload-artifacts
+on:
+  push:
+    branches:
+      - master
+jobs:
+  tag-job: 
+    runs-on: ubuntu-latest
+    outputs:
+      tagcreated: ${{steps.tag-step.outputs.tagcreated}}
+    steps:
+    - uses: actions/checkout@v3
+    - id: tag-step
+      uses: butlerlogic/action-autotag@stable
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        strategy: regex
+        root: "./deploy/ydb-operator/Chart.yaml"
+        regex_pattern: 'version:[\s]*(["]?[0-9\.]{3,}["]?)'
+  upload-artifacts:
+    runs-on: ubuntu-latest
+    needs: tag-job
+    if: ${{ needs.tag-job.outputs.tagcreated == 'yes' }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: install-dependencies
+      run: |
+        HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
+        curl -LO https://get.helm.sh/"${HELM_PKG}"
+        tar -zxvf "${HELM_PKG}"
+        mv ./linux-amd64/helm .
+        echo "$(pwd)" >> $GITHUB_PATH
+    - name: install-aws-cli
+      uses: unfor19/install-aws-cli-action@v1
+      with:
+        version: 2
+    - name: initialize-aws-cli
+      run: |
+        aws configure set aws_access_key_id ${{ secrets.CI_PUBLIC_HELM_S3_KEY_IDENTIFIER }}
+        aws configure set aws_secret_access_key ${{ secrets.CI_PUBLIC_HELM_S3_KEY_CONTENT }}
+        aws configure set region "ru-central1"
+    - name: install-yc
+      run: |
+        curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+        echo "~/yandex-cloud/bin/" >> $GITHUB_PATH
+    - name: initialize-yc-cli
+      run: |
+        # Cloud: yc-ydbaas; catalogue: docker-images
+        # Cloud: ycr-public-registries; catalogue: cloud-public-images
+        #
+        # Service account has access rights in TWO clouds;
+        # they are synced internally through `iam-sync-configs` repo
+        yc config profile create private-docker-helm-public-docker
+        echo "$SA_KEYS_FOR_PRIVATE_DOCKER_HELM_AND_PUBLIC_DOCKER" > sa-key.json
+        yc config --profile private-docker-helm-public-docker set service-account-key sa-key.json
+      env:
+        SA_KEYS_FOR_PRIVATE_DOCKER_HELM_AND_PUBLIC_DOCKER: ${{ secrets.SA_KEYS_FOR_PRIVATE_DOCKER_HELM_AND_PUBLIC_DOCKER }}
+    - name: parse-version-from-chart
+      run: | 
+        VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p')
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+    - name: login-to-registries
+      run: |
+        cat sa-key.json | docker login --username json_key --password-stdin cr.yandex
+        yc --profile private-docker-helm-public-docker iam create-token | helm registry login cr.yandex/crpl7ipeu79oseqhcgn2/charts -u iam --password-stdin
+    - name: build-and-push-operator-image
+      run: |
+        # Public:
+        docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION" .
+        docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
+        # Private:
+        # no rebuild will happen, docker will fetch from cache and just retag:
+        docker build -t cr.yandex/crpsjg1coh47p81vh2lc/ydb-kubernetes-operator:"$VERSION" .
+        docker push cr.yandex/crpsjg1coh47p81vh2lc/ydb-kubernetes-operator:"$VERSION"
+    - name: package-and-push-helm-chart
+      run: |
+        helm package ./deploy/ydb-operator
+
+        # Push into internal oci-based registry
+        helm push ./ydb-operator-"$VERSION".tgz oci://cr.yandex/crpl7ipeu79oseqhcgn2/charts
+
+        # Push into public s3-based registry
+        aws s3 --endpoint-url=https://storage.yandexcloud.net \
+          cp ./ydb-operator-"$VERSION".tgz s3://charts.ydb.tech/ydb-operator-"$VERSION".tgz
+
+        # Make sure that latest version is available in `helm repo search` later
+        mkdir charts
+        cp ./ydb-operator-"$VERSION".tgz ./charts
+
+        # Grab an old index, merge current chart into it, and upload back
+        aws --endpoint-url=https://storage.yandexcloud.net \
+          s3 cp s3://charts.ydb.tech/index.yaml ./old-index.yaml
+
+        helm repo index charts --merge ./old-index.yaml --url https://charts.ydb.tech
+
+        aws s3 --endpoint-url=https://storage.yandexcloud.net \
+          cp ./charts/index.yaml s3://charts.ydb.tech/index.yaml

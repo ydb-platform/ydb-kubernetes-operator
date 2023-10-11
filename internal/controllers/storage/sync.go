@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
@@ -24,6 +25,8 @@ import (
 )
 
 const (
+	Pending      ClusterState = "Pending"
+	Preparing    ClusterState = "Preparing"
 	Provisioning ClusterState = "Provisioning"
 	Initializing ClusterState = "Initializing"
 	Ready        ClusterState = "Ready"
@@ -37,28 +40,12 @@ const (
 	ReasonNotRequired = "NotRequired"
 	ReasonCompleted   = "Completed"
 
-	StorageInitializedCondition        = "StorageInitialized"
+	StorageInitializedCondition        = "StorageReady"
 	StorageInitializedReasonInProgress = ReasonInProgress
 	StorageInitializedReasonCompleted  = ReasonCompleted
 
-	InitStorageStepCondition        = "InitStorageStep"
-	InitStorageStepReasonInProgress = ReasonInProgress
-	InitStorageStepReasonCompleted  = ReasonCompleted
-
-	InitRootStorageStepCondition         = "InitRootStorageStep"
-	InitRootStorageStepReasonInProgress  = ReasonInProgress
-	InitRootStorageStepReasonNotRequired = ReasonNotRequired
-	InitRootStorageStepReasonCompleted   = ReasonCompleted
-
-	InitCMSStepCondition        = "InitCMSStep"
-	InitCMSStepReasonInProgress = ReasonInProgress
-	InitCMSStepReasonCompleted  = ReasonCompleted
-
 	Stop     = true
 	Continue = false
-
-	DefaulRootUsername = "root"
-	DefaulRootPassword = ""
 
 	annotationSkipInitialization = "ydb.tech/skip-initialization"
 )
@@ -91,7 +78,7 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.runInitScripts(ctx, &storage)
+		stop, result, err = r.initializeStorage(ctx, &storage)
 		if stop {
 			return result, err
 		}
@@ -106,6 +93,14 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale for Storage")
+
+	if storage.Status.State == string(Preparing) {
+		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storage.Spec.Nodes)
+		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
+		storage.Status.State = string(Provisioning)
+		return r.setState(ctx, storage)
+	}
+
 	found := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      storage.Name,
@@ -161,9 +156,9 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	if runningPods != int(storage.Spec.Nodes) {
 		msg := fmt.Sprintf("Waiting for number of running storage pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
 		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
-		storage.Status.State = string(Provisioning)
-		return r.setState(ctx, storage)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
+
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -279,6 +274,7 @@ func (r *Reconciler) setState(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
+	oldStatus := storageCr.Status.State
 	storageCr.Status.State = storage.Status.State
 	storageCr.Status.Conditions = storage.Status.Conditions
 
@@ -286,12 +282,18 @@ func (r *Reconciler) setState(
 	if err != nil {
 		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	} else if oldStatus != storage.Status.State {
+		r.Recorder.Event(
+			storageCr,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storage.Status.State),
+		)
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
 
-// getCredentials
 func (r *Reconciler) getAuthCredentials(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
@@ -309,9 +311,9 @@ func (r *Reconciler) getAuthCredentials(
 		return ydbCredentials.NewAccessTokenCredentials(token), nil
 	case auth.StaticCredentials != nil:
 		endpoint := storage.GetGRPCEndpointWithProto()
-		opts := resources.GetStorageGRPCOptions(storage.Storage)
+		opts := resources.GetGRPCDialOptions(storage.Storage)
 		username := auth.StaticCredentials.Username
-		password := DefaulRootPassword
+		password := v1alpha1.DefaultRootPassword
 		if auth.StaticCredentials.SecretKeyRef != nil {
 			var err error
 			password, err = r.getSecretKey(
@@ -329,7 +331,6 @@ func (r *Reconciler) getAuthCredentials(
 	}
 }
 
-// getSecretKeyRef
 func (r *Reconciler) getSecretKey(
 	ctx context.Context,
 	namespace string,

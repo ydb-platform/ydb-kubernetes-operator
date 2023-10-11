@@ -1,0 +1,135 @@
+apiVersion: ydb.tech/v1alpha1
+kind: Storage
+metadata:
+  name: storage-sample
+spec:
+  dataStore:
+    - volumeMode: Block
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 80Gi
+  image:
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+  nodes: 9
+  erasure: mirror-3-dc
+  configuration: |-
+    static_erasure: mirror-3-dc
+    host_configs:
+    - drive:
+      - path: /dev/kikimr_ssd_00
+        type: SSD
+      host_config_id: 1
+    grpc_config:
+      port: 2135
+    domains_config:
+      domain:
+        - name: root
+          storage_pool_types:
+            - kind: ssd
+              pool_config:
+                box_id: 1
+                erasure_species: mirror-3-dc
+                kind: ssd
+                pdisk_filter:
+                  - property:
+                      - type: SSD
+                vdisk_kind: Default
+      state_storage:
+        - ring:
+            node: [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
+            nto_select: 5
+          ssid: 1
+    actor_system_config:
+      batch_executor: 2
+      io_executor: 3
+      executor:
+        - name: System
+          spin_threshold: 0
+          threads: 2
+          type: BASIC
+        - name: User
+          spin_threshold: 0
+          threads: 3
+          type: BASIC
+        - name: Batch
+          spin_threshold: 0
+          threads: 2
+          type: BASIC
+        - name: IO
+          threads: 1
+          time_per_mailbox_micro_secs: 100
+          type: IO
+        - name: IC
+          spin_threshold: 10
+          threads: 1
+          time_per_mailbox_micro_secs: 100
+          type: BASIC
+      scheduler:
+        progress_threshold: 10000
+        resolution: 256
+        spin_threshold: 0
+      service_executor:
+        - executor_id: 4
+          service_name: Interconnect
+    blob_storage_config:
+      service_set:
+        availability_domains: 1
+        groups:
+          - erasure_species: mirror-3-dc
+            group_id: 0
+            group_generation: 1
+            rings:
+              - fail_domains:
+                - vdisk_locations:
+                  - node_id: 1
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+                - vdisk_locations:
+                  - node_id: 2
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+                - vdisk_locations:
+                  - node_id: 3
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+              - fail_domains:
+                - vdisk_locations:
+                  - node_id: 4
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+                - vdisk_locations:
+                  - node_id: 5
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+                - vdisk_locations:
+                  - node_id: 6
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+              - fail_domains:
+                - vdisk_locations:
+                  - node_id: 7
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+                - vdisk_locations:
+                  - node_id: 8
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+                - vdisk_locations:
+                  - node_id: 9
+                    pdisk_category: SSD
+                    path: /dev/kikimr_ssd_00
+    channel_profile_config:
+      profile:
+        - channel:
+            - erasure_species: mirror-3-dc
+              pdisk_category: 1
+              storage_pool_kind: ssd
+            - erasure_species: mirror-3-dc
+              pdisk_category: 1
+              storage_pool_kind: ssd
+            - erasure_species: mirror-3-dc
+              pdisk_category: 1
+              storage_pool_kind: ssd
+          profile_id: 0

@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
+	"github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -15,10 +15,10 @@ type YDBConnection struct {
 	ctx         context.Context
 	endpoint    string
 	secure      bool
-	credentials ydbCredentials.Credentials
+	credentials credentials.Credentials
 }
 
-func NewYDBConnection(ctx context.Context, endpoint string, secure bool, credentials ydbCredentials.Credentials) *YDBConnection {
+func NewYDBConnection(ctx context.Context, endpoint string, secure bool, credentials credentials.Credentials) *YDBConnection {
 	return &YDBConnection{
 		ctx:         ctx,
 		endpoint:    endpoint,

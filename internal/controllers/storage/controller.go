@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 )
 
 // Reconciler reconciles a Storage object
@@ -72,10 +73,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func ignoreDeletionPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			// Ignore updates to CR status in which case metadata.Generation does not change
+			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+			annotationsChanged := !annotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
 			_, isService := e.ObjectOld.(*corev1.Service)
 
-			return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() || isService
+			return generationChanged || annotationsChanged || isService
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			// Evaluates to false if the object has been confirmed deleted.
@@ -87,6 +89,8 @@ func ignoreDeletionPredicate() predicate.Predicate {
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller := ctrl.NewControllerManagedBy(mgr).For(&ydbv1alpha1.Storage{})
+
+	r.Recorder = mgr.GetEventRecorderFor("Storage")
 
 	if r.WithServiceMonitors {
 		controller = controller.

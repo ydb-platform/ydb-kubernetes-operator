@@ -1,4 +1,4 @@
-FROM golang:1.17 as builder
+FROM golang:1.19 as builder
 
 WORKDIR /workspace
 COPY go.mod go.mod
@@ -11,7 +11,7 @@ COPY internal/ internal/
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager cmd/ydb-kubernetes-operator/main.go
 
-FROM scratch
+FROM alpine:3.15
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532

@@ -31,7 +31,20 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	TenantNameFormat = "/%s/%s"
+	DefaultRootUsername = "root"
+	DefaultRootPassword = ""
+
+	AnnotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
+	AnnotationUpdateDNSPolicy        = "ydb.tech/update-dns-policy"
+	AnnotationSkipInitialization     = "ydb.tech/skip-initialization"
+	AnnotationDisableLivenessProbe   = "ydb.tech/disable-liveness-probe"
+	AnnotationDataCenter             = "ydb.tech/data-center"
+	AnnotationNodeHost               = "ydb.tech/node-host"
+	AnnotationNodeDomain             = "ydb.tech/node-domain"
+
+	AnnotationValueTrue = "true"
+
+	legacyTenantNameFormat = "/%s/%s"
 )
 
 type ErasureType string

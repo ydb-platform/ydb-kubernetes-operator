@@ -74,6 +74,7 @@ spec:
         - name: webhook-tls
           secret:
             secretName: {{ include "ydb.fullname" . }}-webhook
+            {{- if .Values.webhook.patch.enabled }}
             items:
               - key: ca
                 path: ca.crt
@@ -81,6 +82,7 @@ spec:
                 path: tls.crt
               - key: key
                 path: tls.key
+            {{- end }}
       {{- end }}
       {{- if .Values.imagePullSecrets }}
       {{- with .Values.imagePullSecrets }}

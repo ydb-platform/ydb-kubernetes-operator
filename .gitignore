@@ -37,3 +37,4 @@ fabric.properties
 bin/
 config/
 vendor/
+.envrc
