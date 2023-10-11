@@ -7,7 +7,10 @@ import (
 	"fmt"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
-	"github.com/ydb-platform/ydb-go-sdk/v3/credentials"
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -15,10 +18,10 @@ type YDBConnection struct {
 	ctx         context.Context
 	endpoint    string
 	secure      bool
-	credentials credentials.Credentials
+	credentials ydbCredentials.Credentials
 }
 
-func NewYDBConnection(ctx context.Context, endpoint string, secure bool, credentials credentials.Credentials) *YDBConnection {
+func NewYDBConnection(ctx context.Context, endpoint string, secure bool, credentials ydbCredentials.Credentials) *YDBConnection {
 	return &YDBConnection{
 		ctx:         ctx,
 		endpoint:    endpoint,
@@ -65,6 +68,22 @@ func (conn *YDBConnection) getOptions() []ydb.Option {
 		}))
 	} else {
 		opts = append(opts, ydb.WithTLSSInsecureSkipVerify())
+	}
+
+	return opts
+}
+
+func GetGRPCDialOptions(secure bool) []grpc.DialOption {
+	var opts []grpc.DialOption
+	if secure {
+		certPool, _ := x509.SystemCertPool()
+		// TODO(shmel1k@): figure out min allowed TLS version?
+		tlsCredentials := credentials.NewTLS(&tls.Config{ //nolint
+			RootCAs: certPool,
+		})
+		opts = append(opts, grpc.WithTransportCredentials(tlsCredentials))
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
 	return opts

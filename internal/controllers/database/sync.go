@@ -20,6 +20,7 @@ import (
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -65,11 +66,11 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	if stop {
 		return result, err
 	}
+	stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
+	if stop {
+		return result, err
+	}
 	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
-		stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
-		if stop {
-			return result, err
-		}
 		stop, result, err = r.setInitialStatus(ctx, &database)
 		if stop {
 			return result, err
@@ -514,7 +515,7 @@ func (r *Reconciler) getAuthCredentials(
 		return ydbCredentials.NewAccessTokenCredentials(token), nil
 	case auth.StaticCredentials != nil:
 		endpoint := database.GetStorageEndpointWithProto()
-		opts := resources.GetGRPCDialOptions(database.Storage)
+		opts := connection.GetGRPCDialOptions(resources.IsGrpcSecure(database.Storage))
 		username := auth.StaticCredentials.Username
 		password := v1alpha1.DefaultRootPassword
 		if auth.StaticCredentials.SecretKeyRef != nil {

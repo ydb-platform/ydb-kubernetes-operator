@@ -124,7 +124,6 @@ func (r *Storage) ValidateCreate() error {
 			return fmt.Errorf("the secret name %s is reserved, use another one", secret.Name)
 		}
 	}
-	// TODO(user): fill in your validation logic upon object creation.
 	if r.Spec.Volumes != nil {
 		for _, volume := range r.Spec.Volumes {
 			if volume.HostPath == nil {

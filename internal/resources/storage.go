@@ -1,13 +1,8 @@
 package resources
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -53,22 +48,6 @@ func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
 	}
 
 	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
-}
-
-func GetGRPCDialOptions(s *api.Storage) []grpc.DialOption {
-	var opts []grpc.DialOption
-	if IsGrpcSecure(s) {
-		certPool, _ := x509.SystemCertPool()
-		// TODO(shmel1k@): figure out min allowed TLS version?
-		tlsCredentials := credentials.NewTLS(&tls.Config{ //nolint
-			RootCAs: certPool,
-		})
-		opts = append(opts, grpc.WithTransportCredentials(tlsCredentials))
-	} else {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	}
-
-	return opts
 }
 
 func IsGrpcSecure(s *api.Storage) bool {

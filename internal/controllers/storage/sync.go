@@ -19,6 +19,7 @@ import (
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -46,8 +47,6 @@ const (
 
 	Stop     = true
 	Continue = false
-
-	annotationSkipInitialization = "ydb.tech/skip-initialization"
 )
 
 type ClusterState string
@@ -230,6 +229,7 @@ func (r *Reconciler) runSelfCheck(
 	storage *resources.StorageClusterBuilder,
 	waitForGoodResultWithoutIssues bool,
 ) (bool, ctrl.Result, error) {
+	r.Log.Info("running step runSelfCheck")
 	credentials, err := r.getAuthCredentials(ctx, storage)
 	if err != nil {
 		r.Log.Error(err, "Error connecting to YDB storage %s", storage.Name)
@@ -311,7 +311,7 @@ func (r *Reconciler) getAuthCredentials(
 		return ydbCredentials.NewAccessTokenCredentials(token), nil
 	case auth.StaticCredentials != nil:
 		endpoint := storage.GetGRPCEndpointWithProto()
-		opts := resources.GetGRPCDialOptions(storage.Storage)
+		opts := connection.GetGRPCDialOptions(resources.IsGrpcSecure(storage.Storage))
 		username := auth.StaticCredentials.Username
 		password := v1alpha1.DefaultRootPassword
 		if auth.StaticCredentials.SecretKeyRef != nil {
