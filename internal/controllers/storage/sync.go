@@ -229,7 +229,7 @@ func (r *Reconciler) runSelfCheck(
 	waitForGoodResultWithoutIssues bool,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runSelfCheck")
-	credentials, err := r.getAuthCredentials(ctx, storage)
+	credentials, err := r.getYDBCredentials(ctx, storage)
 	if err != nil {
 		r.Log.Error(err, "Error connecting to YDB storage %s", storage.Name)
 		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
@@ -293,16 +293,16 @@ func (r *Reconciler) setState(
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
 
-func (r *Reconciler) getAuthCredentials(
+func (r *Reconciler) getYDBCredentials(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (ydbCredentials.Credentials, error) {
-	switch auth := storage.Spec.Auth; {
+	switch auth := storage.Spec.OperatorConnection; {
 	case auth.AccessToken != nil:
 		token, err := r.getSecretKey(
 			ctx,
 			storage.Namespace,
-			auth.AccessToken.Token.Secret,
+			auth.AccessToken.SecretKeyRef,
 		)
 		if err != nil {
 			return nil, err
@@ -318,7 +318,7 @@ func (r *Reconciler) getAuthCredentials(
 			password, err = r.getSecretKey(
 				ctx,
 				storage.Namespace,
-				auth.StaticCredentials.Password.Secret,
+				auth.StaticCredentials.Password.SecretKeyRef,
 			)
 			if err != nil {
 				return nil, err

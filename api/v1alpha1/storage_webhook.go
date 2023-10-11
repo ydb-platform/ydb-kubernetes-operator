@@ -61,12 +61,6 @@ func (r *Storage) Default() {
 		}
 	}
 
-	if r.Spec.Auth == nil {
-		r.Spec.Auth = &AuthOptions{
-			Anonymous: true,
-		}
-	}
-
 	if r.Spec.Domain == "" {
 		r.Spec.Domain = "root" // FIXME
 	}
@@ -99,8 +93,8 @@ func (r *Storage) ValidateCreate() error {
 	if configuration["domains_config"] != nil {
 		if domainsConfig, ok := configuration["domains_config"].(DomainsConfig); ok {
 			authEnabled := domainsConfig.SecurityConfig.EnforceUserTokenRequirement
-			if (authEnabled && r.Spec.Auth.Anonymous) || (!authEnabled && !r.Spec.Auth.Anonymous) {
-				return fmt.Errorf("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+			if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+				return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 			}
 		}
 	}
@@ -153,8 +147,8 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	if configuration["domains_config"] != nil {
 		if domainsConfig, ok := configuration["domains_config"].(DomainsConfig); ok {
 			authEnabled := domainsConfig.SecurityConfig.EnforceUserTokenRequirement
-			if (authEnabled && r.Spec.Auth.Anonymous) || (!authEnabled && !r.Spec.Auth.Anonymous) {
-				return fmt.Errorf("field 'spec.auth' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+			if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+				return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 			}
 		}
 	}

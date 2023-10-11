@@ -430,7 +430,7 @@ func (r *Reconciler) handleTenantCreation(
 		SharedDatabasePath: sharedDatabasePath,
 	}
 
-	credentials, err := r.getAuthCredentials(ctx, database)
+	credentials, err := r.getYDBCredentials(ctx, database)
 	if err != nil {
 		r.Log.Error(err, "Error connecting to YDB storage %s", database.Storage.Name)
 		return Stop, ctrl.Result{RequeueAfter: TenantCreationRequeueDelay}, err
@@ -498,16 +498,16 @@ func (r *Reconciler) setState(
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
 
-func (r *Reconciler) getAuthCredentials(
+func (r *Reconciler) getYDBCredentials(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (ydbCredentials.Credentials, error) {
-	switch auth := database.Storage.Spec.Auth; {
+	switch auth := database.Storage.Spec.OperatorConnection; {
 	case auth.AccessToken != nil:
 		token, err := r.getSecretKey(
 			ctx,
 			database.Storage.Namespace,
-			auth.AccessToken.Token.Secret,
+			auth.AccessToken.SecretKeyRef,
 		)
 		if err != nil {
 			return nil, err
@@ -523,7 +523,7 @@ func (r *Reconciler) getAuthCredentials(
 			password, err = r.getSecretKey(
 				ctx,
 				database.Storage.Namespace,
-				auth.StaticCredentials.Password.Secret,
+				auth.StaticCredentials.Password.SecretKeyRef,
 			)
 			if err != nil {
 				return nil, err

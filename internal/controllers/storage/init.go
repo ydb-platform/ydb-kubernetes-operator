@@ -116,7 +116,7 @@ func (r *Reconciler) initializeStorage(
 		"-s", storage.GetGRPCEndpointWithProto(),
 	)
 
-	credentials, err := r.getAuthCredentials(ctx, storage)
+	credentials, err := r.getYDBCredentials(ctx, storage)
 	if err != nil {
 		r.Log.Error(err, "Error connecting to YDB storage %s", storage.Name)
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err

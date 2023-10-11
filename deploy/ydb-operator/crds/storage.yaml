@@ -873,59 +873,6 @@ spec:
                         type: array
                     type: object
                 type: object
-              auth:
-                description: '(Optional) Auth services parameter overrides Default:
-                  (not specified)'
-                properties:
-                  access_token:
-                    properties:
-                      token:
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                    required:
-                    - token
-                    type: object
-                  anonymous:
-                    type: boolean
-                  static_credentials:
-                    properties:
-                      password:
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                      username:
-                        type: string
-                    required:
-                    - username
-                    type: object
-                type: object
               caBundle:
                 description: User-defined root certificate authority that is added
                   to system trust store of Storage pods on startup.
@@ -2498,6 +2445,65 @@ spec:
                 description: Number of nodes (pods) in the cluster
                 format: int32
                 type: integer
+              operatorConnection:
+                description: '(Optional) Operator connection settings Default: (not
+                  specified)'
+                properties:
+                  accessToken:
+                    properties:
+                      secretKeyRef:
+                        description: SecretKeySelector selects a key of a Secret.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                    required:
+                    - secretKeyRef
+                    type: object
+                  staticCredentials:
+                    properties:
+                      password:
+                        properties:
+                          secretKeyRef:
+                            description: SecretKeySelector selects a key of a Secret.
+                            properties:
+                              key:
+                                description: The key of the secret to select from.  Must
+                                  be a valid secret key.
+                                type: string
+                              name:
+                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  TODO: Add other useful fields. apiVersion, kind,
+                                  uid?'
+                                type: string
+                              optional:
+                                description: Specify whether the Secret or its key
+                                  must be defined
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                        required:
+                        - secretKeyRef
+                        type: object
+                      username:
+                        type: string
+                    required:
+                    - username
+                    type: object
+                type: object
               priorityClassName:
                 description: (Optional) If specified, the pod's priorityClassName.
                 type: string
