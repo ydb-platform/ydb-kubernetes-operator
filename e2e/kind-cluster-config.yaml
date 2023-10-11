@@ -6,7 +6,7 @@ containerdConfigPatches:
  snapshotter = "native"
 nodes:
 - role: control-plane
-- role: worker 
+- role: worker
   labels:
     worker: true
 - role: worker

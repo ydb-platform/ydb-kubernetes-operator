@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -227,7 +229,13 @@ func (r *Reconciler) runSelfCheck(
 	waitForGoodResultWithoutIssues bool,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runSelfCheck")
-	result, err := healthcheck.GetSelfCheckResult(ctx, storage)
+	credentials, err := r.getYDBCredentials(ctx, storage)
+	if err != nil {
+		r.Log.Error(err, "Error connecting to YDB storage %s", storage.Name)
+		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
+	}
+
+	result, err := healthcheck.GetSelfCheckResult(ctx, storage, credentials)
 	if err != nil {
 		r.Log.Error(err, "GetSelfCheckResult error")
 		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
@@ -283,4 +291,65 @@ func (r *Reconciler) setState(
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+}
+
+func (r *Reconciler) getYDBCredentials(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (ydbCredentials.Credentials, error) {
+	switch auth := storage.Spec.OperatorConnection; {
+	case auth.AccessToken != nil:
+		token, err := r.getSecretKey(
+			ctx,
+			storage.Namespace,
+			auth.AccessToken.SecretKeyRef,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return ydbCredentials.NewAccessTokenCredentials(token), nil
+	case auth.StaticCredentials != nil:
+		endpoint := storage.GetGRPCEndpointWithProto()
+		opts := connection.GetGRPCDialOptions(resources.IsGrpcSecure(storage.Storage))
+		username := auth.StaticCredentials.Username
+		password := ydbv1alpha1.DefaultRootPassword
+		if auth.StaticCredentials.Password != nil {
+			var err error
+			password, err = r.getSecretKey(
+				ctx,
+				storage.Namespace,
+				auth.StaticCredentials.Password.SecretKeyRef,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return ydbCredentials.NewStaticCredentials(username, password, endpoint, opts...), nil
+	default:
+		return ydbCredentials.NewAnonymousCredentials(), nil
+	}
+}
+
+func (r *Reconciler) getSecretKey(
+	ctx context.Context,
+	namespace string,
+	secretKeyRef *corev1.SecretKeySelector,
+) (string, error) {
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{
+		Name:      secretKeyRef.Name,
+		Namespace: namespace,
+	}, secret)
+	if err != nil {
+		return "", err
+	}
+	secretVal, exist := secret.Data[secretKeyRef.Key]
+	if !exist {
+		return "", fmt.Errorf(
+			"key %s does not exist in secretData %s",
+			secretKeyRef.Key,
+			secretKeyRef.Name,
+		)
+	}
+	return string(secretVal), nil
 }

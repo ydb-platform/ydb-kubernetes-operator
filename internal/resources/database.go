@@ -41,7 +41,7 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 
 func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
 	proto := api.GRPCProto
-	if b.Storage.Spec.Service.GRPC.TLSConfiguration != nil && b.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled {
+	if IsGrpcSecure(b.Storage) {
 		proto = api.GRPCSProto
 	}
 

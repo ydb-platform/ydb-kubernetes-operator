@@ -109,12 +109,34 @@ func (r *Reconciler) initializeStorage(
 	cmd := []string{
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
 	}
-	if storage.Spec.Service.GRPC.TLSConfiguration.Enabled {
+
+	// Append server address to connect
+	cmd = append(
+		cmd,
+		"-s", storage.GetGRPCEndpointWithProto(),
+	)
+
+	credentials, err := r.getYDBCredentials(ctx, storage)
+	if err != nil {
+		r.Log.Error(err, "Error connecting to YDB storage %s", storage.Name)
+		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+	}
+
+	token, err := credentials.Token(ctx)
+	if err != nil {
+		r.Log.Error(err, "Error getting token for YDB credentials %s", storage.Name)
+		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+	}
+
+	// Append security token if necessary
+	if token != "" {
 		cmd = append(
 			cmd,
-			"-s", storage.GetGRPCEndpointWithProto(),
+			"--token",
+			token,
 		)
 	}
+
 	cmd = append(
 		cmd,
 		"admin", "blobstorage", "config", "init",

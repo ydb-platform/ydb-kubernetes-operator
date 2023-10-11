@@ -31,6 +31,9 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
+	DefaultRootUsername = "root"
+	DefaultRootPassword = ""
+
 	AnnotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
 	AnnotationUpdateDNSPolicy        = "ydb.tech/update-dns-policy"
 	AnnotationSkipInitialization     = "ydb.tech/skip-initialization"

@@ -3,7 +3,7 @@ package v1alpha1
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
@@ -19,6 +19,12 @@ func (r *Storage) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		Complete()
+}
+
+type DomainsConfig struct {
+	SecurityConfig struct {
+		EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
+	} `yaml:"security_config"`
 }
 
 //+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
@@ -84,6 +90,15 @@ func (r *Storage) ValidateCreate() error {
 		nodesNumber = int32(len(hosts))
 	}
 
+	if configuration["domains_config"] != nil {
+		if domainsConfig, ok := configuration["domains_config"].(DomainsConfig); ok {
+			authEnabled := domainsConfig.SecurityConfig.EnforceUserTokenRequirement
+			if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+				return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+			}
+		}
+	}
+
 	minNodesPerErasure := map[ErasureType]int32{
 		ErasureMirror3DC: 9,
 		ErasureBlock42:   8,
@@ -103,7 +118,6 @@ func (r *Storage) ValidateCreate() error {
 			return fmt.Errorf("the secret name %s is reserved, use another one", secret.Name)
 		}
 	}
-
 	if r.Spec.Volumes != nil {
 		for _, volume := range r.Spec.Volumes {
 			if volume.HostPath == nil {
@@ -123,6 +137,21 @@ func (r *Storage) ValidateCreate() error {
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
+
+	configuration := make(map[string]interface{})
+	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
+	if err != nil {
+		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
+	}
+
+	if configuration["domains_config"] != nil {
+		if domainsConfig, ok := configuration["domains_config"].(DomainsConfig); ok {
+			authEnabled := domainsConfig.SecurityConfig.EnforceUserTokenRequirement
+			if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+				return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+			}
+		}
+	}
 
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
 	if crdCheckError != nil {

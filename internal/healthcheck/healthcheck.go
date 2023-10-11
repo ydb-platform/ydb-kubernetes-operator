@@ -2,40 +2,55 @@ package healthcheck
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/ydb-platform/ydb-go-genproto/Ydb_Monitoring_V1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"google.golang.org/protobuf/proto"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/grpc"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-const (
-	selfCheckEndpoint = "/Ydb.Monitoring.V1.MonitoringService/SelfCheck"
-)
-
-func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder) (*Ydb_Monitoring.SelfCheckResult, error) {
-	client := grpc.Client{
-		Context: ctx,
-		Target:  cluster.GetGRPCEndpoint(),
-	}
-
-	response := Ydb_Monitoring.SelfCheckResponse{}
-	err := client.Invoke(
-		selfCheckEndpoint,
-		&Ydb_Monitoring.SelfCheckRequest{},
-		&response,
-		cluster.Spec.Service.GRPC.TLSConfiguration.Enabled,
+func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder, credentials ydbCredentials.Credentials) (*Ydb_Monitoring.SelfCheckResult, error) {
+	getSelfCheckURL := fmt.Sprintf(
+		"%s/%s",
+		cluster.GetGRPCEndpointWithProto(),
+		cluster.Storage.Spec.Domain,
+	)
+	conn := connection.NewYDBConnection(
+		ctx,
+		getSelfCheckURL,
+		resources.IsGrpcSecure(cluster.Storage),
+		credentials,
 	)
 
-	result := &Ydb_Monitoring.SelfCheckResult{}
+	db, err := conn.Open()
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 
+	logger := log.FromContext(ctx)
+
+	defer func() {
+		conn.Close(db)
+	}()
+
+	client := Ydb_Monitoring_V1.NewMonitoringServiceClient(ydb.GRPCConn(db))
+	response, err := client.SelfCheck(ctx, &Ydb_Monitoring.SelfCheckRequest{})
+	if err != nil {
+		logger.Error(err, "Failed to call SelfCheck")
+		return nil, err
+	}
+
+	result := &Ydb_Monitoring.SelfCheckResult{}
 	if err = proto.Unmarshal(response.Operation.Result.GetValue(), result); err != nil {
+		logger.Error(err, "Failed to unmarshal SelfCheck response")
 		return result, err
 	}
 
-	return result, err
+	return result, nil
 }
