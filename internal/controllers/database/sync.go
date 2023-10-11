@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"time"
 
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
@@ -507,7 +507,7 @@ func (r *Reconciler) getAuthCredentials(
 		token, err := r.getSecretKey(
 			ctx,
 			database.Storage.Namespace,
-			auth.AccessToken.SecretKeyRef,
+			auth.AccessToken.Token.Secret,
 		)
 		if err != nil {
 			return nil, err
@@ -518,12 +518,12 @@ func (r *Reconciler) getAuthCredentials(
 		opts := connection.GetGRPCDialOptions(resources.IsGrpcSecure(database.Storage))
 		username := auth.StaticCredentials.Username
 		password := v1alpha1.DefaultRootPassword
-		if auth.StaticCredentials.SecretKeyRef != nil {
+		if auth.StaticCredentials.Password != nil {
 			var err error
 			password, err = r.getSecretKey(
 				ctx,
 				database.Storage.Namespace,
-				auth.StaticCredentials.SecretKeyRef,
+				auth.StaticCredentials.Password.Secret,
 			)
 			if err != nil {
 				return nil, err

@@ -5,16 +5,20 @@ import (
 )
 
 type AuthOptions struct {
-	Anonymous         bool                   `json:"anonymous"`
-	AccessToken       *AccessTokenAuth       `json:"access_token"`
-	StaticCredentials *StaticCredentialsAuth `json:"static_credentials"`
+	Anonymous         bool                   `json:"anonymous,omitempty"`
+	AccessToken       *AccessTokenAuth       `json:"access_token,omitempty"`
+	StaticCredentials *StaticCredentialsAuth `json:"static_credentials,omitempty"`
 }
 
 type AccessTokenAuth struct {
-	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef,omitempty"`
+	Token *CredentialSource `json:"token"`
 }
 
 type StaticCredentialsAuth struct {
-	Username     string                    `json:"username,omitempty"`
-	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef"`
+	Username string            `json:"username"`
+	Password *CredentialSource `json:"password,omitempty"`
+}
+
+type CredentialSource struct {
+	Secret *corev1.SecretKeySelector `json:",inline"`
 }
