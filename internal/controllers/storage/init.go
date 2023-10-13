@@ -114,6 +114,14 @@ func (r *Reconciler) initializeStorage(
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
 	}
 
+	if resources.IsGrpcSecure(storage.Storage) {
+		cmd = append(
+			cmd,
+			"-s",
+			storage.GetGRPCEndpointWithProto(),
+		)
+	}
+
 	if storage.Spec.OperatorConnection != nil {
 		ydbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
@@ -133,7 +141,6 @@ func (r *Reconciler) initializeStorage(
 
 	cmd = append(
 		cmd,
-		"-s", storage.GetGRPCEndpointWithProto(),
 		"admin", "blobstorage", "config", "init",
 		"--yaml-file",
 		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),

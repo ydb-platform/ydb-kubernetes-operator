@@ -64,7 +64,7 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest docker-build ## Run tests.
 	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator
 	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
-	kind load docker-image cr.yandex/yc/ydb-operator:latest --name kind-ydb-operator
+	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
 
 .PHONY: clean
