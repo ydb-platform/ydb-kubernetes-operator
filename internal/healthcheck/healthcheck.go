@@ -31,7 +31,9 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 		logger.Error(err, "Error connecting to YDB storage")
 		return nil, err
 	}
-	defer connection.Close(ctx, db)
+	defer func() {
+		connection.Close(ctx, db)
+	}()
 
 	client := Ydb_Monitoring_V1.NewMonitoringServiceClient(ydb.GRPCConn(db))
 	response, err := client.SelfCheck(ctx, &Ydb_Monitoring.SelfCheckRequest{})

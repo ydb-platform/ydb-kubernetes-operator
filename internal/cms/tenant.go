@@ -43,7 +43,9 @@ func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder
 		logger.Error(err, "Error connecting to YDB storage")
 		return err
 	}
-	defer connection.Close(ctx, db)
+	defer func() {
+		connection.Close(ctx, db)
+	}()
 
 	client := Ydb_Cms_V1.NewCmsServiceClient(ydb.GRPCConn(db))
 	logger.Info(fmt.Sprintf("creating tenant, url: %s", createDatabaseURL))

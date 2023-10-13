@@ -114,18 +114,16 @@ func (r *Reconciler) initializeStorage(
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
 	}
 
-	ydbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	token, err := creds.Token(
-		metadata.AppendToOutgoingContext(ydbCtx, "x-ydb-database", storage.Spec.Domain),
-	)
-	if err != nil {
-		r.Log.Error(err, "initializeStorage error")
-		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
-	}
-
-	if token != "" {
+	if storage.Spec.OperatorConnection != nil {
+		ydbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		token, err := creds.Token(
+			metadata.AppendToOutgoingContext(ydbCtx, "x-ydb-database", storage.Spec.Domain),
+		)
+		if err != nil {
+			r.Log.Error(err, "initializeStorage error")
+			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+		}
 		cmd = append(
 			cmd,
 			"--token",

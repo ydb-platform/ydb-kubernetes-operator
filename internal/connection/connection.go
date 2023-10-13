@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 func Open(ctx context.Context, endpoint string, opts ...ydb.Option) (*ydb.Driver, error) {
@@ -55,8 +56,7 @@ func buildYDBTLSOption(endpoint string) ydb.Option {
 	tlsConfig := &tls.Config{ //nolint
 		RootCAs: certPool,
 	}
-	if strings.HasPrefix(ydbv1alpha1.GRPCSProto, endpoint) {
-
+	if strings.HasPrefix(endpoint, ydbv1alpha1.GRPCSProto) {
 		return ydb.WithTLSConfig(tlsConfig)
 	}
 	return ydb.WithTLSSInsecureSkipVerify()
@@ -68,7 +68,7 @@ func BuildGRPCTLSOption(endpoint string) grpc.DialOption {
 	tlsConfig := &tls.Config{ //nolint
 		RootCAs: certPool,
 	}
-	if strings.HasPrefix(ydbv1alpha1.GRPCSProto, endpoint) {
+	if strings.HasPrefix(endpoint, ydbv1alpha1.GRPCSProto) {
 		return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
 	}
 	return grpc.WithTransportCredentials(insecure.NewCredentials())

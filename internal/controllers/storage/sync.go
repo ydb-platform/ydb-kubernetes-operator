@@ -303,7 +303,7 @@ func (r *Reconciler) getYDBCredentials(
 				auth.AccessToken.SecretKeyRef,
 			)
 			if err != nil {
-				return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+				return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
 		case auth.StaticCredentials != nil:
@@ -317,7 +317,7 @@ func (r *Reconciler) getYDBCredentials(
 					auth.StaticCredentials.Password.SecretKeyRef,
 				)
 				if err != nil {
-					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 				}
 			}
 			endpoint := storage.GetGRPCEndpoint()
