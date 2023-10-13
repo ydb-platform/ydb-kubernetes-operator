@@ -21,15 +21,21 @@ func (r *Storage) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-type DomainsConfig struct {
-	SecurityConfig struct {
-		EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
-	} `yaml:"security_config"`
-}
-
 //+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
 
 var _ webhook.Defaulter = &Storage{}
+
+// +k8s:deepcopy-gen=false
+type PartialYamlConfig struct {
+	DomainsConfig struct {
+		SecurityConfig struct {
+			EnforceUserTokenRequirement bool     `yaml:"enforce_user_token_requirement"`
+			MonitoringAllowedSIDs       []string `yaml:"monitoring_allowed_sids"`
+			AdministrationAllowedSIDs   []string `yaml:"administration_allowed_sids"`
+			VieweAllowedSIDs            []string `yaml:"viewer_allowed_sids"`
+		} `yaml:"security_config"`
+	} `yaml:"domains_config"`
+}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *Storage) Default() {
@@ -90,13 +96,19 @@ func (r *Storage) ValidateCreate() error {
 		nodesNumber = int32(len(hosts))
 	}
 
-	if configuration["domains_config"] != nil {
-		if domainsConfig, ok := configuration["domains_config"].(DomainsConfig); ok {
-			authEnabled := domainsConfig.SecurityConfig.EnforceUserTokenRequirement
-			if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
-				return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
-			}
-		}
+	yamlConfig := PartialYamlConfig{}
+	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`")
+	}
+
+	var authEnabled bool
+	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+		authEnabled = true
+	}
+
+	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
@@ -144,13 +156,19 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
 	}
 
-	if configuration["domains_config"] != nil {
-		if domainsConfig, ok := configuration["domains_config"].(DomainsConfig); ok {
-			authEnabled := domainsConfig.SecurityConfig.EnforceUserTokenRequirement
-			if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
-				return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
-			}
-		}
+	yamlConfig := PartialYamlConfig{}
+	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`")
+	}
+
+	var authEnabled bool
+	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+		authEnabled = true
+	}
+
+	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)

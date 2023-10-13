@@ -63,6 +63,11 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
+	auth, result, err := r.getYDBCredentials(ctx, &storage)
+	if auth == nil {
+		return result, err
+	}
+
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &storage)
 		if stop {
@@ -72,17 +77,13 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.runSelfCheck(ctx, &storage, false)
-		if stop {
-			return result, err
-		}
-		stop, result, err = r.initializeStorage(ctx, &storage)
+		stop, result, err = r.initializeStorage(ctx, &storage, auth)
 		if stop {
 			return result, err
 		}
 	}
 
-	_, result, err = r.runSelfCheck(ctx, &storage, false)
+	_, result, err = r.runSelfCheck(ctx, &storage, auth, false)
 	return result, err
 }
 
@@ -226,16 +227,12 @@ func (r *Reconciler) handleResourcesSync(
 func (r *Reconciler) runSelfCheck(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
+	creds ydbCredentials.Credentials,
 	waitForGoodResultWithoutIssues bool,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runSelfCheck")
-	credentials, err := r.getYDBCredentials(ctx, storage)
-	if err != nil {
-		r.Log.Error(err, "Error connecting to YDB storage %s", storage.Name)
-		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
-	}
 
-	result, err := healthcheck.GetSelfCheckResult(ctx, storage, credentials)
+	result, err := healthcheck.GetSelfCheckResult(ctx, storage, creds)
 	if err != nil {
 		r.Log.Error(err, "GetSelfCheckResult error")
 		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
@@ -296,38 +293,39 @@ func (r *Reconciler) setState(
 func (r *Reconciler) getYDBCredentials(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-) (ydbCredentials.Credentials, error) {
-	switch auth := storage.Spec.OperatorConnection; {
-	case auth.AccessToken != nil:
-		token, err := r.getSecretKey(
-			ctx,
-			storage.Namespace,
-			auth.AccessToken.SecretKeyRef,
-		)
-		if err != nil {
-			return nil, err
-		}
-		return ydbCredentials.NewAccessTokenCredentials(token), nil
-	case auth.StaticCredentials != nil:
-		endpoint := storage.GetGRPCEndpointWithProto()
-		opts := connection.GetGRPCDialOptions(resources.IsGrpcSecure(storage.Storage))
-		username := auth.StaticCredentials.Username
-		password := ydbv1alpha1.DefaultRootPassword
-		if auth.StaticCredentials.Password != nil {
-			var err error
-			password, err = r.getSecretKey(
+) (ydbCredentials.Credentials, ctrl.Result, error) {
+	if auth := storage.Spec.OperatorConnection; auth != nil {
+		switch {
+		case auth.AccessToken != nil:
+			token, err := r.getSecretKey(
 				ctx,
-				storage.Namespace,
-				auth.StaticCredentials.Password.SecretKeyRef,
+				storage.Storage.Namespace,
+				auth.AccessToken.SecretKeyRef,
 			)
 			if err != nil {
-				return nil, err
+				return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
+			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
+		case auth.StaticCredentials != nil:
+			username := auth.StaticCredentials.Username
+			password := ydbv1alpha1.DefaultRootPassword
+			if auth.StaticCredentials.Password != nil {
+				var err error
+				password, err = r.getSecretKey(
+					ctx,
+					storage.Storage.Namespace,
+					auth.StaticCredentials.Password.SecretKeyRef,
+				)
+				if err != nil {
+					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+				}
+			}
+			endpoint := storage.GetGRPCEndpoint()
+			optSecure := connection.BuildGRPCTLSOption(endpoint)
+			return ydbCredentials.NewStaticCredentials(username, password, endpoint, optSecure), ctrl.Result{Requeue: false}, nil
 		}
-		return ydbCredentials.NewStaticCredentials(username, password, endpoint, opts...), nil
-	default:
-		return ydbCredentials.NewAnonymousCredentials(), nil
 	}
+	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) getSecretKey(

@@ -27,25 +27,23 @@ type Tenant struct {
 	SharedDatabasePath string
 }
 
-func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder, credentials ydbCredentials.Credentials) error {
-	createDatabaseURL := fmt.Sprintf("%s/%s", t.StorageEndpoint, database.Spec.Domain)
-	conn := connection.NewYDBConnection(
-		ctx,
-		createDatabaseURL,
-		resources.IsGrpcSecure(database.Storage),
-		credentials,
+func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder, creds ydbCredentials.Credentials) error {
+	logger := log.FromContext(ctx)
+	createDatabaseURL := fmt.Sprintf(
+		"%s/%s",
+		t.StorageEndpoint,
+		database.Spec.Domain,
 	)
 
-	db, err := conn.Open()
+	db, err := connection.Open(ctx,
+		createDatabaseURL,
+		ydb.WithCredentials(creds),
+	)
 	if err != nil {
+		logger.Error(err, "Error connecting to YDB storage")
 		return err
 	}
-
-	logger := log.FromContext(ctx)
-
-	defer func() {
-		conn.Close(db)
-	}()
+	defer connection.Close(ctx, db)
 
 	client := Ydb_Cms_V1.NewCmsServiceClient(ydb.GRPCConn(db))
 	logger.Info(fmt.Sprintf("creating tenant, url: %s", createDatabaseURL))

@@ -70,12 +70,17 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	if stop {
 		return result, err
 	}
+	auth, result, err := r.getYDBCredentials(ctx, &database)
+	if auth == nil {
+		return result, err
+	}
+
 	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &database)
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.handleTenantCreation(ctx, &database)
+		stop, result, err = r.handleTenantCreation(ctx, &database, auth)
 		if stop {
 			return result, err
 		}
@@ -348,6 +353,7 @@ func (r *Reconciler) setInitDatabaseCompleted(
 func (r *Reconciler) handleTenantCreation(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
+	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleTenantCreation")
 
@@ -430,13 +436,7 @@ func (r *Reconciler) handleTenantCreation(
 		SharedDatabasePath: sharedDatabasePath,
 	}
 
-	credentials, err := r.getYDBCredentials(ctx, database)
-	if err != nil {
-		r.Log.Error(err, "Error connecting to YDB storage %s", database.Storage.Name)
-		return Stop, ctrl.Result{RequeueAfter: TenantCreationRequeueDelay}, err
-	}
-
-	err = tenant.Create(ctx, database, credentials)
+	err := tenant.Create(ctx, database, creds)
 	if err != nil {
 		r.Recorder.Event(
 			database,
@@ -501,38 +501,39 @@ func (r *Reconciler) setState(
 func (r *Reconciler) getYDBCredentials(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
-) (ydbCredentials.Credentials, error) {
-	switch auth := database.Storage.Spec.OperatorConnection; {
-	case auth.AccessToken != nil:
-		token, err := r.getSecretKey(
-			ctx,
-			database.Storage.Namespace,
-			auth.AccessToken.SecretKeyRef,
-		)
-		if err != nil {
-			return nil, err
-		}
-		return ydbCredentials.NewAccessTokenCredentials(token), nil
-	case auth.StaticCredentials != nil:
-		endpoint := database.GetStorageEndpointWithProto()
-		opts := connection.GetGRPCDialOptions(resources.IsGrpcSecure(database.Storage))
-		username := auth.StaticCredentials.Username
-		password := v1alpha1.DefaultRootPassword
-		if auth.StaticCredentials.Password != nil {
-			var err error
-			password, err = r.getSecretKey(
+) (ydbCredentials.Credentials, ctrl.Result, error) {
+	if auth := database.Storage.Spec.OperatorConnection; auth != nil {
+		switch {
+		case auth.AccessToken != nil:
+			token, err := r.getSecretKey(
 				ctx,
 				database.Storage.Namespace,
-				auth.StaticCredentials.Password.SecretKeyRef,
+				auth.AccessToken.SecretKeyRef,
 			)
 			if err != nil {
-				return nil, err
+				return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
+			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
+		case auth.StaticCredentials != nil:
+			username := auth.StaticCredentials.Username
+			password := v1alpha1.DefaultRootPassword
+			if auth.StaticCredentials.Password != nil {
+				var err error
+				password, err = r.getSecretKey(
+					ctx,
+					database.Storage.Namespace,
+					auth.StaticCredentials.Password.SecretKeyRef,
+				)
+				if err != nil {
+					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+				}
+			}
+			endpoint := database.GetStorageEndpoint()
+			secureOpt := connection.BuildGRPCTLSOption(endpoint)
+			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secureOpt), ctrl.Result{Requeue: false}, nil
 		}
-		return ydbCredentials.NewStaticCredentials(username, password, endpoint, opts...), nil
-	default:
-		return ydbCredentials.NewAnonymousCredentials(), nil
 	}
+	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) getSecretKey(
