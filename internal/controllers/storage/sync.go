@@ -77,6 +77,10 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		if stop {
 			return result, err
 		}
+		stop, result, err = r.runSelfCheck(ctx, &storage, auth, false)
+		if stop {
+			return result, err
+		}
 		stop, result, err = r.initializeStorage(ctx, &storage, auth)
 		if stop {
 			return result, err
@@ -321,8 +325,8 @@ func (r *Reconciler) getYDBCredentials(
 				}
 			}
 			endpoint := storage.GetGRPCEndpoint()
-			optSecure := connection.BuildGRPCTLSOption(endpoint)
-			return ydbCredentials.NewStaticCredentials(username, password, endpoint, optSecure), ctrl.Result{Requeue: false}, nil
+			secure := connection.LoadTLSCredentials(resources.IsGrpcSecure(storage.Storage))
+			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
 		}
 	}
 	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
