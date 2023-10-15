@@ -70,14 +70,14 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	if stop {
 		return result, err
 	}
+	auth, result, err := r.getYDBCredentials(ctx, &database)
+	if auth == nil {
+		return result, err
+	}
 
 	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &database)
 		if stop {
-			return result, err
-		}
-		auth, result, err := r.getYDBCredentials(ctx, &database)
-		if auth == nil {
 			return result, err
 		}
 		stop, result, err = r.handleTenantCreation(ctx, &database, auth)
