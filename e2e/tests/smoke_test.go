@@ -127,11 +127,11 @@ var _ = Describe("Operator smoke test", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, storageSample, client.GracePeriodSeconds(0))).Should(Succeed())
 		}()
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, databaseSample, client.GracePeriodSeconds(0))).Should(Succeed())
 		}()
 
 		storage := v1alpha1.Storage{}
@@ -216,7 +216,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("storage.State goes Pending -> Preparing -> Provisioning -> Initializing -> Ready", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, storageSample, client.GracePeriodSeconds(0))).Should(Succeed())
 		}()
 
 		By("waiting until storage is ready...")
