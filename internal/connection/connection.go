@@ -16,7 +16,7 @@ import (
 
 func Open(ctx context.Context, endpoint string, opts ...ydb.Option) (*ydb.Driver, error) {
 	logger := log.FromContext(ctx)
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
 	db, err := ydb.Open(

@@ -62,6 +62,10 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	if stop {
 		return result, err
 	}
+	auth, result, err := r.getYDBCredentials(ctx, &storage)
+	if auth == nil {
+		return result, err
+	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &storage)
@@ -72,14 +76,6 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		if stop {
 			return result, err
 		}
-	}
-
-	auth, result, err := r.getYDBCredentials(ctx, &storage)
-	if auth == nil {
-		return result, err
-	}
-
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		stop, result, err = r.runSelfCheck(ctx, &storage, auth, false)
 		if stop {
 			return result, err

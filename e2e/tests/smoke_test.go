@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	Timeout  = time.Second * 600
+	Timeout  = time.Second * 900
 	Interval = time.Second * 5
 )
 

@@ -34,8 +34,8 @@ const (
 	DefaultRequeueDelay             = 10 * time.Second
 	StatusUpdateRequeueDelay        = 1 * time.Second
 	TenantCreationRequeueDelay      = 30 * time.Second
-	StorageAwaitRequeueDelay        = 60 * time.Second
-	SharedDatabaseAwaitRequeueDelay = 60 * time.Second
+	StorageAwaitRequeueDelay        = 30 * time.Second
+	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
 
 	TenantInitializedCondition        = "TenantInitialized"
 	TenantInitializedReasonInProgress = "InProgres"
@@ -66,10 +66,6 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	if stop {
 		return result, err
 	}
-	stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
-	if stop {
-		return result, err
-	}
 	auth, result, err := r.getYDBCredentials(ctx, &database)
 	if auth == nil {
 		return result, err
@@ -77,6 +73,10 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 
 	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &database)
+		if stop {
+			return result, err
+		}
+		stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
 		if stop {
 			return result, err
 		}
