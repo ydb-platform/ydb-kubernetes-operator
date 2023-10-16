@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -127,11 +128,11 @@ var _ = Describe("Operator smoke test", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample, client.GracePeriodSeconds(0))).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 		}()
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample, client.GracePeriodSeconds(0))).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
 		}()
 
 		storage := v1alpha1.Storage{}
@@ -216,7 +217,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("storage.State goes Pending -> Preparing -> Provisioning -> Initializing -> Ready", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample, client.GracePeriodSeconds(0))).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 		}()
 
 		By("waiting until storage is ready...")
@@ -257,7 +258,12 @@ var _ = Describe("Operator smoke test", func() {
 	AfterEach(func() {
 		Expect(uninstallOperatorWithHelm(testobjects.YdbNamespace)).Should(BeTrue())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
-		// TODO wait until namespace is deleted properly
-		time.Sleep(40 * time.Second)
+		Eventually(func() metav1.StatusReason {
+			key := client.ObjectKeyFromObject(&namespace)
+			if err := k8sClient.Get(ctx, key, &namespace); err != nil {
+				return apierrors.ReasonForError(err)
+			}
+			return ""
+		}, Timeout, Interval).Should(Equal(metav1.StatusReasonNotFound))
 	})
 })

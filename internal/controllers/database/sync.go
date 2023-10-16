@@ -502,6 +502,8 @@ func (r *Reconciler) getYDBCredentials(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (ydbCredentials.Credentials, ctrl.Result, error) {
+	r.Log.Info("running step getYDBCredentials")
+
 	if auth := database.Storage.Spec.OperatorConnection; auth != nil {
 		switch {
 		case auth.AccessToken != nil:
