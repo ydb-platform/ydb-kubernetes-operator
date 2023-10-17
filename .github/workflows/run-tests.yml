@@ -150,6 +150,7 @@ jobs:
       - name: build-operator-image
         uses: docker/build-push-action@v3
         with:
+          context: .
           push: false
           # Get commit short sha within Github action workflow
           # Just a random string name, we aren't uploading anyway
