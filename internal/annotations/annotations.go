@@ -16,8 +16,8 @@ func CompareMaps(map1, map2 map[string]string) bool {
 	if len(map1) != len(map2) {
 		return false
 	}
-	for key, value := range map1 {
-		if val, ok := map2[key]; !ok || val != value {
+	for key1, value1 := range map1 {
+		if value2, ok := map2[key1]; !ok || value2 != value1 {
 			return false
 		}
 	}

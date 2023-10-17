@@ -83,7 +83,11 @@ func ignoreDeletionPredicate() predicate.Predicate {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	controller := ctrl.NewControllerManagedBy(mgr).For(&ydbv1alpha1.Database{})
+
+	r.Recorder = mgr.GetEventRecorderFor("Database")
+
+	return controller.
 		For(&ydbv1alpha1.Database{}).
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
