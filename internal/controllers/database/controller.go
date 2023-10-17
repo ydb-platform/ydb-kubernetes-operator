@@ -88,9 +88,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorderFor("Database")
 
 	return controller.
-		For(&ydbv1alpha1.Database{}).
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&corev1.ConfigMap{}).
 		WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
 }

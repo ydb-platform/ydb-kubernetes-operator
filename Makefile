@@ -67,7 +67,7 @@ test: manifests generate fmt vet envtest docker-build ## Run tests.
 	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
 	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
 	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44 --name kind-ydb-operator
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -timeout 3600s -p 1 ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -timeout 1800s -p 1 ./... -coverprofile cover.out
 
 .PHONY: clean
 clean:
