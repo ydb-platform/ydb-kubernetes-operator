@@ -29,7 +29,7 @@ jobs:
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
   smart-checkout:
-    needs: 
+    needs:
       - start-runner
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
     steps:
@@ -45,7 +45,7 @@ jobs:
     concurrency:
       group: lint-golangci-${{ github.ref }}
       cancel-in-progress: true
-    needs: 
+    needs:
       - start-runner
       - smart-checkout
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
@@ -65,7 +65,7 @@ jobs:
     concurrency:
       group: lint-autoformat-${{ github.ref }}
       cancel-in-progress: true
-    needs: 
+    needs:
       - start-runner
       - smart-checkout
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
@@ -86,7 +86,7 @@ jobs:
       - name: Check repository diff
         run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
   run-tests:
-    needs: 
+    needs:
       - start-runner
       - smart-checkout
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
@@ -133,7 +133,7 @@ jobs:
           helm version
       - name: setup-medium-test-class-binaries
         run: |
-          # This installs kube-apiserver and etcd binaries for `medium` 
+          # This installs kube-apiserver and etcd binaries for `medium`
           # class tests. Refer to the writing tests docs for more info.
           make envtest
           KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
@@ -148,6 +148,7 @@ jobs:
       - name: build-operator-image
         uses: docker/build-push-action@v3
         with:
+          context: "{{defaultContext}}"
           push: false
           # Get commit short sha within Github action workflow
           # Just a random string name, we aren't uploading anyway
