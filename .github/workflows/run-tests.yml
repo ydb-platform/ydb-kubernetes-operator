@@ -28,6 +28,8 @@ jobs:
           memory: 32GB
           core-fraction: 100
           subnet-id: e9bu12i8ocv6q8kl83ru
+          user: yc-admin
+          ssh-public-key: ${{ secrets.CI_RUNNER_DEBUG_SHH_PUBLIC_KEY }}
   smart-checkout:
     needs: 
       - start-runner
