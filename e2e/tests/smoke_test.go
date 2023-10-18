@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -109,7 +110,6 @@ var _ = Describe("Operator smoke test", func() {
 
 	BeforeEach(func() {
 		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
-
 		databaseSample = testobjects.DefaultDatabase()
 
 		ctx = context.Background()
@@ -213,6 +213,40 @@ var _ = Describe("Operator smoke test", func() {
 		})
 	})
 
+	It("operatorConnection check, create storage with default staticCredentials", func() {
+		By("issuing create commands...")
+		storageSample = testobjects.StorageWithStaticCredentials(filepath.Join(".", "data", "storage-block-4-2-config-staticCreds.yaml"))
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
+
+		storage := v1alpha1.Storage{}
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			return meta.IsStatusConditionPresentAndEqual(
+				storage.Status.Conditions,
+				"StorageReady",
+				metav1.ConditionTrue,
+			) && storage.Status.State == testobjects.ReadyStatus
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("checking that all the storage pods are running and ready...")
+		storagePods := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &storagePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+			"ydb-cluster": "kind-storage",
+		})).Should(Succeed())
+		Expect(len(storagePods.Items)).Should(BeEquivalentTo(storageSample.Spec.Nodes))
+		for _, pod := range storagePods.Items {
+			Expect(pod.Status.Phase).To(BeEquivalentTo("Running"))
+			Expect(podIsReady(pod.Status.Conditions)).To(BeTrue())
+		}
+	})
+
 	It("storage.State goes Pending -> Preparing -> Provisioning -> Initializing -> Ready", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
@@ -257,7 +291,12 @@ var _ = Describe("Operator smoke test", func() {
 	AfterEach(func() {
 		Expect(uninstallOperatorWithHelm(testobjects.YdbNamespace)).Should(BeTrue())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
-		// TODO wait until namespace is deleted properly
-		time.Sleep(40 * time.Second)
+		Eventually(func() metav1.StatusReason {
+			key := client.ObjectKeyFromObject(&namespace)
+			if err := k8sClient.Get(ctx, key, &namespace); err != nil {
+				return apierrors.ReasonForError(err)
+			}
+			return ""
+		}, Timeout, Interval).Should(Equal(metav1.StatusReasonNotFound))
 	})
 })

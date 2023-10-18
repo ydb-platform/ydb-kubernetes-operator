@@ -5,6 +5,8 @@ host_configs:
         type: SSD
     host_config_id: 1
 domains_config:
+  security_config:
+    enforce_user_token_requirement: true
   domain:
   - name: Root
     storage_pool_types:

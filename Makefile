@@ -64,8 +64,10 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest docker-build ## Run tests.
 	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator
 	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
-	kind load docker-image cr.yandex/yc/ydb-operator:latest --name kind-ydb-operator
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
+	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
+	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44 --name kind-ydb-operator
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -timeout 1800s -p 1 ./... -coverprofile cover.out
 
 .PHONY: clean
 clean:
@@ -77,7 +79,7 @@ build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/ydb-kubernetes-operator/main.go
 
 docker-build: ## Build docker image with the manager.
-	docker build -t ${IMG} .
+	docker build --network=host -t ${IMG} .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}

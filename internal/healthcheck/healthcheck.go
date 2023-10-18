@@ -15,28 +15,24 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder, credentials ydbCredentials.Credentials) (*Ydb_Monitoring.SelfCheckResult, error) {
+func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder, creds ydbCredentials.Credentials) (*Ydb_Monitoring.SelfCheckResult, error) {
+	logger := log.FromContext(ctx)
 	getSelfCheckURL := fmt.Sprintf(
 		"%s/%s",
 		cluster.GetGRPCEndpointWithProto(),
 		cluster.Storage.Spec.Domain,
 	)
-	conn := connection.NewYDBConnection(
-		ctx,
-		getSelfCheckURL,
-		resources.IsGrpcSecure(cluster.Storage),
-		credentials,
-	)
 
-	db, err := conn.Open()
+	db, err := connection.Open(ctx,
+		getSelfCheckURL,
+		ydb.WithCredentials(creds),
+	)
 	if err != nil {
+		logger.Error(err, "Error connecting to YDB storage")
 		return nil, err
 	}
-
-	logger := log.FromContext(ctx)
-
 	defer func() {
-		conn.Close(db)
+		connection.Close(ctx, db)
 	}()
 
 	client := Ydb_Monitoring_V1.NewMonitoringServiceClient(ydb.GRPCConn(db))

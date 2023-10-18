@@ -97,11 +97,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			Owns(&monitoringv1.ServiceMonitor{})
 	}
 
-	controller = controller.
+	return controller.
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
-		Owns(&corev1.ConfigMap{})
-
-	return controller.WithEventFilter(ignoreDeletionPredicate()).
+		Owns(&corev1.ConfigMap{}).
+		WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
 }

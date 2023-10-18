@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"time"
 
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
+	"google.golang.org/grpc/metadata"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -96,6 +99,7 @@ func (r *Reconciler) setInitStorageCompleted(
 func (r *Reconciler) initializeStorage(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
+	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
 
@@ -110,30 +114,28 @@ func (r *Reconciler) initializeStorage(
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
 	}
 
-	// Append server address to connect
-	cmd = append(
-		cmd,
-		"-s", storage.GetGRPCEndpointWithProto(),
-	)
-
-	credentials, err := r.getYDBCredentials(ctx, storage)
-	if err != nil {
-		r.Log.Error(err, "Error connecting to YDB storage %s", storage.Name)
-		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
-	}
-
-	token, err := credentials.Token(ctx)
-	if err != nil {
-		r.Log.Error(err, "Error getting token for YDB credentials %s", storage.Name)
-		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
-	}
-
-	// Append security token if necessary
-	if token != "" {
+	if storage.Spec.OperatorConnection != nil {
+		ydbCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		token, err := creds.Token(
+			metadata.AppendToOutgoingContext(ydbCtx, "x-ydb-database", storage.Spec.Domain),
+		)
+		if err != nil {
+			r.Log.Error(err, "initializeStorage error")
+			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, err
+		}
 		cmd = append(
 			cmd,
 			"--token",
 			token,
+		)
+	}
+
+	if resources.IsGrpcSecure(storage.Storage) {
+		cmd = append(
+			cmd,
+			"-s",
+			storage.GetGRPCEndpointWithProto(),
 		)
 	}
 
