@@ -29,10 +29,7 @@ var _ webhook.Defaulter = &Storage{}
 type PartialYamlConfig struct {
 	DomainsConfig struct {
 		SecurityConfig struct {
-			EnforceUserTokenRequirement bool     `yaml:"enforce_user_token_requirement"`
-			MonitoringAllowedSIDs       []string `yaml:"monitoring_allowed_sids"`
-			AdministrationAllowedSIDs   []string `yaml:"administration_allowed_sids"`
-			VieweAllowedSIDs            []string `yaml:"viewer_allowed_sids"`
+			EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
 		} `yaml:"security_config"`
 	} `yaml:"domains_config"`
 }

@@ -115,7 +115,7 @@ func (r *Reconciler) initializeStorage(
 	}
 
 	if storage.Spec.OperatorConnection != nil {
-		ydbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		ydbCtx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		token, err := creds.Token(
 			metadata.AppendToOutgoingContext(ydbCtx, "x-ydb-database", storage.Spec.Domain),
