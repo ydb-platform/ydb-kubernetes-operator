@@ -229,7 +229,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 		container.Env = []corev1.EnvVar{
 			{
 				Name:  caBundleEnvName,
-				Value: string(b.Spec.CABundle),
+				Value: b.Spec.CABundle,
 			},
 		}
 	}
@@ -490,7 +490,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]
 	arg := ""
 
 	if len(b.Spec.CABundle) > 0 {
-		arg += fmt.Sprintf("echo $%s > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
+		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {

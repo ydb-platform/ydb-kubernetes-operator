@@ -103,7 +103,7 @@ type DatabaseSpec struct {
 	// User-defined root certificate authority that is added to system trust
 	// store of Storage pods on startup.
 	// +optional
-	CABundle []byte `json:"caBundle,omitempty"`
+	CABundle string `json:"caBundle,omitempty"`
 
 	// Secret names that will be mounted into the well-known directory of
 	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`

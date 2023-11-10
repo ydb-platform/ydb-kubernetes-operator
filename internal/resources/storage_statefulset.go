@@ -254,7 +254,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		container.Env = []corev1.EnvVar{
 			{
 				Name:  caBundleEnvName,
-				Value: string(b.Spec.CABundle),
+				Value: b.Spec.CABundle,
 			},
 		}
 	}
@@ -427,7 +427,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 	arg := ""
 
 	if len(b.Spec.CABundle) > 0 {
-		arg += fmt.Sprintf("echo $%s > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
+		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
 	}
 
 	if IsGrpcSecure(b.Storage) {
