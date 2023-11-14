@@ -236,7 +236,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  value,
-					DefaultMode: ptr.Int32(0644),
+					DefaultMode: ptr.Int32(0o644),
 					Optional:    ptr.Bool(false),
 				},
 			},
