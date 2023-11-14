@@ -41,6 +41,7 @@ const (
 	AnnotationDataCenter             = "ydb.tech/data-center"
 	AnnotationNodeHost               = "ydb.tech/node-host"
 	AnnotationNodeDomain             = "ydb.tech/node-domain"
+	AnnotationCABundleSecret         = "ydb.tech/ca-bundle-secret"
 
 	AnnotationValueTrue = "true"
 

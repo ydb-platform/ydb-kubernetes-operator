@@ -197,6 +197,17 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		})
+	} else if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationCABundleSecret]; ok {
+		volumes = append(volumes, corev1.Volume{
+			Name: caCertificatesVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName:  value,
+					DefaultMode: ptr.Int32(0644),
+					Optional:    ptr.Bool(false),
+				},
+			},
+		})
 	}
 
 	return volumes
@@ -471,6 +482,12 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
 			MountPath: systemCertsDir,
+		})
+	} else if _, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationCABundleSecret]; ok {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      caCertificatesVolumeName,
+			MountPath: systemCertsDir,
+			ReadOnly:  true,
 		})
 	}
 
