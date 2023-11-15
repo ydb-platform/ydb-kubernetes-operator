@@ -876,7 +876,6 @@ spec:
               caBundle:
                 description: User-defined root certificate authority that is added
                   to system trust store of Storage pods on startup.
-                format: byte
                 type: string
               configuration:
                 description: YDB configuration in YAML format. Will be applied on
