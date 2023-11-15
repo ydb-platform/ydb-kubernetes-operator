@@ -334,11 +334,6 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 		*out = new(MonitoringOptions)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.CABundle != nil {
-		in, out := &in.CABundle, &out.CABundle
-		*out = make([]byte, len(*in))
-		copy(*out, *in)
-	}
 	if in.Secrets != nil {
 		in, out := &in.Secrets, &out.Secrets
 		*out = make([]*v1.LocalObjectReference, len(*in))
@@ -929,11 +924,6 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 		in, out := &in.Monitoring, &out.Monitoring
 		*out = new(MonitoringOptions)
 		(*in).DeepCopyInto(*out)
-	}
-	if in.CABundle != nil {
-		in, out := &in.CABundle, &out.CABundle
-		*out = make([]byte, len(*in))
-		copy(*out, *in)
 	}
 	if in.Secrets != nil {
 		in, out := &in.Secrets, &out.Secrets
