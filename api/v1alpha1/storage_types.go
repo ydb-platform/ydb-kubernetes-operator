@@ -138,6 +138,10 @@ type StorageSpec struct {
 	// (Optional) If specified, the pod's priorityClassName.
 	// +optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+
+	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
+	// +optional
+	TerminationGracePeriodSeconds *int64 `json:"gracePeriod,omitempty"`
 }
 
 // StorageStatus defines the observed state of Storage

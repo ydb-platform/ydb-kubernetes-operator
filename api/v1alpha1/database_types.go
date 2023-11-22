@@ -145,6 +145,10 @@ type DatabaseSpec struct {
 	// (Optional) If specified, the pod's priorityClassName.
 	// +optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+
+	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
+	// +optional
+	TerminationGracePeriodSeconds *int64 `json:"gracePeriod,omitempty"`
 }
 
 type DatabaseResources struct {

@@ -942,6 +942,10 @@ spec:
                 required:
                 - enabled
                 type: object
+              gracePeriod:
+                description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
+                format: int64
+                type: integer
               image:
                 description: (Optional) YDB Image
                 properties:
