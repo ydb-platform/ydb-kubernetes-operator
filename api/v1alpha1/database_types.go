@@ -148,7 +148,7 @@ type DatabaseSpec struct {
 
 	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
 	// +optional
-	TerminationGracePeriodSeconds *int64 `json:"gracePeriod,omitempty"`
+	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
 }
 
 type DatabaseResources struct {

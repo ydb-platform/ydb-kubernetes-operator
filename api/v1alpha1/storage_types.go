@@ -141,7 +141,7 @@ type StorageSpec struct {
 
 	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
 	// +optional
-	TerminationGracePeriodSeconds *int64 `json:"gracePeriod,omitempty"`
+	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
 }
 
 // StorageStatus defines the observed state of Storage

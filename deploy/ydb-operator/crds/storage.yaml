@@ -1103,10 +1103,6 @@ spec:
                 - block-4-2
                 - none
                 type: string
-              gracePeriod:
-                description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
-                format: int64
-                type: integer
               hostNetwork:
                 description: 'Whether host network should be enabled. Automatically
                   sets `dnsPolicy` to `clusterFirstWithHostNet`. Default: false'
@@ -2771,6 +2767,10 @@ spec:
                         type: string
                     type: object
                 type: object
+              terminationGracePeriodSeconds:
+                description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
+                format: int64
+                type: integer
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
                 items:
