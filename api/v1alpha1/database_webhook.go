@@ -126,6 +126,22 @@ func (r *Database) ValidateCreate() error {
 		}
 	}
 
+	if r.Spec.NodeSet != nil {
+		for _, nodeSetInline := range r.Spec.NodeSet {
+			if nodeSetInline.DataStore != nil {
+				return fmt.Errorf("incorrect database nodeSet configuration, key \"dataStore\" does not supported")
+			}
+		}
+
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSet {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSet: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
+	}
+
 	crdCheckError := checkMonitoringCRD(manager, databaselog, r.Spec.Monitoring != nil)
 	if crdCheckError != nil {
 		return crdCheckError

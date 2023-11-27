@@ -16,6 +16,7 @@ import (
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/nodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 )
 
@@ -89,6 +90,24 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Storage")
 		os.Exit(1)
 	}
+	if err = (&nodeset.DatabaseNodeSetReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Config:   mgr.GetConfig(),
+		Recorder: mgr.GetEventRecorderFor("ydb-operator"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DatabaseNodeSet")
+		os.Exit(1)
+	}
+	if err = (&nodeset.StorageNodeSetReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Config:   mgr.GetConfig(),
+		Recorder: mgr.GetEventRecorderFor("ydb-operator"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "StorageNodeSet")
+		os.Exit(1)
+	}
 
 	if enableServiceMonitors {
 		if err = (&monitoring.DatabaseMonitoringReconciler{
@@ -114,6 +133,12 @@ func main() {
 		}
 		if err = (&ydbv1alpha1.Database{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Database")
+			os.Exit(1)
+		}
+
+		if err = ydbv1alpha1.RegisterNodeSetValidatingWebhook(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhooks", "webhooks",
+				[]string{"DatabaseNodeSet", "StorageNodeSet"})
 			os.Exit(1)
 		}
 

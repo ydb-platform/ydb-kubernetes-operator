@@ -19,6 +19,7 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/nodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -72,10 +73,19 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
-		if stop {
-			return result, err
+
+		if storage.Spec.NodeSet != nil {
+			stop, result, err = r.waitForStorageNodeSetsToReady(ctx, &storage)
+			if stop {
+				return result, err
+			}
+		} else {
+			stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
+			if stop {
+				return result, err
+			}
 		}
+
 		stop, result, err = r.runSelfCheck(ctx, &storage, auth, false)
 		if stop {
 			return result, err
@@ -97,7 +107,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	r.Log.Info("running step waitForStatefulSetToScale for Storage")
 
 	if storage.Status.State == string(Preparing) {
-		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storage.Spec.Nodes)
+		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", len(storage.Spec.NodeSet))
 		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
 		storage.Status.State = string(Provisioning)
 		return r.setState(ctx, storage)
@@ -159,6 +169,48 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		msg := fmt.Sprintf("Waiting for number of running storage pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
 		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+	}
+
+	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func (r *Reconciler) waitForStorageNodeSetsToReady(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step waitForStorageNodeSetToReady for Storage")
+
+	if storage.Status.State == string(Preparing) {
+		msg := fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", storage.Spec.Nodes)
+		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
+		storage.Status.State = string(Provisioning)
+		return r.setState(ctx, storage)
+	}
+
+	for _, nodeSetSpec := range storage.Spec.NodeSet {
+		found := &ydbv1alpha1.StorageNodeSet{}
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      nodeSetSpec.Name,
+			Namespace: storage.Namespace,
+		}, found)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			}
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeNormal,
+				"Syncing",
+				fmt.Sprintf("Failed to get StorageNodeSet: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		if found.Status.State != string(nodeset.Ready) {
+			msg := fmt.Sprintf("Waiting %s state for StorageNodeSet object %s, current: %s", string(nodeset.Ready), found.Name, found.Status.State)
+			r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		}
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil

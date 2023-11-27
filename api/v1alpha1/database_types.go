@@ -24,6 +24,9 @@ type DatabaseSpec struct {
 	// +required
 	StorageClusterRef StorageRef `json:"storageClusterRef"`
 
+	// +optional
+	NodeSet []NodeSetSpecInline `json:"nodeSet,omitempty"`
+
 	// Encryption
 	// +optional
 	Encryption *EncryptionConfig `json:"encryption,omitempty"`

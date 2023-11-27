@@ -3,13 +3,11 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/go-logr/logr"
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,12 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
-
-// generateValidatePath is a copy from controller-runtime
-func generateValidatePath(gvk schema.GroupVersionKind) string {
-	return "/validate-" + strings.ReplaceAll(gvk.Group, ".", "-") + "-" +
-		gvk.Version + "-" + strings.ToLower(gvk.Kind)
-}
 
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-databasemonitoring,mutating=false,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databasemonitorings,verbs=create,versions=v1alpha1,name=vdatabasemonitoring.kb.io,admissionReviewVersions=v1
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-storagemonitoring,mutating=false,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storagemonitorings,verbs=create,versions=v1alpha1,name=vstoragemonitoring.kb.io,admissionReviewVersions=v1

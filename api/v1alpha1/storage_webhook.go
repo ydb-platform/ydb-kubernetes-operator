@@ -117,6 +117,16 @@ func (r *Storage) ValidateCreate() error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
+	if r.Spec.NodeSet != nil {
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSet {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSet: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
+	}
+
 	reservedSecretNames := []string{
 		"database_encryption",
 		"datastreams",

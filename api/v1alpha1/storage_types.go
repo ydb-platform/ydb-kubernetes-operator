@@ -27,6 +27,9 @@ type StorageSpec struct {
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`
 
+	// +optional
+	NodeSet []NodeSetSpecInline `json:"nodeSet,omitempty"`
+
 	// (Optional) Operator connection settings
 	// Default: (not specified)
 	// +optional

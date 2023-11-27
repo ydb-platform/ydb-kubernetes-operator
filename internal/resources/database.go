@@ -188,15 +188,28 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		)
 	}
 
-	optionalBuilders = append(
-		optionalBuilders,
-		&DatabaseStatefulSetBuilder{
-			Database:   b.Unwrap(),
-			Labels:     databaseLabels,
-			RestConfig: restConfig,
-			Storage:    b.Storage,
-		},
-	)
+	if b.Spec.NodeSet == nil {
+		optionalBuilders = append(
+			optionalBuilders,
+			&DatabaseStatefulSetBuilder{
+				Database:   b.Unwrap(),
+				Labels:     databaseLabels,
+				RestConfig: restConfig,
+				Storage:    b.Storage,
+			},
+		)
+	} else {
+		for _, nodeSetSpecInline := range b.Spec.NodeSet {
+			optionalBuilders = append(optionalBuilders,
+				&DatabaseNodeSetBuilder{
+					Database: b.Unwrap(),
+					Labels:   databaseLabels,
+
+					NodeSetSpecInline: &nodeSetSpecInline,
+				},
+			)
+		}
+	}
 
 	return optionalBuilders
 }

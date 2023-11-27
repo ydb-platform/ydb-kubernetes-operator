@@ -97,6 +97,29 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	}
+
+	if b.Spec.NodeSet == nil {
+		optionalBuilders = append(
+			optionalBuilders,
+			&StorageStatefulSetBuilder{
+				Storage:    b.Unwrap(),
+				Labels:     storageLabels,
+				RestConfig: restConfig,
+			},
+		)
+	} else {
+		for _, nodeSetSpecInline := range b.Spec.NodeSet {
+			optionalBuilders = append(optionalBuilders,
+				&StorageNodeSetBuilder{
+					Storage: b.Unwrap(),
+					Labels:  storageLabels,
+
+					NodeSetSpecInline: &nodeSetSpecInline,
+				},
+			)
+		}
+	}
+
 	return append(
 		optionalBuilders,
 		&ServiceBuilder{
@@ -138,11 +161,6 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			}},
 			IPFamilies:     b.Spec.Service.Status.IPFamilies,
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
-		},
-		&StorageStatefulSetBuilder{
-			Storage:    b.Unwrap(),
-			Labels:     storageLabels,
-			RestConfig: restConfig,
 		},
 	)
 }
