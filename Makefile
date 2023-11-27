@@ -49,6 +49,8 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	cp config/crd/bases/ydb.tech_storages.yaml deploy/ydb-operator/crds/storage.yaml
 	cp config/crd/bases/ydb.tech_databases.yaml deploy/ydb-operator/crds/database.yaml
+	cp config/crd/bases/ydb.tech_storages.yaml deploy/ydb-operator/crds/storagenodeset.yaml
+	cp config/crd/bases/ydb.tech_databases.yaml deploy/ydb-operator/crds/databasenodeset.yaml
 	cp config/crd/bases/ydb.tech_databasemonitorings.yaml deploy/ydb-operator/crds/databasemonitoring.yaml
 	cp config/crd/bases/ydb.tech_storagemonitorings.yaml deploy/ydb-operator/crds/storagemonitoring.yaml
 
