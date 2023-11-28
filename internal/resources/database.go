@@ -199,13 +199,14 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			},
 		)
 	} else {
-		for _, nodeSetSpecInline := range b.Spec.NodeSet {
+		for idx := range b.Spec.NodeSet {
+			nodeSetSpecInline := b.Spec.NodeSet[idx].DeepCopy()
 			optionalBuilders = append(optionalBuilders,
 				&DatabaseNodeSetBuilder{
 					Database: b.Unwrap(),
 					Labels:   databaseLabels,
 
-					NodeSetSpecInline: &nodeSetSpecInline,
+					NodeSetSpecInline: nodeSetSpecInline,
 				},
 			)
 		}

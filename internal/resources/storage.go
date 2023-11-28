@@ -108,13 +108,15 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		for _, nodeSetSpecInline := range b.Spec.NodeSet {
-			optionalBuilders = append(optionalBuilders,
+		for idx := range b.Spec.NodeSet {
+			nodeSetSpecInline := b.Spec.NodeSet[idx].DeepCopy()
+			optionalBuilders = append(
+				optionalBuilders,
 				&StorageNodeSetBuilder{
 					Storage: b.Unwrap(),
 					Labels:  storageLabels,
 
-					NodeSetSpecInline: &nodeSetSpecInline,
+					NodeSetSpecInline: nodeSetSpecInline,
 				},
 			)
 		}
