@@ -49,7 +49,9 @@ func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 	sns.ObjectMeta.Name = b.NodeSetSpecInline.Name
 	sns.ObjectMeta.Namespace = b.Storage.GetNamespace()
 
-	var storageLabels labels.Labels = b.Storage.Labels
+	storageLabels := labels.Labels{}
+	storageLabels = storageLabels.MergeInPlace(b.Storage.Labels)
+
 	sns.ObjectMeta.Labels = storageLabels.Merge(b.NodeSetSpecInline.AdditionalLabels)
 
 	sns.Spec = api.StorageNodeSetSpec{

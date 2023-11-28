@@ -49,7 +49,9 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 	dns.ObjectMeta.Name = b.NodeSetSpecInline.Name
 	dns.ObjectMeta.Namespace = b.Database.GetNamespace()
 
-	var databaseLabels labels.Labels = b.Database.Labels
+	databaseLabels := labels.Labels{}
+	databaseLabels = databaseLabels.MergeInPlace(b.Database.Labels)
+
 	dns.ObjectMeta.Labels = databaseLabels.Merge(b.NodeSetSpecInline.AdditionalLabels)
 
 	dns.Spec = api.DatabaseNodeSetSpec{
