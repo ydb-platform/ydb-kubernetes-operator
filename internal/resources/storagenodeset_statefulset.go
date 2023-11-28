@@ -26,27 +26,29 @@ func (b *StorageNodeSetStatefulSetBuilder) Build(obj client.Object) error {
 	}
 
 	// Meta information
-	sts.ObjectMeta.Name = b.StorageNodeSet.Spec.StorageRef + "-" + b.StorageNodeSet.Name
-	sts.ObjectMeta.Labels = b.StorageNodeSet.Labels
+	if sts.ObjectMeta.Name == "" {
+		sts.ObjectMeta.Name = b.Spec.StorageRef + "-" + b.GetName()
+	}
+	sts.ObjectMeta.Labels = b.Labels
 
 	// Number of nodes (pods) in the set
-	sts.Spec.Replicas = ptr.Int32(b.StorageNodeSet.Spec.Nodes)
+	sts.Spec.Replicas = ptr.Int32(b.Spec.Nodes)
 
-	// if b.StorageNodeSet.Spec.Image != nil {
+	// if b.Spec.Image != nil {
 	// 	for _, container := range sts.Spec.Template.Spec.Containers {
-	// 		container.Image = b.StorageNodeSet.Spec.Image.Name
-	// 		if b.StorageNodeSet.Spec.Image.PullPolicyName != nil {
-	// 			container.ImagePullPolicy = *b.StorageNodeSet.Spec.Image.PullPolicyName
+	// 		container.Image = b.Spec.Image.Name
+	// 		if b.Spec.Image.PullPolicyName != nil {
+	// 			container.ImagePullPolicy = *b.Spec.Image.PullPolicyName
 	// 		}
 	// 	}
-	// 	if b.StorageNodeSet.Spec.Image.PullSecret != nil {
+	// 	if b.Spec.Image.PullSecret != nil {
 	// 		sts.Spec.Template.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	// 	}
 	// }
 
-	if b.StorageNodeSet.Spec.DataStore != nil {
+	if b.Spec.DataStore != nil {
 		pvcList := make([]corev1.PersistentVolumeClaim, 0, len(b.Spec.DataStore))
-		for i, pvcSpec := range b.StorageNodeSet.Spec.DataStore {
+		for i, pvcSpec := range b.Spec.DataStore {
 			pvcList = append(
 				pvcList,
 				corev1.PersistentVolumeClaim{
@@ -60,26 +62,26 @@ func (b *StorageNodeSetStatefulSetBuilder) Build(obj client.Object) error {
 		sts.Spec.VolumeClaimTemplates = pvcList
 	}
 
-	if b.StorageNodeSet.Spec.Resources != nil {
+	if b.Spec.Resources != nil {
 		for _, container := range sts.Spec.Template.Spec.Containers {
-			container.Resources = *b.StorageNodeSet.Spec.Resources
+			container.Resources = *b.Spec.Resources
 		}
 	}
 
-	if b.StorageNodeSet.Spec.NodeSelector != nil {
-		sts.Spec.Template.Spec.NodeSelector = b.StorageNodeSet.Spec.NodeSelector
+	if b.Spec.NodeSelector != nil {
+		sts.Spec.Template.Spec.NodeSelector = b.Spec.NodeSelector
 	}
 
-	if b.StorageNodeSet.Spec.Affinity != nil {
-		sts.Spec.Template.Spec.Affinity = b.StorageNodeSet.Spec.Affinity
+	if b.Spec.Affinity != nil {
+		sts.Spec.Template.Spec.Affinity = b.Spec.Affinity
 	}
 
-	if b.StorageNodeSet.Spec.Tolerations != nil {
-		sts.Spec.Template.Spec.Tolerations = b.StorageNodeSet.Spec.Tolerations
+	if b.Spec.Tolerations != nil {
+		sts.Spec.Template.Spec.Tolerations = b.Spec.Tolerations
 	}
 
-	if b.StorageNodeSet.Spec.TopologySpreadConstraints != nil {
-		sts.Spec.Template.Spec.TopologySpreadConstraints = b.StorageNodeSet.Spec.TopologySpreadConstraints
+	if b.Spec.TopologySpreadConstraints != nil {
+		sts.Spec.Template.Spec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
 	}
 
 	return nil
@@ -88,7 +90,7 @@ func (b *StorageNodeSetStatefulSetBuilder) Build(obj client.Object) error {
 func (b *StorageNodeSetStatefulSetBuilder) Placeholder(cr client.Object) client.Object {
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.GetName(),
+			Name:      b.Spec.StorageRef + "-" + b.GetName(),
 			Namespace: cr.GetNamespace(),
 		},
 	}

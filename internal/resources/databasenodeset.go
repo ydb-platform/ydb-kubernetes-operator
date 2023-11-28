@@ -12,10 +12,9 @@ import (
 
 type DatabaseNodeSetBuilder struct {
 	*api.DatabaseNodeSet
-
 	Database *api.Database
-	Labels   labels.Labels
 
+	Labels            labels.Labels
 	NodeSetSpecInline *api.NodeSetSpecInline
 }
 
@@ -46,7 +45,10 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 		return errors.New("failed to cast to DatabaseNodeSet object")
 	}
 
-	dns.ObjectMeta.Name = b.NodeSetSpecInline.Name
+	if dns.ObjectMeta.Name == "" {
+		dns.ObjectMeta.Name = b.NodeSetSpecInline.Name
+	}
+
 	dns.ObjectMeta.Namespace = b.Database.GetNamespace()
 
 	databaseLabels := labels.Labels{}
@@ -61,6 +63,15 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 
 	return nil
 
+}
+
+func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
+	return &api.DatabaseNodeSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      b.NodeSetSpecInline.Name,
+			Namespace: cr.GetNamespace(),
+		},
+	}
 }
 
 func (b *DatabaseNodeSetBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {

@@ -12,10 +12,9 @@ import (
 
 type StorageNodeSetBuilder struct {
 	*api.StorageNodeSet
-
 	Storage *api.Storage
-	Labels  labels.Labels
 
+	Labels            labels.Labels
 	NodeSetSpecInline *api.NodeSetSpecInline
 }
 
@@ -46,7 +45,9 @@ func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 		return errors.New("failed to cast to StorageNodeSet object")
 	}
 
-	sns.ObjectMeta.Name = b.NodeSetSpecInline.Name
+	if sns.ObjectMeta.Name == "" {
+		sns.ObjectMeta.Name = b.NodeSetSpecInline.Name
+	}
 	sns.ObjectMeta.Namespace = b.Storage.GetNamespace()
 
 	storageLabels := labels.Labels{}
@@ -66,16 +67,7 @@ func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	return &api.StorageNodeSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.GetName(),
-			Namespace: cr.GetNamespace(),
-		},
-	}
-}
-
-func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
-	return &api.DatabaseNodeSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.GetName(),
+			Name:      b.NodeSetSpecInline.Name,
 			Namespace: cr.GetNamespace(),
 		},
 	}
