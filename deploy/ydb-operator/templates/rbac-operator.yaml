@@ -176,6 +176,35 @@ rules:
   - patch
   - update
 - apiGroups:
+  - ydb.tech
+  resources:
+  - databasenodesets
+  - storagenodesets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ydb.tech
+  resources:
+  - databasenodesets/finalizers
+  - storagenodesets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ydb.tech
+  resources:
+  - databasenodesets/status
+  - storagenodesets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
     - ""
   resources:
     - events

@@ -136,9 +136,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err = ydbv1alpha1.RegisterNodeSetValidatingWebhook(mgr); err != nil {
-			setupLog.Error(err, "unable to create webhooks", "webhooks",
-				[]string{"DatabaseNodeSet", "StorageNodeSet"})
+		if err = ydbv1alpha1.RegisterStorageNodeSetValidatingWebhook(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "StorageNodeSet")
+			os.Exit(1)
+		}
+
+		if err = ydbv1alpha1.RegisterDatabaseNodeSetValidatingWebhook(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "DatabaseNodeSet")
 			os.Exit(1)
 		}
 
