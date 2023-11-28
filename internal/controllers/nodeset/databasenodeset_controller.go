@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/go-logr/logr"
@@ -85,5 +86,6 @@ func (r *DatabaseNodeSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&api.DatabaseNodeSet{}).
 		Owns(&appsv1.StatefulSet{}).
 		WithEventFilter(ignoreDeletionPredicate()).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Complete(r)
 }
