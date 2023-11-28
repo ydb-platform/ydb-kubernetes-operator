@@ -46,18 +46,15 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 		return errors.New("failed to cast to DatabaseNodeSet object")
 	}
 
-	if dns.ObjectMeta.Name == "" {
-		dns.ObjectMeta.Name = b.Name
-	}
-
+	dns.ObjectMeta.Name = b.NodeSetSpecInline.Name
 	dns.ObjectMeta.Namespace = b.Database.GetNamespace()
 
 	var databaseLabels labels.Labels = b.Database.Labels
 	dns.ObjectMeta.Labels = databaseLabels.Merge(b.NodeSetSpecInline.AdditionalLabels)
 
 	dns.Spec = api.DatabaseNodeSetSpec{
-		NodeSetSpec: b.DatabaseNodeSet.Spec.NodeSetSpec,
 		DatabaseRef: b.Database.GetName(),
+		NodeSetSpec: b.NodeSetSpecInline.NodeSetSpec,
 	}
 
 	return nil

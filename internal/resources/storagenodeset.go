@@ -46,18 +46,15 @@ func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 		return errors.New("failed to cast to StorageNodeSet object")
 	}
 
-	if sns.ObjectMeta.Name == "" {
-		sns.ObjectMeta.Name = b.StorageNodeSet.Name
-	}
-
+	sns.ObjectMeta.Name = b.NodeSetSpecInline.Name
 	sns.ObjectMeta.Namespace = b.Storage.GetNamespace()
 
 	var storageLabels labels.Labels = b.Storage.Labels
-	sns.ObjectMeta.Labels = storageLabels.Merge(b.StorageNodeSet.Labels)
+	sns.ObjectMeta.Labels = storageLabels.Merge(b.NodeSetSpecInline.AdditionalLabels)
 
 	sns.Spec = api.StorageNodeSetSpec{
-		NodeSetSpec: b.StorageNodeSet.Spec.NodeSetSpec,
 		StorageRef:  b.Storage.GetName(),
+		NodeSetSpec: b.NodeSetSpecInline.NodeSetSpec,
 	}
 
 	return nil
