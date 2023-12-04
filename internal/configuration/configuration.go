@@ -34,31 +34,26 @@ func generateSomeDefaults(cr *v1alpha1.Storage, crDB *v1alpha1.Database) schema.
 			datacenter = fmt.Sprintf("az-%d", i%3)
 		}
 
-		if cr.Spec.NodeSet == nil {
-			hosts = append(hosts, schema.Host{
-				Host:         fmt.Sprintf("%v-%d", cr.GetName(), i),
-				HostConfigID: 1, // TODO
-				NodeID:       i + 1,
-				Port:         v1alpha1.InterconnectPort,
-				WalleLocation: schema.WalleLocation{
-					Body:       12340 + i,
-					DataCenter: datacenter,
-					Rack:       strconv.Itoa(i),
-				},
-			})
-		} else {
-			for _, nodeSetSpecInline := range cr.Spec.NodeSet {
-				hosts = append(hosts, schema.Host{
-					Host:         fmt.Sprintf("%v-%d", cr.GetName()+"-"+nodeSetSpecInline.Name, i),
-					HostConfigID: 1, // TODO
-					NodeID:       i + 1,
-					Port:         v1alpha1.InterconnectPort,
-					WalleLocation: schema.WalleLocation{
-						Body:       12340 + i,
-						DataCenter: datacenter,
-						Rack:       strconv.Itoa(i),
-					},
-				})
+		hosts = append(hosts, schema.Host{
+			Host:         fmt.Sprintf("%v-%d", cr.GetName(), i),
+			HostConfigID: 1, // TODO
+			NodeID:       i + 1,
+			Port:         v1alpha1.InterconnectPort,
+			WalleLocation: schema.WalleLocation{
+				Body:       12340 + i,
+				DataCenter: datacenter,
+				Rack:       strconv.Itoa(i),
+			},
+		})
+	}
+
+	if cr.Spec.NodeSet != nil {
+		var hostIndex int
+		for _, nodeSetSpec := range cr.Spec.NodeSet {
+			for podIndex := 0; podIndex < int(nodeSetSpec.Nodes); podIndex++ {
+				podName := cr.GetName() + "-" + nodeSetSpec.Name + "-" + strconv.Itoa(podIndex)
+				hosts[hostIndex].Host = podName
+				hostIndex += 1
 			}
 		}
 	}

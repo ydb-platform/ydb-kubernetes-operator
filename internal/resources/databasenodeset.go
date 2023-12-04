@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -12,20 +11,24 @@ import (
 
 type DatabaseNodeSetBuilder struct {
 	*api.DatabaseNodeSet
-	Database *api.Database
 
-	Labels            labels.Labels
-	NodeSetSpecInline *api.NodeSetSpecInline
+	Name            string
+	StorageEndpoint string
+
+	Labels      map[string]string
+	Annotations map[string]string
+
+	DatabaseNodeSetSpec api.DatabaseNodeSetSpec
 }
 
-func NewDatabaseNodeSet(databaseNodeSet *api.DatabaseNodeSet, database *api.Database) DatabaseNodeSetBuilder {
-	crDatabase := database.DeepCopy()
+func NewDatabaseNodeSet(databaseNodeSet *api.DatabaseNodeSet) DatabaseNodeSetBuilder {
 	crDatabaseNodeSet := databaseNodeSet.DeepCopy()
 
 	return DatabaseNodeSetBuilder{
-		DatabaseNodeSet: crDatabaseNodeSet,
-		Database:        crDatabase,
-		Labels:          labels.DatabaseLabels(database),
+		Name:                crDatabaseNodeSet.Name,
+		Labels:              crDatabaseNodeSet.Labels,
+		Annotations:         crDatabaseNodeSet.Annotations,
+		DatabaseNodeSetSpec: crDatabaseNodeSet.Spec,
 	}
 }
 
@@ -46,20 +49,13 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 	}
 
 	if dns.ObjectMeta.Name == "" {
-		dns.ObjectMeta.Name = b.NodeSetSpecInline.Name
+		dns.ObjectMeta.Name = b.Name
 	}
+	dns.ObjectMeta.Namespace = b.GetNamespace()
+	dns.ObjectMeta.Labels = b.Labels
+	dns.ObjectMeta.Annotations = b.Annotations
 
-	dns.ObjectMeta.Namespace = b.Database.GetNamespace()
-
-	databaseLabels := labels.Labels{}
-	databaseLabels = databaseLabels.MergeInPlace(b.Database.Labels)
-
-	dns.ObjectMeta.Labels = databaseLabels.Merge(b.NodeSetSpecInline.AdditionalLabels)
-
-	dns.Spec = api.DatabaseNodeSetSpec{
-		DatabaseRef: b.Database.GetName(),
-		NodeSetSpec: b.NodeSetSpecInline.NodeSetSpec,
-	}
+	dns.Spec = b.DatabaseNodeSetSpec
 
 	return nil
 
@@ -68,7 +64,7 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	return &api.DatabaseNodeSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.NodeSetSpecInline.Name,
+			Name:      b.Name,
 			Namespace: cr.GetNamespace(),
 		},
 	}
@@ -76,18 +72,46 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 
 func (b *DatabaseNodeSetBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 
-	var optionalBuilders []ResourceBuilder
+	var resourceBuilders []ResourceBuilder
 
-	stsBuilder := &DatabaseStatefulSetBuilder{
-		Database:   b.Database.DeepCopy(),
-		RestConfig: restConfig,
-		Labels:     b.Labels.AsMap(),
-	}
+	resourceBuilders = append(resourceBuilders,
+		&DatabaseStatefulSetBuilder{
+			Database:   b.RecastDatabaseNodeSet().DeepCopy(),
+			RestConfig: restConfig,
 
-	return append(optionalBuilders,
-		&DatabaseNodeSetStatefulSetBuilder{
-			DatabaseStatefulSetBuilder: stsBuilder,
-			DatabaseNodeSet:            b.DatabaseNodeSet,
+			Labels:          b.Labels,
+			StorageEndpoint: b.StorageEndpoint,
 		},
 	)
+	return resourceBuilders
+}
+
+func (b *DatabaseNodeSetBuilder) RecastDatabaseNodeSet() *api.Database {
+	return &api.Database{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      b.GetName(),
+			Namespace: b.GetNamespace(),
+			Labels:    b.Labels,
+		},
+		Spec: api.DatabaseSpec{
+			AdditionalAnnotations: b.Annotations,
+			Nodes:                 b.DatabaseNodeSetSpec.Nodes,
+			Configuration:         b.DatabaseNodeSetSpec.Configuration, // TODO: migrate to configmapRef
+			Service:               b.DatabaseNodeSetSpec.Service,       // TODO: export only public host bia externalHost
+			Encryption:            b.DatabaseNodeSetSpec.Encryption,
+			Volumes:               b.DatabaseNodeSetSpec.Volumes,
+			Datastreams:           b.DatabaseNodeSetSpec.Datastreams,
+			Resources:             b.DatabaseNodeSetSpec.Resources,
+			SharedResources:       b.DatabaseNodeSetSpec.SharedResources,
+			//Image:                     b.DatabaseNodeSetSpec.Image,
+			InitContainers:            b.DatabaseNodeSetSpec.InitContainers,
+			CABundle:                  b.DatabaseNodeSetSpec.CABundle, // TODO: migrate to trust-manager
+			Secrets:                   b.DatabaseNodeSetSpec.Secrets,
+			NodeSelector:              b.DatabaseNodeSetSpec.NodeSelector,
+			Affinity:                  b.DatabaseNodeSetSpec.Affinity,
+			Tolerations:               b.DatabaseNodeSetSpec.Tolerations,
+			TopologySpreadConstraints: b.DatabaseNodeSetSpec.TopologySpreadConstraints,
+			PriorityClassName:         b.DatabaseNodeSetSpec.PriorityClassName,
+		},
+	}
 }

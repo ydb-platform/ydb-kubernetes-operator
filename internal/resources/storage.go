@@ -108,15 +108,27 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		for idx := range b.Spec.NodeSet {
-			nodeSetSpecInline := b.Spec.NodeSet[idx].DeepCopy()
+		for _, nodeSetSpecInline := range b.Spec.NodeSet {
+			nodeSetSpec := b.overrideStorageNodeSetSpec(&nodeSetSpecInline)
+
+			nodeSetName := b.GetName() + nodeSetSpecInline.Name
+
+			nodeSetLabels := storageLabels.Copy()
+			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+
+			nodeSetAnnotations := b.Spec.AdditionalAnnotations
+			for k, v := range nodeSetSpecInline.AdditionalAnnotations {
+				nodeSetAnnotations[k] = v
+			}
+
 			optionalBuilders = append(
 				optionalBuilders,
 				&StorageNodeSetBuilder{
-					Storage: b.Unwrap(),
-					Labels:  storageLabels,
-
-					NodeSetSpecInline: nodeSetSpecInline,
+					Name:               nodeSetName,
+					Labels:             nodeSetLabels,
+					Annotations:        nodeSetAnnotations,
+					StorageNodeSetSpec: nodeSetSpec,
 				},
 			)
 		}
@@ -165,4 +177,56 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 	)
+}
+
+func (b *StorageClusterBuilder) overrideStorageNodeSetSpec(nodeSetSpecInline *api.StorageNodeSetSpecInline) api.StorageNodeSetSpec {
+	snsSpec := api.StorageNodeSetSpec{}
+
+	snsSpec.Nodes = nodeSetSpecInline.Nodes
+
+	snsSpec.Configuration = b.Spec.Configuration
+	snsSpec.Erasure = b.Spec.Erasure
+
+	snsSpec.DataStore = b.Spec.DataStore
+	if nodeSetSpecInline.DataStore != nil {
+		snsSpec.DataStore = nodeSetSpecInline.DataStore
+	}
+
+	snsSpec.Service = b.Spec.Service
+	if nodeSetSpecInline.Service != nil {
+		snsSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
+	}
+
+	snsSpec.Resources = b.Spec.Resources
+	if nodeSetSpecInline.Resources != nil {
+		snsSpec.Resources = nodeSetSpecInline.Resources
+	}
+
+	snsSpec.InitContainers = b.Spec.InitContainers
+	snsSpec.CABundle = b.Spec.CABundle
+	snsSpec.Secrets = b.Spec.Secrets
+	snsSpec.Volumes = b.Spec.Volumes
+	snsSpec.HostNetwork = b.Spec.HostNetwork
+
+	snsSpec.NodeSelector = b.Spec.NodeSelector
+	if nodeSetSpecInline.NodeSelector != nil {
+		snsSpec.NodeSelector = nodeSetSpecInline.NodeSelector
+	}
+
+	snsSpec.Affinity = b.Spec.Affinity
+	if nodeSetSpecInline.Affinity != nil {
+		snsSpec.Affinity = nodeSetSpecInline.Affinity
+	}
+
+	snsSpec.Tolerations = b.Spec.Tolerations
+	if nodeSetSpecInline.Tolerations != nil {
+		snsSpec.Tolerations = nodeSetSpecInline.Tolerations
+	}
+
+	snsSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
+	if nodeSetSpecInline.TopologySpreadConstraints != nil {
+		snsSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+	}
+
+	return snsSpec
 }

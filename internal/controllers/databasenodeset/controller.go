@@ -1,22 +1,22 @@
-package nodeset
+package databasenodeset
 
 import (
 	"context"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 )
 
 // Reconciler reconciles a Storage object
@@ -51,26 +51,7 @@ func (r *DatabaseNodeSetReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		logger.Error(err, "unable to get StorageNodeSet")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
-
-	databaseNamespacedName := types.NamespacedName{
-		Name:      crDatabaseNodeSet.Spec.DatabaseRef,
-		Namespace: crDatabaseNodeSet.GetNamespace(),
-	}
-
-	crDatabase := &api.Database{}
-	if err := r.Get(ctx, databaseNamespacedName, crDatabase); err != nil {
-		if errors.IsNotFound(err) {
-			r.Recorder.Eventf(crDatabaseNodeSet, corev1.EventTypeNormal, "Pending",
-				"Unknown YDB Storage %s",
-				databaseNamespacedName.String())
-			return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-		r.Recorder.Eventf(crDatabaseNodeSet, corev1.EventTypeWarning, "Error",
-			"Unable to find YDB Storage %s: %s", databaseNamespacedName.String(), err.Error())
-		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	result, err := r.Sync(ctx, crDatabaseNodeSet, crDatabase)
+	result, err := r.Sync(ctx, crDatabaseNodeSet)
 	if err != nil {
 		r.Log.Error(err, "unexpected Sync error")
 	}
@@ -78,14 +59,28 @@ func (r *DatabaseNodeSetReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return result, err
 }
 
+func ignoreDeletionPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+			annotationsChanged := !annotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
+
+			return generationChanged || annotationsChanged
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			// Evaluates to false if the object has been confirmed deleted.
+			return !e.DeleteStateUnknown
+		},
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *DatabaseNodeSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	controller := ctrl.NewControllerManagedBy(mgr).For(&api.DatabaseNodeSet{})
 	r.Recorder = mgr.GetEventRecorderFor("DatabaseNodeSet")
 
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&api.DatabaseNodeSet{}).
+	return controller.
 		Owns(&appsv1.StatefulSet{}).
 		WithEventFilter(ignoreDeletionPredicate()).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Complete(r)
 }

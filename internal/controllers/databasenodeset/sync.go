@@ -1,29 +1,52 @@
-package nodeset
+package databasenodeset
 
 import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *DatabaseNodeSetReconciler) Sync(ctx context.Context, crDatabaseNodeSet *ydbv1alpha1.DatabaseNodeSet, crDatabase *ydbv1alpha1.Database) (ctrl.Result, error) {
+const (
+	Pending      DatabaseNodeSetState = "Pending"
+	Provisioning DatabaseNodeSetState = "Provisioning"
+	Ready        DatabaseNodeSetState = "Ready"
+
+	DefaultRequeueDelay      = 10 * time.Second
+	StatusUpdateRequeueDelay = 1 * time.Second
+
+	ReasonInProgress = "InProgress"
+	ReasonCompleted  = "Completed"
+
+	DatabaseNodeSetConditionReady   = "DatabaseNodeSetReady"
+	DatabaseNodeSetReasonInProgress = ReasonInProgress
+	DatabaseNodeSetReasonCompleted  = ReasonCompleted
+
+	Stop     = true
+	Continue = false
+)
+
+type DatabaseNodeSetState string
+
+func (r *DatabaseNodeSetReconciler) Sync(ctx context.Context, crDatabaseNodeSet *ydbv1alpha1.DatabaseNodeSet) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
 
-	databaseNodeSet := resources.NewDatabaseNodeSet(crDatabaseNodeSet, crDatabase)
+	databaseNodeSet := resources.NewDatabaseNodeSet(crDatabaseNodeSet)
 	databaseNodeSet.SetStatusOnFirstReconcile()
 
 	stop, result, err = r.handleResourcesSync(ctx, &databaseNodeSet)
@@ -122,24 +145,25 @@ func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
 	}, found)
 	if err != nil {
 		if errors.IsNotFound(err) {
+			r.Recorder.Event(
+				databaseNodeSet,
+				corev1.EventTypeWarning,
+				"Syncing",
+				fmt.Sprintf("Failed to found StatefulSet: %s", err),
+			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 		r.Recorder.Event(
 			databaseNodeSet,
-			corev1.EventTypeNormal,
+			corev1.EventTypeWarning,
 			"Syncing",
 			fmt.Sprintf("Failed to get StatefulSets: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	podLabels := labels.Common(databaseNodeSet.Name, make(map[string]string))
-	podLabels.Merge(map[string]string{
-		labels.ComponentKey: labels.StorageComponent,
-	})
-
 	matchingLabels := client.MatchingLabels{}
-	for k, v := range podLabels {
+	for k, v := range databaseNodeSet.Labels {
 		matchingLabels[k] = v
 	}
 
@@ -148,14 +172,12 @@ func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
 		client.InNamespace(databaseNodeSet.Namespace),
 		matchingLabels,
 	}
-
-	err = r.List(ctx, podList, opts...)
-	if err != nil {
+	if err = r.List(ctx, podList, opts...); err != nil {
 		r.Recorder.Event(
 			databaseNodeSet,
-			corev1.EventTypeNormal,
+			corev1.EventTypeWarning,
 			"Syncing",
-			fmt.Sprintf("Failed to list cluster pods: %s", err),
+			fmt.Sprintf("Failed to list storageNodeSet pods: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -168,12 +190,30 @@ func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
 	}
 
 	if runningPods != int(databaseNodeSet.Spec.Nodes) {
-		msg := fmt.Sprintf("Waiting for number of running databaseNodeSet pods to match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes)
-		r.Recorder.Event(databaseNodeSet, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			databaseNodeSet,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes))
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	return Continue, ctrl.Result{Requeue: false}, nil
+	return r.setDatabaseNodeSetReady(ctx, databaseNodeSet)
+}
+
+func (r *DatabaseNodeSetReconciler) setDatabaseNodeSetReady(
+	ctx context.Context,
+	databaseNodeSet *resources.DatabaseNodeSetBuilder,
+) (bool, ctrl.Result, error) {
+	meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
+		Type:    DatabaseNodeSetConditionReady,
+		Status:  "True",
+		Reason:  DatabaseNodeSetReasonCompleted,
+		Message: "Sync StorageNodeSet is completed",
+	})
+
+	databaseNodeSet.Status.State = string(Ready)
+	return r.setState(ctx, databaseNodeSet)
 }
 
 func (r *DatabaseNodeSetReconciler) setState(

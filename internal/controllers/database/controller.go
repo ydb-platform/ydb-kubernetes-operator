@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
@@ -32,6 +33,9 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=ydb.tech,resources=databases,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ydb.tech,resources=databases/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ydb.tech,resources=databases/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ydb.tech,resources=databasenodesets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ydb.tech,resources=databasenodesets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ydb.tech,resources=databasenodesets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=services/finalizers,verbs=get;list;watch
@@ -86,6 +90,28 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller := ctrl.NewControllerManagedBy(mgr).For(&ydbv1alpha1.Database{})
 
 	r.Recorder = mgr.GetEventRecorderFor("Database")
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&ydbv1alpha1.DatabaseNodeSet{},
+		ownerControllerKey,
+		func(o client.Object) []string {
+			// grab the job object, extract the owner...
+			databaseNodeSet := o.(*ydbv1alpha1.DatabaseNodeSet)
+			owner := metav1.GetControllerOf(databaseNodeSet)
+			if owner == nil {
+				return nil
+			}
+			// ...make sure it's a Database...
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != "Database" {
+				return nil
+			}
+
+			// ...and if so, return it
+			return []string{owner.Name}
+		}); err != nil {
+		return err
+	}
 
 	return controller.
 		Owns(&ydbv1alpha1.DatabaseNodeSet{}).

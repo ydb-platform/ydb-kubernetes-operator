@@ -212,7 +212,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	}
 
 	for _, volume := range b.Spec.Volumes {
-		volumes = append(volumes, *volume)
+		volumes = append(volumes, volume)
 	}
 
 	if b.areAnyCertificatesAddedToStore() {
@@ -248,7 +248,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		},
 
 		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
-		Resources:    b.Spec.Resources,
+		Resources:    *b.Spec.Resources,
 	}
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{
@@ -326,7 +326,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		}},
 
 		VolumeMounts: b.buildVolumeMounts(),
-		Resources:    b.Spec.Resources,
+		Resources:    *b.Spec.Resources,
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != v1alpha1.AnnotationValueTrue {

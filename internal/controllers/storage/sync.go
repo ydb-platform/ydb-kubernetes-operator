@@ -19,7 +19,6 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/nodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -47,6 +46,8 @@ const (
 
 	Stop     = true
 	Continue = false
+
+	ownerControllerKey = ".metadata.controller"
 )
 
 type ClusterState string
@@ -120,12 +121,18 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	}, found)
 	if err != nil {
 		if errors.IsNotFound(err) {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
+				fmt.Sprintf("StatefulSet with name %s was not found: %s", storage.Name, err),
+			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 		r.Recorder.Event(
 			storage,
-			corev1.EventTypeNormal,
-			"Syncing",
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
 			fmt.Sprintf("Failed to get StatefulSets: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -151,8 +158,8 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	if err != nil {
 		r.Recorder.Event(
 			storage,
-			corev1.EventTypeNormal,
-			"Syncing",
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list cluster pods: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -188,27 +195,42 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 	}
 
 	for _, nodeSetSpec := range storage.Spec.NodeSet {
-		found := &ydbv1alpha1.StorageNodeSet{}
+		foundStorageNodeSet := ydbv1alpha1.StorageNodeSet{}
+		storageNodeSetName := storage.Name + "-" + nodeSetSpec.Name
 		err := r.Get(ctx, types.NamespacedName{
-			Name:      nodeSetSpec.Name,
+			Name:      storageNodeSetName,
 			Namespace: storage.Namespace,
-		}, found)
+		}, &foundStorageNodeSet)
 		if err != nil {
 			if errors.IsNotFound(err) {
+				r.Recorder.Event(
+					storage,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("StorageNodeSet with name %s was not found: %s", storageNodeSetName, err),
+				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
 			r.Recorder.Event(
 				storage,
-				corev1.EventTypeNormal,
-				"Syncing",
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
 				fmt.Sprintf("Failed to get StorageNodeSet: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		if found.Status.State != string(nodeset.Ready) {
-			msg := fmt.Sprintf("Waiting %s state for StorageNodeSet object %s, current: %s", string(nodeset.Ready), found.Name, found.Status.State)
-			r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
+		if foundStorageNodeSet.Status.State != string(Ready) {
+			msg := fmt.Sprintf("Waiting %s state for StorageNodeSet object %s, current: %s",
+				string(Ready),
+				foundStorageNodeSet.Name,
+				foundStorageNodeSet.Status.State,
+			)
+			r.Recorder.Event(storage,
+				corev1.EventTypeNormal,
+				string(Provisioning),
+				msg,
+			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 	}
@@ -275,6 +297,55 @@ func (r *Reconciler) handleResourcesSync(
 			)
 		}
 	}
+
+	storageNodeSets := &ydbv1alpha1.StorageNodeSetList{}
+	matchingFields := client.MatchingFields{
+		ownerControllerKey: storage.Name,
+	}
+	if err := r.List(ctx, storageNodeSets,
+		client.InNamespace(storage.Namespace),
+		matchingFields,
+	); err != nil {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed to list StorageNodeSets: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	for _, storageNodeSet := range storageNodeSets.Items {
+		var isFoundStorageNodeSet bool
+		for _, nodeSetSpecInline := range storage.Spec.NodeSet {
+			nodeSetName := storage.Name + "-" + nodeSetSpecInline.Name
+			if storageNodeSet.Name == nodeSetName {
+				isFoundStorageNodeSet = true
+				break
+			}
+		}
+		if !isFoundStorageNodeSet {
+			if err := r.Delete(ctx, &storageNodeSet); err != nil {
+				r.Recorder.Event(
+					storage,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to delete StorageNodeSet: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeNormal,
+				"Syncing",
+				fmt.Sprintf("Resource: %s, Namespace: %s, Name: %s, deleted",
+					reflect.TypeOf(storageNodeSet),
+					storageNodeSet.Namespace,
+					storageNodeSet.Name),
+			)
+		}
+	}
+
 	r.Log.Info("resource sync complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }

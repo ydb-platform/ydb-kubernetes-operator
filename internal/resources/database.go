@@ -193,24 +193,99 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			optionalBuilders,
 			&DatabaseStatefulSetBuilder{
 				Database:   b.Unwrap(),
-				Labels:     databaseLabels,
 				RestConfig: restConfig,
-				Storage:    b.Storage,
+
+				Labels:          databaseLabels,
+				StorageEndpoint: b.GetStorageEndpointWithProto(),
 			},
 		)
 	} else {
-		for idx := range b.Spec.NodeSet {
-			nodeSetSpecInline := b.Spec.NodeSet[idx].DeepCopy()
-			optionalBuilders = append(optionalBuilders,
-				&DatabaseNodeSetBuilder{
-					Database: b.Unwrap(),
-					Labels:   databaseLabels,
+		for _, nodeSetSpecInline := range b.Spec.NodeSet {
+			nodeSetSpec := b.overrideDatabaseNodeSetSpec(&nodeSetSpecInline)
 
-					NodeSetSpecInline: nodeSetSpecInline,
+			nodeSetName := b.GetName() + nodeSetSpecInline.Name
+
+			nodeSetLabels := databaseLabels.Copy()
+			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+
+			nodeSetAnnotations := b.Spec.AdditionalAnnotations
+			for k, v := range nodeSetSpecInline.AdditionalAnnotations {
+				nodeSetAnnotations[k] = v
+			}
+
+			optionalBuilders = append(
+				optionalBuilders,
+				&DatabaseNodeSetBuilder{
+					Name:            nodeSetName,
+					StorageEndpoint: b.GetStorageEndpointWithProto(),
+
+					Labels:      nodeSetLabels,
+					Annotations: nodeSetAnnotations,
+
+					DatabaseNodeSetSpec: nodeSetSpec,
 				},
 			)
 		}
 	}
 
 	return optionalBuilders
+}
+
+func (b *DatabaseBuilder) overrideDatabaseNodeSetSpec(nodeSetSpecInline *api.DatabaseNodeSetSpecInline) api.DatabaseNodeSetSpec {
+	dnsSpec := api.DatabaseNodeSetSpec{}
+
+	dnsSpec.Nodes = nodeSetSpecInline.Nodes
+
+	dnsSpec.Configuration = b.Spec.Configuration
+
+	dnsSpec.Service = b.Spec.Service
+	if nodeSetSpecInline.Service != nil {
+		dnsSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
+	}
+
+	dnsSpec.Encryption = b.Spec.Encryption
+	dnsSpec.Volumes = b.Spec.Volumes
+	dnsSpec.Datastreams = b.Spec.Datastreams
+
+	dnsSpec.Resources = b.Spec.Resources
+	if nodeSetSpecInline.Resources != nil {
+		dnsSpec.Resources = nodeSetSpecInline.Resources
+	}
+
+	dnsSpec.SharedResources = b.Spec.SharedResources
+	if nodeSetSpecInline.Resources != nil {
+		dnsSpec.Resources = nodeSetSpecInline.SharedResources
+	}
+
+	dnsSpec.InitContainers = b.Spec.InitContainers
+	dnsSpec.CABundle = b.Spec.CABundle
+	dnsSpec.Secrets = b.Spec.Secrets
+
+	dnsSpec.NodeSelector = b.Spec.NodeSelector
+	if nodeSetSpecInline.NodeSelector != nil {
+		dnsSpec.NodeSelector = nodeSetSpecInline.NodeSelector
+	}
+
+	dnsSpec.Affinity = b.Spec.Affinity
+	if nodeSetSpecInline.Affinity != nil {
+		dnsSpec.Affinity = nodeSetSpecInline.Affinity
+	}
+
+	dnsSpec.Tolerations = b.Spec.Tolerations
+	if nodeSetSpecInline.Tolerations != nil {
+		dnsSpec.Tolerations = nodeSetSpecInline.Tolerations
+	}
+
+	dnsSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
+	if nodeSetSpecInline.TopologySpreadConstraints != nil {
+		dnsSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+	}
+
+	dnsSpec.PriorityClassName = b.Spec.PriorityClassName
+	if nodeSetSpecInline.PriorityClassName != dnsSpec.PriorityClassName {
+		dnsSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
+	}
+
+	return dnsSpec
 }

@@ -2442,9 +2442,15 @@ spec:
                 type: object
               nodeSet:
                 items:
-                  description: NodeSetSpecInline describes an group nodes object inside
-                    parent object
+                  description: StorageNodeSetSpecInline describes an group nodes object
+                    inside parent object
                   properties:
+                    additionalAnnotations:
+                      additionalProperties:
+                        type: string
+                      description: (Optional) Additional annotations that will be
+                        added to the *NodeSet
+                      type: object
                     additionalLabels:
                       additionalProperties:
                         type: string
@@ -3535,6 +3541,25 @@ spec:
                             type: string
                         type: object
                       type: array
+                    image:
+                      description: (Optional) Container image information
+                      properties:
+                        name:
+                          description: 'Container image with supported YDB version.
+                            This defaults to the version pinned to the operator and
+                            requires a full container and tag/sha name. For instance:
+                            cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22'
+                          type: string
+                        pullPolicy:
+                          description: '(Optional) PullPolicy for the image, which
+                            defaults to IfNotPresent. Default: IfNotPresent'
+                          type: string
+                        pullSecret:
+                          description: (Optional) Secret name containing the dockerconfig
+                            to use for a registry that requires authentication. The
+                            secret must be configured first by the user.
+                          type: string
+                      type: object
                     name:
                       description: Name of child *NodeSet object
                       type: string
@@ -3550,6 +3575,9 @@ spec:
                       description: Number of nodes (pods) in the set
                       format: int32
                       type: integer
+                    priorityClassName:
+                      description: (Optional) If specified, the pod's priorityClassName.
+                      type: string
                     remote:
                       description: (Optional) Object should be reference to remote
                         object
@@ -3601,6 +3629,219 @@ spec:
                             it defaults to Limits if that is explicitly specified,
                             otherwise to an implementation-defined value. More info:
                             https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                          type: object
+                      type: object
+                    service:
+                      description: '(Optional) Storage services parameter overrides
+                        Default: (not specified)'
+                      properties:
+                        grpc:
+                          properties:
+                            additionalAnnotations:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            additionalLabels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            externalHost:
+                              type: string
+                            ipFamilies:
+                              items:
+                                description: IPFamily represents the IP Family (IPv4
+                                  or IPv6). This type is used to express the family
+                                  of an IP expressed by a type (e.g. service.spec.ipFamilies).
+                                type: string
+                              type: array
+                            ipFamilyPolicy:
+                              description: IPFamilyPolicy represents the dual-stack-ness
+                                requested or required by a Service
+                              type: string
+                            tls:
+                              properties:
+                                CA:
+                                  description: SecretKeySelector selects a key of
+                                    a Secret.
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      description: 'Name of the referent. More info:
+                                        https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion,
+                                        kind, uid?'
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                certificate:
+                                  description: SecretKeySelector selects a key of
+                                    a Secret.
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      description: 'Name of the referent. More info:
+                                        https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion,
+                                        kind, uid?'
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                enabled:
+                                  type: boolean
+                                key:
+                                  description: SecretKeySelector selects a key of
+                                    a Secret.
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      description: 'Name of the referent. More info:
+                                        https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion,
+                                        kind, uid?'
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                              required:
+                              - enabled
+                              type: object
+                          type: object
+                        interconnect:
+                          properties:
+                            additionalAnnotations:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            additionalLabels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            ipFamilies:
+                              items:
+                                description: IPFamily represents the IP Family (IPv4
+                                  or IPv6). This type is used to express the family
+                                  of an IP expressed by a type (e.g. service.spec.ipFamilies).
+                                type: string
+                              type: array
+                            ipFamilyPolicy:
+                              description: IPFamilyPolicy represents the dual-stack-ness
+                                requested or required by a Service
+                              type: string
+                            tls:
+                              properties:
+                                CA:
+                                  description: SecretKeySelector selects a key of
+                                    a Secret.
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      description: 'Name of the referent. More info:
+                                        https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion,
+                                        kind, uid?'
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                certificate:
+                                  description: SecretKeySelector selects a key of
+                                    a Secret.
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      description: 'Name of the referent. More info:
+                                        https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion,
+                                        kind, uid?'
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                enabled:
+                                  type: boolean
+                                key:
+                                  description: SecretKeySelector selects a key of
+                                    a Secret.
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      description: 'Name of the referent. More info:
+                                        https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                        TODO: Add other useful fields. apiVersion,
+                                        kind, uid?'
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                              required:
+                              - enabled
+                              type: object
+                          type: object
+                        status:
+                          properties:
+                            additionalAnnotations:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            additionalLabels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            ipFamilies:
+                              items:
+                                description: IPFamily represents the IP Family (IPv4
+                                  or IPv6). This type is used to express the family
+                                  of an IP expressed by a type (e.g. service.spec.ipFamilies).
+                                type: string
+                              type: array
+                            ipFamilyPolicy:
+                              description: IPFamilyPolicy represents the dual-stack-ness
+                                requested or required by a Service
+                              type: string
                           type: object
                       type: object
                     tolerations:

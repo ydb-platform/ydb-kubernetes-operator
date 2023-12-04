@@ -145,6 +145,16 @@ func (r *Storage) ValidateCreate() error {
 		}
 	}
 
+	if r.Spec.NodeSet != nil {
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSet {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSet: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
+	}
+
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
 	if crdCheckError != nil {
 		return crdCheckError

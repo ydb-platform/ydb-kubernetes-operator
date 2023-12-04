@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -12,20 +11,23 @@ import (
 
 type StorageNodeSetBuilder struct {
 	*api.StorageNodeSet
-	Storage *api.Storage
 
-	Labels            labels.Labels
-	NodeSetSpecInline *api.NodeSetSpecInline
+	Name string
+
+	Labels      map[string]string
+	Annotations map[string]string
+
+	StorageNodeSetSpec api.StorageNodeSetSpec
 }
 
-func NewStorageNodeSet(storageNodeSet *api.StorageNodeSet, storage *api.Storage) StorageNodeSetBuilder {
-	crStorage := storage.DeepCopy()
+func NewStorageNodeSet(storageNodeSet *api.StorageNodeSet) StorageNodeSetBuilder {
 	crStorageNodeSet := storageNodeSet.DeepCopy()
 
 	return StorageNodeSetBuilder{
-		StorageNodeSet: crStorageNodeSet,
-		Storage:        crStorage,
-		Labels:         labels.StorageLabels(storage),
+		Name:               crStorageNodeSet.Name,
+		Labels:             crStorageNodeSet.Labels,
+		Annotations:        crStorageNodeSet.Annotations,
+		StorageNodeSetSpec: crStorageNodeSet.Spec,
 	}
 }
 
@@ -46,19 +48,13 @@ func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 	}
 
 	if sns.ObjectMeta.Name == "" {
-		sns.ObjectMeta.Name = b.NodeSetSpecInline.Name
+		sns.ObjectMeta.Name = b.Name
 	}
-	sns.ObjectMeta.Namespace = b.Storage.GetNamespace()
+	sns.ObjectMeta.Namespace = b.GetNamespace()
+	sns.ObjectMeta.Labels = b.Labels
+	sns.ObjectMeta.Annotations = b.Annotations
 
-	storageLabels := labels.Labels{}
-	storageLabels = storageLabels.MergeInPlace(b.Storage.Labels)
-
-	sns.ObjectMeta.Labels = storageLabels.Merge(b.NodeSetSpecInline.AdditionalLabels)
-
-	sns.Spec = api.StorageNodeSetSpec{
-		StorageRef:  b.Storage.GetName(),
-		NodeSetSpec: b.NodeSetSpecInline.NodeSetSpec,
-	}
+	sns.Spec = b.StorageNodeSetSpec
 
 	return nil
 
@@ -67,26 +63,49 @@ func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	return &api.StorageNodeSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.NodeSetSpecInline.Name,
+			Name:      b.Name,
 			Namespace: cr.GetNamespace(),
 		},
 	}
 }
 
 func (b *StorageNodeSetBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	var resourceBuilders []ResourceBuilder
 
-	var optionalBuilders []ResourceBuilder
-
-	stsBuilder := &StorageStatefulSetBuilder{
-		Storage:    b.Storage.DeepCopy(),
-		RestConfig: restConfig,
-		Labels:     b.Labels.AsMap(),
-	}
-
-	return append(optionalBuilders,
-		&StorageNodeSetStatefulSetBuilder{
-			StorageStatefulSetBuilder: stsBuilder,
-			StorageNodeSet:            b.StorageNodeSet,
+	resourceBuilders = append(resourceBuilders,
+		&StorageStatefulSetBuilder{
+			Storage:    b.RecastStorageNodeSet().DeepCopy(),
+			RestConfig: restConfig,
+			Labels:     b.Labels,
 		},
 	)
+	return resourceBuilders
+}
+
+func (b *StorageNodeSetBuilder) RecastStorageNodeSet() *api.Storage {
+	return &api.Storage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      b.GetName(),
+			Namespace: b.GetNamespace(),
+			Labels:    b.Labels,
+		},
+		Spec: api.StorageSpec{
+			AdditionalAnnotations:     b.Annotations,
+			Nodes:                     b.StorageNodeSetSpec.Nodes,
+			Secrets:                   b.StorageNodeSetSpec.Secrets,
+			Volumes:                   b.StorageNodeSetSpec.Volumes,
+			DataStore:                 b.StorageNodeSetSpec.DataStore,
+			HostNetwork:               b.StorageNodeSetSpec.HostNetwork,
+			Resources:                 b.StorageNodeSetSpec.Resources,
+			NodeSelector:              b.StorageNodeSetSpec.NodeSelector,
+			Affinity:                  b.StorageNodeSetSpec.Affinity,
+			Tolerations:               b.StorageNodeSetSpec.Tolerations,
+			TopologySpreadConstraints: b.StorageNodeSetSpec.TopologySpreadConstraints,
+			InitContainers:            b.StorageNodeSetSpec.InitContainers,
+			Configuration:             b.StorageNodeSetSpec.Configuration, // TODO: migrate to configmapRef
+			Service:                   b.StorageNodeSetSpec.Service,       // TODO: export only externalHost
+			CABundle:                  b.StorageNodeSetSpec.CABundle,      // TODO: migrate to trust-manager
+			Erasure:                   b.StorageNodeSetSpec.Erasure,       // TODO: get from configuration
+		},
+	}
 }

@@ -1,29 +1,52 @@
-package nodeset
+package storagenodeset
 
 import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *StorageNodeSetReconciler) Sync(ctx context.Context, crStorageNodeSet *ydbv1alpha1.StorageNodeSet, crStorage *ydbv1alpha1.Storage) (ctrl.Result, error) {
+const (
+	Pending      StorageNodeSetState = "Pending"
+	Provisioning StorageNodeSetState = "Provisioning"
+	Ready        StorageNodeSetState = "Ready"
+
+	DefaultRequeueDelay      = 10 * time.Second
+	StatusUpdateRequeueDelay = 1 * time.Second
+
+	ReasonInProgress = "InProgress"
+	ReasonCompleted  = "Completed"
+
+	StorageNodeSetConditionReady   = "StorageNodeSetReady"
+	StorageNodeSetReasonInProgress = ReasonInProgress
+	StorageNodeSetReasonCompleted  = ReasonCompleted
+
+	Stop     = true
+	Continue = false
+)
+
+type StorageNodeSetState string
+
+func (r *StorageNodeSetReconciler) Sync(ctx context.Context, crStorageNodeSet *ydbv1alpha1.StorageNodeSet) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
 
-	storageNodeSet := resources.NewStorageNodeSet(crStorageNodeSet, crStorage)
+	storageNodeSet := resources.NewStorageNodeSet(crStorageNodeSet)
 	storageNodeSet.SetStatusOnFirstReconcile()
 
 	stop, result, err = r.handleResourcesSync(ctx, &storageNodeSet)
@@ -106,7 +129,7 @@ func (r *StorageNodeSetReconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for Storage")
+	r.Log.Info("running step waitForStatefulSetToScale for StorageNodeSet")
 
 	if storageNodeSet.Status.State == string(Pending) {
 		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storageNodeSet.Spec.Nodes)
@@ -115,31 +138,32 @@ func (r *StorageNodeSetReconciler) waitForStatefulSetToScale(
 		return r.setState(ctx, storageNodeSet)
 	}
 
-	found := &appsv1.StatefulSet{}
+	foundStatefulSet := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      storageNodeSet.Name,
 		Namespace: storageNodeSet.Namespace,
-	}, found)
+	}, foundStatefulSet)
 	if err != nil {
 		if errors.IsNotFound(err) {
+			r.Recorder.Event(
+				storageNodeSet,
+				corev1.EventTypeWarning,
+				"Syncing",
+				fmt.Sprintf("Failed to found StatefulSet: %s", err),
+			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 		r.Recorder.Event(
 			storageNodeSet,
-			corev1.EventTypeNormal,
+			corev1.EventTypeWarning,
 			"Syncing",
 			fmt.Sprintf("Failed to get StatefulSets: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	podLabels := labels.Common(storageNodeSet.Name, make(map[string]string))
-	podLabels.Merge(map[string]string{
-		labels.ComponentKey: labels.StorageComponent,
-	})
-
 	matchingLabels := client.MatchingLabels{}
-	for k, v := range podLabels {
+	for k, v := range storageNodeSet.Labels {
 		matchingLabels[k] = v
 	}
 
@@ -148,14 +172,12 @@ func (r *StorageNodeSetReconciler) waitForStatefulSetToScale(
 		client.InNamespace(storageNodeSet.Namespace),
 		matchingLabels,
 	}
-
-	err = r.List(ctx, podList, opts...)
-	if err != nil {
+	if err = r.List(ctx, podList, opts...); err != nil {
 		r.Recorder.Event(
 			storageNodeSet,
-			corev1.EventTypeNormal,
+			corev1.EventTypeWarning,
 			"Syncing",
-			fmt.Sprintf("Failed to list cluster pods: %s", err),
+			fmt.Sprintf("Failed to list storageNodeSet pods: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -168,12 +190,30 @@ func (r *StorageNodeSetReconciler) waitForStatefulSetToScale(
 	}
 
 	if runningPods != int(storageNodeSet.Spec.Nodes) {
-		msg := fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes)
-		r.Recorder.Event(storageNodeSet, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			storageNodeSet,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes))
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	return Continue, ctrl.Result{Requeue: false}, nil
+	return r.setStorageNodeSetReady(ctx, storageNodeSet)
+}
+
+func (r *StorageNodeSetReconciler) setStorageNodeSetReady(
+	ctx context.Context,
+	storageNodeSet *resources.StorageNodeSetBuilder,
+) (bool, ctrl.Result, error) {
+	meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+		Type:    StorageNodeSetConditionReady,
+		Status:  "True",
+		Reason:  StorageNodeSetReasonCompleted,
+		Message: "Sync StorageNodeSet is completed",
+	})
+
+	storageNodeSet.Status.State = string(Ready)
+	return r.setState(ctx, storageNodeSet)
 }
 
 func (r *StorageNodeSetReconciler) setState(

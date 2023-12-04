@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
@@ -35,6 +36,9 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=ydb.tech,resources=storages,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ydb.tech,resources=storages/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ydb.tech,resources=storages/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=services/finalizers,verbs=get;list;watch
@@ -95,6 +99,28 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.WithServiceMonitors {
 		controller = controller.
 			Owns(&monitoringv1.ServiceMonitor{})
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&ydbv1alpha1.StorageNodeSet{},
+		ownerControllerKey,
+		func(o client.Object) []string {
+			// grab the job object, extract the owner...
+			storageNodeSet := o.(*ydbv1alpha1.StorageNodeSet)
+			owner := metav1.GetControllerOf(storageNodeSet)
+			if owner == nil {
+				return nil
+			}
+			// ...make sure it's a Storage...
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != "Storage" {
+				return nil
+			}
+
+			// ...and if so, return it
+			return []string{owner.Name}
+		}); err != nil {
+		return err
 	}
 
 	return controller.

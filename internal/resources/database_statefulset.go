@@ -6,6 +6,7 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,8 +24,8 @@ type DatabaseStatefulSetBuilder struct {
 	*v1alpha1.Database
 	RestConfig *rest.Config
 
-	Labels  map[string]string
-	Storage *v1alpha1.Storage
+	Labels          map[string]string
+	StorageEndpoint string
 }
 
 var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
@@ -149,7 +150,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		},
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.IsGRPCSecure() {
 		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
@@ -169,7 +170,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	}
 
 	for _, volume := range b.Spec.Volumes {
-		volumes = append(volumes, *volume)
+		volumes = append(volumes, volume)
 	}
 
 	for _, secret := range b.Spec.Secrets {
@@ -416,7 +417,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		MountPath: v1alpha1.ConfigDir,
 	})
 
-	if IsGrpcSecure(b.Storage) {
+	if b.IsGRPCSecure() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
@@ -513,9 +514,6 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
 
-	db := NewDatabase(b.DeepCopy())
-	db.Storage = b.Storage
-
 	tenantName := v1alpha1.GetDatabasePath(b.Database)
 
 	args := []string{
@@ -534,7 +532,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		tenantName,
 
 		"--node-broker",
-		db.GetStorageEndpointWithProto(),
+		b.StorageEndpoint,
 	}
 
 	for _, secret := range b.Spec.Secrets {
@@ -611,4 +609,11 @@ func (b *DatabaseStatefulSetBuilder) Placeholder(cr client.Object) client.Object
 			Namespace: cr.GetNamespace(),
 		},
 	}
+}
+
+func (b *DatabaseStatefulSetBuilder) IsGRPCSecure() bool {
+	if strings.HasPrefix(b.StorageEndpoint, v1alpha1.GRPCSProto) {
+		return true
+	}
+	return false
 }

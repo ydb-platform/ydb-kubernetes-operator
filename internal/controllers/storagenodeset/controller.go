@@ -1,18 +1,15 @@
-package nodeset
+package storagenodeset
 
 import (
 	"context"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -55,25 +52,7 @@ func (r *StorageNodeSetReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	storageNamespacedName := types.NamespacedName{
-		Name:      crStorageNodeSet.Spec.StorageRef,
-		Namespace: crStorageNodeSet.GetNamespace(),
-	}
-
-	crStorage := &api.Storage{}
-	if err := r.Get(ctx, storageNamespacedName, crStorage); err != nil {
-		if errors.IsNotFound(err) {
-			r.Recorder.Eventf(crStorageNodeSet, corev1.EventTypeNormal, "Pending",
-				"Unknown YDB Storage %s",
-				storageNamespacedName.String())
-			return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-		r.Recorder.Eventf(crStorageNodeSet, corev1.EventTypeWarning, "Error",
-			"Unable to find YDB Storage %s: %s", storageNamespacedName.String(), err.Error())
-		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	result, err := r.Sync(ctx, crStorageNodeSet, crStorage)
+	result, err := r.Sync(ctx, crStorageNodeSet)
 	if err != nil {
 		r.Log.Error(err, "unexpected Sync error")
 	}
@@ -98,12 +77,11 @@ func ignoreDeletionPredicate() predicate.Predicate {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *StorageNodeSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	controller := ctrl.NewControllerManagedBy(mgr).For(&api.StorageNodeSet{})
 	r.Recorder = mgr.GetEventRecorderFor("StorageNodeSet")
 
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&api.StorageNodeSet{}).
+	return controller.
 		Owns(&appsv1.StatefulSet{}).
 		WithEventFilter(ignoreDeletionPredicate()).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Complete(r)
 }

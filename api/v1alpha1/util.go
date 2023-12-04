@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	kube "k8s.io/client-go/kubernetes"
@@ -25,10 +24,7 @@ func getStorageRef(ctx context.Context, client client.Client, namespace string, 
 	err := client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, found)
 	fmt.Printf("err = %v, namespace=%s, name=%s\n", err, namespace, name)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("storage with name %s does not exists", name)
-		}
-		return nil, fmt.Errorf("unexpected Get error: %v", err)
+		return nil, err
 	}
 	return found, nil
 }
@@ -36,12 +32,8 @@ func getStorageRef(ctx context.Context, client client.Client, namespace string, 
 func getDatabaseRef(ctx context.Context, client client.Client, namespace string, name string) (*Database, error) {
 	found := &Database{}
 	err := client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, found)
-	fmt.Printf("err = %v, namespace=%s, name=%s\n", err, namespace, name)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("database with name %s does not exists", name)
-		}
-		return nil, fmt.Errorf("unexpected Get error: %v", err)
+		return nil, err
 	}
 	return found, nil
 }

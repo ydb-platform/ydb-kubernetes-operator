@@ -127,12 +127,6 @@ func (r *Database) ValidateCreate() error {
 	}
 
 	if r.Spec.NodeSet != nil {
-		for _, nodeSetInline := range r.Spec.NodeSet {
-			if nodeSetInline.DataStore != nil {
-				return fmt.Errorf("incorrect database nodeSet configuration, key \"dataStore\" does not supported")
-			}
-		}
-
 		var nodesInSetsCount int32
 		for _, nodeSetInline := range r.Spec.NodeSet {
 			nodesInSetsCount += nodeSetInline.Nodes
@@ -161,6 +155,16 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 
 	if GetDatabasePath(oldDatabase) != GetDatabasePath(r) {
 		return errors.New("database path cannot be changed")
+	}
+
+	if r.Spec.NodeSet != nil {
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSet {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSet: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
 	}
 
 	crdCheckError := checkMonitoringCRD(manager, databaselog, r.Spec.Monitoring != nil)

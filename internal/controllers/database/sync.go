@@ -19,7 +19,6 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/nodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -43,6 +42,8 @@ const (
 
 	Stop     = true
 	Continue = false
+
+	ownerControllerKey = ".metadata.controller"
 )
 
 var ErrIncorrectDatabaseResourcesConfiguration = errors.New("incorrect database resources configuration, " +
@@ -165,27 +166,43 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	}
 
 	for _, nodeSetSpec := range database.Spec.NodeSet {
-		found := &v1alpha1.DatabaseNodeSet{}
+		foundDatabaseNodeSet := v1alpha1.DatabaseNodeSet{}
+		databaseNodeSetName := database.Name + "-" + nodeSetSpec.Name
 		err := r.Get(ctx, types.NamespacedName{
-			Name:      nodeSetSpec.Name,
+			Name:      databaseNodeSetName,
 			Namespace: database.Namespace,
-		}, found)
+		}, &foundDatabaseNodeSet)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("DatabaseNodeSet with name %s was not found: %s", databaseNodeSetName, err),
+				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
 			r.Recorder.Event(
 				database,
-				corev1.EventTypeNormal,
-				"Syncing",
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
 				fmt.Sprintf("Failed to get DatabaseNodeSet: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		if found.Status.State != string(nodeset.Ready) {
-			msg := fmt.Sprintf("Waiting %s state for DatabaseNodeSet object %s, current: %s", string(nodeset.Ready), found.Name, found.Status.State)
-			r.Recorder.Event(database, corev1.EventTypeNormal, string(Provisioning), msg)
+		if foundDatabaseNodeSet.Status.State != string(Ready) {
+			msg := fmt.Sprintf("Waiting %s state for DatabaseNodeSet object %s, current: %s",
+				string(Ready),
+				foundDatabaseNodeSet.Name,
+				foundDatabaseNodeSet.Status.State,
+			)
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeNormal,
+				string(Provisioning),
+				msg,
+			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 	}
@@ -217,12 +234,18 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	}, found)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
+				fmt.Sprintf("StatefulSet with name %s was not found: %s", database.Name, err),
+			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 		r.Recorder.Event(
 			database,
-			corev1.EventTypeNormal,
-			"Syncing",
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
 			fmt.Sprintf("Failed to get StatefulSets: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -248,8 +271,8 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	if err != nil {
 		r.Recorder.Event(
 			database,
-			corev1.EventTypeNormal,
-			"Syncing",
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list cluster pods: %s", err),
 		)
 		database.Status.State = string(Provisioning)
@@ -332,6 +355,55 @@ func (r *Reconciler) handleResourcesSync(
 			)
 		}
 	}
+
+	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
+	matchingFields := client.MatchingFields{
+		ownerControllerKey: database.Name,
+	}
+	if err := r.List(ctx, databaseNodeSets,
+		client.InNamespace(database.Namespace),
+		matchingFields,
+	); err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed to list DatabaseNodeSets: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	for _, databaseNodeSet := range databaseNodeSets.Items {
+		var isFoundDatabaseNodeSet bool
+		for _, nodeSetSpecInline := range database.Spec.NodeSet {
+			databaseNodeSetName := database.Name + "-" + nodeSetSpecInline.Name
+			if databaseNodeSet.Name == databaseNodeSetName {
+				isFoundDatabaseNodeSet = true
+				break
+			}
+		}
+		if !isFoundDatabaseNodeSet {
+			if err := r.Delete(ctx, &databaseNodeSet); err != nil {
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to delete DatabaseNodeSet: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeNormal,
+				"Syncing",
+				fmt.Sprintf("Resource: %s, Namespace: %s, Name: %s, deleted",
+					reflect.TypeOf(databaseNodeSet),
+					databaseNodeSet.Namespace,
+					databaseNodeSet.Name),
+			)
+		}
+	}
+
 	r.Log.Info("resource sync complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
