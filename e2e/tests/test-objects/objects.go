@@ -76,7 +76,7 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 				},
 			},
 			Domain:    DefaultDomain,
-			Resources: corev1.ResourceRequirements{},
+			Resources: &corev1.ResourceRequirements{},
 			Image: v1alpha1.PodImage{
 				Name:           YdbImage,
 				PullPolicyName: &defaultPolicy,
@@ -104,24 +104,14 @@ func StorageWithNodeSets(storageYamlConfigPath string) *v1alpha1.Storage {
 		},
 		Spec: v1alpha1.StorageSpec{
 			Nodes: 8,
-			NodeSet: []v1alpha1.NodeSetSpecInline{
+			NodeSet: []v1alpha1.StorageNodeSetSpecInline{
 				{
-					Name: "nodeset1",
-					AdditionalLabels: map[string]string{
-						"ydb.tech/storage-nodeset": "nodeset1",
-					},
-					NodeSetSpec: v1alpha1.NodeSetSpec{
-						Nodes: 3,
-					},
+					Name:  "nodeset1",
+					Nodes: 3,
 				},
 				{
-					Name: "nodeset2",
-					AdditionalLabels: map[string]string{
-						"ydb.tech/storage-nodeset": "nodeset2",
-					},
-					NodeSetSpec: v1alpha1.NodeSetSpec{
-						Nodes: 5,
-					},
+					Name:  "nodeset2",
+					Nodes: 5,
 				},
 			},
 			Configuration: string(storageConfig),
@@ -145,7 +135,7 @@ func StorageWithNodeSets(storageYamlConfigPath string) *v1alpha1.Storage {
 				},
 			},
 			Domain:    DefaultDomain,
-			Resources: corev1.ResourceRequirements{},
+			Resources: &corev1.ResourceRequirements{},
 			Image: v1alpha1.PodImage{
 				Name:           YdbImage,
 				PullPolicyName: &defaultPolicy,
@@ -199,7 +189,7 @@ func StorageWithStaticCredentials(storageYamlConfigPath string) *v1alpha1.Storag
 				},
 			},
 			Domain:    DefaultDomain,
-			Resources: corev1.ResourceRequirements{},
+			Resources: &corev1.ResourceRequirements{},
 			Image: v1alpha1.PodImage{
 				Name:           YdbImage,
 				PullPolicyName: &defaultPolicy,
