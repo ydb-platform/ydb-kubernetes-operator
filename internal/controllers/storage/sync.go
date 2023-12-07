@@ -46,6 +46,10 @@ const (
 
 	Stop     = true
 	Continue = false
+
+	PausePaused  = "Paused"
+	PauseFrozen  = "Frozen"
+	PauseRunning = "Running"
 )
 
 type ClusterState string
@@ -67,6 +71,8 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
+	// MAIN SYNCHRONIZING LOOP
+
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &storage)
 		if stop {
@@ -87,6 +93,14 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	}
 
 	_, result, err = r.runSelfCheck(ctx, &storage, auth, false)
+
+	if meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
+		stop, result, err = r.handlePauseResume(ctx, &storage, auth)
+		if stop {
+			return result, err
+		}
+	}
+
 	return result, err
 }
 

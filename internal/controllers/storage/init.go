@@ -168,3 +168,19 @@ func (r *Reconciler) initializeStorage(
 
 	return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
 }
+
+func (r *Reconciler) handlePauseResume(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+	creds ydbCredentials.Credentials,
+) (bool, ctrl.Result, error) {
+	if storage.Status.Pause == string(PauseRunning) && storage.Spec.Pause == string(PausePaused) {
+		r.Log.Info("I noticed that Running -> Paused")
+	}
+
+	if storage.Status.Pause == string(PausePaused) && storage.Spec.Pause == string(PauseRunning) {
+		r.Log.Info("I noticed that Paused -> Running")
+	}
+
+	return Continue, ctrl.Result{}, nil
+}
