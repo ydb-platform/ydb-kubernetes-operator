@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -224,7 +225,7 @@ func (r *Reconciler) handleResourcesSync(
 	for _, builder := range database.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(database)
 
-		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {
+		result, err := resources.CreateOrUpdateWithIgnoreCheck(ctx, r.Client, newResource, func() error {
 			var err error
 
 			err = builder.Build(newResource)
@@ -250,7 +251,9 @@ func (r *Reconciler) handleResourcesSync(
 			}
 
 			return nil
-		}, builder.IgnoreFunction)
+		}, func(oldObj, newObj runtime.Object) bool {
+			return false
+		})
 
 		eventMessage := fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",

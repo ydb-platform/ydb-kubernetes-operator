@@ -20,8 +20,6 @@ import (
 )
 
 type DatabaseStatefulSetBuilder struct {
-	DefaultIgnore
-
 	*v1alpha1.Database
 	RestConfig *rest.Config
 

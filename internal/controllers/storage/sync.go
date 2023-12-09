@@ -20,6 +20,7 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -185,7 +186,7 @@ func (r *Reconciler) handleResourcesSync(
 	for _, builder := range storage.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(storage)
 
-		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {
+		result, err := resources.CreateOrUpdateWithIgnoreCheck(ctx, r.Client, newResource, func() error {
 			var err error
 
 			err = builder.Build(newResource)
@@ -210,8 +211,13 @@ func (r *Reconciler) handleResourcesSync(
 			}
 
 			return nil
-		}, func(existingObj, newObj runtime.Object) bool {
-			return builder.IgnoreFunction(storage, existingObj, newObj)
+		}, func(oldObj, newObj runtime.Object) bool {
+			if _, ok := newObj.(*appsv1.StatefulSet); ok {
+				if storage.Spec.Pause == constants.PausePaused && oldObj == nil {
+					return true
+				}
+			}
+			return false
 		})
 
 		eventMessage := fmt.Sprintf(

@@ -47,7 +47,6 @@ const (
 type ResourceBuilder interface {
 	Placeholder(cr client.Object) client.Object
 	Build(client.Object) error
-	IgnoreFunction(existingObj, newObj runtime.Object) bool
 }
 
 var (
@@ -68,12 +67,12 @@ func mutate(f ctrlutil.MutateFn, key client.ObjectKey, obj client.Object) error 
 	return nil
 }
 
-func CreateOrUpdateIgnoreStatus(
+func CreateOrUpdateWithIgnoreCheck(
 	ctx context.Context,
 	c client.Client,
 	obj client.Object,
 	f ctrlutil.MutateFn,
-	shouldIgnore func(existingObj, newObj runtime.Object) bool,
+	shouldIgnore func(oldObj, newObj runtime.Object) bool,
 ) (ctrlutil.OperationResult, error) {
 	key := client.ObjectKeyFromObject(obj)
 	if err := c.Get(ctx, key, obj); err != nil {

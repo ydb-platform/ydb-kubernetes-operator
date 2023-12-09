@@ -16,6 +16,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -176,7 +177,7 @@ func (r *Reconciler) handlePauseResume(
 	storage *resources.StorageClusterBuilder,
 	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
-	if storage.Status.State == string(Ready) && storage.Spec.Pause == string(PausePaused) {
+	if storage.Status.State == string(Ready) && storage.Spec.Pause == constants.PausePaused {
 		r.Log.Info("Operator noticed that Running -> Paused")
 		storage.Status.State = string(Paused)
 
@@ -201,7 +202,7 @@ func (r *Reconciler) handlePauseResume(
 		return r.setState(ctx, storage)
 	}
 
-	if storage.Status.State == string(Paused) && storage.Spec.Pause == string(PauseRunning) {
+	if storage.Status.State == string(Paused) && storage.Spec.Pause == constants.PauseRunning {
 		r.Log.Info("Operator noticed that Paused -> Running")
 		storage.Status.State = string(Ready)
 		// TODOPAUSE actually create the new StatefulSet

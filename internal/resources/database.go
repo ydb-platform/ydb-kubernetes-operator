@@ -14,8 +14,6 @@ import (
 )
 
 type DatabaseBuilder struct {
-	DefaultIgnore
-
 	*api.Database
 	Storage *api.Storage
 }
