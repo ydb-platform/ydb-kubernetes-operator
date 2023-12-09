@@ -250,7 +250,7 @@ func (r *Reconciler) handleResourcesSync(
 			}
 
 			return nil
-		})
+		}, builder.IgnoreFunction)
 
 		eventMessage := fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",

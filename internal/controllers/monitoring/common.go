@@ -91,7 +91,7 @@ func (r *Syncer) Sync(ctx context.Context, obj client.Object) (ctrl.Result, erro
 		}
 
 		return nil
-	})
+	}, builder.IgnoreFunction)
 
 	if err != nil {
 		logger.Error(err, "unexpected Sync error")

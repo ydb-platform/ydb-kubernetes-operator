@@ -23,12 +23,12 @@ type StorageSpec struct {
 	// +kubebuilder:default:=block-4-2
 	Erasure ErasureType `json:"erasure"`
 
-	// The state of the Storage. Can be one of `Stopped`, `Running` or `Frozen`.
-	// `Stopped` means all the Storage Pods are being killed, but the Storage resource is persisted.
+	// The state of the Storage. Can be one of `Paused`, `Running` or `Frozen`.
+	// `Paused` means all the Storage Pods are being killed, but the Storage resource is persisted.
 	// `Frozen` means the StatefulSet has no checks on its Pods. // TODOPAUSE clean definition
 	// `Running` means the default state of the system, all Pods running.
 	// +optional
-	// +kubebuilder:validation:Enum=Stopped;Running;Frozen;none
+	// +kubebuilder:validation:Enum=Paused;Running;Frozen;none
 	// +kubebuilder:default:=Running
 	Pause string `json:"pause,omitEmpty"`
 
@@ -152,7 +152,6 @@ type StorageSpec struct {
 // StorageStatus defines the observed state of Storage
 type StorageStatus struct {
 	State      string             `json:"state"`
-	Pause      string             `json:"pause,omitempty"`
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 

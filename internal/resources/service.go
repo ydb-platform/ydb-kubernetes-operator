@@ -14,6 +14,8 @@ const (
 )
 
 type ServiceBuilder struct {
+	DefaultIgnore
+
 	client.Object
 
 	NameFormat string

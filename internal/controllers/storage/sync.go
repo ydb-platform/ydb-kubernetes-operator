@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,12 +25,15 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
+type ClusterState string
+
 const (
 	Pending      ClusterState = "Pending"
 	Preparing    ClusterState = "Preparing"
 	Provisioning ClusterState = "Provisioning"
 	Initializing ClusterState = "Initializing"
 	Ready        ClusterState = "Ready"
+	Paused       ClusterState = "Paused"
 
 	DefaultRequeueDelay               = 10 * time.Second
 	StatusUpdateRequeueDelay          = 1 * time.Second
@@ -46,13 +50,7 @@ const (
 
 	Stop     = true
 	Continue = false
-
-	PausePaused  = "Paused"
-	PauseFrozen  = "Frozen"
-	PauseRunning = "Running"
 )
-
-type ClusterState string
 
 func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
 	var stop bool
@@ -212,6 +210,8 @@ func (r *Reconciler) handleResourcesSync(
 			}
 
 			return nil
+		}, func(existingObj, newObj runtime.Object) bool {
+			return builder.IgnoreFunction(storage, existingObj, newObj)
 		})
 
 		eventMessage := fmt.Sprintf(
@@ -368,5 +368,6 @@ func (r *Reconciler) getSecretKey(
 			secretKeyRef.Name,
 		)
 	}
+
 	return string(secretVal), nil
 }

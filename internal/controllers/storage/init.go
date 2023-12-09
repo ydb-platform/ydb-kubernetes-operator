@@ -8,9 +8,11 @@ import (
 
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"google.golang.org/grpc/metadata"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -174,12 +176,36 @@ func (r *Reconciler) handlePauseResume(
 	storage *resources.StorageClusterBuilder,
 	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
-	if storage.Status.Pause == string(PauseRunning) && storage.Spec.Pause == string(PausePaused) {
-		r.Log.Info("I noticed that Running -> Paused")
+	if storage.Status.State == string(Ready) && storage.Spec.Pause == string(PausePaused) {
+		r.Log.Info("Operator noticed that Running -> Paused")
+		storage.Status.State = string(Paused)
+
+		statefulSet := &appsv1.StatefulSet{}
+		err := r.Client.Get(context.TODO(),
+			types.NamespacedName{
+				Name:      storage.Name, // TODOPAUSE assuming implicitly storageName and statefulSetName are the same
+				Namespace: storage.Namespace,
+			},
+			statefulSet,
+		)
+		if err != nil {
+			r.Log.Error(err, "Failed to get the StatefulSet object before deletion")
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		err = r.Client.Delete(context.TODO(), statefulSet)
+		if err != nil {
+			r.Log.Error(err, "Failed to delete the StatefulSet object when moving from Ready -> Paused")
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+		return r.setState(ctx, storage)
 	}
 
-	if storage.Status.Pause == string(PausePaused) && storage.Spec.Pause == string(PauseRunning) {
-		r.Log.Info("I noticed that Paused -> Running")
+	if storage.Status.State == string(Paused) && storage.Spec.Pause == string(PauseRunning) {
+		r.Log.Info("Operator noticed that Paused -> Running")
+		storage.Status.State = string(Ready)
+		// TODOPAUSE actually create the new StatefulSet
+		return r.setState(ctx, storage)
 	}
 
 	return Continue, ctrl.Result{}, nil

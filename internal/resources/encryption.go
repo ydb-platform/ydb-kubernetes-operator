@@ -11,6 +11,8 @@ import (
 )
 
 type EncryptionSecretBuilder struct {
+	DefaultIgnore
+
 	client.Object
 
 	Pin    string

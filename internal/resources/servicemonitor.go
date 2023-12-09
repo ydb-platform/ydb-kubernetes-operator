@@ -14,6 +14,8 @@ import (
 )
 
 type ServiceMonitorBuilder struct {
+	DefaultIgnore
+
 	client.Object
 
 	Name            string

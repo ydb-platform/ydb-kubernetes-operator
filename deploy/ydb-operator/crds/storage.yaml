@@ -2503,6 +2503,19 @@ spec:
                     - username
                     type: object
                 type: object
+              pause:
+                default: Running
+                description: The state of the Storage. Can be one of `Stopped`, `Running`
+                  or `Frozen`. `Stopped` means all the Storage Pods are being killed,
+                  but the Storage resource is persisted. `Frozen` means the StatefulSet
+                  has no checks on its Pods. // TODOPAUSE clean definition `Running`
+                  means the default state of the system, all Pods running.
+                enum:
+                - Stopped
+                - Running
+                - Frozen
+                - none
+                type: string
               priorityClassName:
                 description: (Optional) If specified, the pod's priorityClassName.
                 type: string
@@ -4607,6 +4620,8 @@ spec:
                   - type
                   type: object
                 type: array
+              pause:
+                type: string
               state:
                 type: string
             required:

@@ -9,6 +9,7 @@ import (
 )
 
 type ConfigMapBuilder struct {
+	DefaultIgnore
 	client.Object
 
 	Name   string

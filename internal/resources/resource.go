@@ -47,6 +47,7 @@ const (
 type ResourceBuilder interface {
 	Placeholder(cr client.Object) client.Object
 	Build(client.Object) error
+	IgnoreFunction(existingObj, newObj runtime.Object) bool
 }
 
 var (
@@ -67,11 +68,20 @@ func mutate(f ctrlutil.MutateFn, key client.ObjectKey, obj client.Object) error 
 	return nil
 }
 
-func CreateOrUpdateIgnoreStatus(ctx context.Context, c client.Client, obj client.Object, f ctrlutil.MutateFn) (ctrlutil.OperationResult, error) {
+func CreateOrUpdateIgnoreStatus(
+	ctx context.Context,
+	c client.Client,
+	obj client.Object,
+	f ctrlutil.MutateFn,
+	shouldIgnore func(existingObj, newObj runtime.Object) bool,
+) (ctrlutil.OperationResult, error) {
 	key := client.ObjectKeyFromObject(obj)
 	if err := c.Get(ctx, key, obj); err != nil {
 		if !errors.IsNotFound(err) {
 			return ctrlutil.OperationResultNone, err
+		}
+		if shouldIgnore(nil, obj) {
+			return ctrlutil.OperationResultNone, nil
 		}
 		if err := mutate(f, key, obj); err != nil {
 			return ctrlutil.OperationResultNone, err
@@ -89,6 +99,11 @@ func CreateOrUpdateIgnoreStatus(ctx context.Context, c client.Client, obj client
 	if err := mutate(f, key, obj); err != nil {
 		return ctrlutil.OperationResultNone, err
 	}
+
+	if shouldIgnore(existing, obj) {
+		return ctrlutil.OperationResultNone, nil
+	}
+
 	changed, err := CheckObjectUpdatedIgnoreStatus(existing, obj)
 	if err != nil || !changed {
 		return ctrlutil.OperationResultNone, err

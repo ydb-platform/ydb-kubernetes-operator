@@ -501,3 +501,13 @@ func (b *StorageStatefulSetBuilder) Placeholder(cr client.Object) client.Object 
 		},
 	}
 }
+
+// func (b *StorageStatefulSetBuilder) IgnoreFunction(existingObj, newObj runtime.Object) bool {
+// 	if _, ok := newObj.(*appsv1.StatefulSet); ok {
+// 		newObj.(*appsv1.StatefulSet).Spec.
+// 	}
+// 	a := constants.PausePaused
+// 	if existingObj == nil && newObj.
+// 	return false
+
+// }
