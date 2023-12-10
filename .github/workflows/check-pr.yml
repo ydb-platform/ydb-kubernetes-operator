@@ -1,4 +1,4 @@
-name: Latest build
+name: check-pr
 on: 
   pull_request_target:
     branches:
