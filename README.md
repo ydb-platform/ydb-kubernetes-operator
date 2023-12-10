@@ -1,3 +1,5 @@
+[![Latest build](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/check-pr.yml/badge.svg)](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/check-pr.yml)
+
 # YDB Kubernetes Operator
 
 The YDB Kubernetes operator deploys and manages YDB resources in a Kubernetes cluster.
