@@ -3,6 +3,8 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 // DatabaseSpec defines the desired state of Database
@@ -189,8 +191,8 @@ type StorageUnit struct {
 
 // DatabaseStatus defines the observed state of Database
 type DatabaseStatus struct {
-	State      string             `json:"state"`
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true

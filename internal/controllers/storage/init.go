@@ -71,8 +71,8 @@ func (r *Reconciler) setInitialStatus(
 		})
 		changed = true
 	}
-	if storage.Status.State == string(StoragePending) {
-		storage.Status.State = string(StoragePreparing)
+	if storage.Status.State == StoragePending {
+		storage.Status.State = StoragePreparing
 		changed = true
 	}
 	if changed {
@@ -93,7 +93,7 @@ func (r *Reconciler) setInitStorageCompleted(
 		Message: message,
 	})
 
-	storage.Status.State = string(StorageReady)
+	storage.Status.State = StorageReady
 	return r.setState(ctx, storage)
 }
 
@@ -104,8 +104,8 @@ func (r *Reconciler) initializeStorage(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
 
-	if storage.Status.State == string(StorageProvisioning) {
-		storage.Status.State = string(StorageInitializing)
+	if storage.Status.State == StorageProvisioning {
+		storage.Status.State = StorageInitializing
 		return r.setState(ctx, storage)
 	}
 

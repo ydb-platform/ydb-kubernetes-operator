@@ -3,6 +3,8 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 // StorageSpec defines the desired state of Storage
@@ -151,15 +153,15 @@ type StorageSpec struct {
 // ConnectedDatabase is a reference to Database object which is
 // currently running on top of this Storage object.
 type ConnectedDatabase struct {
-	Name  string `json:"name"`
-	State string `json:"state"`
+	Name  string                 `json:"name"`
+	State constants.ClusterState `json:"state"`
 }
 
 // StorageStatus defines the observed state of Storage
 type StorageStatus struct {
-	State              string              `json:"state"`
-	ConnectedDatabases []ConnectedDatabase `json:"connectedDatabases,omitempty"`
-	Conditions         []metav1.Condition  `json:"conditions,omitempty"`
+	State              constants.ClusterState `json:"state"`
+	ConnectedDatabases []ConnectedDatabase    `json:"connectedDatabases,omitempty"`
+	Conditions         []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true

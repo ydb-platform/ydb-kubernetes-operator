@@ -115,7 +115,7 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
-	if storage.Status.State != string(DatabaseReady) {
+	if storage.Status.State != DatabaseReady {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
@@ -187,7 +187,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			"Syncing",
 			fmt.Sprintf("Failed to list cluster pods: %s", err),
 		)
-		database.Status.State = string(DatabaseProvisioning)
+		database.Status.State = DatabaseProvisioning
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
@@ -323,8 +323,8 @@ func (r *Reconciler) setInitialStatus(
 		})
 		changed = true
 	}
-	if database.Status.State == string(DatabasePending) {
-		database.Status.State = string(DatabaseInitializing)
+	if database.Status.State == DatabasePending {
+		database.Status.State = DatabaseInitializing
 		changed = true
 	}
 	if changed {
@@ -345,7 +345,7 @@ func (r *Reconciler) setInitDatabaseCompleted(
 		Message: message,
 	})
 
-	database.Status.State = string(DatabaseReady)
+	database.Status.State = DatabaseReady
 	return r.setState(ctx, database)
 }
 
@@ -609,9 +609,9 @@ func (r *Reconciler) handlePauseResume(
 	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Database")
-	if database.Status.State == string(DatabaseReady) && database.Spec.Pause == PausePaused {
+	if database.Status.State == DatabaseReady && database.Spec.Pause == PausePaused {
 		r.Log.Info("`pause: Paused` was noticed, attempting to delete Database StatefulSet")
-		database.Status.State = string(StoragePaused)
+		database.Status.State = StoragePaused
 
 		statefulSet := &appsv1.StatefulSet{}
 		err := r.Client.Get(context.TODO(),
@@ -648,11 +648,11 @@ func (r *Reconciler) handlePauseResume(
 		return r.setState(ctx, database)
 	}
 
-	if database.Status.State == string(DatabasePaused) && database.Spec.Pause == PauseRunning {
+	if database.Status.State == DatabasePaused && database.Spec.Pause == PauseRunning {
 		r.Log.Info("`pause: Running` was noticed, moving Database to `Pending`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 
-		database.Status.State = string(DatabaseReady)
+		database.Status.State = DatabaseReady
 		return r.setState(ctx, database)
 	}
 

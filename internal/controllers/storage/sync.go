@@ -84,10 +84,10 @@ func (r *Reconciler) waitForStatefulSetToScale(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale for Storage")
 
-	if storage.Status.State == string(StoragePreparing) {
+	if storage.Status.State == StoragePreparing {
 		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storage.Spec.Nodes)
 		r.Recorder.Event(storage, corev1.EventTypeNormal, string(StorageProvisioning), msg)
-		storage.Status.State = string(StorageProvisioning)
+		storage.Status.State = StorageProvisioning
 		return r.setState(ctx, storage)
 	}
 
@@ -360,9 +360,9 @@ func (r *Reconciler) handlePauseResume(
 	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Storage")
-	if storage.Status.State == string(StorageReady) && storage.Spec.Pause == PausePaused {
+	if storage.Status.State == StorageReady && storage.Spec.Pause == PausePaused {
 		r.Log.Info("`pause: Paused` was noticed, attempting to delete Storage StatefulSet")
-		storage.Status.State = string(StoragePaused)
+		storage.Status.State = StoragePaused
 
 		statefulSet := &appsv1.StatefulSet{}
 		err := r.Client.Get(context.TODO(),
@@ -397,7 +397,7 @@ func (r *Reconciler) handlePauseResume(
 		return r.setState(ctx, storage)
 	}
 
-	if storage.Status.State == string(StoragePaused) && storage.Spec.Pause == PauseRunning {
+	if storage.Status.State == StoragePaused && storage.Spec.Pause == PauseRunning {
 		r.Log.Info("`pause: Running` was noticed, moving Storage to `Pending`")
 		meta.RemoveStatusCondition(&storage.Status.Conditions, StoragePausedCondition)
 
@@ -406,7 +406,7 @@ func (r *Reconciler) handlePauseResume(
 		// To get this behaviour, I need to save the StorageInitializedCondition when moving from Running to Paused
 		// instead of clearing it
 
-		storage.Status.State = string(StoragePending) // TODOPAUSE <-- wtf is this cast `string()`. I should get rid of it somehow
+		storage.Status.State = StoragePending
 		return r.setState(ctx, storage)
 	}
 

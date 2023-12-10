@@ -85,7 +85,7 @@ func (r *DatabaseMonitoringReconciler) waitForDatabase(ctx context.Context, cr *
 		r.Recorder.Eventf(cr, core.EventTypeWarning, "Error",
 			"Unable to find YDB Database %s: %s", nsName.String(), err.Error())
 		return nil, err
-	} else if found.Status.State != string(DatabaseReady) {
+	} else if found.Status.State != DatabaseReady {
 		r.Recorder.Eventf(cr, core.EventTypeNormal, "Pending",
 			"YDB Database %s state %s is not ready",
 			nsName.String(), found.Status.State)
