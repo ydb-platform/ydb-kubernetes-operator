@@ -35,7 +35,10 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	var err error
 
 	database := resources.NewDatabase(ydbCr)
-	database.SetStatusOnFirstReconcile() // TODOPAUSE make here the same as in storage
+	stop, result, err = database.SetStatusOnFirstReconcile()
+	if stop {
+		return result, err
+	}
 
 	stop, result, err = r.waitForClusterResources(ctx, &database)
 	if stop {

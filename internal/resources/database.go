@@ -4,11 +4,14 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -26,13 +29,23 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	return DatabaseBuilder{Database: cr, Storage: nil}
 }
 
-func (b *DatabaseBuilder) SetStatusOnFirstReconcile() bool {
-	changed := false
+func (b *DatabaseBuilder) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
-		changed = true
+
+		if b.Spec.Pause == PausePaused {
+			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
+				Type:    DatabasePausedCondition,
+				Status:  "True",
+				Reason:  DatabasePausedReason,
+				Message: "pause: Paused is set on Database",
+			})
+
+			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+		}
 	}
-	return changed
+
+	return Continue, ctrl.Result{}, nil
 }
 
 func (b *DatabaseBuilder) Unwrap() *api.Database {
