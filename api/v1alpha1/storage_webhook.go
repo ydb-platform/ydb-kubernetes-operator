@@ -177,7 +177,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
-		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
@@ -189,5 +189,8 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 }
 
 func (r *Storage) ValidateDelete() error {
+	if r.Status.State != StoragePaused {
+		return fmt.Errorf("storage deletion is only possible from `Paused` state, current state %v", r.Status.State)
+	}
 	return nil
 }

@@ -37,6 +37,11 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
+	stop, result, err = r.checkStorageFrozen(ctx, &storage)
+	if stop {
+		return result, err
+	}
+
 	stop, result, err = r.handleResourcesSync(ctx, &storage)
 	if stop {
 		return result, err
@@ -46,12 +51,19 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) &&
-		!meta.IsStatusConditionTrue(storage.Status.Conditions, StoragePausedCondition) {
-		stop, result, err = r.setInitialStatus(ctx, &storage)
-		if stop {
-			return result, err
+	initialized := meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition)
+	currentlyPaused := meta.IsStatusConditionTrue(storage.Status.Conditions, StoragePausedCondition)
+
+	if !currentlyPaused { //nolint:nestif
+		if !initialized {
+			stop, result, err = r.setInitialStatus(ctx, &storage)
+			if stop {
+				return result, err
+			}
 		}
+
+		// These steps should always run, storage might be initialized
+		// but the pods are not ready yet
 		stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
 		if stop {
 			return result, err
@@ -60,13 +72,16 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.initializeStorage(ctx, &storage, auth)
-		if stop {
-			return result, err
+
+		if !initialized {
+			stop, result, err = r.initializeStorage(ctx, &storage, auth)
+			if stop {
+				return result, err
+			}
 		}
 	}
 
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StoragePausedCondition) {
+	if !currentlyPaused {
 		stop, result, err = r.runSelfCheck(ctx, &storage, auth, false)
 		if stop {
 			return result, err
@@ -258,7 +273,7 @@ func (r *Reconciler) runSelfCheck(
 	if waitForGoodResultWithoutIssues && result.SelfCheckResult.String() != "GOOD" {
 		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
 	}
-	// return Continue, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, nil
+
 	return Continue, ctrl.Result{}, nil
 }
 
@@ -279,6 +294,7 @@ func (r *Reconciler) setState(
 	oldStatus := storageCr.Status.State
 	storageCr.Status.State = storage.Status.State
 	storageCr.Status.Conditions = storage.Status.Conditions
+	storageCr.Status.StateBeforePausing = storage.Status.StateBeforePausing
 
 	err = r.Status().Update(ctx, storageCr)
 	if err != nil {
@@ -368,12 +384,10 @@ func (r *Reconciler) handlePauseResume(
 	r.Log.Info("running step handlePauseResume for Storage")
 	if storage.Status.State == StorageReady && storage.Spec.Pause == PausedState {
 		r.Log.Info("`pause: Paused` was noticed, attempting to delete Storage StatefulSet")
-		storage.Status.State = StoragePaused
-
 		statefulSet := &appsv1.StatefulSet{}
 		err := r.Client.Get(ctx,
 			types.NamespacedName{
-				Name:      storage.Name, // TODOPAUSE assuming implicitly storageName and statefulSetName are the same
+				Name:      storage.Name,
 				Namespace: storage.Namespace,
 			},
 			statefulSet,
@@ -389,16 +403,15 @@ func (r *Reconciler) handlePauseResume(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		for _, condition := range storage.Status.Conditions {
-			meta.RemoveStatusCondition(&storage.Status.Conditions, condition.Type)
-		}
-
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StoragePausedCondition,
 			Status:  "True",
 			Reason:  StoragePausedReason,
 			Message: "pause: Paused is set on Storage",
 		})
+
+		storage.Status.StateBeforePausing = storage.Status.State
+		storage.Status.State = StoragePaused
 
 		return r.setState(ctx, storage)
 	}
@@ -407,12 +420,35 @@ func (r *Reconciler) handlePauseResume(
 		r.Log.Info("`pause: Running` was noticed, moving Storage to `Pending`")
 		meta.RemoveStatusCondition(&storage.Status.Conditions, StoragePausedCondition)
 
-		// TODOPAUSE Hmmm, do I really need to call `init` again after deleting and resuming pods?
-		// Does not really look this way, I think I will have to skip it somehow
-		// To get this behavior, I need to save the StorageInitializedCondition when moving from Running to Paused
-		// instead of clearing it
+		storage.Status.State = storage.Status.StateBeforePausing
+		storage.Status.StateBeforePausing = ""
+		return r.setState(ctx, storage)
+	}
 
-		storage.Status.State = StoragePending
+	return Continue, ctrl.Result{}, nil
+}
+
+func (r *Reconciler) checkStorageFrozen(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step checkStorageFrozen for Storage")
+	if storage.Status.State != StorageFrozen && storage.Spec.Pause == FrozenState {
+		r.Log.Info("setting `pause: Frozen` is set, previuos state was " + string(storage.Status.State))
+		storage.Status.StateBeforePausing = storage.Status.State
+		storage.Status.State = StorageFrozen
+		return r.setState(ctx, storage)
+	}
+
+	if storage.Status.State == StorageFrozen && storage.Spec.Pause == FrozenState {
+		r.Log.Info("`pause: Frozen` is set, no further steps will be run")
+		return Stop, ctrl.Result{}, nil
+	}
+
+	if storage.Status.State == StorageFrozen && storage.Spec.Pause != FrozenState {
+		r.Log.Info("`pause: Frozen` is removed, setting state back to " + string(storage.Status.StateBeforePausing))
+		storage.Status.State = storage.Status.StateBeforePausing
+		storage.Status.StateBeforePausing = ""
 		return r.setState(ctx, storage)
 	}
 

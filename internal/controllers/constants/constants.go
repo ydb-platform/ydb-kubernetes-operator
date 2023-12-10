@@ -32,6 +32,7 @@ const (
 	DatabaseInitializing ClusterState = "Initializing"
 	DatabaseReady        ClusterState = "Ready"
 	DatabasePaused       ClusterState = "Paused"
+	DatabaseFrozen       ClusterState = "Frozen"
 
 	DatabaseTenantInitializedCondition        = "TenantInitialized"
 	DatabaseTenantInitializedReasonInProgress = ReasonInProgress
@@ -43,6 +44,7 @@ const (
 	StorageInitializing ClusterState = "Initializing"
 	StorageReady        ClusterState = "Ready"
 	StoragePaused       ClusterState = "Paused"
+	StorageFrozen       ClusterState = "Frozen"
 
 	StorageInitializedCondition        = "StorageReady"
 	StorageInitializedReasonInProgress = ReasonInProgress

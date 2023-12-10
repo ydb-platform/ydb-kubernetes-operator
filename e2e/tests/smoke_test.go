@@ -12,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -278,6 +279,156 @@ var _ = Describe("Operator smoke test", func() {
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 	})
 
+	It("abcd", func() {
+		By("issuing create commands...")
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
+
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("setting storage pause to Frozen...")
+		storage := v1alpha1.Storage{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      storageSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &storage)).Should(Succeed())
+
+		storage.Spec.Pause = FrozenState
+		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
+
+		By("expecting all Pods to stay alive for a while...")
+		Consistently(func(g Gomega) bool {
+			storagePods := corev1.PodList{}
+			g.Expect(k8sClient.List(ctx, &storagePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+				"ydb-cluster": "kind-storage",
+			})).Should(Succeed())
+
+			return len(storagePods.Items) == int(storageSample.Spec.Nodes)
+		}, 20*time.Second, Interval).Should(BeTrue())
+
+		By("deleting a StatefulSet...")
+		statefulSet := v1.StatefulSet{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      storageSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &statefulSet)).Should(Succeed())
+		Expect(k8sClient.Delete(ctx, &statefulSet)).Should(Succeed())
+
+		By("storage pods must all go down...")
+		Eventually(func(g Gomega) bool {
+			storagePods := corev1.PodList{}
+			g.Expect(k8sClient.List(ctx, &storagePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+				"ydb-cluster": "kind-storage",
+			})).Should(Succeed())
+
+			return len(storagePods.Items) == 0
+		}, 20*time.Second, Interval).Should(BeTrue())
+		By("... and then storage pods must not restart for a while...")
+		Consistently(func(g Gomega) bool {
+			storagePods := corev1.PodList{}
+			g.Expect(k8sClient.List(ctx, &storagePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+				"ydb-cluster": "kind-storage",
+			})).Should(Succeed())
+
+			return len(storagePods.Items) == 0
+		}, 20*time.Second, Interval).Should(BeTrue())
+
+		By("setting storage pause back to Running...")
+		storage = v1alpha1.Storage{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      storageSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &storage)).Should(Succeed())
+
+		storage.Spec.Pause = RunningState
+		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
+
+		By("expecting storage to become ready again...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("creating database...")
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+
+		By("waiting until database is ready...")
+		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the database pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		By("setting database pause to Frozen...")
+		database := v1alpha1.Database{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &database)).Should(Succeed())
+
+		database.Spec.Pause = FrozenState
+		Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
+
+		By("expecting all Database Pods to stay alive for a while...")
+		Consistently(func(g Gomega) bool {
+			databasePods := corev1.PodList{}
+			g.Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+				"ydb-cluster": "kind-database",
+			})).Should(Succeed())
+
+			return len(databasePods.Items) == int(databaseSample.Spec.Nodes)
+		}, 20*time.Second, Interval).Should(BeTrue())
+
+		By("deleting a Database StatefulSet...")
+		statefulSet = v1.StatefulSet{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &statefulSet)).Should(Succeed())
+		Expect(k8sClient.Delete(ctx, &statefulSet)).Should(Succeed())
+
+		By("database pods must all go down...")
+		Eventually(func(g Gomega) bool {
+			databasePods := corev1.PodList{}
+			g.Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+				"ydb-cluster": "kind-database",
+			})).Should(Succeed())
+
+			return len(databasePods.Items) == 0
+		}, 20*time.Second, Interval).Should(BeTrue())
+
+		By("... and then database pods must not restart for a while...")
+		Consistently(func(g Gomega) bool {
+			databasePods := corev1.PodList{}
+			g.Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+				"ydb-cluster": "kind-database",
+			})).Should(Succeed())
+
+			return len(databasePods.Items) == 0
+		}, 20*time.Second, Interval).Should(BeTrue())
+
+		By("setting database pause back to Running...")
+		database = v1alpha1.Database{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &database)).Should(Succeed())
+
+		database.Spec.Pause = RunningState
+		Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
+
+		By("expecting database to become ready again...")
+		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+	})
+
 	It("pause and un-pause Database, should destroy and bring up Pods", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
@@ -342,7 +493,7 @@ var _ = Describe("Operator smoke test", func() {
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
 
 		By("checking that all the storage pods are running and ready...")
-		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 	})
 
 	It("storage.State goes Pending -> Preparing -> Provisioning -> Initializing -> Ready", func() {

@@ -42,7 +42,7 @@ type DatabaseSpec struct {
 
 	// The state of the Database processes. Can be one of `Paused`, `Running` or `Frozen`.
 	// `Paused` means all the Storage Pods are being killed, but the Storage resource is persisted.
-	// `Frozen` means the StatefulSet has no checks on its Pods. // TODOPAUSE clean definition
+	// `Frozen` means all the Pods are running, but the reconcile is effectively turned off.
 	// `Running` means the default state of the system, all Pods running.
 	// +kubebuilder:default:=Running
 	// +optional
@@ -191,8 +191,9 @@ type StorageUnit struct {
 
 // DatabaseStatus defines the observed state of Database
 type DatabaseStatus struct {
-	State      constants.ClusterState `json:"state"`
-	Conditions []metav1.Condition     `json:"conditions,omitempty"`
+	State              constants.ClusterState `json:"state"`
+	Conditions         []metav1.Condition     `json:"conditions,omitempty"`
+	StateBeforePausing constants.ClusterState `json:"stateBeforePausing,omitempty"`
 }
 
 //+kubebuilder:object:root=true

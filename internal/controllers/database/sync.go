@@ -40,6 +40,11 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
+	stop, result, err = r.checkDatabaseFrozen(ctx, &database)
+	if stop {
+		return result, err
+	}
+
 	stop, result, err = r.waitForClusterResources(ctx, &database)
 	if stop {
 		return result, err
@@ -57,18 +62,26 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseTenantInitializedCondition) {
-		stop, result, err = r.setInitialStatus(ctx, &database)
-		if stop {
-			return result, err
+	initialized := meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseTenantInitializedCondition)
+	currentlyPaused := meta.IsStatusConditionTrue(database.Status.Conditions, DatabasePausedCondition)
+
+	if !currentlyPaused { //nolint:nestif
+		if !initialized {
+			stop, result, err = r.setInitialStatus(ctx, &database)
+			if stop {
+				return result, err
+			}
 		}
 		stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
 		if stop {
 			return result, err
 		}
-		stop, result, err = r.handleTenantCreation(ctx, &database, auth)
-		if stop {
-			return result, err
+
+		if !initialized {
+			stop, result, err = r.handleTenantCreation(ctx, &database, auth)
+			if stop {
+				return result, err
+			}
 		}
 	}
 
@@ -77,7 +90,7 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	return ctrl.Result{Requeue: false}, nil
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) waitForClusterResources(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
@@ -619,7 +632,7 @@ func (r *Reconciler) handlePauseResume(
 		statefulSet := &appsv1.StatefulSet{}
 		err := r.Client.Get(ctx,
 			types.NamespacedName{
-				Name:      database.Name, // TODOPAUSE assuming implicitly storageName and statefulSetName are the same
+				Name:      database.Name,
 				Namespace: database.Namespace,
 			},
 			statefulSet,
@@ -655,7 +668,35 @@ func (r *Reconciler) handlePauseResume(
 		r.Log.Info("`pause: Running` was noticed, moving Database to `Pending`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 
+		// TODOPAUSE FIXME setting ready before pods even start is wrong.
 		database.Status.State = DatabaseReady
+		return r.setState(ctx, database)
+	}
+
+	return Continue, ctrl.Result{}, nil
+}
+
+func (r *Reconciler) checkDatabaseFrozen(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step checkDatabaseFrozen for Database")
+	if database.Status.State != DatabaseFrozen && database.Spec.Pause == FrozenState {
+		r.Log.Info("setting `pause: Frozen` is set, previuos state was " + string(database.Status.State))
+		database.Status.StateBeforePausing = database.Status.State
+		database.Status.State = DatabaseFrozen
+		return r.setState(ctx, database)
+	}
+
+	if database.Status.State == DatabaseFrozen && database.Spec.Pause == FrozenState {
+		r.Log.Info("`pause: Frozen` is set, no further steps will be run")
+		return Stop, ctrl.Result{}, nil
+	}
+
+	if database.Status.State == DatabaseFrozen && database.Spec.Pause != FrozenState {
+		r.Log.Info("`pause: Frozen` is removed, setting state back to " + string(database.Status.StateBeforePausing))
+		database.Status.State = database.Status.StateBeforePausing
+		database.Status.StateBeforePausing = ""
 		return r.setState(ctx, database)
 	}
 

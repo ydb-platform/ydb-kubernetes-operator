@@ -2507,8 +2507,8 @@ spec:
                 default: Running
                 description: The state of the Storage processes. Can be one of `Paused`,
                   `Running` or `Frozen`. `Paused` means all the Storage Pods are being
-                  killed, but the Storage resource is persisted. `Frozen` means the
-                  StatefulSet has no checks on its Pods. // TODOPAUSE clean definition
+                  killed, but the Storage resource is persisted. `Frozen` means all
+                  the Pods are running, but the reconcile is effectively turned off.
                   `Running` means the default state of the system, all Pods running.
                 type: string
               priorityClassName:
@@ -4630,6 +4630,8 @@ spec:
                   type: object
                 type: array
               state:
+                type: string
+              stateBeforePausing:
                 type: string
             required:
             - state
