@@ -29,7 +29,7 @@ type DatabaseSpec struct {
 	Encryption *EncryptionConfig `json:"encryption,omitempty"`
 
 	// Additional volumes that will be mounted into the well-known directory of
-	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+	// every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
 	// Only `hostPath` volume type is supported for now.
 	// +optional
 	Volumes []*corev1.Volume `json:"volumes,omitempty"`
@@ -37,6 +37,14 @@ type DatabaseSpec struct {
 	// Datastreams config
 	// +optional
 	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
+
+	// The state of the Database processes. Can be one of `Paused`, `Running` or `Frozen`.
+	// `Paused` means all the Storage Pods are being killed, but the Storage resource is persisted.
+	// `Frozen` means the StatefulSet has no checks on its Pods. // TODOPAUSE clean definition
+	// `Running` means the default state of the system, all Pods running.
+	// +kubebuilder:default:=Running
+	// +optional
+	Pause string `json:"pause,omitempty"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root

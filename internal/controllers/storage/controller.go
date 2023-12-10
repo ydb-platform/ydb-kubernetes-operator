@@ -19,6 +19,7 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 // Reconciler reconciles a Storage object

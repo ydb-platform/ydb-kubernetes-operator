@@ -2285,6 +2285,14 @@ spec:
                 maxLength: 255
                 pattern: /[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
                 type: string
+              pause:
+                default: Running
+                description: The state of the Database processes. Can be one of `Paused`,
+                  `Running` or `Frozen`. `Paused` means all the Storage Pods are being
+                  killed, but the Storage resource is persisted. `Frozen` means the
+                  StatefulSet has no checks on its Pods. // TODOPAUSE clean definition
+                  `Running` means the default state of the system, all Pods running.
+                type: string
               priorityClassName:
                 description: (Optional) If specified, the pod's priorityClassName.
                 type: string
@@ -2988,7 +2996,7 @@ spec:
                 type: string
               volumes:
                 description: 'Additional volumes that will be mounted into the well-known
-                  directory of every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+                  directory of every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
                   Only `hostPath` volume type is supported for now.'
                 items:
                   description: Volume represents a named volume in a pod that may

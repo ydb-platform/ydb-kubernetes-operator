@@ -8,15 +8,13 @@ import (
 
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"google.golang.org/grpc/metadata"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -73,8 +71,8 @@ func (r *Reconciler) setInitialStatus(
 		})
 		changed = true
 	}
-	if storage.Status.State == string(Pending) {
-		storage.Status.State = string(Preparing)
+	if storage.Status.State == string(StoragePending) {
+		storage.Status.State = string(StoragePreparing)
 		changed = true
 	}
 	if changed {
@@ -95,7 +93,7 @@ func (r *Reconciler) setInitStorageCompleted(
 		Message: message,
 	})
 
-	storage.Status.State = string(Ready)
+	storage.Status.State = string(StorageReady)
 	return r.setState(ctx, storage)
 }
 
@@ -106,8 +104,8 @@ func (r *Reconciler) initializeStorage(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
 
-	if storage.Status.State == string(Provisioning) {
-		storage.Status.State = string(Initializing)
+	if storage.Status.State == string(StorageProvisioning) {
+		storage.Status.State = string(StorageInitializing)
 		return r.setState(ctx, storage)
 	}
 
@@ -170,44 +168,4 @@ func (r *Reconciler) initializeStorage(
 	}
 
 	return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
-}
-
-func (r *Reconciler) handlePauseResume(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-	creds ydbCredentials.Credentials,
-) (bool, ctrl.Result, error) {
-	if storage.Status.State == string(Ready) && storage.Spec.Pause == constants.PausePaused {
-		r.Log.Info("Operator noticed that Running -> Paused")
-		storage.Status.State = string(Paused)
-
-		statefulSet := &appsv1.StatefulSet{}
-		err := r.Client.Get(context.TODO(),
-			types.NamespacedName{
-				Name:      storage.Name, // TODOPAUSE assuming implicitly storageName and statefulSetName are the same
-				Namespace: storage.Namespace,
-			},
-			statefulSet,
-		)
-		if err != nil {
-			r.Log.Error(err, "Failed to get the StatefulSet object before deletion")
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-
-		err = r.Client.Delete(context.TODO(), statefulSet)
-		if err != nil {
-			r.Log.Error(err, "Failed to delete the StatefulSet object when moving from Ready -> Paused")
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-		return r.setState(ctx, storage)
-	}
-
-	if storage.Status.State == string(Paused) && storage.Spec.Pause == constants.PauseRunning {
-		r.Log.Info("Operator noticed that Paused -> Running")
-		storage.Status.State = string(Ready)
-		// TODOPAUSE actually create the new StatefulSet
-		return r.setState(ctx, storage)
-	}
-
-	return Continue, ctrl.Result{}, nil
 }

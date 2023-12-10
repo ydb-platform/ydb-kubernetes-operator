@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"time"
 
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,34 +21,13 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-const (
-	Pending      ClusterState = "Pending"
-	Provisioning ClusterState = "Provisioning"
-	Initializing ClusterState = "Initializing"
-	Ready        ClusterState = "Ready"
-
-	DefaultRequeueDelay             = 10 * time.Second
-	StatusUpdateRequeueDelay        = 1 * time.Second
-	TenantCreationRequeueDelay      = 30 * time.Second
-	StorageAwaitRequeueDelay        = 30 * time.Second
-	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
-
-	TenantInitializedCondition        = "TenantInitialized"
-	TenantInitializedReasonInProgress = "InProgres"
-	TenantInitializedReasonCompleted  = "Completed"
-
-	Stop     = true
-	Continue = false
-)
-
 var ErrIncorrectDatabaseResourcesConfiguration = errors.New("incorrect database resources configuration, " +
 	"must be one of: Resources, SharedResources, ServerlessResources")
-
-type ClusterState string
 
 func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.Result, error) {
 	var stop bool
@@ -57,7 +35,7 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	var err error
 
 	database := resources.NewDatabase(ydbCr)
-	database.SetStatusOnFirstReconcile()
+	database.SetStatusOnFirstReconcile() // TODOPAUSE make here the same as in storage
 
 	stop, result, err = r.waitForClusterResources(ctx, &database)
 	if stop {
@@ -67,12 +45,16 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	if stop {
 		return result, err
 	}
+	stop, result, err = r.letStorageKnowAboutThisDatabase(ctx, &database)
+	if stop {
+		return result, err
+	}
 	auth, result, err := r.getYDBCredentials(ctx, &database)
 	if auth == nil {
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
+	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseTenantInitializedCondition) {
 		stop, result, err = r.setInitialStatus(ctx, &database)
 		if stop {
 			return result, err
@@ -86,6 +68,12 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 			return result, err
 		}
 	}
+
+	stop, result, err = r.handlePauseResume(ctx, &database, auth)
+	if stop {
+		return result, err
+	}
+
 	return ctrl.Result{Requeue: false}, nil
 }
 
@@ -124,7 +112,7 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
-	if storage.Status.State != string(Ready) {
+	if storage.Status.State != string(DatabaseReady) {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
@@ -196,7 +184,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			"Syncing",
 			fmt.Sprintf("Failed to list cluster pods: %s", err),
 		)
-		database.Status.State = string(Provisioning)
+		database.Status.State = string(DatabaseProvisioning)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
@@ -209,7 +197,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if runningPods != int(database.Spec.Nodes) {
 		msg := fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes)
-		r.Recorder.Event(database, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(database, corev1.EventTypeNormal, string(DatabaseProvisioning), msg)
 		return r.setState(ctx, database)
 	}
 
@@ -252,6 +240,11 @@ func (r *Reconciler) handleResourcesSync(
 
 			return nil
 		}, func(oldObj, newObj runtime.Object) bool {
+			if _, ok := newObj.(*appsv1.StatefulSet); ok {
+				if database.Spec.Pause == PausePaused && oldObj == nil {
+					return true
+				}
+			}
 			return false
 		})
 
@@ -310,25 +303,25 @@ func (r *Reconciler) setInitialStatus(
 	r.Log.Info("running step setInitialStatus")
 
 	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil ||
-			meta.IsStatusConditionFalse(database.Status.Conditions, TenantInitializedCondition) {
+		if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(database.Status.Conditions, DatabaseTenantInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, database)
 		}
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
 	changed := false
-	if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil {
+	if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    TenantInitializedCondition,
+			Type:    DatabaseTenantInitializedCondition,
 			Status:  "False",
-			Reason:  TenantInitializedReasonInProgress,
+			Reason:  DatabaseTenantInitializedReasonInProgress,
 			Message: "Tenant creation in progress",
 		})
 		changed = true
 	}
-	if database.Status.State == string(Pending) {
-		database.Status.State = string(Initializing)
+	if database.Status.State == string(DatabasePending) {
+		database.Status.State = string(DatabaseInitializing)
 		changed = true
 	}
 	if changed {
@@ -343,13 +336,13 @@ func (r *Reconciler) setInitDatabaseCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    TenantInitializedCondition,
+		Type:    DatabaseTenantInitializedCondition,
 		Status:  "True",
-		Reason:  TenantInitializedReasonCompleted,
+		Reason:  DatabaseTenantInitializedReasonCompleted,
 		Message: message,
 	})
 
-	database.Status.State = string(Ready)
+	database.Status.State = string(DatabaseReady)
 	return r.setState(ctx, database)
 }
 
@@ -470,6 +463,48 @@ func (r *Reconciler) handleTenantCreation(
 	)
 }
 
+func (r *Reconciler) letStorageKnowAboutThisDatabase(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
+	storageNamespace := database.Namespace
+	if database.Spec.StorageClusterRef.Namespace != "" {
+		storageNamespace = database.Spec.StorageClusterRef.Namespace
+	}
+
+	storage := &v1alpha1.Storage{}
+	_ = r.Client.Get(context.TODO(),
+		types.NamespacedName{
+			Name:      database.Spec.StorageClusterRef.Name,
+			Namespace: storageNamespace,
+		},
+		storage,
+	)
+
+	var newConnectedDatabases []v1alpha1.ConnectedDatabase
+	for _, connectedDatabase := range storage.Status.ConnectedDatabases {
+		if connectedDatabase.Name == database.Name {
+			continue
+		}
+		newConnectedDatabases = append(newConnectedDatabases, connectedDatabase)
+	}
+
+	newConnectedDatabases = append(newConnectedDatabases,
+		v1alpha1.ConnectedDatabase{
+			Name:  database.Name,
+			State: database.Status.State,
+		})
+
+	storage.Status.ConnectedDatabases = newConnectedDatabases
+
+	if err := r.Client.Status().Update(context.TODO(), storage); err != nil {
+		r.Log.Error(err, "failed to update the ConnectedDatabase list of parent Storage")
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	return Continue, ctrl.Result{}, nil
+}
+
 func (r *Reconciler) setState(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
@@ -563,4 +598,60 @@ func (r *Reconciler) getSecretKey(
 		)
 	}
 	return string(secretVal), nil
+}
+
+func (r *Reconciler) handlePauseResume(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+	creds ydbCredentials.Credentials,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handlePauseResume for Database")
+	if database.Status.State == string(DatabaseReady) && database.Spec.Pause == PausePaused {
+		r.Log.Info("`pause: Paused` was noticed, attempting to delete Database StatefulSet")
+		database.Status.State = string(StoragePaused)
+
+		statefulSet := &appsv1.StatefulSet{}
+		err := r.Client.Get(context.TODO(),
+			types.NamespacedName{
+				Name:      database.Name, // TODOPAUSE assuming implicitly storageName and statefulSetName are the same
+				Namespace: database.Namespace,
+			},
+			statefulSet,
+		)
+		if err != nil {
+			r.Log.Error(err, "failed to get the Database StatefulSet object before deletion")
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		err = r.Client.Delete(context.TODO(), statefulSet)
+		if err != nil {
+			r.Log.Error(err, "failed to delete the Database StatefulSet object when moving from Ready -> Paused")
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		for _, condition := range database.Status.Conditions {
+			if condition.Type != DatabaseTenantInitializedCondition {
+				meta.RemoveStatusCondition(&database.Status.Conditions, condition.Type)
+			}
+		}
+
+		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+			Type:    DatabasePausedCondition,
+			Status:  "True",
+			Reason:  DatabasePausedReason,
+			Message: "pause: Paused is set on Database",
+		})
+
+		return r.setState(ctx, database)
+	}
+
+	if database.Status.State == string(DatabasePaused) && database.Spec.Pause == PauseRunning {
+		r.Log.Info("`pause: Running` was noticed, moving Database to `Pending`")
+		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
+
+		database.Status.State = string(DatabaseReady)
+		return r.setState(ctx, database)
+	}
+
+	return Continue, ctrl.Result{}, nil
 }

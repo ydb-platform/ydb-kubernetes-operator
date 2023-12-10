@@ -10,6 +10,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 // log is for logging in this package.
@@ -153,6 +155,16 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
 	}
 
+	if storage, ok := old.(*Storage); ok {
+		if r.Spec.Pause == PausePaused {
+			for _, database := range storage.Status.ConnectedDatabases {
+				if database.State == string(DatabaseReady) {
+					return fmt.Errorf("can not set Pause for Storage which has running Databases: %s", database.Name)
+				}
+			}
+		}
+	}
+
 	yamlConfig := PartialYamlConfig{}
 	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
 	if err != nil {
@@ -173,7 +185,6 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return crdCheckError
 	}
 
-	// TODO(user): fill in your validation logic upon object update.
 	return nil
 }
 

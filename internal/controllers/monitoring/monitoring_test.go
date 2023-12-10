@@ -17,9 +17,8 @@ import (
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
@@ -111,7 +110,7 @@ func createMockDBAndSvc() {
 	db := testobjects.DefaultDatabase()
 	Expect(k8sClient.Create(ctx, db)).Should(Succeed())
 
-	db.Status.State = string(database.Ready)
+	db.Status.State = string(constants.DatabaseReady)
 	Expect(k8sClient.Status().Update(ctx, db)).Should(Succeed())
 
 	createMockSvc("database-svc-status", "Database", db)
@@ -123,7 +122,7 @@ func createMockStorageAndSvc() {
 	stor := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
 	Expect(k8sClient.Create(ctx, stor)).Should(Succeed())
 
-	stor.Status.State = string(storage.Ready)
+	stor.Status.State = string(constants.StorageReady)
 	Expect(k8sClient.Status().Update(ctx, stor)).Should(Succeed())
 
 	createMockSvc("storage-svc-status", "Storage", stor)

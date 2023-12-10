@@ -23,15 +23,6 @@ type StorageSpec struct {
 	// +kubebuilder:default:=block-4-2
 	Erasure ErasureType `json:"erasure"`
 
-	// The state of the Storage. Can be one of `Paused`, `Running` or `Frozen`.
-	// `Paused` means all the Storage Pods are being killed, but the Storage resource is persisted.
-	// `Frozen` means the StatefulSet has no checks on its Pods. // TODOPAUSE clean definition
-	// `Running` means the default state of the system, all Pods running.
-	// +optional
-	// +kubebuilder:validation:Enum=Paused;Running;Frozen;none
-	// +kubebuilder:default:=Running
-	Pause string `json:"pause,omitEmpty"`
-
 	// Where cluster data should be kept
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`
@@ -45,6 +36,14 @@ type StorageSpec struct {
 	// Default: (not specified)
 	// +optional
 	Service StorageServices `json:"service,omitempty"`
+
+	// The state of the Storage processes. Can be one of `Paused`, `Running` or `Frozen`.
+	// `Paused` means all the Storage Pods are being killed, but the Storage resource is persisted.
+	// `Frozen` means the StatefulSet has no checks on its Pods. // TODOPAUSE clean definition
+	// `Running` means the default state of the system, all Pods running.
+	// +kubebuilder:default:=Running
+	// +optional
+	Pause string `json:"pause,omitempty"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root
@@ -101,7 +100,7 @@ type StorageSpec struct {
 	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
 
 	// Additional volumes that will be mounted into the well-known directory of
-	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+	// every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
 	// Only `hostPath` volume type is supported for now.
 	// +optional
 	Volumes []*corev1.Volume `json:"volumes,omitempty"`
@@ -149,10 +148,18 @@ type StorageSpec struct {
 	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
+// ConnectedDatabase is a reference to Database object which is
+// currently running on top of this Storage object.
+type ConnectedDatabase struct {
+	Name  string `json:"name"`
+	State string `json:"state"`
+}
+
 // StorageStatus defines the observed state of Storage
 type StorageStatus struct {
-	State      string             `json:"state"`
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	State              string              `json:"state"`
+	ConnectedDatabases []ConnectedDatabase `json:"connectedDatabases,omitempty"`
+	Conditions         []metav1.Condition  `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
