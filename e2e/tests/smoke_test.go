@@ -21,7 +21,7 @@ import (
 
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
-	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 const (
