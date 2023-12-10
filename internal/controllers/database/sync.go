@@ -21,7 +21,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
-	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )

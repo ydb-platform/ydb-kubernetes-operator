@@ -17,7 +17,7 @@ import (
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
-	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"

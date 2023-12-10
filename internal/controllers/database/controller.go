@@ -18,7 +18,7 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
-	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive
 )
 
 // Reconciler reconciles a Database object
