@@ -72,7 +72,7 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		}
 	}
 
-	stop, result, err = r.handlePauseResume(ctx, &database, auth)
+	stop, result, err = r.handlePauseResume(ctx, &database)
 	if stop {
 		return result, err
 	}
@@ -207,6 +207,17 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
+func shouldIgnoreDatabaseChange(database *resources.DatabaseBuilder) resources.IgnoreChangesFunction {
+	return func(oldObj, newObj runtime.Object) bool {
+		if _, ok := newObj.(*appsv1.StatefulSet); ok {
+			if database.Spec.Pause == PausedState && oldObj == nil {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
@@ -216,7 +227,7 @@ func (r *Reconciler) handleResourcesSync(
 	for _, builder := range database.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(database)
 
-		result, err := resources.CreateOrUpdateWithIgnoreCheck(ctx, r.Client, newResource, func() error {
+		result, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 			var err error
 
 			err = builder.Build(newResource)
@@ -242,14 +253,7 @@ func (r *Reconciler) handleResourcesSync(
 			}
 
 			return nil
-		}, func(oldObj, newObj runtime.Object) bool {
-			if _, ok := newObj.(*appsv1.StatefulSet); ok {
-				if database.Spec.Pause == PausePaused && oldObj == nil {
-					return true
-				}
-			}
-			return false
-		})
+		}, shouldIgnoreDatabaseChange(database))
 
 		eventMessage := fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
@@ -476,7 +480,7 @@ func (r *Reconciler) letStorageKnowAboutThisDatabase(
 	}
 
 	storage := &v1alpha1.Storage{}
-	_ = r.Client.Get(context.TODO(),
+	_ = r.Client.Get(ctx,
 		types.NamespacedName{
 			Name:      database.Spec.StorageClusterRef.Name,
 			Namespace: storageNamespace,
@@ -500,7 +504,7 @@ func (r *Reconciler) letStorageKnowAboutThisDatabase(
 
 	storage.Status.ConnectedDatabases = newConnectedDatabases
 
-	if err := r.Client.Status().Update(context.TODO(), storage); err != nil {
+	if err := r.Client.Status().Update(ctx, storage); err != nil {
 		r.Log.Error(err, "failed to update the ConnectedDatabase list of parent Storage")
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -606,15 +610,14 @@ func (r *Reconciler) getSecretKey(
 func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
-	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Database")
-	if database.Status.State == DatabaseReady && database.Spec.Pause == PausePaused {
+	if database.Status.State == DatabaseReady && database.Spec.Pause == PausedState {
 		r.Log.Info("`pause: Paused` was noticed, attempting to delete Database StatefulSet")
 		database.Status.State = StoragePaused
 
 		statefulSet := &appsv1.StatefulSet{}
-		err := r.Client.Get(context.TODO(),
+		err := r.Client.Get(ctx,
 			types.NamespacedName{
 				Name:      database.Name, // TODOPAUSE assuming implicitly storageName and statefulSetName are the same
 				Namespace: database.Namespace,
@@ -626,7 +629,7 @@ func (r *Reconciler) handlePauseResume(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		err = r.Client.Delete(context.TODO(), statefulSet)
+		err = r.Client.Delete(ctx, statefulSet)
 		if err != nil {
 			r.Log.Error(err, "failed to delete the Database StatefulSet object when moving from Ready -> Paused")
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -648,7 +651,7 @@ func (r *Reconciler) handlePauseResume(
 		return r.setState(ctx, database)
 	}
 
-	if database.Status.State == DatabasePaused && database.Spec.Pause == PauseRunning {
+	if database.Status.State == DatabasePaused && database.Spec.Pause == RunningState {
 		r.Log.Info("`pause: Running` was noticed, moving Database to `Pending`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 

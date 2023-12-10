@@ -253,7 +253,7 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &storage)).Should(Succeed())
 
-		storage.Spec.Pause = PausePaused
+		storage.Spec.Pause = PausedState
 		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
 		By("expecting all Pods to die...")
@@ -272,7 +272,7 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &storage)).Should(Succeed())
 
-		storage.Spec.Pause = PauseRunning
+		storage.Spec.Pause = RunningState
 		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
 		By("expecting storage to become ready again...")
@@ -345,7 +345,7 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &database)).Should(Succeed())
 
-		database.Spec.Pause = PausePaused
+		database.Spec.Pause = PausedState
 		Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
 
 		By("expecting all Pods to die...")
@@ -364,7 +364,7 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &database)).Should(Succeed())
 
-		database.Spec.Pause = PauseRunning
+		database.Spec.Pause = RunningState
 		Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
 
 		By("expecting database to become ready again...")

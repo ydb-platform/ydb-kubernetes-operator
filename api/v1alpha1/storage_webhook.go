@@ -156,7 +156,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	if storage, ok := old.(*Storage); ok {
-		if r.Spec.Pause == PausePaused {
+		if r.Spec.Pause == PausedState {
 			for _, database := range storage.Status.ConnectedDatabases {
 				if database.State == DatabaseReady {
 					return fmt.Errorf("can not set Pause for Storage which has running Databases: %s", database.Name)

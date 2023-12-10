@@ -30,7 +30,7 @@ func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() (bool, ctrl.Result, 
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
 
-		if b.Spec.Pause == PausePaused {
+		if b.Spec.Pause == PausedState {
 			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
 				Type:    StoragePausedCondition,
 				Status:  "True",

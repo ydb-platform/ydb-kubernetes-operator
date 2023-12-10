@@ -67,39 +67,68 @@ func mutate(f ctrlutil.MutateFn, key client.ObjectKey, obj client.Object) error 
 	return nil
 }
 
-func CreateOrUpdateWithIgnoreCheck(
+type IgnoreChangesFunction func(oldObj, newObj runtime.Object) bool
+
+func tryProcessNonExistingObject(
 	ctx context.Context,
 	c client.Client,
 	obj client.Object,
 	f ctrlutil.MutateFn,
-	shouldIgnore func(oldObj, newObj runtime.Object) bool,
-) (ctrlutil.OperationResult, error) {
+	shouldIgnoreChange IgnoreChangesFunction,
+) (bool, ctrlutil.OperationResult, error) {
 	key := client.ObjectKeyFromObject(obj)
-	if err := c.Get(ctx, key, obj); err != nil {
-		if !errors.IsNotFound(err) {
-			return ctrlutil.OperationResultNone, err
-		}
-		if shouldIgnore(nil, obj) {
-			return ctrlutil.OperationResultNone, nil
-		}
-		if err := mutate(f, key, obj); err != nil {
-			return ctrlutil.OperationResultNone, err
-		}
-		if err := annotator.SetLastAppliedAnnotation(obj); err != nil {
-			return ctrlutil.OperationResultNone, err
-		}
-		if err := c.Create(ctx, obj); err != nil {
-			return ctrlutil.OperationResultNone, err
-		}
-		return ctrlutil.OperationResultCreated, nil
+
+	err := c.Get(ctx, key, obj)
+
+	if err == nil {
+		return true, ctrlutil.OperationResultNone, nil
 	}
 
+	if !errors.IsNotFound(err) {
+		return false, ctrlutil.OperationResultNone, err
+	}
+
+	// Object did not exist, but the creation of new
+	// object is not needed (e.g. paused Storage)
+	if shouldIgnoreChange(nil, obj) {
+		return false, ctrlutil.OperationResultNone, nil
+	}
+
+	if err := mutate(f, key, obj); err != nil {
+		return false, ctrlutil.OperationResultNone, err
+	}
+
+	if err := annotator.SetLastAppliedAnnotation(obj); err != nil {
+		return false, ctrlutil.OperationResultNone, err
+	}
+
+	if err := c.Create(ctx, obj); err != nil {
+		return false, ctrlutil.OperationResultNone, err
+	}
+
+	return false, ctrlutil.OperationResultCreated, nil
+}
+
+func CreateOrUpdateOrMaybeIgnore(
+	ctx context.Context,
+	c client.Client,
+	obj client.Object,
+	f ctrlutil.MutateFn,
+	shouldIgnoreChange IgnoreChangesFunction,
+) (ctrlutil.OperationResult, error) {
+	objectExisted, opResult, err := tryProcessNonExistingObject(ctx, c, obj, f, shouldIgnoreChange)
+
+	if !objectExisted {
+		return opResult, err
+	}
+
+	key := client.ObjectKeyFromObject(obj)
 	existing := obj.DeepCopyObject()
 	if err := mutate(f, key, obj); err != nil {
 		return ctrlutil.OperationResultNone, err
 	}
 
-	if shouldIgnore(existing, obj) {
+	if shouldIgnoreChange(existing, obj) {
 		return ctrlutil.OperationResultNone, nil
 	}
 

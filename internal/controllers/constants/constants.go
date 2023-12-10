@@ -5,9 +5,9 @@ import "time"
 type ClusterState string
 
 const (
-	PausePaused  = "Paused"
-	PauseFrozen  = "Frozen"
-	PauseRunning = "Running"
+	PausedState  = "Paused"
+	FrozenState  = "Frozen"
+	RunningState = "Running"
 
 	StoragePausedCondition = "StoragePaused"
 	StoragePausedReason    = "PauseIsSet"

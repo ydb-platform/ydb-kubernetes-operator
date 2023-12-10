@@ -67,10 +67,13 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StoragePausedCondition) {
-		_, result, err = r.runSelfCheck(ctx, &storage, auth, false)
+		stop, result, err = r.runSelfCheck(ctx, &storage, auth, false)
+		if stop {
+			return result, err
+		}
 	}
 
-	stop, result, err = r.handlePauseResume(ctx, &storage, auth)
+	stop, result, err = r.handlePauseResume(ctx, &storage)
 	if stop {
 		return result, err
 	}
@@ -152,6 +155,17 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
+func shouldIgnoreStorageChange(storage *resources.StorageClusterBuilder) resources.IgnoreChangesFunction {
+	return func(oldObj, newObj runtime.Object) bool {
+		if _, ok := newObj.(*appsv1.StatefulSet); ok {
+			if storage.Spec.Pause == PausedState && oldObj == nil {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
@@ -161,7 +175,7 @@ func (r *Reconciler) handleResourcesSync(
 	for _, builder := range storage.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(storage)
 
-		result, err := resources.CreateOrUpdateWithIgnoreCheck(ctx, r.Client, newResource, func() error {
+		result, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 			var err error
 
 			err = builder.Build(newResource)
@@ -186,14 +200,7 @@ func (r *Reconciler) handleResourcesSync(
 			}
 
 			return nil
-		}, func(oldObj, newObj runtime.Object) bool {
-			if _, ok := newObj.(*appsv1.StatefulSet); ok {
-				if storage.Spec.Pause == PausePaused && oldObj == nil {
-					return true
-				}
-			}
-			return false
-		})
+		}, shouldIgnoreStorageChange(storage))
 
 		eventMessage := fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
@@ -357,15 +364,14 @@ func (r *Reconciler) getSecretKey(
 func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Storage")
-	if storage.Status.State == StorageReady && storage.Spec.Pause == PausePaused {
+	if storage.Status.State == StorageReady && storage.Spec.Pause == PausedState {
 		r.Log.Info("`pause: Paused` was noticed, attempting to delete Storage StatefulSet")
 		storage.Status.State = StoragePaused
 
 		statefulSet := &appsv1.StatefulSet{}
-		err := r.Client.Get(context.TODO(),
+		err := r.Client.Get(ctx,
 			types.NamespacedName{
 				Name:      storage.Name, // TODOPAUSE assuming implicitly storageName and statefulSetName are the same
 				Namespace: storage.Namespace,
@@ -377,7 +383,7 @@ func (r *Reconciler) handlePauseResume(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		err = r.Client.Delete(context.TODO(), statefulSet)
+		err = r.Client.Delete(ctx, statefulSet)
 		if err != nil {
 			r.Log.Error(err, "failed to delete the Storage StatefulSet object when moving from Ready -> Paused")
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -397,13 +403,13 @@ func (r *Reconciler) handlePauseResume(
 		return r.setState(ctx, storage)
 	}
 
-	if storage.Status.State == StoragePaused && storage.Spec.Pause == PauseRunning {
+	if storage.Status.State == StoragePaused && storage.Spec.Pause == RunningState {
 		r.Log.Info("`pause: Running` was noticed, moving Storage to `Pending`")
 		meta.RemoveStatusCondition(&storage.Status.Conditions, StoragePausedCondition)
 
 		// TODOPAUSE Hmmm, do I really need to call `init` again after deleting and resuming pods?
 		// Does not really look this way, I think I will have to skip it somehow
-		// To get this behaviour, I need to save the StorageInitializedCondition when moving from Running to Paused
+		// To get this behavior, I need to save the StorageInitializedCondition when moving from Running to Paused
 		// instead of clearing it
 
 		storage.Status.State = StoragePending
