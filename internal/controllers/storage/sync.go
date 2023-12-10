@@ -434,7 +434,7 @@ func (r *Reconciler) checkStorageFrozen(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step checkStorageFrozen for Storage")
 	if storage.Status.State != StorageFrozen && storage.Spec.Pause == FrozenState {
-		r.Log.Info("setting `pause: Frozen` is set, previuos state was " + string(storage.Status.State))
+		r.Log.Info("setting `pause: Frozen` is set, previous state was " + string(storage.Status.State))
 		storage.Status.StateBeforePausing = storage.Status.State
 		storage.Status.State = StorageFrozen
 		return r.setState(ctx, storage)

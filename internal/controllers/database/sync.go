@@ -541,6 +541,7 @@ func (r *Reconciler) setState(
 
 	databaseCr.Status.State = database.Status.State
 	databaseCr.Status.Conditions = database.Status.Conditions
+	databaseCr.Status.StateBeforePausing = database.Status.StateBeforePausing
 
 	err = r.Status().Update(ctx, databaseCr)
 	if err != nil {
@@ -627,7 +628,6 @@ func (r *Reconciler) handlePauseResume(
 	r.Log.Info("running step handlePauseResume for Database")
 	if database.Status.State == DatabaseReady && database.Spec.Pause == PausedState {
 		r.Log.Info("`pause: Paused` was noticed, attempting to delete Database StatefulSet")
-		database.Status.State = StoragePaused
 
 		statefulSet := &appsv1.StatefulSet{}
 		err := r.Client.Get(ctx,
@@ -648,12 +648,6 @@ func (r *Reconciler) handlePauseResume(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		for _, condition := range database.Status.Conditions {
-			if condition.Type != DatabaseTenantInitializedCondition {
-				meta.RemoveStatusCondition(&database.Status.Conditions, condition.Type)
-			}
-		}
-
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:    DatabasePausedCondition,
 			Status:  "True",
@@ -661,6 +655,8 @@ func (r *Reconciler) handlePauseResume(
 			Message: "pause: Paused is set on Database",
 		})
 
+		database.Status.StateBeforePausing = database.Status.State
+		database.Status.State = DatabasePaused
 		return r.setState(ctx, database)
 	}
 
@@ -668,8 +664,8 @@ func (r *Reconciler) handlePauseResume(
 		r.Log.Info("`pause: Running` was noticed, moving Database to `Pending`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 
-		// TODOPAUSE FIXME setting ready before pods even start is wrong.
-		database.Status.State = DatabaseReady
+		database.Status.State = database.Status.StateBeforePausing
+		database.Status.StateBeforePausing = ""
 		return r.setState(ctx, database)
 	}
 
@@ -682,7 +678,7 @@ func (r *Reconciler) checkDatabaseFrozen(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step checkDatabaseFrozen for Database")
 	if database.Status.State != DatabaseFrozen && database.Spec.Pause == FrozenState {
-		r.Log.Info("setting `pause: Frozen` is set, previuos state was " + string(database.Status.State))
+		r.Log.Info("setting `pause: Frozen` is set, previous state was " + string(database.Status.State))
 		database.Status.StateBeforePausing = database.Status.State
 		database.Status.State = DatabaseFrozen
 		return r.setState(ctx, database)

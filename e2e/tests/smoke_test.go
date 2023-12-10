@@ -279,7 +279,7 @@ var _ = Describe("Operator smoke test", func() {
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 	})
 
-	It("abcd", func() {
+	It("freeze + delete StatefulSet + un-freeze, Storage and Database", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
@@ -328,7 +328,7 @@ var _ = Describe("Operator smoke test", func() {
 			})).Should(Succeed())
 
 			return len(storagePods.Items) == 0
-		}, 20*time.Second, Interval).Should(BeTrue())
+		}, Timeout, Interval).Should(BeTrue())
 		By("... and then storage pods must not restart for a while...")
 		Consistently(func(g Gomega) bool {
 			storagePods := corev1.PodList{}
@@ -402,8 +402,9 @@ var _ = Describe("Operator smoke test", func() {
 				"ydb-cluster": "kind-database",
 			})).Should(Succeed())
 
-			return len(databasePods.Items) == 0
-		}, 20*time.Second, Interval).Should(BeTrue())
+			g.Expect(len(databasePods.Items)).Should(BeEquivalentTo(0))
+			return true
+		}, Timeout, Interval).Should(BeTrue())
 
 		By("... and then database pods must not restart for a while...")
 		Consistently(func(g Gomega) bool {
@@ -412,7 +413,8 @@ var _ = Describe("Operator smoke test", func() {
 				"ydb-cluster": "kind-database",
 			})).Should(Succeed())
 
-			return len(databasePods.Items) == 0
+			g.Expect(len(databasePods.Items)).Should(BeEquivalentTo(0))
+			return true
 		}, 20*time.Second, Interval).Should(BeTrue())
 
 		By("setting database pause back to Running...")
