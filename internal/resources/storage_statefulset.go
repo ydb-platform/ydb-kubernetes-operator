@@ -25,6 +25,7 @@ type StorageStatefulSetBuilder struct {
 	*v1alpha1.Storage
 	RestConfig *rest.Config
 
+	Name   string
 	Labels map[string]string
 }
 
@@ -35,6 +36,14 @@ func StringRJust(str, pad string, length int) string {
 			return str[len(str)-length:]
 		}
 	}
+}
+
+func (b *StorageStatefulSetBuilder) GenerateSearchDomain() string {
+	searchDomain := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace())
+	if b.Spec.Service.Interconnect.ExternalHost != "" {
+		searchDomain = b.Spec.Service.Interconnect.ExternalHost
+	}
+	return searchDomain
 }
 
 func (b *StorageStatefulSetBuilder) GeneratePVCName(index int) string {
@@ -54,7 +63,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 	if sts.ObjectMeta.Name == "" {
 		sts.ObjectMeta.Name = b.Name
 	}
-	sts.ObjectMeta.Namespace = b.Namespace
+	sts.ObjectMeta.Namespace = b.GetNamespace()
 	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
 
 	sts.Spec = appsv1.StatefulSetSpec{
@@ -64,7 +73,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.GetName()),
+		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Storage.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 
@@ -92,14 +101,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 }
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	dnsConfigSearches := []string{
-		fmt.Sprintf(
-			"%s-interconnect.%s.svc.cluster.local", // fixme .svc.cluster.local should not be hardcoded
-			b.Name,
-			b.Namespace,
-		),
-	}
-
+	dnsConfigSearches := []string{b.GenerateSearchDomain()}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
@@ -211,10 +213,6 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		})
 	}
 
-	for _, volume := range b.Spec.Volumes {
-		volumes = append(volumes, volume)
-	}
-
 	if b.areAnyCertificatesAddedToStore() {
 		volumes = append(volumes, corev1.Volume{
 			Name: systemCertsVolumeName,
@@ -230,6 +228,8 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 			},
 		})
 	}
+
+	volumes = append(volumes, b.Spec.Volumes...)
 
 	return volumes
 }

@@ -63,10 +63,17 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	if stop {
 		return result, err
 	}
+
 	stop, result, err = r.handleResourcesSync(ctx, &database)
 	if stop {
 		return result, err
 	}
+
+	stop, result, err = r.syncNodeSetSpecInline(ctx, &database)
+	if stop {
+		return result, err
+	}
+
 	auth, result, err := r.getYDBCredentials(ctx, &database)
 	if auth == nil {
 		return result, err
@@ -89,11 +96,13 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 				return result, err
 			}
 		}
+
 		stop, result, err = r.handleTenantCreation(ctx, &database, auth)
 		if stop {
 			return result, err
 		}
 	}
+
 	return ctrl.Result{Requeue: false}, nil
 }
 
@@ -356,6 +365,16 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
+	r.Log.Info("resource sync complete")
+	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func (r *Reconciler) syncNodeSetSpecInline(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step syncNodeSetSpecInline")
+
 	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 	matchingFields := client.MatchingFields{
 		ownerControllerKey: database.Name,
@@ -402,12 +421,34 @@ func (r *Reconciler) handleResourcesSync(
 					databaseNodeSet.Name),
 			)
 		}
+
+		oldGeneration := databaseNodeSet.Status.ObservedDatabaseGeneration
+		if oldGeneration != database.Generation {
+			databaseNodeSet.Status.ObservedDatabaseGeneration = database.Generation
+			if err := r.Status().Update(ctx, &databaseNodeSet); err != nil {
+				r.Recorder.Event(
+					&databaseNodeSet,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed setting status: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+			r.Recorder.Event(
+				&databaseNodeSet,
+				corev1.EventTypeNormal,
+				"StatusChanged",
+				fmt.Sprintf(
+					"DatabaseNodeSet updated observedStorageGeneration from %d to %d",
+					oldGeneration,
+					database.Generation),
+			)
+		}
 	}
 
-	r.Log.Info("resource sync complete")
+	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
-
 func (r *Reconciler) setState(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,

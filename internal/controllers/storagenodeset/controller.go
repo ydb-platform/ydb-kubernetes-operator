@@ -4,6 +4,7 @@ import (
 	"context"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -28,13 +29,14 @@ type StorageNodeSetReconciler struct {
 	Log      logr.Logger
 }
 
-//+kubebuilder:rbac:groups=ydb.tech,resources=storages,verbs=get;list;watch
 //+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/finalizers,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=configmaps/status,verbs=get;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -78,10 +80,12 @@ func ignoreDeletionPredicate() predicate.Predicate {
 // SetupWithManager sets up the controller with the Manager.
 func (r *StorageNodeSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller := ctrl.NewControllerManagedBy(mgr).For(&api.StorageNodeSet{})
+
 	r.Recorder = mgr.GetEventRecorderFor("StorageNodeSet")
 
 	return controller.
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&corev1.ConfigMap{}).
 		WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
 }

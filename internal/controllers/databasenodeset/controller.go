@@ -4,6 +4,7 @@ import (
 	"context"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -35,6 +36,8 @@ type DatabaseNodeSetReconciler struct {
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/finalizers,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=configmaps/status,verbs=get;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -45,10 +48,10 @@ func (r *DatabaseNodeSetReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	err := r.Get(ctx, req.NamespacedName, crDatabaseNodeSet)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("StorageNodeSet has been deleted")
+			logger.Info("DatabaseNodeSet has been deleted")
 			return ctrl.Result{Requeue: false}, nil
 		}
-		logger.Error(err, "unable to get StorageNodeSet")
+		logger.Error(err, "unable to get DatabaseNodeSet")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 	result, err := r.Sync(ctx, crDatabaseNodeSet)
@@ -81,6 +84,7 @@ func (r *DatabaseNodeSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return controller.
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&corev1.ConfigMap{}).
 		WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
 }

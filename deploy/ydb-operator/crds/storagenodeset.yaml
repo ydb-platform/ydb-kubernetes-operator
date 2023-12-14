@@ -44,6 +44,18 @@ spec:
           spec:
             description: StorageNodeSetSpec describes an group nodes of Storage object
             properties:
+              additionalAnnotations:
+                additionalProperties:
+                  type: string
+                description: (Optional) Additional custom resource annotations that
+                  are added to all resources
+                type: object
+              additionalLabels:
+                additionalProperties:
+                  type: string
+                description: (Optional) Additional custom resource labels that are
+                  added to all resources
+                type: object
               affinity:
                 description: (Optional) If specified, the pod's scheduling constraints
                 properties:
@@ -2367,6 +2379,9 @@ spec:
                 description: Number of nodes (pods) in the set
                 format: int32
                 type: integer
+              priorityClassName:
+                description: (Optional) If specified, the pod's priorityClassName.
+                type: string
               resources:
                 description: '(Optional) Storage container resource limits. Any container
                   limits can be specified. Default: (not specified)'
@@ -2529,6 +2544,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      externalHost:
+                        type: string
                       ipFamilies:
                         items:
                           description: IPFamily represents the IP Family (IPv4 or
@@ -2627,6 +2644,20 @@ spec:
                           requested or required by a Service
                         type: string
                     type: object
+                type: object
+              storageRef:
+                description: YDB Storage reference
+                properties:
+                  name:
+                    maxLength: 63
+                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                  namespace:
+                    maxLength: 63
+                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                required:
+                - name
                 type: object
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
@@ -4387,6 +4418,7 @@ spec:
             required:
             - erasure
             - nodes
+            - storageRef
             type: object
           status:
             default:
@@ -4463,6 +4495,9 @@ spec:
                   - type
                   type: object
                 type: array
+              observedStorageGeneration:
+                format: int64
+                type: integer
               state:
                 type: string
             required:

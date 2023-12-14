@@ -28,14 +28,22 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 var _ webhook.Defaulter = &Database{}
 
-func GetDatabasePath(r *Database) string {
+func (r *Database) GetStorageEndpoint() string {
+	endpoint := fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace)
+	if r.Spec.NodeBroker != "" {
+		endpoint = r.Spec.NodeBroker
+	}
+	return fmt.Sprintf("%s:%d", endpoint, GRPCPort)
+}
+
+func (r *Database) GetDatabasePath() string {
 	if r.Spec.Path != "" {
 		return r.Spec.Path
 	}
-	return GetLegacyDatabasePath(r)
+	return r.GetLegacyDatabasePath()
 }
 
-func GetLegacyDatabasePath(r *Database) string {
+func (r *Database) GetLegacyDatabasePath() string {
 	return fmt.Sprintf(legacyTenantNameFormat, r.Spec.Domain, r.Name) // FIXME: review later in context of multiple namespaces
 }
 
@@ -69,6 +77,7 @@ func (r *Database) Default() {
 	if r.Spec.Service.GRPC.TLSConfiguration == nil {
 		r.Spec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
+
 	if r.Spec.Service.Interconnect.TLSConfiguration == nil {
 		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
@@ -82,7 +91,7 @@ func (r *Database) Default() {
 	}
 
 	if r.Spec.Path == "" {
-		r.Spec.Path = GetLegacyDatabasePath(r)
+		r.Spec.Path = r.GetLegacyDatabasePath()
 	}
 
 	if r.Spec.Encryption == nil {
@@ -153,7 +162,7 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 		return errors.New("database domain cannot be changed")
 	}
 
-	if GetDatabasePath(oldDatabase) != GetDatabasePath(r) {
+	if oldDatabase.GetDatabasePath() != r.GetDatabasePath() {
 		return errors.New("database path cannot be changed")
 	}
 

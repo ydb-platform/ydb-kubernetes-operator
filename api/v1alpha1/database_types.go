@@ -22,7 +22,11 @@ type DatabaseSpec struct {
 
 	// YDB Storage cluster reference
 	// +required
-	StorageClusterRef StorageRef `json:"storageClusterRef"`
+	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
+
+	// (Optional) Node broker address host:port
+	// +optional
+	NodeBroker string `json:"nodeBroker,omitempty"`
 
 	// +optional
 	NodeSet []DatabaseNodeSetSpecInline `json:"nodeSet,omitempty"`
@@ -67,11 +71,6 @@ type DatabaseSpec struct {
 	// (Optional) If specified, created database will be "serverless".
 	// +optional
 	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
-
-	// (Optional) Public host to advertise on discovery requests
-	// Default: ""
-	// +optional
-	PublicHost string `json:"publicHost,omitempty"`
 
 	// (Optional) YDBVersion sets the explicit version of the YDB image
 	// Default: ""

@@ -93,6 +93,7 @@ var _ = Describe("Storage controller medium tests", func() {
 
 		storageSS := storageStatefulSets.Items[0]
 		volumes := storageSS.Spec.Template.Spec.Volumes
+		fmt.Printf("volumes: %v", volumes)
 		// Pod Template always has `ydb-config` mounted as a volume, plus in
 		// this test it also has our test volume. So two in total:
 		Expect(len(volumes)).To(Equal(1 + 1))

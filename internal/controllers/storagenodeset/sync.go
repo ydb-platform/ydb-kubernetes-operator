@@ -64,7 +64,7 @@ func (r *StorageNodeSetReconciler) Sync(ctx context.Context, crStorageNodeSet *y
 
 func (r *StorageNodeSetReconciler) handleResourcesSync(
 	ctx context.Context,
-	storageNodeSet *resources.StorageNodeSetBuilder,
+	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
 
@@ -127,12 +127,12 @@ func (r *StorageNodeSetReconciler) handleResourcesSync(
 
 func (r *StorageNodeSetReconciler) waitForStatefulSetToScale(
 	ctx context.Context,
-	storageNodeSet *resources.StorageNodeSetBuilder,
+	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale for StorageNodeSet")
 
 	if storageNodeSet.Status.State == string(Pending) {
-		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storageNodeSet.Spec.Nodes)
+		msg := fmt.Sprintf("Starting to track number of running storageNodeSet pods, expected: %d", storageNodeSet.Spec.Nodes)
 		r.Recorder.Event(storageNodeSet, corev1.EventTypeNormal, string(Provisioning), msg)
 		storageNodeSet.Status.State = string(Provisioning)
 		return r.setState(ctx, storageNodeSet)
@@ -203,7 +203,7 @@ func (r *StorageNodeSetReconciler) waitForStatefulSetToScale(
 
 func (r *StorageNodeSetReconciler) setStorageNodeSetReady(
 	ctx context.Context,
-	storageNodeSet *resources.StorageNodeSetBuilder,
+	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 		Type:    StorageNodeSetConditionReady,
@@ -218,7 +218,7 @@ func (r *StorageNodeSetReconciler) setStorageNodeSetReady(
 
 func (r *StorageNodeSetReconciler) setState(
 	ctx context.Context,
-	storageNodeSet *resources.StorageNodeSetBuilder,
+	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	crStorageNodeSet := &ydbv1alpha1.StorageNodeSet{}
 	err := r.Get(ctx, client.ObjectKey{

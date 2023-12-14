@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
@@ -108,7 +109,25 @@ func (r *Reconciler) initializeStorage(
 		return r.setState(ctx, storage)
 	}
 
-	podName := fmt.Sprintf("%s-0", storage.Name)
+	// List Pods by label Selector
+	podList := &corev1.PodList{}
+	matchingLabels := client.MatchingLabels{}
+	for k, v := range storage.Labels {
+		matchingLabels[k] = v
+	}
+	opts := []client.ListOption{
+		client.InNamespace(storage.Namespace),
+		matchingLabels,
+	}
+	if err := r.List(ctx, podList, opts...); err != nil || len(podList.Items) == 0 {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"Syncing",
+			fmt.Sprintf("Failed to list storage pods: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
 
 	cmd := []string{
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
@@ -146,7 +165,7 @@ func (r *Reconciler) initializeStorage(
 		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
 	)
 
-	stdout, _, err := exec.InPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+	stdout, _, err := exec.InPod(r.Scheme, r.Config, storage.Namespace, podList.Items[0].Name, "ydb-storage", cmd)
 	if err != nil {
 		if mismatchItemConfigGenerationRegexp.MatchString(stdout) {
 			r.Log.Info("Storage is already initialized, continuing...")

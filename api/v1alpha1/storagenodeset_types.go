@@ -7,17 +7,65 @@ import (
 
 // StorageNodeSetSpec describes an group nodes of Storage object
 type StorageNodeSetSpec struct {
+	// YDB Storage reference
+	// +required
+	StorageRef NamespacedRef `json:"storageRef"`
+
 	// Number of nodes (pods) in the set
 	// +required
 	Nodes int32 `json:"nodes"`
 
-	// (Optional) Container image information
-	// +optional
-	Image *PodImage `json:"image,omitempty"`
-
 	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
 	// +optional
 	Configuration string `json:"configuration"`
+
+	// Data storage mode.
+	// For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
+	// TODO English docs link
+	// FIXME mirror-3-dc is only supported with external configuration
+	// +kubebuilder:validation:Enum=mirror-3-dc;block-4-2;none
+	// +kubebuilder:default:=block-4-2
+	Erasure ErasureType `json:"erasure"`
+
+	// (Optional) Where cluster data should be kept
+	// +optional
+	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore,omitempty"`
+
+	// (Optional) Storage services parameter overrides
+	// Default: (not specified)
+	// +optional
+	Service StorageServices `json:"service,omitempty"`
+
+	// (Optional) Storage container resource limits. Any container limits
+	// can be specified.
+	// Default: (not specified)
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// (Optional) Container image information
+	// +optional
+	Image PodImage `json:"image,omitempty"`
+
+	// List of initialization containers belonging to the pod.
+	// Init containers are executed in order prior to containers being started. If any
+	// init container fails, the pod is considered to have failed and is handled according
+	// to its restartPolicy. The name for an init container or normal container must be
+	// unique among all containers.
+	// Init containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.
+	// The resourceRequirements of an init container are taken into account during scheduling
+	// by finding the highest request/limit for each resource type, and then using the max of
+	// that value or the sum of the normal containers. Limits are applied to init containers
+	// in a similar fashion.
+	// Init containers cannot currently be added or removed.
+	// Cannot be updated.
+	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+	// +optional
+	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+
+	// User-defined root certificate authority that is added to system trust
+	// store of Storage pods on startup.
+	// +optional
+	CABundle string `json:"caBundle,omitempty"`
 
 	// Secret names that will be mounted into the well-known directory of
 	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
@@ -35,24 +83,6 @@ type StorageNodeSetSpec struct {
 	// Default: false
 	// +optional
 	HostNetwork bool `json:"hostNetwork,omitempty"`
-
-	// (Optional) Storage container resource limits. Any container limits
-	// can be specified.
-	// Default: (not specified)
-	// +optional
-	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-
-	// Data storage mode.
-	// For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
-	// TODO English docs link
-	// FIXME mirror-3-dc is only supported with external configuration
-	// +kubebuilder:validation:Enum=mirror-3-dc;block-4-2;none
-	// +kubebuilder:default:=block-4-2
-	Erasure ErasureType `json:"erasure"`
-
-	// (Optional) Where cluster data should be kept
-	// +optional
-	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore,omitempty"`
 
 	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
@@ -78,42 +108,28 @@ type StorageNodeSetSpec struct {
 	// +listMapKey=whenUnsatisfiable
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
 
-	// (Optional) Storage services parameter overrides
-	// Default: (not specified)
+	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
-	Service StorageServices `json:"service,omitempty"`
+	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
 
-	// List of initialization containers belonging to the pod.
-	// Init containers are executed in order prior to containers being started. If any
-	// init container fails, the pod is considered to have failed and is handled according
-	// to its restartPolicy. The name for an init container or normal container must be
-	// unique among all containers.
-	// Init containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.
-	// The resourceRequirements of an init container are taken into account during scheduling
-	// by finding the highest request/limit for each resource type, and then using the max of
-	// that value or the sum of the normal containers. Limits are applied to init containers
-	// in a similar fashion.
-	// Init containers cannot currently be added or removed.
-	// Cannot be updated.
-	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+	// (Optional) Additional custom resource annotations that are added to all resources
 	// +optional
-	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
 
-	// User-defined root certificate authority that is added to system trust
-	// store of Storage pods on startup.
+	// (Optional) If specified, the pod's priorityClassName.
 	// +optional
-	CABundle string `json:"caBundle,omitempty"`
+	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
 // StorageNodeSetStatus defines the observed state
 type StorageNodeSetStatus struct {
-	State      string             `json:"state"`
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	State                     string             `json:"state"`
+	Conditions                []metav1.Condition `json:"conditions,omitempty"`
+	ObservedStorageGeneration int64              `json:"observedStorageGeneration,omitempty"`
 }
 
 // StorageNodeSetSpecInline describes an group nodes object inside parent object
 type StorageNodeSetSpecInline struct {
-
 	// Name of child *NodeSet object
 	// +required
 	Name string `json:"name,omitempty"`
@@ -138,10 +154,6 @@ type StorageNodeSetSpecInline struct {
 	// Default: (not specified)
 	// +optional
 	Service *StorageServices `json:"service,omitempty"`
-
-	// (Optional) Container image information
-	// +optional
-	Image *PodImage `json:"image,omitempty"`
 
 	// (Optional) Storage container resource limits. Any container limits
 	// can be specified.

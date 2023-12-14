@@ -48,21 +48,13 @@ func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
 	return fmt.Sprintf("%s%s", proto, b.GetStorageEndpoint())
 }
 
-func (b *DatabaseBuilder) GetStorageEndpoint() string {
-	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
-	if b.Storage.Spec.Service.GRPC.ExternalHost != "" {
-		host = b.Storage.Spec.Service.GRPC.ExternalHost
-	}
-
-	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
-}
-
 func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	if b.Spec.ServerlessResources != nil {
 		return []ResourceBuilder{}
 	}
 
 	databaseLabels := labels.DatabaseLabels(b.Unwrap())
+
 	grpcServiceLabels := databaseLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
 	grpcServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.GRPCComponent})
@@ -195,35 +187,28 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				Database:   b.Unwrap(),
 				RestConfig: restConfig,
 
-				Labels:          databaseLabels,
-				StorageEndpoint: b.GetStorageEndpointWithProto(),
+				Name:   b.Name,
+				Labels: databaseLabels,
 			},
 		)
 	} else {
 		for _, nodeSetSpecInline := range b.Spec.NodeSet {
-			nodeSetSpec := b.overrideDatabaseNodeSetSpec(&nodeSetSpecInline)
-
-			nodeSetName := b.GetName() + nodeSetSpecInline.Name
-
 			nodeSetLabels := databaseLabels.Copy()
 			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
 			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
 
-			nodeSetAnnotations := b.Spec.AdditionalAnnotations
-			for k, v := range nodeSetSpecInline.AdditionalAnnotations {
-				nodeSetAnnotations[k] = v
-			}
-
 			optionalBuilders = append(
 				optionalBuilders,
 				&DatabaseNodeSetBuilder{
-					Name:            nodeSetName,
-					StorageEndpoint: b.GetStorageEndpointWithProto(),
+					Object: b,
 
-					Labels:      nodeSetLabels,
-					Annotations: nodeSetAnnotations,
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
 
-					DatabaseNodeSetSpec: nodeSetSpec,
+					DatabaseNodeSetSpec: b.recastDatabaseNodeSetSpecInline(
+						nodeSetSpecInline.DeepCopy(),
+						cfg[api.ConfigFileName],
+					),
 				},
 			)
 		}
@@ -232,21 +217,28 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 	return optionalBuilders
 }
 
-func (b *DatabaseBuilder) overrideDatabaseNodeSetSpec(nodeSetSpecInline *api.DatabaseNodeSetSpecInline) api.DatabaseNodeSetSpec {
+func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api.DatabaseNodeSetSpecInline, configuration string) api.DatabaseNodeSetSpec {
 	dnsSpec := api.DatabaseNodeSetSpec{}
 
-	dnsSpec.Nodes = nodeSetSpecInline.Nodes
+	dnsSpec.DatabaseRef = api.NamespacedRef{
+		Name:      b.Name,
+		Namespace: b.Namespace,
+	}
 
-	dnsSpec.Configuration = b.Spec.Configuration
+	dnsSpec.Nodes = nodeSetSpecInline.Nodes
+	dnsSpec.Configuration = configuration
 
 	dnsSpec.Service = b.Spec.Service
 	if nodeSetSpecInline.Service != nil {
 		dnsSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
 	}
-
+	dnsSpec.StorageClusterRef = b.Spec.StorageClusterRef
+	dnsSpec.NodeBroker = b.Spec.NodeBroker
 	dnsSpec.Encryption = b.Spec.Encryption
 	dnsSpec.Volumes = b.Spec.Volumes
 	dnsSpec.Datastreams = b.Spec.Datastreams
+	dnsSpec.Domain = b.Spec.Domain
+	dnsSpec.Path = b.Spec.Path
 
 	dnsSpec.Resources = b.Spec.Resources
 	if nodeSetSpecInline.Resources != nil {
@@ -254,9 +246,15 @@ func (b *DatabaseBuilder) overrideDatabaseNodeSetSpec(nodeSetSpecInline *api.Dat
 	}
 
 	dnsSpec.SharedResources = b.Spec.SharedResources
-	if nodeSetSpecInline.Resources != nil {
-		dnsSpec.Resources = nodeSetSpecInline.SharedResources
+	if nodeSetSpecInline.SharedResources != nil {
+		dnsSpec.SharedResources = nodeSetSpecInline.SharedResources
 	}
+
+	dnsSpec.ServerlessResources = b.Spec.ServerlessResources
+	dnsSpec.Image = b.Spec.Image
+	// if nodeSetSpecInline.Image != nil {
+	// 	dnsSpec.Image = *nodeSetSpecInline.Image.DeepCopy()
+	// }
 
 	dnsSpec.InitContainers = b.Spec.InitContainers
 	dnsSpec.CABundle = b.Spec.CABundle
@@ -280,6 +278,31 @@ func (b *DatabaseBuilder) overrideDatabaseNodeSetSpec(nodeSetSpecInline *api.Dat
 	dnsSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
 	if nodeSetSpecInline.TopologySpreadConstraints != nil {
 		dnsSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+	}
+
+	dnsSpec.AdditionalLabels = make(map[string]string)
+	if b.Spec.AdditionalLabels != nil {
+		for k, v := range b.Spec.AdditionalLabels {
+			dnsSpec.AdditionalLabels[k] = v
+		}
+	}
+	if nodeSetSpecInline.AdditionalLabels != nil {
+		for k, v := range nodeSetSpecInline.AdditionalLabels {
+			dnsSpec.AdditionalLabels[k] = v
+		}
+	}
+	dnsSpec.AdditionalLabels[labels.StorageNodeSetComponent] = nodeSetSpecInline.Name
+
+	dnsSpec.AdditionalAnnotations = make(map[string]string)
+	if b.Spec.AdditionalAnnotations != nil {
+		for k, v := range b.Spec.AdditionalAnnotations {
+			dnsSpec.AdditionalAnnotations[k] = v
+		}
+	}
+	if nodeSetSpecInline.AdditionalAnnotations != nil {
+		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
+			dnsSpec.AdditionalAnnotations[k] = v
+		}
 	}
 
 	dnsSpec.PriorityClassName = b.Spec.PriorityClassName

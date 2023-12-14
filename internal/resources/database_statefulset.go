@@ -24,11 +24,19 @@ type DatabaseStatefulSetBuilder struct {
 	*v1alpha1.Database
 	RestConfig *rest.Config
 
-	Labels          map[string]string
-	StorageEndpoint string
+	Name   string
+	Labels map[string]string
 }
 
 var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
+
+func (b *DatabaseStatefulSetBuilder) GenerateSearchDomain() string {
+	searchDomain := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
+	if b.Spec.Service.Interconnect.ExternalHost != "" {
+		searchDomain = b.Spec.Service.Interconnect.ExternalHost
+	}
+	return searchDomain
+}
 
 func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	sts, ok := obj.(*appsv1.StatefulSet)
@@ -39,7 +47,7 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	if sts.ObjectMeta.Name == "" {
 		sts.ObjectMeta.Name = b.Name
 	}
-	sts.ObjectMeta.Namespace = b.Namespace
+	sts.ObjectMeta.Namespace = b.GetNamespace()
 	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
 
 	sts.Spec = appsv1.StatefulSetSpec{
@@ -49,7 +57,7 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Name),
+		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Database.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 
@@ -79,14 +87,7 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	dnsConfigSearches := []string{
-		fmt.Sprintf(
-			"%s-interconnect.%s.svc.cluster.local",
-			b.Spec.StorageClusterRef.Name,
-			b.Namespace,
-		),
-	}
-
+	dnsConfigSearches := []string{b.GenerateSearchDomain()}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
@@ -150,7 +151,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		},
 	}
 
-	if b.IsGRPCSecure() {
+	if b.IsGRPCSecure(b.Spec.NodeBroker) {
 		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
@@ -167,10 +168,6 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		if b.Spec.Service.Datastreams.TLSConfiguration != nil && b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumes = append(volumes, buildTLSVolume(datastreamsTLSVolumeName, b.Spec.Service.Datastreams.TLSConfiguration))
 		}
-	}
-
-	for _, volume := range b.Spec.Volumes {
-		volumes = append(volumes, volume)
 	}
 
 	for _, secret := range b.Spec.Secrets {
@@ -199,6 +196,8 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 			},
 		})
 	}
+
+	volumes = append(volumes, b.Spec.Volumes...)
 
 	return volumes
 }
@@ -417,7 +416,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		MountPath: v1alpha1.ConfigDir,
 	})
 
-	if b.IsGRPCSecure() {
+	if b.IsGRPCSecure(b.Spec.NodeBroker) {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
@@ -514,8 +513,6 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
 
-	tenantName := v1alpha1.GetDatabasePath(b.Database)
-
 	args := []string{
 		"server",
 
@@ -529,10 +526,10 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
 
 		"--tenant",
-		tenantName,
+		b.GetDatabasePath(),
 
 		"--node-broker",
-		b.StorageEndpoint,
+		b.GetStorageEndpoint(),
 	}
 
 	for _, secret := range b.Spec.Secrets {
@@ -559,8 +556,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	if b.Spec.Service.GRPC.ExternalHost == "" {
-		service := fmt.Sprintf(interconnectServiceNameFormat, b.GetName())
-		b.Spec.Service.GRPC.ExternalHost = fmt.Sprintf("%s.%s.svc.cluster.local", service, b.GetNamespace()) // FIXME .svc.cluster.local
+		b.Spec.Service.GRPC.ExternalHost = fmt.Sprintf(v1alpha1.GRPCServiceFQDNFormat, b.Database.Name, b.GetNamespace())
 	}
 
 	publicHostOption := "--grpc-public-host"
@@ -611,9 +607,6 @@ func (b *DatabaseStatefulSetBuilder) Placeholder(cr client.Object) client.Object
 	}
 }
 
-func (b *DatabaseStatefulSetBuilder) IsGRPCSecure() bool {
-	if strings.HasPrefix(b.StorageEndpoint, v1alpha1.GRPCSProto) {
-		return true
-	}
-	return false
+func (b *DatabaseStatefulSetBuilder) IsGRPCSecure(endpoint string) bool {
+	return strings.HasPrefix(endpoint, v1alpha1.GRPCSProto)
 }

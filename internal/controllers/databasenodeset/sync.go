@@ -64,7 +64,7 @@ func (r *DatabaseNodeSetReconciler) Sync(ctx context.Context, crDatabaseNodeSet 
 
 func (r *DatabaseNodeSetReconciler) handleResourcesSync(
 	ctx context.Context,
-	databaseNodeSet *resources.DatabaseNodeSetBuilder,
+	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
 
@@ -127,12 +127,12 @@ func (r *DatabaseNodeSetReconciler) handleResourcesSync(
 
 func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
 	ctx context.Context,
-	databaseNodeSet *resources.DatabaseNodeSetBuilder,
+	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for Storage")
+	r.Log.Info("running step waitForStatefulSetToScale for DatabaseNodeSet")
 
 	if databaseNodeSet.Status.State == string(Pending) {
-		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", databaseNodeSet.Spec.Nodes)
+		msg := fmt.Sprintf("Starting to track number of running databaseNodeSet pods, expected: %d", databaseNodeSet.Spec.Nodes)
 		r.Recorder.Event(databaseNodeSet, corev1.EventTypeNormal, string(Provisioning), msg)
 		databaseNodeSet.Status.State = string(Provisioning)
 		return r.setState(ctx, databaseNodeSet)
@@ -177,7 +177,7 @@ func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
 			databaseNodeSet,
 			corev1.EventTypeWarning,
 			"Syncing",
-			fmt.Sprintf("Failed to list storageNodeSet pods: %s", err),
+			fmt.Sprintf("Failed to list databaseNodeSet pods: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -194,7 +194,7 @@ func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
 			databaseNodeSet,
 			corev1.EventTypeNormal,
 			string(Provisioning),
-			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes))
+			fmt.Sprintf("Waiting for number of running databaseNodeSet pods to match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes))
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
@@ -203,13 +203,13 @@ func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
 
 func (r *DatabaseNodeSetReconciler) setDatabaseNodeSetReady(
 	ctx context.Context,
-	databaseNodeSet *resources.DatabaseNodeSetBuilder,
+	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 		Type:    DatabaseNodeSetConditionReady,
 		Status:  "True",
 		Reason:  DatabaseNodeSetReasonCompleted,
-		Message: "Sync StorageNodeSet is completed",
+		Message: "Sync DatabaseNodeSet is completed",
 	})
 
 	databaseNodeSet.Status.State = string(Ready)
@@ -218,7 +218,7 @@ func (r *DatabaseNodeSetReconciler) setDatabaseNodeSetReady(
 
 func (r *DatabaseNodeSetReconciler) setState(
 	ctx context.Context,
-	databaseNodeSet *resources.DatabaseNodeSetBuilder,
+	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	crdatabaseNodeSet := &ydbv1alpha1.DatabaseNodeSet{}
 	err := r.Get(ctx, client.ObjectKey{
@@ -243,7 +243,7 @@ func (r *DatabaseNodeSetReconciler) setState(
 			crdatabaseNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("databaseNodeSet moved from %s to %s", oldStatus, databaseNodeSet.Status.State),
+			fmt.Sprintf("DatabaseNodeSet moved from %s to %s", oldStatus, databaseNodeSet.Status.State),
 		)
 	}
 

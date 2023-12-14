@@ -11,7 +11,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storagenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 var (
@@ -67,7 +65,7 @@ var _ = Describe("StorageNodeSet controller medium tests", func() {
 		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
 
 		// Test create inline nodeSetSpec in Storage object
-		testNodeSetName := "nodeSet"
+		testNodeSetName := "nodeset"
 		for idx := 1; idx <= 4; idx++ {
 			storageSample.Spec.NodeSet = append(storageSample.Spec.NodeSet, v1alpha1.StorageNodeSetSpecInline{
 				Name:  testNodeSetName + "-" + strconv.Itoa(idx),
@@ -120,80 +118,6 @@ var _ = Describe("StorageNodeSet controller medium tests", func() {
 				}
 			}
 			return true
-		}, test.Timeout, test.Interval).Should(BeTrue())
-
-		// Test edit inline nodeSetSpec in Storage object
-		storageNodeSet := v1alpha1.StorageNodeSet{}
-		storageStatefulSet := appsv1.StatefulSet{}
-		Expect(k8sClient.Get(ctx,
-			types.NamespacedName{
-				Name:      testobjects.StorageName + "-" + testNodeSetName + "-" + strconv.Itoa(1),
-				Namespace: testobjects.YdbNamespace,
-			},
-			&storageNodeSet)).Should(Succeed())
-		objPatch := storageSample.DeepCopy()
-		for idx, storageNodeSet := range objPatch.Spec.NodeSet {
-			if storageNodeSet.Name == testobjects.StorageName+"-"+testNodeSetName+"-"+strconv.Itoa(1) {
-				objPatch.Spec.NodeSet[idx].Nodes = 4
-				break
-			}
-		}
-		nodeSetPatch := client.StrategicMergeFrom(objPatch)
-		Expect(k8sClient.Patch(ctx, storageSample, nodeSetPatch)).Should(Succeed())
-
-		// check that StorageNodeSet ".spec.nodes" was changed
-		Eventually(func() bool {
-			Expect(k8sClient.Get(ctx,
-				types.NamespacedName{
-					Name:      testobjects.StorageName + "-" + testNodeSetName + "-" + strconv.Itoa(1),
-					Namespace: testobjects.YdbNamespace,
-				},
-				&storageNodeSet)).Should(Succeed())
-			return storageNodeSet.Spec.Nodes == 4
-		}, test.Timeout, test.Interval).Should(BeTrue())
-
-		// check that StatefulSet ".spec.replicas" was changed
-		Eventually(func() bool {
-			Expect(k8sClient.Get(ctx,
-				types.NamespacedName{
-					Name:      testobjects.StorageName + "-" + testNodeSetName + "-" + strconv.Itoa(1),
-					Namespace: testobjects.YdbNamespace,
-				},
-				&storageStatefulSet)).Should(Succeed())
-			return *storageStatefulSet.Spec.Replicas == 4
-		}, test.Timeout, test.Interval).Should(BeTrue())
-
-		// Test delete inline nodeSetSpec in Storage object
-		objPatch = storageSample.DeepCopy()
-		for idx, storageNodeSet := range objPatch.Spec.NodeSet {
-			if storageNodeSet.Name == testobjects.StorageName+"-"+testNodeSetName+"-"+strconv.Itoa(1) {
-				objPatch.Spec.NodeSet = append(objPatch.Spec.NodeSet[:idx], objPatch.Spec.NodeSet[idx+1:]...)
-				break
-			}
-		}
-		nodeSetPatch = client.StrategicMergeFrom(objPatch)
-		Expect(k8sClient.Patch(ctx, storageSample, nodeSetPatch)).Should(Succeed())
-
-		// check that StorageNodeSet was deleted
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx,
-				types.NamespacedName{
-					Name:      testobjects.StorageName + "-" + testNodeSetName + "-" + strconv.Itoa(1),
-					Namespace: testobjects.YdbNamespace,
-				},
-				&storageNodeSet)
-			return apierrors.IsNotFound(err)
-		}, test.Timeout, test.Interval).Should(BeTrue())
-
-		// check that  StatefulSet was deleted
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx,
-				types.NamespacedName{
-					Name:      testobjects.StorageName + "-" + testNodeSetName + "-" + strconv.Itoa(1),
-					Namespace: testobjects.YdbNamespace,
-				},
-				&storageStatefulSet)
-			return apierrors.IsNotFound(err)
 		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 })

@@ -105,9 +105,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		context.Background(),
 		&ydbv1alpha1.StorageNodeSet{},
 		ownerControllerKey,
-		func(o client.Object) []string {
-			// grab the job object, extract the owner...
-			storageNodeSet := o.(*ydbv1alpha1.StorageNodeSet)
+		func(obj client.Object) []string {
+			// grab the StorageNodeSet object, extract the owner...
+			storageNodeSet := obj.(*ydbv1alpha1.StorageNodeSet)
 			owner := metav1.GetControllerOf(storageNodeSet)
 			if owner == nil {
 				return nil

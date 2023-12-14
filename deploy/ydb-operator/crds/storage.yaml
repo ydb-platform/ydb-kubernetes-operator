@@ -3541,25 +3541,6 @@ spec:
                             type: string
                         type: object
                       type: array
-                    image:
-                      description: (Optional) Container image information
-                      properties:
-                        name:
-                          description: 'Container image with supported YDB version.
-                            This defaults to the version pinned to the operator and
-                            requires a full container and tag/sha name. For instance:
-                            cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22'
-                          type: string
-                        pullPolicy:
-                          description: '(Optional) PullPolicy for the image, which
-                            defaults to IfNotPresent. Default: IfNotPresent'
-                          type: string
-                        pullSecret:
-                          description: (Optional) Secret name containing the dockerconfig
-                            to use for a registry that requires authentication. The
-                            secret must be configured first by the user.
-                          type: string
-                      type: object
                     name:
                       description: Name of child *NodeSet object
                       type: string
@@ -3739,6 +3720,8 @@ spec:
                               additionalProperties:
                                 type: string
                               type: object
+                            externalHost:
+                              type: string
                             ipFamilies:
                               items:
                                 description: IPFamily represents the IP Family (IPv4
@@ -4300,6 +4283,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      externalHost:
+                        type: string
                       ipFamilies:
                         items:
                           description: IPFamily represents the IP Family (IPv4 or

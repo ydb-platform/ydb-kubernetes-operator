@@ -34,10 +34,11 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 }
 
 func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
-	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Name, b.Namespace) // FIXME .svc.cluster.local should not be hardcoded
+	host := fmt.Sprintf(api.GRPCServiceFQDNFormat, b.Name, b.Namespace)
 	if b.Spec.Service.GRPC.ExternalHost != "" {
 		host = b.Spec.Service.GRPC.ExternalHost
 	}
+
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
@@ -103,32 +104,30 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			optionalBuilders,
 			&StorageStatefulSetBuilder{
 				Storage:    b.Unwrap(),
-				Labels:     storageLabels,
 				RestConfig: restConfig,
+
+				Name:   b.Name,
+				Labels: storageLabels,
 			},
 		)
 	} else {
 		for _, nodeSetSpecInline := range b.Spec.NodeSet {
-			nodeSetSpec := b.overrideStorageNodeSetSpec(&nodeSetSpecInline)
-
-			nodeSetName := b.GetName() + nodeSetSpecInline.Name
-
 			nodeSetLabels := storageLabels.Copy()
 			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
 			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
 
-			nodeSetAnnotations := b.Spec.AdditionalAnnotations
-			for k, v := range nodeSetSpecInline.AdditionalAnnotations {
-				nodeSetAnnotations[k] = v
-			}
-
 			optionalBuilders = append(
 				optionalBuilders,
 				&StorageNodeSetBuilder{
-					Name:               nodeSetName,
-					Labels:             nodeSetLabels,
-					Annotations:        nodeSetAnnotations,
-					StorageNodeSetSpec: nodeSetSpec,
+					Object: b,
+
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
+
+					StorageNodeSetSpec: b.recastStorageNodeSetSpecInline(
+						nodeSetSpecInline.DeepCopy(),
+						cfg[api.ConfigFileName],
+					),
 				},
 			)
 		}
@@ -179,12 +178,16 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	)
 }
 
-func (b *StorageClusterBuilder) overrideStorageNodeSetSpec(nodeSetSpecInline *api.StorageNodeSetSpecInline) api.StorageNodeSetSpec {
+func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline *api.StorageNodeSetSpecInline, configuration string) api.StorageNodeSetSpec {
 	snsSpec := api.StorageNodeSetSpec{}
 
-	snsSpec.Nodes = nodeSetSpecInline.Nodes
+	snsSpec.StorageRef = api.NamespacedRef{
+		Name:      b.Name,
+		Namespace: b.Namespace,
+	}
 
-	snsSpec.Configuration = b.Spec.Configuration
+	snsSpec.Nodes = nodeSetSpecInline.Nodes
+	snsSpec.Configuration = configuration
 	snsSpec.Erasure = b.Spec.Erasure
 
 	snsSpec.DataStore = b.Spec.DataStore
@@ -194,13 +197,21 @@ func (b *StorageClusterBuilder) overrideStorageNodeSetSpec(nodeSetSpecInline *ap
 
 	snsSpec.Service = b.Spec.Service
 	if nodeSetSpecInline.Service != nil {
-		snsSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
+		snsSpec.Service = *nodeSetSpecInline.Service
 	}
 
-	snsSpec.Resources = b.Spec.Resources
+	snsSpec.Resources = &corev1.ResourceRequirements{}
+	if b.Spec.Resources != nil {
+		snsSpec.Resources = b.Spec.Resources
+	}
 	if nodeSetSpecInline.Resources != nil {
 		snsSpec.Resources = nodeSetSpecInline.Resources
 	}
+
+	snsSpec.Image = b.Spec.Image
+	// if nodeSetSpecInline.Image != nil {
+	// 	snsSpec.Image = *nodeSetSpecInline.Image.DeepCopy()
+	// }
 
 	snsSpec.InitContainers = b.Spec.InitContainers
 	snsSpec.CABundle = b.Spec.CABundle
@@ -226,6 +237,36 @@ func (b *StorageClusterBuilder) overrideStorageNodeSetSpec(nodeSetSpecInline *ap
 	snsSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
 	if nodeSetSpecInline.TopologySpreadConstraints != nil {
 		snsSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+	}
+
+	snsSpec.AdditionalLabels = make(map[string]string)
+	if b.Spec.AdditionalLabels != nil {
+		for k, v := range b.Spec.AdditionalLabels {
+			snsSpec.AdditionalLabels[k] = v
+		}
+	}
+	if nodeSetSpecInline.AdditionalLabels != nil {
+		for k, v := range nodeSetSpecInline.AdditionalLabels {
+			snsSpec.AdditionalLabels[k] = v
+		}
+	}
+	snsSpec.AdditionalLabels[labels.StorageNodeSetComponent] = nodeSetSpecInline.Name
+
+	snsSpec.AdditionalAnnotations = make(map[string]string)
+	if b.Spec.AdditionalAnnotations != nil {
+		for k, v := range b.Spec.AdditionalAnnotations {
+			snsSpec.AdditionalAnnotations[k] = v
+		}
+	}
+	if nodeSetSpecInline.AdditionalAnnotations != nil {
+		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
+			snsSpec.AdditionalAnnotations[k] = v
+		}
+	}
+
+	snsSpec.PriorityClassName = b.Spec.PriorityClassName
+	if nodeSetSpecInline.PriorityClassName != snsSpec.PriorityClassName {
+		snsSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
 	return snsSpec

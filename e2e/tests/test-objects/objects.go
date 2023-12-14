@@ -90,119 +90,6 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 	}
 }
 
-func StorageWithNodeSets(storageYamlConfigPath string) *v1alpha1.Storage {
-	storageConfig, err := os.ReadFile(storageYamlConfigPath)
-	Expect(err).To(BeNil())
-
-	defaultPolicy := corev1.PullIfNotPresent
-	storageAntiAffinity := constructAntiAffinityFor("ydb-cluster", "kind-storage")
-
-	return &v1alpha1.Storage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      StorageName,
-			Namespace: YdbNamespace,
-		},
-		Spec: v1alpha1.StorageSpec{
-			Nodes: 8,
-			NodeSet: []v1alpha1.StorageNodeSetSpecInline{
-				{
-					Name:  "nodeset1",
-					Nodes: 3,
-				},
-				{
-					Name:  "nodeset2",
-					Nodes: 5,
-				},
-			},
-			Configuration: string(storageConfig),
-			Erasure:       "block-4-2",
-			DataStore:     []corev1.PersistentVolumeClaimSpec{},
-			Service: v1alpha1.StorageServices{
-				GRPC: v1alpha1.GRPCService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Interconnect: v1alpha1.InterconnectService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Status: v1alpha1.StatusService{
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-			},
-			Domain:    DefaultDomain,
-			Resources: &corev1.ResourceRequirements{},
-			Image: v1alpha1.PodImage{
-				Name:           YdbImage,
-				PullPolicyName: &defaultPolicy,
-			},
-			AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
-			Affinity:         storageAntiAffinity,
-			Monitoring: &v1alpha1.MonitoringOptions{
-				Enabled: false,
-			},
-		},
-	}
-}
-
-func StorageWithStaticCredentials(storageYamlConfigPath string) *v1alpha1.Storage {
-	storageConfig, err := os.ReadFile(storageYamlConfigPath)
-	Expect(err).To(BeNil())
-
-	defaultPolicy := corev1.PullIfNotPresent
-	storageAntiAffinity := constructAntiAffinityFor("ydb-cluster", "kind-storage")
-
-	return &v1alpha1.Storage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      StorageName,
-			Namespace: YdbNamespace,
-		},
-		Spec: v1alpha1.StorageSpec{
-			Nodes: 8,
-			OperatorConnection: &v1alpha1.ConnectionOptions{
-				StaticCredentials: &v1alpha1.StaticCredentialsAuth{
-					Username: "root",
-				},
-			},
-			Configuration: string(storageConfig),
-			Erasure:       "block-4-2",
-			DataStore:     []corev1.PersistentVolumeClaimSpec{},
-			Service: v1alpha1.StorageServices{
-				GRPC: v1alpha1.GRPCService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Interconnect: v1alpha1.InterconnectService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Status: v1alpha1.StatusService{
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-			},
-			Domain:    DefaultDomain,
-			Resources: &corev1.ResourceRequirements{},
-			Image: v1alpha1.PodImage{
-				Name:           YdbImage,
-				PullPolicyName: &defaultPolicy,
-			},
-			AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
-			Affinity:         storageAntiAffinity,
-			Monitoring: &v1alpha1.MonitoringOptions{
-				Enabled: false,
-			},
-		},
-	}
-}
-
 func DefaultDatabase() *v1alpha1.Database {
 	defaultPolicy := corev1.PullIfNotPresent
 	databaseAntiAffinity := constructAntiAffinityFor("ydb-cluster", "kind-database")
@@ -251,7 +138,7 @@ func DefaultDatabase() *v1alpha1.Database {
 			Monitoring: &v1alpha1.MonitoringOptions{
 				Enabled: false,
 			},
-			StorageClusterRef: v1alpha1.StorageRef{
+			StorageClusterRef: v1alpha1.NamespacedRef{
 				Name:      StorageName,
 				Namespace: YdbNamespace,
 			},

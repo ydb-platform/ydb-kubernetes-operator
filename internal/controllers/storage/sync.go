@@ -64,6 +64,12 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	if stop {
 		return result, err
 	}
+
+	stop, result, err = r.syncNodeSetSpecInline(ctx, &storage)
+	if stop {
+		return result, err
+	}
+
 	auth, result, err := r.getYDBCredentials(ctx, &storage)
 	if auth == nil {
 		return result, err
@@ -91,6 +97,7 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		if stop {
 			return result, err
 		}
+
 		stop, result, err = r.initializeStorage(ctx, &storage, auth)
 		if stop {
 			return result, err
@@ -298,6 +305,16 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
+	r.Log.Info("resource sync complete")
+	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func (r *Reconciler) syncNodeSetSpecInline(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step syncNodeSetSpecInline")
+
 	storageNodeSets := &ydbv1alpha1.StorageNodeSetList{}
 	matchingFields := client.MatchingFields{
 		ownerControllerKey: storage.Name,
@@ -324,6 +341,7 @@ func (r *Reconciler) handleResourcesSync(
 				break
 			}
 		}
+
 		if !isFoundStorageNodeSet {
 			if err := r.Delete(ctx, &storageNodeSet); err != nil {
 				r.Recorder.Event(
@@ -344,9 +362,32 @@ func (r *Reconciler) handleResourcesSync(
 					storageNodeSet.Name),
 			)
 		}
+
+		oldGeneration := storageNodeSet.Status.ObservedStorageGeneration
+		if oldGeneration != storage.Generation {
+			storageNodeSet.Status.ObservedStorageGeneration = storage.Generation
+			if err := r.Status().Update(ctx, &storageNodeSet); err != nil {
+				r.Recorder.Event(
+					&storageNodeSet,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed setting status: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+			r.Recorder.Event(
+				&storageNodeSet,
+				corev1.EventTypeNormal,
+				"StatusChanged",
+				fmt.Sprintf(
+					"StorageNodeSet updated observedStorageGeneration from %d to %d",
+					oldGeneration,
+					storage.Generation),
+			)
+		}
 	}
 
-	r.Log.Info("resource sync complete")
+	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 

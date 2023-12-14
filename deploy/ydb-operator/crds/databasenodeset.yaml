@@ -45,6 +45,18 @@ spec:
             description: DatabaseNodeSetSpec describes an group nodes of Database
               object
             properties:
+              additionalAnnotations:
+                additionalProperties:
+                  type: string
+                description: (Optional) Additional custom resource annotations that
+                  are added to all resources
+                type: object
+              additionalLabels:
+                additionalProperties:
+                  type: string
+                description: (Optional) Additional custom resource labels that are
+                  added to all resources
+                type: object
               affinity:
                 description: (Optional) If specified, the pod's scheduling constraints
                 properties:
@@ -870,6 +882,20 @@ spec:
                 description: YDB configuration in YAML format. Will be applied on
                   top of generated one in internal/configuration
                 type: string
+              databaseRef:
+                description: YDB Database namespaced reference
+                properties:
+                  name:
+                    maxLength: 63
+                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                  namespace:
+                    maxLength: 63
+                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                required:
+                - name
+                type: object
               datastreams:
                 description: Datastreams config
                 properties:
@@ -896,6 +922,13 @@ spec:
                 required:
                 - enabled
                 type: object
+              domain:
+                default: root
+                description: '(Optional) Name of the root storage domain Default:
+                  root'
+                maxLength: 63
+                pattern: '[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?'
+                type: string
               encryption:
                 description: Encryption
                 properties:
@@ -2192,6 +2225,9 @@ spec:
                   - name
                   type: object
                 type: array
+              nodeBroker:
+                description: (Optional) Node broker address host:port
+                type: string
               nodeSelector:
                 additionalProperties:
                   type: string
@@ -2203,6 +2239,12 @@ spec:
                 description: Number of nodes (pods) in the set
                 format: int32
                 type: integer
+              path:
+                description: '(Optional) Custom database path in schemeshard Default:
+                  /<spec.domain>/<metadata.name>'
+                maxLength: 255
+                pattern: /[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
+                type: string
               priorityClassName:
                 description: (Optional) If specified, the pod's priorityClassName.
                 type: string
@@ -2291,6 +2333,25 @@ spec:
                       type: string
                   type: object
                 type: array
+              serverlessResources:
+                description: (Optional) If specified, created database will be "serverless".
+                properties:
+                  sharedDatabaseRef:
+                    description: Reference to YDB Database with configured shared
+                      resources
+                    properties:
+                      name:
+                        maxLength: 63
+                        pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                        type: string
+                      namespace:
+                        maxLength: 63
+                        pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
               service:
                 description: '(Optional) Storage services parameter overrides Default:
                   (not specified)'
@@ -2479,6 +2540,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      externalHost:
+                        type: string
                       ipFamilies:
                         items:
                           description: IPFamily represents the IP Family (IPv4 or
@@ -2650,6 +2713,20 @@ spec:
                       - unitKind
                       type: object
                     type: array
+                type: object
+              storageClusterRef:
+                description: YDB Storage cluster reference
+                properties:
+                  name:
+                    maxLength: 63
+                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                  namespace:
+                    maxLength: 63
+                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                required:
+                - name
                 type: object
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
@@ -4408,7 +4485,9 @@ spec:
                   type: object
                 type: array
             required:
+            - databaseRef
             - nodes
+            - storageClusterRef
             type: object
           status:
             default:
@@ -4485,6 +4564,9 @@ spec:
                   - type
                   type: object
                 type: array
+              observedDatabaseGeneration:
+                format: int64
+                type: integer
               state:
                 type: string
             required:

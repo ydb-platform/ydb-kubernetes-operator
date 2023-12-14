@@ -10,36 +10,16 @@ import (
 )
 
 type DatabaseNodeSetBuilder struct {
-	*api.DatabaseNodeSet
+	client.Object
 
-	Name            string
-	StorageEndpoint string
-
-	Labels      map[string]string
-	Annotations map[string]string
+	Name   string
+	Labels map[string]string
 
 	DatabaseNodeSetSpec api.DatabaseNodeSetSpec
 }
 
-func NewDatabaseNodeSet(databaseNodeSet *api.DatabaseNodeSet) DatabaseNodeSetBuilder {
-	crDatabaseNodeSet := databaseNodeSet.DeepCopy()
-
-	return DatabaseNodeSetBuilder{
-		Name:                crDatabaseNodeSet.Name,
-		Labels:              crDatabaseNodeSet.Labels,
-		Annotations:         crDatabaseNodeSet.Annotations,
-		DatabaseNodeSetSpec: crDatabaseNodeSet.Spec,
-	}
-}
-
-func (b *DatabaseNodeSetBuilder) SetStatusOnFirstReconcile() {
-	if b.Status.Conditions == nil {
-		b.Status.Conditions = []metav1.Condition{}
-	}
-}
-
-func (b *DatabaseNodeSetBuilder) Unwrap() *api.DatabaseNodeSet {
-	return b.DeepCopy()
+type DatabaseNodeSetResource struct {
+	*api.DatabaseNodeSet
 }
 
 func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
@@ -52,13 +32,11 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 		dns.ObjectMeta.Name = b.Name
 	}
 	dns.ObjectMeta.Namespace = b.GetNamespace()
-	dns.ObjectMeta.Labels = b.Labels
-	dns.ObjectMeta.Annotations = b.Annotations
 
+	dns.ObjectMeta.Labels = b.Labels
 	dns.Spec = b.DatabaseNodeSetSpec
 
 	return nil
-
 }
 
 func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
@@ -70,48 +48,79 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	}
 }
 
-func (b *DatabaseNodeSetBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	database := b.recastDatabaseNodeSet()
 
 	var resourceBuilders []ResourceBuilder
-
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseStatefulSetBuilder{
-			Database:   b.RecastDatabaseNodeSet().DeepCopy(),
+			Database:   database.DeepCopy(),
 			RestConfig: restConfig,
 
-			Labels:          b.Labels,
-			StorageEndpoint: b.StorageEndpoint,
+			Name:   b.Name,
+			Labels: b.Labels,
+		},
+		&ConfigMapBuilder{
+			Object: b,
+
+			Name: b.Name,
+			Data: map[string]string{
+				api.ConfigFileName: b.Spec.Configuration,
+			},
+			Labels: b.Labels,
 		},
 	)
 	return resourceBuilders
 }
 
-func (b *DatabaseNodeSetBuilder) RecastDatabaseNodeSet() *api.Database {
+func NewDatabaseNodeSet(databaseNodeSet *api.DatabaseNodeSet) DatabaseNodeSetResource {
+	crDatabaseNodeSet := databaseNodeSet.DeepCopy()
+
+	return DatabaseNodeSetResource{DatabaseNodeSet: crDatabaseNodeSet}
+}
+
+func (b *DatabaseNodeSetResource) SetStatusOnFirstReconcile() {
+	if b.Status.Conditions == nil {
+		b.Status.Conditions = []metav1.Condition{}
+	}
+}
+
+func (b *DatabaseNodeSetResource) Unwrap() *api.DatabaseNodeSet {
+	return b.DeepCopy()
+}
+
+func (b *DatabaseNodeSetResource) recastDatabaseNodeSet() *api.Database {
 	return &api.Database{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.GetName(),
-			Namespace: b.GetNamespace(),
-			Labels:    b.Labels,
+			Name:      b.DatabaseNodeSet.Spec.DatabaseRef.Name,
+			Namespace: b.DatabaseNodeSet.Spec.DatabaseRef.Namespace,
+			Labels:    b.DatabaseNodeSet.Labels,
 		},
 		Spec: api.DatabaseSpec{
-			AdditionalAnnotations: b.Annotations,
-			Nodes:                 b.DatabaseNodeSetSpec.Nodes,
-			Configuration:         b.DatabaseNodeSetSpec.Configuration, // TODO: migrate to configmapRef
-			Service:               b.DatabaseNodeSetSpec.Service,       // TODO: export only public host bia externalHost
-			Encryption:            b.DatabaseNodeSetSpec.Encryption,
-			Volumes:               b.DatabaseNodeSetSpec.Volumes,
-			Datastreams:           b.DatabaseNodeSetSpec.Datastreams,
-			Resources:             b.DatabaseNodeSetSpec.Resources,
-			SharedResources:       b.DatabaseNodeSetSpec.SharedResources,
-			//Image:                     b.DatabaseNodeSetSpec.Image,
-			InitContainers:            b.DatabaseNodeSetSpec.InitContainers,
-			CABundle:                  b.DatabaseNodeSetSpec.CABundle, // TODO: migrate to trust-manager
-			Secrets:                   b.DatabaseNodeSetSpec.Secrets,
-			NodeSelector:              b.DatabaseNodeSetSpec.NodeSelector,
-			Affinity:                  b.DatabaseNodeSetSpec.Affinity,
-			Tolerations:               b.DatabaseNodeSetSpec.Tolerations,
-			TopologySpreadConstraints: b.DatabaseNodeSetSpec.TopologySpreadConstraints,
-			PriorityClassName:         b.DatabaseNodeSetSpec.PriorityClassName,
+			Nodes:                     b.DatabaseNodeSet.Spec.Nodes,
+			Configuration:             b.DatabaseNodeSet.Spec.Configuration, // TODO: migrate to configmapRef
+			Service:                   b.DatabaseNodeSet.Spec.Service,
+			StorageClusterRef:         b.DatabaseNodeSet.Spec.StorageClusterRef,
+			NodeBroker:                b.DatabaseNodeSet.Spec.NodeBroker,
+			Encryption:                b.DatabaseNodeSet.Spec.Encryption,
+			Volumes:                   b.DatabaseNodeSet.Spec.Volumes,
+			Datastreams:               b.DatabaseNodeSet.Spec.Datastreams,
+			Domain:                    b.DatabaseNodeSet.Spec.Domain,
+			Path:                      b.DatabaseNodeSet.Spec.Path,
+			Resources:                 b.DatabaseNodeSet.Spec.Resources,
+			SharedResources:           b.DatabaseNodeSet.Spec.SharedResources,
+			ServerlessResources:       b.DatabaseNodeSet.Spec.ServerlessResources,
+			Image:                     b.DatabaseNodeSet.Spec.Image,
+			InitContainers:            b.DatabaseNodeSet.Spec.InitContainers,
+			CABundle:                  b.DatabaseNodeSet.Spec.CABundle, // TODO: migrate to trust-manager
+			Secrets:                   b.DatabaseNodeSet.Spec.Secrets,
+			NodeSelector:              b.DatabaseNodeSet.Spec.NodeSelector,
+			Affinity:                  b.DatabaseNodeSet.Spec.Affinity,
+			Tolerations:               b.DatabaseNodeSet.Spec.Tolerations,
+			TopologySpreadConstraints: b.DatabaseNodeSet.Spec.TopologySpreadConstraints,
+			AdditionalLabels:          b.DatabaseNodeSet.Spec.AdditionalLabels,
+			AdditionalAnnotations:     b.DatabaseNodeSet.Spec.AdditionalAnnotations,
+			PriorityClassName:         b.DatabaseNodeSet.Spec.PriorityClassName,
 		},
 	}
 }

@@ -63,12 +63,18 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-test: manifests generate fmt vet envtest docker-build ## Run tests.
-	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator
+kind-init:
+	if kind get clusters | grep "kind-ydb-operator"; then exit 0; fi; \
+	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator; \
+	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44; \
+	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44 --name kind-ydb-operator
+
+kind-load:
 	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
 	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
-	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
-	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44 --name kind-ydb-operator
+
+.PHONY: test
+test: manifests generate fmt vet docker-build kind-init kind-load envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -timeout 1800s -p 1 ./... -coverprofile cover.out
 
 .PHONY: clean

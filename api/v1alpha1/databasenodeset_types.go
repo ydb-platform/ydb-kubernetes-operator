@@ -7,6 +7,10 @@ import (
 
 // DatabaseNodeSetSpec describes an group nodes of Database object
 type DatabaseNodeSetSpec struct {
+	// YDB Database namespaced reference
+	// +required
+	DatabaseRef NamespacedRef `json:"databaseRef"`
+
 	// Number of nodes (pods) in the set
 	// +required
 	Nodes int32 `json:"nodes"`
@@ -19,6 +23,14 @@ type DatabaseNodeSetSpec struct {
 	// Default: (not specified)
 	// +optional
 	Service DatabaseServices `json:"service,omitempty"`
+
+	// YDB Storage cluster reference
+	// +required
+	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
+
+	// (Optional) Node broker address host:port
+	// +optional
+	NodeBroker string `json:"nodeBroker,omitempty"`
 
 	// Encryption
 	// +optional
@@ -34,6 +46,21 @@ type DatabaseNodeSetSpec struct {
 	// +optional
 	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
 
+	// (Optional) Name of the root storage domain
+	// Default: root
+	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +kubebuilder:default:="root"
+	// +optional
+	Domain string `json:"domain"`
+
+	// (Optional) Custom database path in schemeshard
+	// Default: /<spec.domain>/<metadata.name>
+	// +kubebuilder:validation:Pattern:=/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
+	// +kubebuilder:validation:MaxLength:=255
+	// +optional
+	Path string `json:"path,omitempty"`
+
 	// (Optional) Database storage and compute resources
 	// +optional
 	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
@@ -42,9 +69,13 @@ type DatabaseNodeSetSpec struct {
 	// +optional
 	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
 
+	// (Optional) If specified, created database will be "serverless".
+	// +optional
+	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
+
 	// (Optional) Container image information
 	// +optional
-	Image *PodImage `json:"image,omitempty"`
+	Image PodImage `json:"image,omitempty"`
 
 	// List of initialization containers belonging to the pod.
 	// Init containers are executed in order prior to containers being started. If any
@@ -96,6 +127,14 @@ type DatabaseNodeSetSpec struct {
 	// +listMapKey=whenUnsatisfiable
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
 
+	// (Optional) Additional custom resource labels that are added to all resources
+	// +optional
+	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
+
+	// (Optional) Additional custom resource annotations that are added to all resources
+	// +optional
+	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
+
 	// (Optional) If specified, the pod's priorityClassName.
 	// +optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
@@ -120,8 +159,9 @@ type DatabaseNodeSet struct {
 
 // DatabaseNodeSetStatus defines the observed state
 type DatabaseNodeSetStatus struct {
-	State      string             `json:"state"`
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	State                      string             `json:"state"`
+	Conditions                 []metav1.Condition `json:"conditions,omitempty"`
+	ObservedDatabaseGeneration int64              `json:"observedDatabaseGeneration,omitempty"`
 }
 
 // DatabaseNodeSetSpecInline describes an group nodes object inside parent object
@@ -151,10 +191,6 @@ type DatabaseNodeSetSpecInline struct {
 	// Default: (not specified)
 	// +optional
 	Service *DatabaseServices `json:"service,omitempty"`
-
-	// (Optional) Container image information
-	// +optional
-	Image *PodImage `json:"image,omitempty"`
 
 	// (Optional) Database storage and compute resources
 	// +optional

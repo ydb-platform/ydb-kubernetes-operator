@@ -1,6 +1,8 @@
 package v1alpha1
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	corev1 "k8s.io/api/core/v1"
+)
 
 type Service struct {
 	AdditionalLabels      map[string]string `json:"additionalLabels,omitempty"`
@@ -28,6 +30,7 @@ type InterconnectService struct {
 	Service `json:""`
 
 	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
+	ExternalHost     string            `json:"externalHost,omitempty"` // TODO implementation
 }
 
 type StatusService struct {
@@ -38,4 +41,8 @@ type DatastreamsService struct {
 	Service `json:""`
 
 	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
+}
+
+func IsGrpcSecure(tlsConfig *TLSConfiguration) bool {
+	return tlsConfig != nil && tlsConfig.Enabled
 }
