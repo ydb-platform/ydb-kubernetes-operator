@@ -24,13 +24,13 @@ type DatabaseNodeSetSpec struct {
 	// +optional
 	Service DatabaseServices `json:"service,omitempty"`
 
-	// YDB Storage cluster reference
+	// (Optional) YDB Storage domain to discovery
 	// +required
-	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
+	StorageDomains []string `json:"storageDomains"`
 
 	// (Optional) Node broker address host:port
-	// +optional
-	NodeBroker string `json:"nodeBroker,omitempty"`
+	// +required
+	StorageEndpoint string `json:"storageEndpoint"`
 
 	// Encryption
 	// +optional

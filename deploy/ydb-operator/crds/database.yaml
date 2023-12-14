@@ -2268,9 +2268,6 @@ spec:
                 required:
                 - enabled
                 type: object
-              nodeBroker:
-                description: (Optional) Node broker address host:port
-                type: string
               nodeSelector:
                 additionalProperties:
                   type: string
@@ -4366,6 +4363,14 @@ spec:
                 required:
                 - name
                 type: object
+              storageDomains:
+                description: (Optional) YDB Storage domain to discovery
+                items:
+                  type: string
+                type: array
+              storageEndpoint:
+                description: (Optional) Node broker address host:port
+                type: string
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
                 items:

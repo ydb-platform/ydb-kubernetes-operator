@@ -30,14 +30,6 @@ type DatabaseStatefulSetBuilder struct {
 
 var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
 
-func (b *DatabaseStatefulSetBuilder) GenerateSearchDomain() string {
-	searchDomain := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
-	if b.Spec.Service.Interconnect.ExternalHost != "" {
-		searchDomain = b.Spec.Service.Interconnect.ExternalHost
-	}
-	return searchDomain
-}
-
 func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	sts, ok := obj.(*appsv1.StatefulSet)
 	if !ok {
@@ -87,7 +79,6 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	dnsConfigSearches := []string{b.GenerateSearchDomain()}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
@@ -104,7 +95,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
-				Searches: dnsConfigSearches,
+				Searches: b.GetStorageDomains(),
 			},
 		},
 	}
@@ -151,7 +142,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		},
 	}
 
-	if b.IsGRPCSecure(b.Spec.NodeBroker) {
+	if b.IsGRPCSecure(b.GetStorageEndpoint()) {
 		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
@@ -416,7 +407,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		MountPath: v1alpha1.ConfigDir,
 	})
 
-	if b.IsGRPCSecure(b.Spec.NodeBroker) {
+	if b.IsGRPCSecure(b.GetStorageEndpoint()) {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,

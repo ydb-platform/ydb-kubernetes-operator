@@ -232,8 +232,8 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 	if nodeSetSpecInline.Service != nil {
 		dnsSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
 	}
-	dnsSpec.StorageClusterRef = b.Spec.StorageClusterRef
-	dnsSpec.NodeBroker = b.Spec.NodeBroker
+	dnsSpec.StorageDomains = b.GetStorageDomains()
+	dnsSpec.StorageEndpoint = b.GetStorageEndpoint()
 	dnsSpec.Encryption = b.Spec.Encryption
 	dnsSpec.Volumes = b.Spec.Volumes
 	dnsSpec.Datastreams = b.Spec.Datastreams

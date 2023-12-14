@@ -2225,9 +2225,6 @@ spec:
                   - name
                   type: object
                 type: array
-              nodeBroker:
-                description: (Optional) Node broker address host:port
-                type: string
               nodeSelector:
                 additionalProperties:
                   type: string
@@ -2714,20 +2711,14 @@ spec:
                       type: object
                     type: array
                 type: object
-              storageClusterRef:
-                description: YDB Storage cluster reference
-                properties:
-                  name:
-                    maxLength: 63
-                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
-                    type: string
-                  namespace:
-                    maxLength: 63
-                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
-                    type: string
-                required:
-                - name
-                type: object
+              storageDomains:
+                description: (Optional) YDB Storage domain to discovery
+                items:
+                  type: string
+                type: array
+              storageEndpoint:
+                description: (Optional) Node broker address host:port
+                type: string
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
                 items:
@@ -4487,7 +4478,8 @@ spec:
             required:
             - databaseRef
             - nodes
-            - storageClusterRef
+            - storageDomains
+            - storageEndpoint
             type: object
           status:
             default:

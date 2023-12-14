@@ -42,7 +42,3 @@ type DatastreamsService struct {
 
 	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
 }
-
-func IsGrpcSecure(tlsConfig *TLSConfiguration) bool {
-	return tlsConfig != nil && tlsConfig.Enabled
-}

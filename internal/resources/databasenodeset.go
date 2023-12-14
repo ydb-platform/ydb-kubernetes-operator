@@ -12,9 +12,8 @@ import (
 type DatabaseNodeSetBuilder struct {
 	client.Object
 
-	Name   string
-	Labels map[string]string
-
+	Name                string
+	Labels              map[string]string
 	DatabaseNodeSetSpec api.DatabaseNodeSetSpec
 }
 
@@ -100,8 +99,8 @@ func (b *DatabaseNodeSetResource) recastDatabaseNodeSet() *api.Database {
 			Nodes:                     b.DatabaseNodeSet.Spec.Nodes,
 			Configuration:             b.DatabaseNodeSet.Spec.Configuration, // TODO: migrate to configmapRef
 			Service:                   b.DatabaseNodeSet.Spec.Service,
-			StorageClusterRef:         b.DatabaseNodeSet.Spec.StorageClusterRef,
-			NodeBroker:                b.DatabaseNodeSet.Spec.NodeBroker,
+			StorageDomains:            b.DatabaseNodeSet.Spec.StorageDomains,
+			StorageEndpoint:           b.DatabaseNodeSet.Spec.StorageEndpoint,
 			Encryption:                b.DatabaseNodeSet.Spec.Encryption,
 			Volumes:                   b.DatabaseNodeSet.Spec.Volumes,
 			Datastreams:               b.DatabaseNodeSet.Spec.Datastreams,

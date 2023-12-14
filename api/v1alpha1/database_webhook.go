@@ -28,11 +28,19 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 var _ webhook.Defaulter = &Database{}
 
-func (r *Database) GetStorageEndpoint() string {
-	endpoint := fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace)
-	if r.Spec.NodeBroker != "" {
-		endpoint = r.Spec.NodeBroker
+func (r *Database) GetStorageDomains() []string {
+	if r.Spec.StorageDomains != nil {
+		return r.Spec.StorageDomains
 	}
+	domain := fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace)
+	return []string{domain}
+}
+
+func (r *Database) GetStorageEndpoint() string {
+	if r.Spec.StorageEndpoint != "" {
+		return r.Spec.StorageEndpoint
+	}
+	endpoint := fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace)
 	return fmt.Sprintf("%s:%d", endpoint, GRPCPort)
 }
 
