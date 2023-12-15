@@ -64,7 +64,7 @@ var _ = Describe("Storage controller medium tests", func() {
 
 		HostPathDirectoryType := corev1.HostPathDirectory
 
-		storageSample.Spec.Volumes = append(storageSample.Spec.Volumes, corev1.Volume{
+		storageSample.Spec.Volumes = append(storageSample.Spec.Volumes, &corev1.Volume{
 			Name: testVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{

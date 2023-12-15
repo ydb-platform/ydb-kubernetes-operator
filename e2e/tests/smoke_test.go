@@ -228,11 +228,11 @@ var _ = Describe("Operator smoke test", func() {
 		databaseSample = testobjects.DefaultDatabase()
 		testNodeSetName := "nodeset"
 		for idx := 1; idx <= 2; idx++ {
-			storageSample.Spec.NodeSet = append(storageSample.Spec.NodeSet, v1alpha1.StorageNodeSetSpecInline{
+			storageSample.Spec.NodeSet = append(storageSample.Spec.NodeSet, &v1alpha1.StorageNodeSetSpecInline{
 				Name:  testNodeSetName + "-" + strconv.Itoa(idx),
 				Nodes: 4,
 			})
-			databaseSample.Spec.NodeSet = append(databaseSample.Spec.NodeSet, v1alpha1.DatabaseNodeSetSpecInline{
+			databaseSample.Spec.NodeSet = append(databaseSample.Spec.NodeSet, &v1alpha1.DatabaseNodeSetSpecInline{
 				Name:  testNodeSetName + "-" + strconv.Itoa(idx),
 				Nodes: 4,
 			})
@@ -354,7 +354,7 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("delete nodeSetSpec inline...")
 		databaseNodeSetList := v1alpha1.DatabaseNodeSetList{}
-		database.Spec.Nodes = database.Spec.Nodes / 2
+		database.Spec.Nodes -= 4
 		database.Spec.NodeSet = database.Spec.NodeSet[1:]
 
 		Eventually(func(g Gomega) bool {

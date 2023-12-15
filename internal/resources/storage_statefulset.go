@@ -202,6 +202,10 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
+	for _, volume := range b.Spec.Volumes {
+		volumes = append(volumes, *volume)
+	}
+
 	for _, secret := range b.Spec.Secrets {
 		volumes = append(volumes, corev1.Volume{
 			Name: secret.Name,
@@ -228,8 +232,6 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 			},
 		})
 	}
-
-	volumes = append(volumes, b.Spec.Volumes...)
 
 	return volumes
 }

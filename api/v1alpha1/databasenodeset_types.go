@@ -40,7 +40,7 @@ type DatabaseNodeSetSpec struct {
 	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
 	// Only `hostPath` volume type is supported for now.
 	// +optional
-	Volumes []corev1.Volume `json:"volumes,omitempty"`
+	Volumes []*corev1.Volume `json:"volumes,omitempty"`
 
 	// Datastreams config
 	// +optional
@@ -101,7 +101,7 @@ type DatabaseNodeSetSpec struct {
 	// Secret names that will be mounted into the well-known directory of
 	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
 	// +optional
-	Secrets []corev1.LocalObjectReference `json:"secrets,omitempty"`
+	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
 
 	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.

@@ -316,9 +316,13 @@ func (in *DatabaseNodeSetSpec) DeepCopyInto(out *DatabaseNodeSetSpec) {
 	}
 	if in.Volumes != nil {
 		in, out := &in.Volumes, &out.Volumes
-		*out = make([]v1.Volume, len(*in))
+		*out = make([]*v1.Volume, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.Volume)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 	if in.Datastreams != nil {
@@ -351,8 +355,14 @@ func (in *DatabaseNodeSetSpec) DeepCopyInto(out *DatabaseNodeSetSpec) {
 	}
 	if in.Secrets != nil {
 		in, out := &in.Secrets, &out.Secrets
-		*out = make([]v1.LocalObjectReference, len(*in))
-		copy(*out, *in)
+		*out = make([]*v1.LocalObjectReference, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.LocalObjectReference)
+				**out = **in
+			}
+		}
 	}
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
@@ -550,9 +560,13 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 	}
 	if in.NodeSet != nil {
 		in, out := &in.NodeSet, &out.NodeSet
-		*out = make([]DatabaseNodeSetSpecInline, len(*in))
+		*out = make([]*DatabaseNodeSetSpecInline, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(DatabaseNodeSetSpecInline)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 	if in.Encryption != nil {
@@ -562,9 +576,13 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 	}
 	if in.Volumes != nil {
 		in, out := &in.Volumes, &out.Volumes
-		*out = make([]v1.Volume, len(*in))
+		*out = make([]*v1.Volume, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.Volume)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 	if in.Datastreams != nil {
@@ -602,8 +620,14 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 	}
 	if in.Secrets != nil {
 		in, out := &in.Secrets, &out.Secrets
-		*out = make([]v1.LocalObjectReference, len(*in))
-		copy(*out, *in)
+		*out = make([]*v1.LocalObjectReference, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.LocalObjectReference)
+				**out = **in
+			}
+		}
 	}
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
@@ -1208,14 +1232,24 @@ func (in *StorageNodeSetSpec) DeepCopyInto(out *StorageNodeSetSpec) {
 	}
 	if in.Secrets != nil {
 		in, out := &in.Secrets, &out.Secrets
-		*out = make([]v1.LocalObjectReference, len(*in))
-		copy(*out, *in)
+		*out = make([]*v1.LocalObjectReference, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.LocalObjectReference)
+				**out = **in
+			}
+		}
 	}
 	if in.Volumes != nil {
 		in, out := &in.Volumes, &out.Volumes
-		*out = make([]v1.Volume, len(*in))
+		*out = make([]*v1.Volume, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.Volume)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 	if in.NodeSelector != nil {
@@ -1409,9 +1443,13 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 	}
 	if in.NodeSet != nil {
 		in, out := &in.NodeSet, &out.NodeSet
-		*out = make([]StorageNodeSetSpecInline, len(*in))
+		*out = make([]*StorageNodeSetSpecInline, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(StorageNodeSetSpecInline)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 	if in.OperatorConnection != nil {
@@ -1440,14 +1478,24 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 	}
 	if in.Secrets != nil {
 		in, out := &in.Secrets, &out.Secrets
-		*out = make([]v1.LocalObjectReference, len(*in))
-		copy(*out, *in)
+		*out = make([]*v1.LocalObjectReference, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.LocalObjectReference)
+				**out = **in
+			}
+		}
 	}
 	if in.Volumes != nil {
 		in, out := &in.Volumes, &out.Volumes
-		*out = make([]v1.Volume, len(*in))
+		*out = make([]*v1.Volume, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(v1.Volume)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 	if in.NodeSelector != nil {
