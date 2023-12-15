@@ -21,9 +21,9 @@ import (
 )
 
 const (
-	Pending      DatabaseNodeSetState = "Pending"
-	Provisioning DatabaseNodeSetState = "Provisioning"
-	Ready        DatabaseNodeSetState = "Ready"
+	Pending      State = "Pending"
+	Provisioning State = "Provisioning"
+	Ready        State = "Ready"
 
 	DefaultRequeueDelay      = 10 * time.Second
 	StatusUpdateRequeueDelay = 1 * time.Second
@@ -39,9 +39,9 @@ const (
 	Continue = false
 )
 
-type DatabaseNodeSetState string
+type State string
 
-func (r *DatabaseNodeSetReconciler) Sync(ctx context.Context, crDatabaseNodeSet *ydbv1alpha1.DatabaseNodeSet) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, crDatabaseNodeSet *ydbv1alpha1.DatabaseNodeSet) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -62,7 +62,7 @@ func (r *DatabaseNodeSetReconciler) Sync(ctx context.Context, crDatabaseNodeSet 
 	return result, err
 }
 
-func (r *DatabaseNodeSetReconciler) handleResourcesSync(
+func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
@@ -125,7 +125,7 @@ func (r *DatabaseNodeSetReconciler) handleResourcesSync(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
+func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
@@ -201,7 +201,7 @@ func (r *DatabaseNodeSetReconciler) waitForStatefulSetToScale(
 	return r.setDatabaseNodeSetReady(ctx, databaseNodeSet)
 }
 
-func (r *DatabaseNodeSetReconciler) setDatabaseNodeSetReady(
+func (r *Reconciler) setDatabaseNodeSetReady(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
@@ -216,7 +216,7 @@ func (r *DatabaseNodeSetReconciler) setDatabaseNodeSetReady(
 	return r.setState(ctx, databaseNodeSet)
 }
 
-func (r *DatabaseNodeSetReconciler) setState(
+func (r *Reconciler) setState(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {

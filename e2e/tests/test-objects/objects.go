@@ -1,6 +1,7 @@
 package testobjects
 
 import (
+	"fmt"
 	"os"
 
 	. "github.com/onsi/gomega" //nolint:all
@@ -141,6 +142,9 @@ func DefaultDatabase() *v1alpha1.Database {
 			StorageClusterRef: v1alpha1.NamespacedRef{
 				Name:      StorageName,
 				Namespace: YdbNamespace,
+			},
+			StorageDomains: []string{
+				fmt.Sprintf(v1alpha1.GRPCServiceFQDNFormat, StorageName, YdbNamespace),
 			},
 			Domain: DefaultDomain,
 			Image: v1alpha1.PodImage{

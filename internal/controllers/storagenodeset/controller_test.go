@@ -35,7 +35,7 @@ func TestAPIs(t *testing.T) {
 				Client: k8sClient,
 				Scheme: (*mgr).GetScheme(),
 			},
-			&storagenodeset.StorageNodeSetReconciler{
+			&storagenodeset.Reconciler{
 				Client: k8sClient,
 				Scheme: (*mgr).GetScheme(),
 			},

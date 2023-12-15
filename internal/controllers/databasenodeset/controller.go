@@ -21,7 +21,7 @@ import (
 )
 
 // Reconciler reconciles a Storage object
-type DatabaseNodeSetReconciler struct {
+type Reconciler struct {
 	client.Client
 	Recorder record.EventRecorder
 	Config   *rest.Config
@@ -41,7 +41,7 @@ type DatabaseNodeSetReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *DatabaseNodeSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	crDatabaseNodeSet := &api.DatabaseNodeSet{}
@@ -78,7 +78,7 @@ func ignoreDeletionPredicate() predicate.Predicate {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *DatabaseNodeSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller := ctrl.NewControllerManagedBy(mgr).For(&api.DatabaseNodeSet{})
 	r.Recorder = mgr.GetEventRecorderFor("DatabaseNodeSet")
 

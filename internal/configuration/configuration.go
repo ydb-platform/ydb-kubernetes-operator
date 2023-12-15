@@ -53,7 +53,7 @@ func generateSomeDefaults(cr *v1alpha1.Storage, crDB *v1alpha1.Database) schema.
 			for podIndex := 0; podIndex < int(nodeSetSpec.Nodes); podIndex++ {
 				podName := cr.GetName() + "-" + nodeSetSpec.Name + "-" + strconv.Itoa(podIndex)
 				hosts[hostIndex].Host = podName
-				hostIndex += 1
+				hostIndex++
 			}
 		}
 	}

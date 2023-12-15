@@ -91,7 +91,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Storage")
 		os.Exit(1)
 	}
-	if err = (&databasenodeset.DatabaseNodeSetReconciler{
+	if err = (&databasenodeset.Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Config:   mgr.GetConfig(),
@@ -100,7 +100,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "DatabaseNodeSet")
 		os.Exit(1)
 	}
-	if err = (&storagenodeset.StorageNodeSetReconciler{
+	if err = (&storagenodeset.Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Config:   mgr.GetConfig(),

@@ -21,9 +21,9 @@ import (
 )
 
 const (
-	Pending      StorageNodeSetState = "Pending"
-	Provisioning StorageNodeSetState = "Provisioning"
-	Ready        StorageNodeSetState = "Ready"
+	Pending      State = "Pending"
+	Provisioning State = "Provisioning"
+	Ready        State = "Ready"
 
 	DefaultRequeueDelay      = 10 * time.Second
 	StatusUpdateRequeueDelay = 1 * time.Second
@@ -39,9 +39,9 @@ const (
 	Continue = false
 )
 
-type StorageNodeSetState string
+type State string
 
-func (r *StorageNodeSetReconciler) Sync(ctx context.Context, crStorageNodeSet *ydbv1alpha1.StorageNodeSet) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *ydbv1alpha1.StorageNodeSet) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -62,7 +62,7 @@ func (r *StorageNodeSetReconciler) Sync(ctx context.Context, crStorageNodeSet *y
 	return result, err
 }
 
-func (r *StorageNodeSetReconciler) handleResourcesSync(
+func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
@@ -125,7 +125,7 @@ func (r *StorageNodeSetReconciler) handleResourcesSync(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *StorageNodeSetReconciler) waitForStatefulSetToScale(
+func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
@@ -201,7 +201,7 @@ func (r *StorageNodeSetReconciler) waitForStatefulSetToScale(
 	return r.setStorageNodeSetReady(ctx, storageNodeSet)
 }
 
-func (r *StorageNodeSetReconciler) setStorageNodeSetReady(
+func (r *Reconciler) setStorageNodeSetReady(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
@@ -216,7 +216,7 @@ func (r *StorageNodeSetReconciler) setStorageNodeSetReady(
 	return r.setState(ctx, storageNodeSet)
 }
 
-func (r *StorageNodeSetReconciler) setState(
+func (r *Reconciler) setState(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
