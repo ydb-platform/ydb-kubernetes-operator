@@ -169,7 +169,12 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 
 	if database.Status.State == string(Preparing) {
 		msg := fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSet))
-		r.Recorder.Event(database, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			msg,
+		)
 		database.Status.State = string(Provisioning)
 		return r.setState(ctx, database)
 	}
@@ -227,7 +232,12 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if database.Status.State == string(Preparing) {
 		msg := fmt.Sprintf("Starting to track number of running database pods, expected: %d", database.Spec.Nodes)
-		r.Recorder.Event(database, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			msg,
+		)
 		database.Status.State = string(Provisioning)
 		return r.setState(ctx, database)
 	}
@@ -297,7 +307,12 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if runningPods != int(database.Spec.Nodes) {
 		msg := fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes)
-		r.Recorder.Event(database, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			msg,
+		)
 		return r.setState(ctx, database)
 	}
 
@@ -461,7 +476,12 @@ func (r *Reconciler) setState(
 		Name:      database.Name,
 	}, databaseCr)
 	if err != nil {
-		r.Recorder.Event(databaseCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
+		r.Recorder.Event(
+			databaseCr,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			"Failed fetching CR before status update",
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 

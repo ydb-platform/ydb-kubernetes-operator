@@ -133,7 +133,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if storageNodeSet.Status.State == string(Pending) {
 		msg := fmt.Sprintf("Starting to track number of running storageNodeSet pods, expected: %d", storageNodeSet.Spec.Nodes)
-		r.Recorder.Event(storageNodeSet, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			storageNodeSet,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			msg)
 		storageNodeSet.Status.State = string(Provisioning)
 		return r.setState(ctx, storageNodeSet)
 	}
@@ -194,7 +198,8 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			storageNodeSet,
 			corev1.EventTypeNormal,
 			string(Provisioning),
-			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes))
+			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
@@ -211,7 +216,6 @@ func (r *Reconciler) setStorageNodeSetReady(
 		Reason:  StorageNodeSetReasonCompleted,
 		Message: "Sync StorageNodeSet is completed",
 	})
-
 	storageNodeSet.Status.State = string(Ready)
 	return r.setState(ctx, storageNodeSet)
 }
@@ -226,7 +230,12 @@ func (r *Reconciler) setState(
 		Name:      storageNodeSet.Name,
 	}, crStorageNodeSet)
 	if err != nil {
-		r.Recorder.Event(crStorageNodeSet, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
+		r.Recorder.Event(
+			crStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			"Failed fetching CR before status update",
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
@@ -236,7 +245,12 @@ func (r *Reconciler) setState(
 
 	err = r.Status().Update(ctx, crStorageNodeSet)
 	if err != nil {
-		r.Recorder.Event(crStorageNodeSet, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
+		r.Recorder.Event(
+			crStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed setting status: %s", err),
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	} else if oldStatus != storageNodeSet.Status.State {
 		r.Recorder.Event(

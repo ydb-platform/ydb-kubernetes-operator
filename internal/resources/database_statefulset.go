@@ -546,21 +546,22 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		}
 	}
 
-	if b.Spec.Service.GRPC.ExternalHost == "" {
-		b.Spec.Service.GRPC.ExternalHost = fmt.Sprintf(v1alpha1.GRPCServiceFQDNFormat, b.Database.Name, b.GetNamespace())
-	}
-
 	publicHostOption := "--grpc-public-host"
+	publicHost := fmt.Sprintf(v1alpha1.GRPCServiceFQDNFormat, b.Database.Name, b.GetNamespace()) // FIXME .svc.cluster.local
+	if b.Spec.Service.GRPC.ExternalHost != "" {
+		publicHost = b.Spec.Service.GRPC.ExternalHost
+	}
 	publicPortOption := "--grpc-public-port"
+	publicPort := v1alpha1.GRPCPort
 
 	args = append(
 		args,
 
 		publicHostOption,
-		fmt.Sprintf("%s.%s", "$(NODE_NAME)", b.Spec.Service.GRPC.ExternalHost), // fixme $(NODE_NAME)
+		fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
 
 		publicPortOption,
-		strconv.Itoa(v1alpha1.GRPCPort),
+		strconv.Itoa(publicPort),
 	)
 
 	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDataCenter]; ok {

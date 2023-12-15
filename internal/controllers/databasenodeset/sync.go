@@ -133,7 +133,12 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if databaseNodeSet.Status.State == string(Pending) {
 		msg := fmt.Sprintf("Starting to track number of running databaseNodeSet pods, expected: %d", databaseNodeSet.Spec.Nodes)
-		r.Recorder.Event(databaseNodeSet, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			databaseNodeSet,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			msg,
+		)
 		databaseNodeSet.Status.State = string(Provisioning)
 		return r.setState(ctx, databaseNodeSet)
 	}
@@ -226,7 +231,12 @@ func (r *Reconciler) setState(
 		Name:      databaseNodeSet.Name,
 	}, crdatabaseNodeSet)
 	if err != nil {
-		r.Recorder.Event(crdatabaseNodeSet, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
+		r.Recorder.Event(
+			crdatabaseNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			"Failed fetching CR before status update",
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
@@ -236,7 +246,12 @@ func (r *Reconciler) setState(
 
 	err = r.Status().Update(ctx, crdatabaseNodeSet)
 	if err != nil {
-		r.Recorder.Event(crdatabaseNodeSet, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
+		r.Recorder.Event(
+			crdatabaseNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed setting status: %s", err),
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	} else if oldStatus != databaseNodeSet.Status.State {
 		r.Recorder.Event(

@@ -115,8 +115,13 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	r.Log.Info("running step waitForStatefulSetToScale for Storage")
 
 	if storage.Status.State == string(Preparing) {
-		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", len(storage.Spec.NodeSet))
-		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
+		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storage.Spec.Nodes)
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			msg,
+		)
 		storage.Status.State = string(Provisioning)
 		return r.setState(ctx, storage)
 	}
@@ -181,7 +186,12 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if runningPods != int(storage.Spec.Nodes) {
 		msg := fmt.Sprintf("Waiting for number of running storage pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
-		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			msg,
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
@@ -196,7 +206,12 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 
 	if storage.Status.State == string(Preparing) {
 		msg := fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", storage.Spec.Nodes)
-		r.Recorder.Event(storage, corev1.EventTypeNormal, string(Provisioning), msg)
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			string(Provisioning),
+			msg,
+		)
 		storage.Status.State = string(Provisioning)
 		return r.setState(ctx, storage)
 	}
@@ -233,7 +248,8 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 				foundStorageNodeSet.Name,
 				foundStorageNodeSet.Status.State,
 			)
-			r.Recorder.Event(storage,
+			r.Recorder.Event(
+				storage,
 				corev1.EventTypeNormal,
 				string(Provisioning),
 				msg,
@@ -415,7 +431,11 @@ func (r *Reconciler) runSelfCheck(
 		storage,
 		eventType,
 		"SelfCheck",
-		fmt.Sprintf("SelfCheck result: %s, issues found: %d", result.SelfCheckResult.String(), len(result.IssueLog)),
+		fmt.Sprintf(
+			"SelfCheck result: %s, issues found: %d",
+			result.SelfCheckResult.String(),
+			len(result.IssueLog),
+		),
 	)
 
 	if waitForGoodResultWithoutIssues && result.SelfCheckResult.String() != "GOOD" {
@@ -434,7 +454,12 @@ func (r *Reconciler) setState(
 		Name:      storage.Name,
 	}, storageCr)
 	if err != nil {
-		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", "Failed fetching CR before status update")
+		r.Recorder.Event(
+			storageCr,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			"Failed fetching CR before status update",
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
@@ -444,7 +469,12 @@ func (r *Reconciler) setState(
 
 	err = r.Status().Update(ctx, storageCr)
 	if err != nil {
-		r.Recorder.Event(storageCr, corev1.EventTypeWarning, "ControllerError", fmt.Sprintf("Failed setting status: %s", err))
+		r.Recorder.Event(
+			storageCr,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed setting status: %s", err),
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	} else if oldStatus != storage.Status.State {
 		r.Recorder.Event(
