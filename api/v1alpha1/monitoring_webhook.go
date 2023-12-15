@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	kube "k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -20,6 +19,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
+
+// generateValidatePath is a copy from controller-runtime
+func generateValidatePath(gvk schema.GroupVersionKind) string {
+	return "/validate-" + strings.ReplaceAll(gvk.Group, ".", "-") + "-" +
+		gvk.Version + "-" + strings.ToLower(gvk.Kind)
+}
 
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-databasemonitoring,mutating=false,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databasemonitorings,verbs=create,versions=v1alpha1,name=vdatabasemonitoring.kb.io,admissionReviewVersions=v1
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-storagemonitoring,mutating=false,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storagemonitorings,verbs=create,versions=v1alpha1,name=vstoragemonitoring.kb.io,admissionReviewVersions=v1
@@ -52,46 +57,6 @@ func RegisterMonitoringValidatingWebhook(mgr ctrl.Manager, enableServiceMonitori
 	}
 
 	return registerWebHook(&StorageMonitoring{}, "storagemonitoring-resource")
-}
-
-// generateValidatePath is a copy from controller-runtime
-func generateValidatePath(gvk schema.GroupVersionKind) string {
-	return "/validate-" + strings.ReplaceAll(gvk.Group, ".", "-") + "-" +
-		gvk.Version + "-" + strings.ToLower(gvk.Kind)
-}
-
-func checkMonitoringCRD(manager ctrl.Manager, logger logr.Logger, monitoringEnabled bool) error {
-	if monitoringEnabled {
-		return nil
-	}
-
-	config := manager.GetConfig()
-	clientset, err := kube.NewForConfig(config)
-	if err != nil {
-		logger.Error(err, "unable to get clientset while checking monitoring CRD")
-		return nil
-	}
-	_, resources, err := clientset.ServerGroupsAndResources()
-	if err != nil {
-		logger.Error(err, "unable to get ServerGroupsAndResources while checking monitoring CRD")
-		return nil
-	}
-
-	foundMonitoring := false
-	for _, resource := range resources {
-		if resource.GroupVersion == "monitoring.coreos.com/v1" {
-			for _, res := range resource.APIResources {
-				if res.Kind == "ServiceMonitor" {
-					foundMonitoring = true
-				}
-			}
-		}
-	}
-	if foundMonitoring {
-		return nil
-	}
-	crdError := fmt.Errorf("required Prometheus CRDs not found in the cluster: `monitoring.coreos.com/v1/servicemonitor`. Please make sure your Prometheus installation is healthy, `kubectl get servicemonitors` must be non-empty")
-	return crdError
 }
 
 func ensureNoServiceMonitor(ctx context.Context, client client.Client, namespace string, name string) error {
