@@ -27,6 +27,7 @@ type StorageSpec struct {
 	// +required
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore"`
 
+	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
 	// +optional
 	NodeSet []StorageNodeSetSpecInline `json:"nodeSet,omitempty"`
 

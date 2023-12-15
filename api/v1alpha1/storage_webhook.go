@@ -52,7 +52,7 @@ func (r *Storage) GetGRPCEndpointWithProto() string {
 }
 
 func (r *Storage) IsGRPCSecure() bool {
-	return r.Spec.Service.GRPC.TLSConfiguration != nil && r.Spec.Service.GRPC.TLSConfiguration.Enabled
+	return r.Spec.Service.GRPC.TLSConfiguration.Enabled
 }
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type

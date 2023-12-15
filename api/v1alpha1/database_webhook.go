@@ -32,23 +32,6 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 var _ webhook.Defaulter = &Database{}
 
-func (r *Database) GetStorageEndpoint() string {
-	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace) // FIXME .svc.cluster.local should not be hardcoded
-	if r.Spec.Service.GRPC.ExternalHost != "" {
-		host = r.Spec.Service.GRPC.ExternalHost
-	}
-	return fmt.Sprintf("%s:%d", host, GRPCPort)
-}
-
-func (r *Database) GetStorageEndpointWithProto() string {
-	proto := GRPCProto
-	if r.IsGRPCSecure() {
-		proto = GRPCSProto
-	}
-
-	return fmt.Sprintf("%s%s", proto, r.GetStorageEndpoint())
-}
-
 func (r *Database) GetDatabasePath() string {
 	if r.Spec.Path != "" {
 		return r.Spec.Path
@@ -58,10 +41,6 @@ func (r *Database) GetDatabasePath() string {
 
 func (r *Database) GetLegacyDatabasePath() string {
 	return fmt.Sprintf(legacyTenantNameFormat, r.Spec.Domain, r.Name) // FIXME: review later in context of multiple namespaces
-}
-
-func (r *Database) IsGRPCSecure() bool {
-	return r.Spec.Service.GRPC.TLSConfiguration != nil && r.Spec.Service.GRPC.TLSConfiguration.Enabled
 }
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type

@@ -36,7 +36,7 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 
 func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
 	proto := api.GRPCProto
-	if b.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled {
+	if b.IsStorageEndpointSecure() {
 		proto = api.GRPCSProto
 	}
 
@@ -50,6 +50,10 @@ func (b *DatabaseBuilder) GetStorageEndpoint() string {
 	}
 
 	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
+}
+
+func (b *DatabaseBuilder) IsStorageEndpointSecure() bool {
+	return b.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled
 }
 
 func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {

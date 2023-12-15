@@ -25,9 +25,11 @@ type DatabaseSpec struct {
 	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
 
 	// (Optional) YDB Storage domain to discovery
+	// Default: <spec.StorageClusterRef.Name>-grpc.<spec.StorageClusterRef.Namespace>.svc.cluster.local
 	// +optional
 	StorageDomains []string `json:"storageDomains,omitempty"`
 
+	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
 	// +optional
 	NodeSet []DatabaseNodeSetSpecInline `json:"nodeSet,omitempty"`
 

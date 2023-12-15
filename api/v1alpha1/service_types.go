@@ -1,8 +1,6 @@
 package v1alpha1
 
 import (
-	"strings"
-
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -43,8 +41,4 @@ type DatastreamsService struct {
 	Service `json:""`
 
 	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
-}
-
-func IsGRPCSecure(endpoint string) bool {
-	return strings.HasPrefix(endpoint, GRPCSProto)
 }

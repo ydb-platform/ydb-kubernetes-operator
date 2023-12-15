@@ -514,8 +514,8 @@ func (r *Reconciler) getYDBCredentials(
 					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 				}
 			}
-			endpoint := database.Storage.GetGRPCEndpoint()
-			secure := connection.LoadTLSCredentials(database.Storage.IsGRPCSecure())
+			endpoint := database.GetStorageEndpoint()
+			secure := connection.LoadTLSCredentials(database.IsStorageEndpointSecure())
 			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
 		}
 	}
