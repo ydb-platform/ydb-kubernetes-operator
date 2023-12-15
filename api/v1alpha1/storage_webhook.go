@@ -79,10 +79,6 @@ func (r *Storage) Default() {
 		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
-	if r.Spec.Resources == nil {
-		r.Spec.Resources = &v1.ResourceRequirements{}
-	}
-
 	if r.Spec.Monitoring == nil {
 		r.Spec.Monitoring = &MonitoringOptions{
 			Enabled: false,

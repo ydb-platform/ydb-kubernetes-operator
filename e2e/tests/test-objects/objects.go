@@ -76,8 +76,7 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
 				},
 			},
-			Domain:    DefaultDomain,
-			Resources: &corev1.ResourceRequirements{},
+			Domain: DefaultDomain,
 			Image: v1alpha1.PodImage{
 				Name:           YdbImage,
 				PullPolicyName: &defaultPolicy,

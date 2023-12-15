@@ -1217,11 +1217,7 @@ func (in *StorageNodeSetSpec) DeepCopyInto(out *StorageNodeSetSpec) {
 		}
 	}
 	in.Service.DeepCopyInto(&out.Service)
-	if in.Resources != nil {
-		in, out := &in.Resources, &out.Resources
-		*out = new(v1.ResourceRequirements)
-		(*in).DeepCopyInto(*out)
-	}
+	in.Resources.DeepCopyInto(&out.Resources)
 	in.Image.DeepCopyInto(&out.Image)
 	if in.InitContainers != nil {
 		in, out := &in.InitContainers, &out.InitContainers
@@ -1458,11 +1454,7 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 		(*in).DeepCopyInto(*out)
 	}
 	in.Service.DeepCopyInto(&out.Service)
-	if in.Resources != nil {
-		in, out := &in.Resources, &out.Resources
-		*out = new(v1.ResourceRequirements)
-		(*in).DeepCopyInto(*out)
-	}
+	in.Resources.DeepCopyInto(&out.Resources)
 	in.Image.DeepCopyInto(&out.Image)
 	if in.InitContainers != nil {
 		in, out := &in.InitContainers, &out.InitContainers

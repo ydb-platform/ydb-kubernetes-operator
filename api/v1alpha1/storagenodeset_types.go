@@ -40,7 +40,7 @@ type StorageNodeSetSpec struct {
 	// can be specified.
 	// Default: (not specified)
 	// +optional
-	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 
 	// (Optional) Container image information
 	// +optional

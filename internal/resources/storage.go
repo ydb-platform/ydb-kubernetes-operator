@@ -178,7 +178,7 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 
 	snsSpec.Resources = b.Spec.Resources
 	if nodeSetSpecInline.Resources != nil {
-		snsSpec.Resources = nodeSetSpecInline.Resources
+		snsSpec.Resources = *nodeSetSpecInline.Resources
 	}
 
 	snsSpec.Image = b.Spec.Image
