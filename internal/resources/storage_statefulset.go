@@ -194,7 +194,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		},
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.IsGRPCSecure() {
 		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
@@ -263,7 +263,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 
 func (b *StorageStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
 	return len(b.Spec.CABundle) > 0 ||
-		IsGrpcSecure(b.Storage) ||
+		b.IsGRPCSecure() ||
 		b.Spec.Service.Interconnect.TLSConfiguration.Enabled
 }
 
@@ -282,7 +282,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		})
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.IsGRPCSecure() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
@@ -376,7 +376,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		},
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.IsGRPCSecure() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
@@ -430,7 +430,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.IsGRPCSecure() {
 		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt && ", localCertsDir) // fixme const
 	}
 

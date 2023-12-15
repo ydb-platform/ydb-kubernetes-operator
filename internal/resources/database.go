@@ -21,18 +21,13 @@ type DatabaseBuilder struct {
 func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	cr := ydbCr.DeepCopy()
 
-	api.SetDatabaseSpecDefaults(cr, &cr.Spec)
-
 	return DatabaseBuilder{Database: cr, Storage: nil}
 }
 
-func (b *DatabaseBuilder) SetStatusOnFirstReconcile() bool {
-	changed := false
+func (b *DatabaseBuilder) SetStatusOnFirstReconcile() {
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
-		changed = true
 	}
-	return changed
 }
 
 func (b *DatabaseBuilder) Unwrap() *api.Database {
@@ -41,11 +36,20 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 
 func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
 	proto := api.GRPCProto
-	if IsGrpcSecure(b.Storage) {
+	if b.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		proto = api.GRPCSProto
 	}
 
 	return fmt.Sprintf("%s%s", proto, b.GetStorageEndpoint())
+}
+
+func (b *DatabaseBuilder) GetStorageEndpoint() string {
+	host := fmt.Sprintf(api.GRPCServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
+	if b.Storage.Spec.Service.GRPC.ExternalHost != "" {
+		host = b.Storage.Spec.Service.GRPC.ExternalHost
+	}
+
+	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
 }
 
 func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
@@ -187,8 +191,9 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				Database:   b.Unwrap(),
 				RestConfig: restConfig,
 
-				Name:   b.Name,
-				Labels: databaseLabels,
+				Name:            b.Name,
+				Labels:          databaseLabels,
+				StorageEndpoint: b.GetStorageEndpointWithProto(),
 			},
 		)
 	} else {
@@ -224,6 +229,7 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 		Name:      b.Name,
 		Namespace: b.Namespace,
 	}
+	dnsSpec.StorageEndpoint = b.GetStorageEndpointWithProto()
 
 	dnsSpec.Nodes = nodeSetSpecInline.Nodes
 	dnsSpec.Configuration = configuration
@@ -232,8 +238,7 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 	if nodeSetSpecInline.Service != nil {
 		dnsSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
 	}
-	dnsSpec.StorageDomains = b.GetStorageDomains()
-	dnsSpec.StorageEndpoint = b.GetStorageEndpoint()
+	dnsSpec.StorageDomains = b.Spec.StorageDomains
 	dnsSpec.Encryption = b.Spec.Encryption
 	dnsSpec.Volumes = b.Spec.Volumes
 	dnsSpec.Datastreams = b.Spec.Datastreams

@@ -303,12 +303,12 @@ func (in *DatabaseNodeSetList) DeepCopyObject() runtime.Object {
 func (in *DatabaseNodeSetSpec) DeepCopyInto(out *DatabaseNodeSetSpec) {
 	*out = *in
 	out.DatabaseRef = in.DatabaseRef
-	in.Service.DeepCopyInto(&out.Service)
 	if in.StorageDomains != nil {
 		in, out := &in.StorageDomains, &out.StorageDomains
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	in.Service.DeepCopyInto(&out.Service)
 	if in.Encryption != nil {
 		in, out := &in.Encryption, &out.Encryption
 		*out = new(EncryptionConfig)

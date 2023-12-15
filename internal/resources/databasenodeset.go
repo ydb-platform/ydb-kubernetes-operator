@@ -3,10 +3,11 @@ package resources
 import (
 	"errors"
 
-	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 type DatabaseNodeSetBuilder struct {
@@ -56,8 +57,9 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 			Database:   database.DeepCopy(),
 			RestConfig: restConfig,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:            b.Name,
+			Labels:          b.Labels,
+			StorageEndpoint: b.Spec.StorageEndpoint,
 		},
 		&ConfigMapBuilder{
 			Object: b,
@@ -100,7 +102,6 @@ func (b *DatabaseNodeSetResource) recastDatabaseNodeSet() *api.Database {
 			Configuration:             b.DatabaseNodeSet.Spec.Configuration, // TODO: migrate to configmapRef
 			Service:                   b.DatabaseNodeSet.Spec.Service,
 			StorageDomains:            b.DatabaseNodeSet.Spec.StorageDomains,
-			StorageEndpoint:           b.DatabaseNodeSet.Spec.StorageEndpoint,
 			Encryption:                b.DatabaseNodeSet.Spec.Encryption,
 			Volumes:                   b.DatabaseNodeSet.Spec.Volumes,
 			Datastreams:               b.DatabaseNodeSet.Spec.Datastreams,

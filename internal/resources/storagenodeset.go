@@ -3,10 +3,11 @@ package resources
 import (
 	"errors"
 
-	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 type StorageNodeSetBuilder struct {
@@ -93,7 +94,6 @@ func (b *StorageNodeSetResource) Unwrap() *api.StorageNodeSet {
 }
 
 func (b *StorageNodeSetResource) recastStorageNodeSet() api.Storage {
-
 	return api.Storage{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      b.StorageNodeSet.Spec.StorageRef.Name,

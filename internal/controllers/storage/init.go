@@ -150,13 +150,11 @@ func (r *Reconciler) initializeStorage(
 		)
 	}
 
-	if resources.IsGrpcSecure(storage.Storage) {
-		cmd = append(
-			cmd,
-			"-s",
-			storage.GetGRPCEndpointWithProto(),
-		)
-	}
+	cmd = append(
+		cmd,
+		"-s",
+		storage.GetGRPCEndpointWithProto(),
+	)
 
 	cmd = append(
 		cmd,

@@ -12,6 +12,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
+const (
+	DefaultDatabaseDomain = "Root"
+)
+
 // log is for logging in this package.
 var databaselog = logf.Log.WithName("database-resource")
 
@@ -28,20 +32,21 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 var _ webhook.Defaulter = &Database{}
 
-func (r *Database) GetStorageDomains() []string {
-	if r.Spec.StorageDomains != nil {
-		return r.Spec.StorageDomains
+func (r *Database) GetStorageEndpoint() string {
+	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace) // FIXME .svc.cluster.local should not be hardcoded
+	if r.Spec.Service.GRPC.ExternalHost != "" {
+		host = r.Spec.Service.GRPC.ExternalHost
 	}
-	domain := fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace)
-	return []string{domain}
+	return fmt.Sprintf("%s:%d", host, GRPCPort)
 }
 
-func (r *Database) GetStorageEndpoint() string {
-	if r.Spec.StorageEndpoint != "" {
-		return r.Spec.StorageEndpoint
+func (r *Database) GetStorageEndpointWithProto() string {
+	proto := GRPCProto
+	if r.IsGRPCSecure() {
+		proto = GRPCSProto
 	}
-	endpoint := fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace)
-	return fmt.Sprintf("%s:%d", endpoint, GRPCPort)
+
+	return fmt.Sprintf("%s%s", proto, r.GetStorageEndpoint())
 }
 
 func (r *Database) GetDatabasePath() string {
@@ -55,12 +60,22 @@ func (r *Database) GetLegacyDatabasePath() string {
 	return fmt.Sprintf(legacyTenantNameFormat, r.Spec.Domain, r.Name) // FIXME: review later in context of multiple namespaces
 }
 
+func (r *Database) IsGRPCSecure() bool {
+	return r.Spec.Service.GRPC.TLSConfiguration != nil && r.Spec.Service.GRPC.TLSConfiguration.Enabled
+}
+
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *Database) Default() {
 	databaselog.Info("default", "name", r.Name)
 
 	if r.Spec.StorageClusterRef.Namespace == "" {
 		r.Spec.StorageClusterRef.Namespace = r.Namespace
+	}
+
+	if r.Spec.StorageDomains == nil {
+		r.Spec.StorageDomains = []string{
+			fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace),
+		}
 	}
 
 	if r.Spec.ServerlessResources != nil {
@@ -95,7 +110,7 @@ func (r *Database) Default() {
 	}
 
 	if r.Spec.Domain == "" {
-		r.Spec.Domain = DefaultDatabaseDomain // FIXME: default domain should be "Root", not "root"
+		r.Spec.Domain = DefaultDatabaseDomain
 	}
 
 	if r.Spec.Path == "" {

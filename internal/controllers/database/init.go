@@ -5,15 +5,16 @@ import (
 	"fmt"
 
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 func (r *Reconciler) processSkipInitPipeline(
@@ -43,7 +44,7 @@ func (r *Reconciler) setInitialStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
 
-	// This block is special internal logic that skips all Datbase initialization.
+	// This block is special internal logic that skips all Database initialization.
 	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
 	// does not make sense, since some nodes can be down for a long time (and it is okay, since
 	// database is healthy even with partial outage).
@@ -170,7 +171,7 @@ func (r *Reconciler) handleTenantCreation(
 	}
 
 	tenant := cms.Tenant{
-		StorageEndpoint:    database.GetStorageEndpointWithProto(),
+		StorageEndpoint:    database.Storage.GetGRPCEndpointWithProto(),
 		Path:               path,
 		StorageUnits:       storageUnits,
 		Shared:             shared,

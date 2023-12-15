@@ -34,6 +34,27 @@ type PartialYamlConfig struct {
 	} `yaml:"domains_config"`
 }
 
+func (r *Storage) GetGRPCEndpoint() string {
+	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace) // FIXME .svc.cluster.local should not be hardcoded
+	if r.Spec.Service.GRPC.ExternalHost != "" {
+		host = r.Spec.Service.GRPC.ExternalHost
+	}
+	return fmt.Sprintf("%s:%d", host, GRPCPort)
+}
+
+func (r *Storage) GetGRPCEndpointWithProto() string {
+	proto := GRPCProto
+	if r.IsGRPCSecure() {
+		proto = GRPCSProto
+	}
+
+	return fmt.Sprintf("%s%s", proto, r.GetGRPCEndpoint())
+}
+
+func (r *Storage) IsGRPCSecure() bool {
+	return r.Spec.Service.GRPC.TLSConfiguration != nil && r.Spec.Service.GRPC.TLSConfiguration.Enabled
+}
+
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *Storage) Default() {
 	storagelog.Info("default", "name", r.Name)
@@ -56,6 +77,10 @@ func (r *Storage) Default() {
 	}
 	if r.Spec.Service.Interconnect.TLSConfiguration == nil {
 		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
+
+	if r.Spec.Resources == nil {
+		r.Spec.Resources = &v1.ResourceRequirements{}
 	}
 
 	if r.Spec.Monitoring == nil {

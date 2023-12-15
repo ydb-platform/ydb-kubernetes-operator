@@ -75,7 +75,7 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
+	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) { //nolint:nestif
 		stop, result, err = r.setInitialStatus(ctx, &storage)
 		if stop {
 			return result, err
@@ -333,17 +333,18 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	}
 
 	for _, storageNodeSet := range storageNodeSets.Items {
-		var isFoundStorageNodeSet bool
+		storageNodeSet := storageNodeSet.DeepCopy()
+		isFoundStorageNodeSetSpecInline := false
 		for _, nodeSetSpecInline := range storage.Spec.NodeSet {
 			nodeSetName := storage.Name + "-" + nodeSetSpecInline.Name
 			if storageNodeSet.Name == nodeSetName {
-				isFoundStorageNodeSet = true
+				isFoundStorageNodeSetSpecInline = true
 				break
 			}
 		}
 
-		if !isFoundStorageNodeSet {
-			if err := r.Delete(ctx, &storageNodeSet); err != nil {
+		if !isFoundStorageNodeSetSpecInline {
+			if err := r.Delete(ctx, storageNodeSet); err != nil {
 				r.Recorder.Event(
 					storage,
 					corev1.EventTypeWarning,
@@ -366,9 +367,9 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		oldGeneration := storageNodeSet.Status.ObservedStorageGeneration
 		if oldGeneration != storage.Generation {
 			storageNodeSet.Status.ObservedStorageGeneration = storage.Generation
-			if err := r.Status().Update(ctx, &storageNodeSet); err != nil {
+			if err := r.Status().Update(ctx, storageNodeSet); err != nil {
 				r.Recorder.Event(
-					&storageNodeSet,
+					storageNodeSet,
 					corev1.EventTypeWarning,
 					"ControllerError",
 					fmt.Sprintf("Failed setting status: %s", err),
@@ -376,7 +377,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 			r.Recorder.Event(
-				&storageNodeSet,
+				storageNodeSet,
 				corev1.EventTypeNormal,
 				"StatusChanged",
 				fmt.Sprintf(
@@ -490,7 +491,7 @@ func (r *Reconciler) getYDBCredentials(
 				}
 			}
 			endpoint := storage.GetGRPCEndpoint()
-			secure := connection.LoadTLSCredentials(resources.IsGrpcSecure(storage.Storage))
+			secure := connection.LoadTLSCredentials(storage.IsGRPCSecure())
 			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
 		}
 	}

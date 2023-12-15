@@ -28,10 +28,6 @@ type DatabaseSpec struct {
 	// +optional
 	StorageDomains []string `json:"storageDomains,omitempty"`
 
-	// (Optional) Node broker address host:port
-	// +optional
-	StorageEndpoint string `json:"storageEndpoint,omitempty"`
-
 	// +optional
 	NodeSet []DatabaseNodeSetSpecInline `json:"nodeSet,omitempty"`
 
@@ -50,7 +46,7 @@ type DatabaseSpec struct {
 	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
 
 	// (Optional) Name of the root storage domain
-	// Default: root
+	// Default: Root
 	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
 	// +kubebuilder:validation:MaxLength:=63
 	// +kubebuilder:default:="root"

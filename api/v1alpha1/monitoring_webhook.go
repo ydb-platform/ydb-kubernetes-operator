@@ -54,6 +54,46 @@ func RegisterMonitoringValidatingWebhook(mgr ctrl.Manager, enableServiceMonitori
 	return registerWebHook(&StorageMonitoring{}, "storagemonitoring-resource")
 }
 
+// generateValidatePath is a copy from controller-runtime
+func generateValidatePath(gvk schema.GroupVersionKind) string {
+	return "/validate-" + strings.ReplaceAll(gvk.Group, ".", "-") + "-" +
+		gvk.Version + "-" + strings.ToLower(gvk.Kind)
+}
+
+func checkMonitoringCRD(manager ctrl.Manager, logger logr.Logger, monitoringEnabled bool) error {
+	if monitoringEnabled {
+		return nil
+	}
+
+	config := manager.GetConfig()
+	clientset, err := kube.NewForConfig(config)
+	if err != nil {
+		logger.Error(err, "unable to get clientset while checking monitoring CRD")
+		return nil
+	}
+	_, resources, err := clientset.ServerGroupsAndResources()
+	if err != nil {
+		logger.Error(err, "unable to get ServerGroupsAndResources while checking monitoring CRD")
+		return nil
+	}
+
+	foundMonitoring := false
+	for _, resource := range resources {
+		if resource.GroupVersion == "monitoring.coreos.com/v1" {
+			for _, res := range resource.APIResources {
+				if res.Kind == "ServiceMonitor" {
+					foundMonitoring = true
+				}
+			}
+		}
+	}
+	if foundMonitoring {
+		return nil
+	}
+	crdError := fmt.Errorf("required Prometheus CRDs not found in the cluster: `monitoring.coreos.com/v1/servicemonitor`. Please make sure your Prometheus installation is healthy, `kubectl get servicemonitors` must be non-empty")
+	return crdError
+}
+
 func ensureNoServiceMonitor(ctx context.Context, client client.Client, namespace string, name string) error {
 	found := &v1.ServiceMonitor{}
 	err := client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, found)
@@ -109,44 +149,4 @@ func (v *monitoringValidationHandler) InjectClient(c client.Client) error {
 func (v *monitoringValidationHandler) InjectDecoder(d *admission.Decoder) error {
 	v.decoder = d
 	return nil
-}
-
-// generateValidatePath is a copy from controller-runtime
-func generateValidatePath(gvk schema.GroupVersionKind) string {
-	return "/validate-" + strings.ReplaceAll(gvk.Group, ".", "-") + "-" +
-		gvk.Version + "-" + strings.ToLower(gvk.Kind)
-}
-
-func checkMonitoringCRD(manager ctrl.Manager, logger logr.Logger, monitoringEnabled bool) error {
-	if monitoringEnabled {
-		return nil
-	}
-
-	config := manager.GetConfig()
-	clientset, err := kube.NewForConfig(config)
-	if err != nil {
-		logger.Error(err, "unable to get clientset while checking monitoring CRD")
-		return nil
-	}
-	_, resources, err := clientset.ServerGroupsAndResources()
-	if err != nil {
-		logger.Error(err, "unable to get ServerGroupsAndResources while checking monitoring CRD")
-		return nil
-	}
-
-	foundMonitoring := false
-	for _, resource := range resources {
-		if resource.GroupVersion == "monitoring.coreos.com/v1" {
-			for _, res := range resource.APIResources {
-				if res.Kind == "ServiceMonitor" {
-					foundMonitoring = true
-				}
-			}
-		}
-	}
-	if foundMonitoring {
-		return nil
-	}
-	crdError := fmt.Errorf("required Prometheus CRDs not found in the cluster: `monitoring.coreos.com/v1/servicemonitor`. Please make sure your Prometheus installation is healthy, `kubectl get servicemonitors` must be non-empty")
-	return crdError
 }

@@ -4478,8 +4478,6 @@ spec:
             required:
             - databaseRef
             - nodes
-            - storageDomains
-            - storageEndpoint
             type: object
           status:
             default:

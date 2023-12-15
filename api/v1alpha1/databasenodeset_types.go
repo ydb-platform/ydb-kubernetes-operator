@@ -11,6 +11,10 @@ type DatabaseNodeSetSpec struct {
 	// +required
 	DatabaseRef NamespacedRef `json:"databaseRef"`
 
+	// (Optional) Node broker address host:port
+	// +optional
+	StorageEndpoint string `json:"storageEndpoint"`
+
 	// Number of nodes (pods) in the set
 	// +required
 	Nodes int32 `json:"nodes"`
@@ -19,18 +23,14 @@ type DatabaseNodeSetSpec struct {
 	// +optional
 	Configuration string `json:"configuration"`
 
+	// (Optional) YDB Storage domain to discovery
+	// +optional
+	StorageDomains []string `json:"storageDomains"`
+
 	// (Optional) Storage services parameter overrides
 	// Default: (not specified)
 	// +optional
 	Service DatabaseServices `json:"service,omitempty"`
-
-	// (Optional) YDB Storage domain to discovery
-	// +required
-	StorageDomains []string `json:"storageDomains"`
-
-	// (Optional) Node broker address host:port
-	// +required
-	StorageEndpoint string `json:"storageEndpoint"`
 
 	// Encryption
 	// +optional
@@ -166,7 +166,6 @@ type DatabaseNodeSetStatus struct {
 
 // DatabaseNodeSetSpecInline describes an group nodes object inside parent object
 type DatabaseNodeSetSpecInline struct {
-
 	// Name of DatabaseNodeSet object
 	// +required
 	Name string `json:"name,omitempty"`

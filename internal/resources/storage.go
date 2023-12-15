@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -31,28 +29,6 @@ func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() {
 
 func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 	return b.DeepCopy()
-}
-
-func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
-	host := fmt.Sprintf(api.GRPCServiceFQDNFormat, b.Name, b.Namespace)
-	if b.Spec.Service.GRPC.ExternalHost != "" {
-		host = b.Spec.Service.GRPC.ExternalHost
-	}
-
-	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
-}
-
-func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
-	proto := api.GRPCProto
-	if IsGrpcSecure(b.Storage) {
-		proto = api.GRPCSProto
-	}
-
-	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
-}
-
-func IsGrpcSecure(s *api.Storage) bool {
-	return s.Spec.Service.GRPC.TLSConfiguration != nil && s.Spec.Service.GRPC.TLSConfiguration.Enabled
 }
 
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
@@ -200,10 +176,7 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 		snsSpec.Service = *nodeSetSpecInline.Service
 	}
 
-	snsSpec.Resources = &corev1.ResourceRequirements{}
-	if b.Spec.Resources != nil {
-		snsSpec.Resources = b.Spec.Resources
-	}
+	snsSpec.Resources = b.Spec.Resources
 	if nodeSetSpecInline.Resources != nil {
 		snsSpec.Resources = nodeSetSpecInline.Resources
 	}

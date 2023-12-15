@@ -910,7 +910,7 @@ spec:
               domain:
                 default: root
                 description: '(Optional) Name of the root storage domain Default:
-                  root'
+                  Root'
                 maxLength: 63
                 pattern: '[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?'
                 type: string
@@ -4368,9 +4368,6 @@ spec:
                 items:
                   type: string
                 type: array
-              storageEndpoint:
-                description: (Optional) Node broker address host:port
-                type: string
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
                 items:

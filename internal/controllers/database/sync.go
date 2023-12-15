@@ -79,7 +79,7 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) {
+	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) { //nolint:nestif
 		stop, result, err = r.setInitialStatus(ctx, &database)
 		if stop {
 			return result, err
@@ -393,16 +393,17 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	}
 
 	for _, databaseNodeSet := range databaseNodeSets.Items {
-		var isFoundDatabaseNodeSet bool
+		databaseNodeSet := databaseNodeSet.DeepCopy()
+		isFoundDatabaseNodeSetSpecInline := false
 		for _, nodeSetSpecInline := range database.Spec.NodeSet {
 			databaseNodeSetName := database.Name + "-" + nodeSetSpecInline.Name
 			if databaseNodeSet.Name == databaseNodeSetName {
-				isFoundDatabaseNodeSet = true
+				isFoundDatabaseNodeSetSpecInline = true
 				break
 			}
 		}
-		if !isFoundDatabaseNodeSet {
-			if err := r.Delete(ctx, &databaseNodeSet); err != nil {
+		if !isFoundDatabaseNodeSetSpecInline {
+			if err := r.Delete(ctx, databaseNodeSet); err != nil {
 				r.Recorder.Event(
 					database,
 					corev1.EventTypeWarning,
@@ -425,9 +426,9 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		oldGeneration := databaseNodeSet.Status.ObservedDatabaseGeneration
 		if oldGeneration != database.Generation {
 			databaseNodeSet.Status.ObservedDatabaseGeneration = database.Generation
-			if err := r.Status().Update(ctx, &databaseNodeSet); err != nil {
+			if err := r.Status().Update(ctx, databaseNodeSet); err != nil {
 				r.Recorder.Event(
-					&databaseNodeSet,
+					databaseNodeSet,
 					corev1.EventTypeWarning,
 					"ControllerError",
 					fmt.Sprintf("Failed setting status: %s", err),
@@ -435,7 +436,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 			r.Recorder.Event(
-				&databaseNodeSet,
+				databaseNodeSet,
 				corev1.EventTypeNormal,
 				"StatusChanged",
 				fmt.Sprintf(
@@ -449,6 +450,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
+
 func (r *Reconciler) setState(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
@@ -512,8 +514,8 @@ func (r *Reconciler) getYDBCredentials(
 					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 				}
 			}
-			endpoint := database.GetStorageEndpoint()
-			secure := connection.LoadTLSCredentials(resources.IsGrpcSecure(database.Storage))
+			endpoint := database.Storage.GetGRPCEndpoint()
+			secure := connection.LoadTLSCredentials(database.Storage.IsGRPCSecure())
 			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
 		}
 	}
