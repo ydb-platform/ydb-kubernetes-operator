@@ -53,7 +53,7 @@ func (r *Database) Default() {
 
 	if r.Spec.StorageDomains == nil {
 		r.Spec.StorageDomains = []string{
-			fmt.Sprintf(GRPCServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace),
+			fmt.Sprintf(InterconnectServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace),
 		}
 	}
 

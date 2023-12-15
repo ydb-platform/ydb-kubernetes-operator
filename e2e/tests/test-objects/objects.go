@@ -143,7 +143,7 @@ func DefaultDatabase() *v1alpha1.Database {
 				Namespace: YdbNamespace,
 			},
 			StorageDomains: []string{
-				fmt.Sprintf(v1alpha1.GRPCServiceFQDNFormat, StorageName, YdbNamespace),
+				fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, StorageName, YdbNamespace),
 			},
 			Domain: DefaultDomain,
 			Image: v1alpha1.PodImage{
