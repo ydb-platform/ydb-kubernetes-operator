@@ -352,6 +352,29 @@ var _ = Describe("Operator smoke test", func() {
 			Expect(podIsReady(pod.Status.Conditions)).To(BeTrue())
 		}
 
+		By("delete nodeSetSpec inline...")
+		databaseNodeSetList := v1alpha1.DatabaseNodeSetList{}
+		database.Spec.Nodes = database.Spec.Nodes / 2
+		database.Spec.NodeSet = database.Spec.NodeSet[1:]
+
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &database)).Should(Succeed())
+			g.Expect(k8sClient.List(ctx, &databaseNodeSetList,
+				client.InNamespace(testobjects.YdbNamespace),
+				client.MatchingLabels{"ydb-cluster": "kind-database"},
+			)).Should(Succeed())
+			return len(databaseNodeSetList.Items) == 1
+		}, Timeout, Interval).Should(BeTrue())
+		Expect(len(databaseNodeSetList.Items)).Should(BeEquivalentTo(len(database.Spec.NodeSet)))
+		for _, databaseNodeSet := range databaseNodeSetList.Items {
+			Expect(database.GetGeneration()).Should(BeEquivalentTo(databaseNodeSet.Status.ObservedDatabaseGeneration))
+		}
+
+		By("execute simple query inside ydb database pod...")
 		firstDBPod := databasePods.Items[0].Name
 
 		Expect(bringYdbCliToPod(testobjects.YdbNamespace, firstDBPod, testobjects.YdbHome)).To(Succeed())
