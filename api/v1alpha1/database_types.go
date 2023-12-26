@@ -40,13 +40,20 @@ type DatabaseSpec struct {
 	// +optional
 	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
 
-	// The state of the Database processes. Can be one of `Paused`, `Running` or `Frozen`.
-	// `Paused` means all the Storage Pods are being killed, but the Storage resource is persisted.
-	// `Frozen` means all the Pods are running, but the reconcile is effectively turned off.
+	// The state of the Database processes. Can be one of `Paused` or `Running`
+	// `Paused` means all the Database Pods are being killed, but the Database resource is persisted.
 	// `Running` means the default state of the system, all Pods running.
 	// +kubebuilder:default:=Running
 	// +optional
 	Pause string `json:"pause,omitempty"`
+
+	// Enables or disables operator's reconcile loop. Can be one of `Running` or `Frozen`.
+	// `Frozen` means all the Pods are running, but the reconcile is effectively turned off.
+	// `Running` means the default state of the system, all Pods running, operator reacts
+	// to specification change of this Database resource.
+	// +kubebuilder:default:=Running
+	// +optional
+	OperatorSync string `json:"operatorSync,omitempty"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root
@@ -191,9 +198,8 @@ type StorageUnit struct {
 
 // DatabaseStatus defines the observed state of Database
 type DatabaseStatus struct {
-	State              constants.ClusterState `json:"state"`
-	Conditions         []metav1.Condition     `json:"conditions,omitempty"`
-	StateBeforePausing constants.ClusterState `json:"stateBeforePausing,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true

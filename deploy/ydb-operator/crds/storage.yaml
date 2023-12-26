@@ -2503,13 +2503,20 @@ spec:
                     - username
                     type: object
                 type: object
+              operatorSync:
+                default: Running
+                description: Enables or disables operator's reconcile loop. Can be
+                  one of `Running` or `Frozen`. `Frozen` means all the Pods are running,
+                  but the reconcile is effectively turned off. `Running` means the
+                  default state of the system, all Pods running, operator reacts to
+                  specification change of this Storage resource.
+                type: string
               pause:
                 default: Running
-                description: The state of the Storage processes. Can be one of `Paused`,
-                  `Running` or `Frozen`. `Paused` means all the Storage Pods are being
-                  killed, but the Storage resource is persisted. `Frozen` means all
-                  the Pods are running, but the reconcile is effectively turned off.
-                  `Running` means the default state of the system, all Pods running.
+                description: The state of the Storage processes. Can be one of `Paused`
+                  or `Running` `Paused` means all the Storage Pods are being killed,
+                  but the Storage resource is persisted. `Running` means the default
+                  state of the system, all Pods running.
                 type: string
               priorityClassName:
                 description: (Optional) If specified, the pod's priorityClassName.
@@ -4615,23 +4622,7 @@ spec:
                   - type
                   type: object
                 type: array
-              connectedDatabases:
-                items:
-                  description: ConnectedDatabase is a reference to Database object
-                    which is currently running on top of this Storage object.
-                  properties:
-                    name:
-                      type: string
-                    state:
-                      type: string
-                  required:
-                  - name
-                  - state
-                  type: object
-                type: array
               state:
-                type: string
-              stateBeforePausing:
                 type: string
             required:
             - state

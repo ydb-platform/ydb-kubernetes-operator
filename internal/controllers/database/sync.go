@@ -40,7 +40,12 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	stop, result, err = r.checkDatabaseFrozen(ctx, &database)
+	stop, result = r.checkDatabaseFrozen(&database)
+	if stop {
+		return result, nil
+	}
+
+	stop, result, err = r.handlePauseResume(ctx, &database)
 	if stop {
 		return result, err
 	}
@@ -53,41 +58,19 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	if stop {
 		return result, err
 	}
-	stop, result, err = r.letStorageKnowAboutThisDatabase(ctx, &database)
-	if stop {
-		return result, err
-	}
 	auth, result, err := r.getYDBCredentials(ctx, &database)
 	if auth == nil {
 		return result, err
 	}
 
-	initialized := meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseTenantInitializedCondition)
-	currentlyPaused := meta.IsStatusConditionTrue(database.Status.Conditions, DatabasePausedCondition)
-
-	if !currentlyPaused { //nolint:nestif
-		if !initialized {
-			stop, result, err = r.setInitialStatus(ctx, &database)
-			if stop {
-				return result, err
-			}
-		}
-		stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
-		if stop {
-			return result, err
-		}
-
-		if !initialized {
-			stop, result, err = r.handleTenantCreation(ctx, &database, auth)
-			if stop {
-				return result, err
-			}
-		}
+	if database.Status.State == DatabaseResuming {
+		return r.handleResuming(ctx, &database)
 	}
 
-	stop, result, err = r.handlePauseResume(ctx, &database)
-	if stop {
-		return result, err
+	initialized := meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseTenantInitializedCondition)
+
+	if !initialized {
+		return r.handleFirstStart(ctx, &database, auth)
 	}
 
 	return ctrl.Result{}, nil
@@ -483,48 +466,6 @@ func (r *Reconciler) handleTenantCreation(
 	)
 }
 
-func (r *Reconciler) letStorageKnowAboutThisDatabase(
-	ctx context.Context,
-	database *resources.DatabaseBuilder,
-) (bool, ctrl.Result, error) {
-	storageNamespace := database.Namespace
-	if database.Spec.StorageClusterRef.Namespace != "" {
-		storageNamespace = database.Spec.StorageClusterRef.Namespace
-	}
-
-	storage := &v1alpha1.Storage{}
-	_ = r.Client.Get(ctx,
-		types.NamespacedName{
-			Name:      database.Spec.StorageClusterRef.Name,
-			Namespace: storageNamespace,
-		},
-		storage,
-	)
-
-	var newConnectedDatabases []v1alpha1.ConnectedDatabase
-	for _, connectedDatabase := range storage.Status.ConnectedDatabases {
-		if connectedDatabase.Name == database.Name {
-			continue
-		}
-		newConnectedDatabases = append(newConnectedDatabases, connectedDatabase)
-	}
-
-	newConnectedDatabases = append(newConnectedDatabases,
-		v1alpha1.ConnectedDatabase{
-			Name:  database.Name,
-			State: database.Status.State,
-		})
-
-	storage.Status.ConnectedDatabases = newConnectedDatabases
-
-	if err := r.Client.Status().Update(ctx, storage); err != nil {
-		r.Log.Error(err, "failed to update the ConnectedDatabase list of parent Storage")
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	return Continue, ctrl.Result{}, nil
-}
-
 func (r *Reconciler) setState(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
@@ -541,7 +482,6 @@ func (r *Reconciler) setState(
 
 	databaseCr.Status.State = database.Status.State
 	databaseCr.Status.Conditions = database.Status.Conditions
-	databaseCr.Status.StateBeforePausing = database.Status.StateBeforePausing
 
 	err = r.Status().Update(ctx, databaseCr)
 	if err != nil {
@@ -655,46 +595,62 @@ func (r *Reconciler) handlePauseResume(
 			Message: "pause: Paused is set on Database",
 		})
 
-		database.Status.StateBeforePausing = database.Status.State
 		database.Status.State = DatabasePaused
 		return r.setState(ctx, database)
 	}
 
 	if database.Status.State == DatabasePaused && database.Spec.Pause == RunningState {
-		r.Log.Info("`pause: Running` was noticed, moving Database to `Pending`")
+		r.Log.Info("`pause: Running` was noticed, moving Database to `Resuming`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 
-		database.Status.State = database.Status.StateBeforePausing
-		database.Status.StateBeforePausing = ""
+		database.Status.State = DatabaseResuming
 		return r.setState(ctx, database)
 	}
 
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) checkDatabaseFrozen(
+func (r *Reconciler) handleResuming(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running step checkDatabaseFrozen for Database")
-	if database.Status.State != DatabaseFrozen && database.Spec.Pause == FrozenState {
-		r.Log.Info("setting `pause: Frozen` is set, previous state was " + string(database.Status.State))
-		database.Status.StateBeforePausing = database.Status.State
-		database.Status.State = DatabaseFrozen
-		return r.setState(ctx, database)
+) (ctrl.Result, error) {
+	stop, result, err := r.waitForStatefulSetToScale(ctx, database)
+	if stop {
+		return result, err
 	}
 
-	if database.Status.State == DatabaseFrozen && database.Spec.Pause == FrozenState {
-		r.Log.Info("`pause: Frozen` is set, no further steps will be run")
-		return Stop, ctrl.Result{}, nil
+	database.Status.State = DatabaseReady
+	_, result, err = r.setState(ctx, database)
+	return result, err
+}
+
+func (r *Reconciler) handleFirstStart(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+	auth ydbCredentials.Credentials,
+) (ctrl.Result, error) {
+	stop, result, err := r.setInitialStatus(ctx, database)
+	if stop {
+		return result, err
 	}
 
-	if database.Status.State == DatabaseFrozen && database.Spec.Pause != FrozenState {
-		r.Log.Info("`pause: Frozen` is removed, setting state back to " + string(database.Status.StateBeforePausing))
-		database.Status.State = database.Status.StateBeforePausing
-		database.Status.StateBeforePausing = ""
-		return r.setState(ctx, database)
+	stop, result, err = r.waitForStatefulSetToScale(ctx, database)
+	if stop {
+		return result, err
 	}
 
-	return Continue, ctrl.Result{}, nil
+	_, result, err = r.handleTenantCreation(ctx, database, auth)
+	return result, err
+}
+
+func (r *Reconciler) checkDatabaseFrozen(
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result) {
+	r.Log.Info("running step checkStorageFrozen for Database")
+	if database.Spec.OperatorSync == ReconcileFrozen {
+		r.Log.Info("`operatorSync: Frozen` is set, no further steps will be run")
+		return Stop, ctrl.Result{}
+	}
+
+	return Continue, ctrl.Result{}
 }

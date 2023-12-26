@@ -39,13 +39,20 @@ type StorageSpec struct {
 	// +optional
 	Service StorageServices `json:"service,omitempty"`
 
-	// The state of the Storage processes. Can be one of `Paused`, `Running` or `Frozen`.
+	// The state of the Storage processes. Can be one of `Paused` or `Running`
 	// `Paused` means all the Storage Pods are being killed, but the Storage resource is persisted.
-	// `Frozen` means all the Pods are running, but the reconcile is effectively turned off.
 	// `Running` means the default state of the system, all Pods running.
 	// +kubebuilder:default:=Running
 	// +optional
 	Pause string `json:"pause,omitempty"`
+
+	// Enables or disables operator's reconcile loop. Can be one of `Running` or `Frozen`.
+	// `Frozen` means all the Pods are running, but the reconcile is effectively turned off.
+	// `Running` means the default state of the system, all Pods running, operator reacts
+	// to specification change of this Storage resource.
+	// +kubebuilder:default:=Running
+	// +optional
+	OperatorSync string `json:"operatorSync,omitempty"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root
@@ -150,19 +157,10 @@ type StorageSpec struct {
 	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
-// ConnectedDatabase is a reference to Database object which is
-// currently running on top of this Storage object.
-type ConnectedDatabase struct {
-	Name  string                 `json:"name"`
-	State constants.ClusterState `json:"state"`
-}
-
 // StorageStatus defines the observed state of Storage
 type StorageStatus struct {
-	State              constants.ClusterState `json:"state"`
-	ConnectedDatabases []ConnectedDatabase    `json:"connectedDatabases,omitempty"`
-	Conditions         []metav1.Condition     `json:"conditions,omitempty"`
-	StateBeforePausing constants.ClusterState `json:"stateBeforePausing,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true

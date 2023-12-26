@@ -3,6 +3,8 @@ package v1alpha1
 import (
 	"fmt"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -145,6 +147,21 @@ func (r *Storage) ValidateCreate() error {
 	return nil
 }
 
+func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
+	oldStorageCopy := oldStorage.DeepCopy()
+	newStorageCopy := newStorage.DeepCopy()
+
+	// If we set Frozen field to the same value,
+	// the remaining diff must be empty.
+	oldStorageCopy.Spec.OperatorSync = "Frozen"
+	newStorageCopy.Spec.OperatorSync = "Frozen"
+
+	ignoreNonSpecFields := cmpopts.IgnoreFields(Storage{}, "Status", "ObjectMeta", "TypeMeta")
+
+	diff := cmp.Diff(oldStorageCopy, newStorageCopy, ignoreNonSpecFields)
+	return diff != "", diff
+}
+
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
@@ -155,13 +172,21 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
 	}
 
-	if storage, ok := old.(*Storage); ok {
-		if r.Spec.Pause == PausedState {
-			for _, database := range storage.Status.ConnectedDatabases {
-				if database.State == DatabaseReady {
-					return fmt.Errorf("can not set Pause for Storage which has running Databases: %s", database.Name)
-				}
-			}
+	if r.Spec.OperatorSync == ReconcileFrozen {
+		oldStorage := old.(*Storage)
+
+		hasIllegalUpdates, diff := hasUpdatesBesidesFrozen(old.(*Storage), r)
+
+		if oldStorage.Spec.OperatorSync == ReconcileRunning && hasIllegalUpdates {
+			return fmt.Errorf(
+				"it is illegal to update spec.OperatorSync and any other "+
+					"spec fields at the same time. Here is what you else tried to update: %s", diff)
+		}
+
+		if oldStorage.Spec.OperatorSync == ReconcileRunning && hasIllegalUpdates {
+			return fmt.Errorf(
+				"it is illegal to update any spec fields when spec.OperatorSync is "+
+					"spec fields at the same time. Here is what you else tried to update: %s", diff)
 		}
 	}
 

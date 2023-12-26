@@ -37,7 +37,12 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
-	stop, result, err = r.checkStorageFrozen(ctx, &storage)
+	stop, result = r.checkStorageFrozen(&storage)
+	if stop {
+		return result, nil
+	}
+
+	stop, result, err = r.handlePauseResume(ctx, &storage)
 	if stop {
 		return result, err
 	}
@@ -46,54 +51,30 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 	if stop {
 		return result, err
 	}
+
 	auth, result, err := r.getYDBCredentials(ctx, &storage)
 	if auth == nil {
 		return result, err
 	}
 
+	if storage.Status.State == StorageResuming {
+		return r.handleResuming(ctx, &storage, auth)
+	}
+
 	initialized := meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition)
-	currentlyPaused := meta.IsStatusConditionTrue(storage.Status.Conditions, StoragePausedCondition)
 
-	if !currentlyPaused { //nolint:nestif
-		if !initialized {
-			stop, result, err = r.setInitialStatus(ctx, &storage)
-			if stop {
-				return result, err
-			}
-		}
-
-		// These steps should always run, storage might be initialized
-		// but the pods are not ready yet
-		stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
-		if stop {
-			return result, err
-		}
-		stop, result, err = r.runSelfCheck(ctx, &storage, auth, false)
-		if stop {
-			return result, err
-		}
-
-		if !initialized {
-			stop, result, err = r.initializeStorage(ctx, &storage, auth)
-			if stop {
-				return result, err
-			}
-		}
+	if !initialized {
+		return r.handleFirstStart(ctx, &storage, auth)
 	}
 
-	if !currentlyPaused {
-		stop, result, err = r.runSelfCheck(ctx, &storage, auth, false)
-		if stop {
-			return result, err
-		}
-	}
-
-	stop, result, err = r.handlePauseResume(ctx, &storage)
-	if stop {
+	if storage.Status.State != StoragePaused {
+		_, result, err = r.runSelfCheck(ctx, &storage, auth, false)
 		return result, err
 	}
 
-	return result, err
+	r.Log.Info(fmt.Sprintf("not running SelfCheck for storage %s, Storage is paused", storage.Name))
+
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) waitForStatefulSetToScale(
@@ -294,7 +275,6 @@ func (r *Reconciler) setState(
 	oldStatus := storageCr.Status.State
 	storageCr.Status.State = storage.Status.State
 	storageCr.Status.Conditions = storage.Status.Conditions
-	storageCr.Status.StateBeforePausing = storage.Status.StateBeforePausing
 
 	err = r.Status().Update(ctx, storageCr)
 	if err != nil {
@@ -410,47 +390,72 @@ func (r *Reconciler) handlePauseResume(
 			Message: "pause: Paused is set on Storage",
 		})
 
-		storage.Status.StateBeforePausing = storage.Status.State
 		storage.Status.State = StoragePaused
-
 		return r.setState(ctx, storage)
 	}
 
 	if storage.Status.State == StoragePaused && storage.Spec.Pause == RunningState {
-		r.Log.Info("`pause: Running` was noticed, moving Storage to `Pending`")
+		r.Log.Info("`pause: Running` was noticed, moving Storage to `Resuming`")
 		meta.RemoveStatusCondition(&storage.Status.Conditions, StoragePausedCondition)
 
-		storage.Status.State = storage.Status.StateBeforePausing
-		storage.Status.StateBeforePausing = ""
+		storage.Status.State = StorageResuming
 		return r.setState(ctx, storage)
 	}
 
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) checkStorageFrozen(
+func (r *Reconciler) handleResuming(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-) (bool, ctrl.Result, error) {
+	auth ydbCredentials.Credentials,
+) (ctrl.Result, error) {
+	stop, result, err := r.waitForStatefulSetToScale(ctx, storage)
+	if stop {
+		return result, err
+	}
+
+	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
+	if stop {
+		return result, err
+	}
+
+	storage.Status.State = StorageReady
+	_, result, err = r.setState(ctx, storage)
+	return result, err
+}
+
+func (r *Reconciler) handleFirstStart(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+	auth ydbCredentials.Credentials,
+) (ctrl.Result, error) {
+	stop, result, err := r.setInitialStatus(ctx, storage)
+	if stop {
+		return result, err
+	}
+
+	stop, result, err = r.waitForStatefulSetToScale(ctx, storage)
+	if stop {
+		return result, err
+	}
+	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
+	if stop {
+		return result, err
+	}
+
+	_, result, err = r.initializeStorage(ctx, storage, auth)
+	return result, err
+}
+
+func (r *Reconciler) checkStorageFrozen(
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result) {
 	r.Log.Info("running step checkStorageFrozen for Storage")
-	if storage.Status.State != StorageFrozen && storage.Spec.Pause == FrozenState {
-		r.Log.Info("setting `pause: Frozen` is set, previous state was " + string(storage.Status.State))
-		storage.Status.StateBeforePausing = storage.Status.State
-		storage.Status.State = StorageFrozen
-		return r.setState(ctx, storage)
+	if storage.Spec.OperatorSync == ReconcileFrozen {
+		r.Log.Info("`operatorSync: Frozen` is set, no further steps will be run")
+		return Stop, ctrl.Result{}
 	}
 
-	if storage.Status.State == StorageFrozen && storage.Spec.Pause == FrozenState {
-		r.Log.Info("`pause: Frozen` is set, no further steps will be run")
-		return Stop, ctrl.Result{}, nil
-	}
-
-	if storage.Status.State == StorageFrozen && storage.Spec.Pause != FrozenState {
-		r.Log.Info("`pause: Frozen` is removed, setting state back to " + string(storage.Status.StateBeforePausing))
-		storage.Status.State = storage.Status.StateBeforePausing
-		storage.Status.StateBeforePausing = ""
-		return r.setState(ctx, storage)
-	}
-
-	return Continue, ctrl.Result{}, nil
+	return Continue, ctrl.Result{}
 }
