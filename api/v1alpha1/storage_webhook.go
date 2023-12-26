@@ -153,8 +153,8 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 
 	// If we set Frozen field to the same value,
 	// the remaining diff must be empty.
-	oldStorageCopy.Spec.OperatorSync = "Frozen"
-	newStorageCopy.Spec.OperatorSync = "Frozen"
+	oldStorageCopy.Spec.OperatorSync = ReconcileFrozen
+	newStorageCopy.Spec.OperatorSync = ReconcileFrozen
 
 	ignoreNonSpecFields := cmpopts.IgnoreFields(Storage{}, "Status", "ObjectMeta", "TypeMeta")
 
