@@ -55,6 +55,7 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 		},
 		Spec: v1alpha1.StorageSpec{
 			Nodes:         8,
+			OperatorSync:  true,
 			Configuration: string(storageConfig),
 			Erasure:       "block-4-2",
 			DataStore:     []corev1.PersistentVolumeClaimSpec{},
@@ -103,7 +104,8 @@ func StorageWithStaticCredentials(storageYamlConfigPath string) *v1alpha1.Storag
 			Namespace: YdbNamespace,
 		},
 		Spec: v1alpha1.StorageSpec{
-			Nodes: 8,
+			Nodes:        8,
+			OperatorSync: true,
 			OperatorConnection: &v1alpha1.ConnectionOptions{
 				StaticCredentials: &v1alpha1.StaticCredentialsAuth{
 					Username: "root",
@@ -154,7 +156,8 @@ func DefaultDatabase() *v1alpha1.Database {
 			Namespace: YdbNamespace,
 		},
 		Spec: v1alpha1.DatabaseSpec{
-			Nodes: 8,
+			Nodes:        8,
+			OperatorSync: true,
 			Resources: &v1alpha1.DatabaseResources{
 				StorageUnits: []v1alpha1.StorageUnit{
 					{
