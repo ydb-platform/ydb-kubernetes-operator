@@ -23,6 +23,7 @@ import (
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -154,7 +155,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 func shouldIgnoreStorageChange(storage *resources.StorageClusterBuilder) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
 		if _, ok := newObj.(*appsv1.StatefulSet); ok {
-			if storage.Spec.Pause == PausedState && oldObj == nil {
+			if storage.Spec.Pause == PausedState && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
 				return true
 			}
 		}
@@ -363,7 +364,7 @@ func (r *Reconciler) handlePauseResume(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Storage")
 	if storage.Status.State == StorageReady && storage.Spec.Pause == PausedState {
-		r.Log.Info("`pause: Paused` was noticed, attempting to delete Storage StatefulSet")
+		r.Log.Info("`pause: Paused` was noticed, attempting to scale Storage StatefulSet to 0 replicas")
 		statefulSet := &appsv1.StatefulSet{}
 		err := r.Client.Get(ctx,
 			types.NamespacedName{
@@ -373,13 +374,15 @@ func (r *Reconciler) handlePauseResume(
 			statefulSet,
 		)
 		if err != nil {
-			r.Log.Error(err, "failed to get the Storage StatefulSet object before deletion")
+			r.Log.Error(err, "failed to get the Storage StatefulSet object before scaling")
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		err = r.Client.Delete(ctx, statefulSet)
+		statefulSet.Spec.Replicas = ptr.Int32(0)
+
+		err = r.Client.Update(ctx, statefulSet)
 		if err != nil {
-			r.Log.Error(err, "failed to delete the Storage StatefulSet object when moving from Ready -> Paused")
+			r.Log.Error(err, "failed to scale down the Storage StatefulSet object when moving from Ready -> Paused")
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
@@ -410,12 +413,8 @@ func (r *Reconciler) handleResuming(
 	storage *resources.StorageClusterBuilder,
 	auth ydbCredentials.Credentials,
 ) (ctrl.Result, error) {
-	stop, result, err := r.waitForStatefulSetToScale(ctx, storage)
-	if stop {
-		return result, err
-	}
-
-	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
+	waitForGoodResultWithoutIssues := true
+	stop, result, err := r.runSelfCheck(ctx, storage, auth, waitForGoodResultWithoutIssues)
 	if stop {
 		return result, err
 	}

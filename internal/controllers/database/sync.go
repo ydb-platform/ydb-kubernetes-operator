@@ -23,6 +23,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -206,7 +207,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 func shouldIgnoreDatabaseChange(database *resources.DatabaseBuilder) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
 		if _, ok := newObj.(*appsv1.StatefulSet); ok {
-			if database.Spec.Pause == PausedState && oldObj == nil {
+			if database.Spec.Pause == PausedState && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
 				return true
 			}
 		}
@@ -567,7 +568,7 @@ func (r *Reconciler) handlePauseResume(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Database")
 	if database.Status.State == DatabaseReady && database.Spec.Pause == PausedState {
-		r.Log.Info("`pause: Paused` was noticed, attempting to delete Database StatefulSet")
+		r.Log.Info("`pause: Paused` was noticed, attempting to scale Database StatefulSet to 0 replicas")
 
 		statefulSet := &appsv1.StatefulSet{}
 		err := r.Client.Get(ctx,
@@ -578,13 +579,15 @@ func (r *Reconciler) handlePauseResume(
 			statefulSet,
 		)
 		if err != nil {
-			r.Log.Error(err, "failed to get the Database StatefulSet object before deletion")
+			r.Log.Error(err, "failed to get the Database StatefulSet object before scaling")
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		err = r.Client.Delete(ctx, statefulSet)
+		statefulSet.Spec.Replicas = ptr.Int32(0)
+
+		err = r.Client.Update(ctx, statefulSet)
 		if err != nil {
-			r.Log.Error(err, "failed to delete the Database StatefulSet object when moving from Ready -> Paused")
+			r.Log.Error(err, "failed to scale the Database StatefulSet object when moving from Ready -> Paused")
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
