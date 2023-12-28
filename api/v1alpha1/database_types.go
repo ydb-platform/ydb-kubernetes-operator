@@ -45,7 +45,7 @@ type DatabaseSpec struct {
 	// `false` means the default state of the system, all Pods running.
 	// +kubebuilder:default:=false
 	// +optional
-	Pause bool `json:"pause,omitempty"`
+	Pause bool `json:"pause"`
 
 	// Enables or disables operator's reconcile loop.
 	// `false` means all the Pods are running, but the reconcile is effectively turned off.
@@ -53,7 +53,7 @@ type DatabaseSpec struct {
 	// to specification change of this Database resource.
 	// +kubebuilder:default:=true
 	// +optional
-	OperatorSync bool `json:"operatorSync,omitempty"`
+	OperatorSync bool `json:"operatorSync"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root
