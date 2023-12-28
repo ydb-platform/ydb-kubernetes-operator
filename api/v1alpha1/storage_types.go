@@ -39,20 +39,20 @@ type StorageSpec struct {
 	// +optional
 	Service StorageServices `json:"service,omitempty"`
 
-	// The state of the Storage processes. Can be one of `Paused` or `Running`
-	// `Paused` means all the Storage Pods are being killed, but the Storage resource is persisted.
-	// `Running` means the default state of the system, all Pods running.
-	// +kubebuilder:default:=Running
+	// The state of the Storage processes.
+	// `true` means all the Storage Pods are being killed, but the Storage resource is persisted.
+	// `false` means the default state of the system, all Pods running.
+	// +kubebuilder:default:=false
 	// +optional
-	Pause string `json:"pause,omitempty"`
+	Pause bool `json:"pause,omitempty"`
 
-	// Enables or disables operator's reconcile loop. Can be one of `Running` or `Frozen`.
-	// `Frozen` means all the Pods are running, but the reconcile is effectively turned off.
-	// `Running` means the default state of the system, all Pods running, operator reacts
+	// Enables or disables operator's reconcile loop.
+	// `false` means all the Pods are running, but the reconcile is effectively turned off.
+	// `true` means the default state of the system, all Pods running, operator reacts
 	// to specification change of this Storage resource.
-	// +kubebuilder:default:=Running
+	// +kubebuilder:default:=true
 	// +optional
-	OperatorSync string `json:"operatorSync,omitempty"`
+	OperatorSync bool `json:"operatorSync,omitempty"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root

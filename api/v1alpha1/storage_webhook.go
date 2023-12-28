@@ -153,8 +153,8 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 
 	// If we set Frozen field to the same value,
 	// the remaining diff must be empty.
-	oldStorageCopy.Spec.OperatorSync = ReconcileFrozen
-	newStorageCopy.Spec.OperatorSync = ReconcileFrozen
+	oldStorageCopy.Spec.OperatorSync = false
+	newStorageCopy.Spec.OperatorSync = false
 
 	ignoreNonSpecFields := cmpopts.IgnoreFields(Storage{}, "Status", "ObjectMeta", "TypeMeta")
 
@@ -172,21 +172,21 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
 	}
 
-	if r.Spec.OperatorSync == ReconcileFrozen {
+	if !r.Spec.OperatorSync {
 		oldStorage := old.(*Storage)
 
 		hasIllegalUpdates, diff := hasUpdatesBesidesFrozen(old.(*Storage), r)
 
-		if oldStorage.Spec.OperatorSync == ReconcileRunning && hasIllegalUpdates {
-			return fmt.Errorf(
-				"it is illegal to update spec.OperatorSync and any other "+
-					"spec fields at the same time. Here is what you else tried to update: %s", diff)
-		}
+		if hasIllegalUpdates {
+			if oldStorage.Spec.OperatorSync {
+				return fmt.Errorf(
+					"it is illegal to update spec.OperatorSync and any other "+
+						"spec fields at the same time. Here is what you else tried to update: %s", diff)
+			}
 
-		if oldStorage.Spec.OperatorSync == ReconcileRunning && hasIllegalUpdates {
 			return fmt.Errorf(
-				"it is illegal to update any spec fields when spec.OperatorSync is "+
-					"spec fields at the same time. Here is what you else tried to update: %s", diff)
+				"it is illegal to update any spec fields when spec.OperatorSync is false. "+
+					"Here is what you else tried to update: %s", diff)
 		}
 	}
 

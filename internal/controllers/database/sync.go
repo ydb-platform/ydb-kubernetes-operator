@@ -207,7 +207,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 func shouldIgnoreDatabaseChange(database *resources.DatabaseBuilder) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
 		if _, ok := newObj.(*appsv1.StatefulSet); ok {
-			if database.Spec.Pause == PausedState && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
+			if database.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
 				return true
 			}
 		}
@@ -567,7 +567,7 @@ func (r *Reconciler) handlePauseResume(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Database")
-	if database.Status.State == DatabaseReady && database.Spec.Pause == PausedState {
+	if database.Status.State == DatabaseReady && database.Spec.Pause {
 		r.Log.Info("`pause: Paused` was noticed, attempting to scale Database StatefulSet to 0 replicas")
 
 		statefulSet := &appsv1.StatefulSet{}
@@ -602,7 +602,7 @@ func (r *Reconciler) handlePauseResume(
 		return r.setState(ctx, database)
 	}
 
-	if database.Status.State == DatabasePaused && database.Spec.Pause == RunningState {
+	if database.Status.State == DatabasePaused && !database.Spec.Pause {
 		r.Log.Info("`pause: Running` was noticed, moving Database to `Resuming`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 
@@ -650,8 +650,8 @@ func (r *Reconciler) checkDatabaseFrozen(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result) {
 	r.Log.Info("running step checkStorageFrozen for Database")
-	if database.Spec.OperatorSync == ReconcileFrozen {
-		r.Log.Info("`operatorSync: Frozen` is set, no further steps will be run")
+	if !database.Spec.OperatorSync {
+		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}
 	}
 

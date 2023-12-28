@@ -155,7 +155,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 func shouldIgnoreStorageChange(storage *resources.StorageClusterBuilder) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
 		if _, ok := newObj.(*appsv1.StatefulSet); ok {
-			if storage.Spec.Pause == PausedState && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
+			if storage.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
 				return true
 			}
 		}
@@ -363,7 +363,7 @@ func (r *Reconciler) handlePauseResume(
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Storage")
-	if storage.Status.State == StorageReady && storage.Spec.Pause == PausedState {
+	if storage.Status.State == StorageReady && storage.Spec.Pause {
 		r.Log.Info("`pause: Paused` was noticed, attempting to scale Storage StatefulSet to 0 replicas")
 		statefulSet := &appsv1.StatefulSet{}
 		err := r.Client.Get(ctx,
@@ -397,7 +397,7 @@ func (r *Reconciler) handlePauseResume(
 		return r.setState(ctx, storage)
 	}
 
-	if storage.Status.State == StoragePaused && storage.Spec.Pause == RunningState {
+	if storage.Status.State == StoragePaused && !storage.Spec.Pause {
 		r.Log.Info("`pause: Running` was noticed, moving Storage to `Resuming`")
 		meta.RemoveStatusCondition(&storage.Status.Conditions, StoragePausedCondition)
 
@@ -413,7 +413,9 @@ func (r *Reconciler) handleResuming(
 	storage *resources.StorageClusterBuilder,
 	auth ydbCredentials.Credentials,
 ) (ctrl.Result, error) {
-	waitForGoodResultWithoutIssues := true
+	// TODO(tarasov-egor@) discuss, why waitForGoodResultWithoutIssues is switched off everywhere with artgromov@ and apkobzev@
+	// if it's off even in the main reconcile loop, we can not implement the Resuming state using health check
+	waitForGoodResultWithoutIssues := false
 	stop, result, err := r.runSelfCheck(ctx, storage, auth, waitForGoodResultWithoutIssues)
 	if stop {
 		return result, err
@@ -451,8 +453,8 @@ func (r *Reconciler) checkStorageFrozen(
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result) {
 	r.Log.Info("running step checkStorageFrozen for Storage")
-	if storage.Spec.OperatorSync == ReconcileFrozen {
-		r.Log.Info("`operatorSync: Frozen` is set, no further steps will be run")
+	if !storage.Spec.OperatorSync {
+		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}
 	}
 

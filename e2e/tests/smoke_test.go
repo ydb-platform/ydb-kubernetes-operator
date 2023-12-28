@@ -249,7 +249,7 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &storage)).Should(Succeed())
 
-		storage.Spec.Pause = PausedState
+		storage.Spec.Pause = true
 		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
 		By("expecting all Pods to die...")
@@ -269,7 +269,7 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &storage)).Should(Succeed())
 
-		storage.Spec.Pause = RunningState
+		storage.Spec.Pause = false
 		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
 		By("expecting storage to become ready again...")
@@ -292,14 +292,14 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the storage pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 
-		By("setting storage operatorSync to Frozen...")
+		By("setting storage operatorSync to false...")
 		storage := v1alpha1.Storage{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
 			Name:      storageSample.Name,
 			Namespace: testobjects.YdbNamespace,
 		}, &storage)).Should(Succeed())
 
-		storage.Spec.OperatorSync = ReconcileFrozen
+		storage.Spec.OperatorSync = false
 		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
 		By("expecting all Pods to stay alive for a while...")
@@ -346,7 +346,7 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &storage)).Should(Succeed())
 
-		storage.Spec.OperatorSync = ReconcileRunning
+		storage.Spec.OperatorSync = true
 		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
 		By("expecting storage to become ready again...")
