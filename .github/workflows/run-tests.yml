@@ -165,7 +165,7 @@ jobs:
           kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
       - name: run-tests
         run: |
-          go test -timeout 1800s -p 1 ./...
+          go test -v -timeout 1800s -p 1 ./... -args -ginkgo.v
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster

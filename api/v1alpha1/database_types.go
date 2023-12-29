@@ -3,6 +3,8 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 // DatabaseSpec defines the desired state of Database
@@ -29,7 +31,7 @@ type DatabaseSpec struct {
 	Encryption *EncryptionConfig `json:"encryption,omitempty"`
 
 	// Additional volumes that will be mounted into the well-known directory of
-	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+	// every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
 	// Only `hostPath` volume type is supported for now.
 	// +optional
 	Volumes []*corev1.Volume `json:"volumes,omitempty"`
@@ -37,6 +39,21 @@ type DatabaseSpec struct {
 	// Datastreams config
 	// +optional
 	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
+
+	// The state of the Database processes.
+	// `true` means all the Database Pods are being killed, but the Database resource is persisted.
+	// `false` means the default state of the system, all Pods running.
+	// +kubebuilder:default:=false
+	// +optional
+	Pause bool `json:"pause"`
+
+	// Enables or disables operator's reconcile loop.
+	// `false` means all the Pods are running, but the reconcile is effectively turned off.
+	// `true` means the default state of the system, all Pods running, operator reacts
+	// to specification change of this Database resource.
+	// +kubebuilder:default:=true
+	// +optional
+	OperatorSync bool `json:"operatorSync"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root
@@ -181,8 +198,8 @@ type StorageUnit struct {
 
 // DatabaseStatus defines the observed state of Database
 type DatabaseStatus struct {
-	State      string             `json:"state"`
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true

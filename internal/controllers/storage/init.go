@@ -14,6 +14,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -70,8 +71,8 @@ func (r *Reconciler) setInitialStatus(
 		})
 		changed = true
 	}
-	if storage.Status.State == string(Pending) {
-		storage.Status.State = string(Preparing)
+	if storage.Status.State == StoragePending {
+		storage.Status.State = StoragePreparing
 		changed = true
 	}
 	if changed {
@@ -92,7 +93,7 @@ func (r *Reconciler) setInitStorageCompleted(
 		Message: message,
 	})
 
-	storage.Status.State = string(Ready)
+	storage.Status.State = StorageReady
 	return r.setState(ctx, storage)
 }
 
@@ -103,8 +104,8 @@ func (r *Reconciler) initializeStorage(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
 
-	if storage.Status.State == string(Provisioning) {
-		storage.Status.State = string(Initializing)
+	if storage.Status.State == StorageProvisioning {
+		storage.Status.State = StorageInitializing
 		return r.setState(ctx, storage)
 	}
 

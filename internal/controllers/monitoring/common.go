@@ -2,7 +2,6 @@ package monitoring
 
 import (
 	"context"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,10 +15,6 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
-)
-
-const (
-	DefaultRequeueDelay = 10 * time.Second
 )
 
 type Syncer struct {
@@ -70,7 +65,7 @@ func (r *Syncer) Sync(ctx context.Context, obj client.Object) (ctrl.Result, erro
 	monitor := builder.Placeholder(obj)
 	monitor.SetName(r.Object.GetName())
 
-	result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, monitor, func() error {
+	result, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, monitor, func() error {
 		if err := builder.Build(monitor); err != nil {
 			r.Recorder.Eventf(
 				r.Object,
@@ -91,6 +86,8 @@ func (r *Syncer) Sync(ctx context.Context, obj client.Object) (ctrl.Result, erro
 		}
 
 		return nil
+	}, func(oldObj, newObj runtime.Object) bool {
+		return false
 	})
 
 	if err != nil {
