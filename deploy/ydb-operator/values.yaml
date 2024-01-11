@@ -103,9 +103,9 @@ webhook:
     injectCA: false
     # self-signed root certificate
     rootCert:
-      duration: ""  # default to be 5y
+      duration: ""  # default is 5y
     admissionCert:
-      duration: ""  # default to be 1y
+      duration: ""  # default is 1y
     # issuerRef:
     #   name: "issuer"
     #   kind: "ClusterIssuer"
