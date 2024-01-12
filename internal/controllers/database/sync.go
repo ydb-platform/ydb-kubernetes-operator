@@ -384,88 +384,6 @@ func (r *Reconciler) handleResourcesSync(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) syncNodeSetSpecInline(
-	ctx context.Context,
-	database *resources.DatabaseBuilder,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running step syncNodeSetSpecInline")
-
-	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
-	matchingFields := client.MatchingFields{
-		ownerControllerKey: database.Name,
-	}
-	if err := r.List(ctx, databaseNodeSets,
-		client.InNamespace(database.Namespace),
-		matchingFields,
-	); err != nil {
-		r.Recorder.Event(
-			database,
-			corev1.EventTypeWarning,
-			"ProvisioningFailed",
-			fmt.Sprintf("Failed to list DatabaseNodeSets: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	for _, databaseNodeSet := range databaseNodeSets.Items {
-		databaseNodeSet := databaseNodeSet.DeepCopy()
-		isFoundDatabaseNodeSetSpecInline := false
-		for _, nodeSetSpecInline := range database.Spec.NodeSet {
-			databaseNodeSetName := database.Name + "-" + nodeSetSpecInline.Name
-			if databaseNodeSet.Name == databaseNodeSetName {
-				isFoundDatabaseNodeSetSpecInline = true
-				break
-			}
-		}
-		if !isFoundDatabaseNodeSetSpecInline {
-			if err := r.Delete(ctx, databaseNodeSet); err != nil {
-				r.Recorder.Event(
-					database,
-					corev1.EventTypeWarning,
-					"ProvisioningFailed",
-					fmt.Sprintf("Failed to delete DatabaseNodeSet: %s", err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			r.Recorder.Event(
-				database,
-				corev1.EventTypeNormal,
-				"Syncing",
-				fmt.Sprintf("Resource: %s, Namespace: %s, Name: %s, deleted",
-					reflect.TypeOf(databaseNodeSet),
-					databaseNodeSet.Namespace,
-					databaseNodeSet.Name),
-			)
-		}
-
-		oldGeneration := databaseNodeSet.Status.ObservedDatabaseGeneration
-		if oldGeneration != database.Generation {
-			databaseNodeSet.Status.ObservedDatabaseGeneration = database.Generation
-			if err := r.Status().Update(ctx, databaseNodeSet); err != nil {
-				r.Recorder.Event(
-					databaseNodeSet,
-					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed setting status: %s", err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			r.Recorder.Event(
-				databaseNodeSet,
-				corev1.EventTypeNormal,
-				"StatusChanged",
-				fmt.Sprintf(
-					"DatabaseNodeSet updated observedStorageGeneration from %d to %d",
-					oldGeneration,
-					database.Generation),
-			)
-		}
-	}
-
-	r.Log.Info("syncNodeSetSpecInline complete")
-	return Continue, ctrl.Result{Requeue: false}, nil
-}
-
 func (r *Reconciler) setState(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
@@ -564,4 +482,86 @@ func (r *Reconciler) getSecretKey(
 		)
 	}
 	return string(secretVal), nil
+}
+
+func (r *Reconciler) syncNodeSetSpecInline(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step syncNodeSetSpecInline")
+
+	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
+	matchingFields := client.MatchingFields{
+		ownerControllerKey: database.Name,
+	}
+	if err := r.List(ctx, databaseNodeSets,
+		client.InNamespace(database.Namespace),
+		matchingFields,
+	); err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed to list DatabaseNodeSets: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	for _, databaseNodeSet := range databaseNodeSets.Items {
+		databaseNodeSet := databaseNodeSet.DeepCopy()
+		isFoundDatabaseNodeSetSpecInline := false
+		for _, nodeSetSpecInline := range database.Spec.NodeSet {
+			databaseNodeSetName := database.Name + "-" + nodeSetSpecInline.Name
+			if databaseNodeSet.Name == databaseNodeSetName {
+				isFoundDatabaseNodeSetSpecInline = true
+				break
+			}
+		}
+		if !isFoundDatabaseNodeSetSpecInline {
+			if err := r.Delete(ctx, databaseNodeSet); err != nil {
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to delete DatabaseNodeSet: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeNormal,
+				"Syncing",
+				fmt.Sprintf("Resource: %s, Namespace: %s, Name: %s, deleted",
+					reflect.TypeOf(databaseNodeSet),
+					databaseNodeSet.Namespace,
+					databaseNodeSet.Name),
+			)
+		}
+
+		oldGeneration := databaseNodeSet.Status.ObservedDatabaseGeneration
+		if oldGeneration != database.Generation {
+			databaseNodeSet.Status.ObservedDatabaseGeneration = database.Generation
+			if err := r.Status().Update(ctx, databaseNodeSet); err != nil {
+				r.Recorder.Event(
+					databaseNodeSet,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed setting status: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+			r.Recorder.Event(
+				databaseNodeSet,
+				corev1.EventTypeNormal,
+				"StatusChanged",
+				fmt.Sprintf(
+					"DatabaseNodeSet updated observedStorageGeneration from %d to %d",
+					oldGeneration,
+					database.Generation),
+			)
+		}
+	}
+
+	r.Log.Info("syncNodeSetSpecInline complete")
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
