@@ -2,11 +2,14 @@ package resources
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -21,10 +24,23 @@ func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	return StorageClusterBuilder{cr}
 }
 
-func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() {
+func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
+
+		if b.Spec.Pause {
+			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
+				Type:    string(StoragePaused),
+				Status:  "True",
+				Reason:  ReasonCompleted,
+				Message: "State Storage set to Paused",
+			})
+
+			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+		}
 	}
+
+	return Continue, ctrl.Result{}, nil
 }
 
 func (b *StorageClusterBuilder) Unwrap() *api.Storage {
@@ -155,92 +171,94 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 }
 
 func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline *api.StorageNodeSetSpecInline, configuration string) api.StorageNodeSetSpec {
-	snsSpec := api.StorageNodeSetSpec{}
+	nodeSetSpec := api.StorageNodeSetSpec{}
 
-	snsSpec.StorageRef = api.NamespacedRef{
+	nodeSetSpec.StorageRef = api.NamespacedRef{
 		Name:      b.Name,
 		Namespace: b.Namespace,
 	}
 
-	snsSpec.Nodes = nodeSetSpecInline.Nodes
-	snsSpec.Configuration = configuration
-	snsSpec.Erasure = b.Spec.Erasure
+	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
+	nodeSetSpec.Configuration = configuration
+	nodeSetSpec.Erasure = b.Spec.Erasure
 
-	snsSpec.DataStore = b.Spec.DataStore
+	nodeSetSpec.DataStore = b.Spec.DataStore
 	if nodeSetSpecInline.DataStore != nil {
-		snsSpec.DataStore = nodeSetSpecInline.DataStore
+		nodeSetSpec.DataStore = nodeSetSpecInline.DataStore
 	}
 
-	snsSpec.Service = b.Spec.Service
+	nodeSetSpec.Service = b.Spec.Service
 	if nodeSetSpecInline.Service != nil {
-		snsSpec.Service = *nodeSetSpecInline.Service
+		nodeSetSpec.Service = *nodeSetSpecInline.Service
 	}
 
-	snsSpec.Resources = b.Spec.Resources
+	nodeSetSpec.Resources = b.Spec.Resources
 	if nodeSetSpecInline.Resources != nil {
-		snsSpec.Resources = *nodeSetSpecInline.Resources
+		nodeSetSpec.Resources = *nodeSetSpecInline.Resources
 	}
 
-	snsSpec.Image = b.Spec.Image
+	nodeSetSpec.Image = b.Spec.Image
 	// if nodeSetSpecInline.Image != nil {
-	// 	snsSpec.Image = *nodeSetSpecInline.Image.DeepCopy()
+	// 	nodeSetSpec.Image = *nodeSetSpecInline.Image.DeepCopy()
 	// }
 
-	snsSpec.InitContainers = b.Spec.InitContainers
-	snsSpec.CABundle = b.Spec.CABundle
-	snsSpec.Secrets = b.Spec.Secrets
-	snsSpec.Volumes = b.Spec.Volumes
-	snsSpec.HostNetwork = b.Spec.HostNetwork
+	nodeSetSpec.InitContainers = b.Spec.InitContainers
+	nodeSetSpec.CABundle = b.Spec.CABundle
+	nodeSetSpec.Secrets = b.Spec.Secrets
+	nodeSetSpec.Volumes = b.Spec.Volumes
+	nodeSetSpec.Pause = b.Spec.Pause
+	nodeSetSpec.OperatorSync = b.Spec.OperatorSync
+	nodeSetSpec.HostNetwork = b.Spec.HostNetwork
 
-	snsSpec.NodeSelector = b.Spec.NodeSelector
+	nodeSetSpec.NodeSelector = b.Spec.NodeSelector
 	if nodeSetSpecInline.NodeSelector != nil {
-		snsSpec.NodeSelector = nodeSetSpecInline.NodeSelector
+		nodeSetSpec.NodeSelector = nodeSetSpecInline.NodeSelector
 	}
 
-	snsSpec.Affinity = b.Spec.Affinity
+	nodeSetSpec.Affinity = b.Spec.Affinity
 	if nodeSetSpecInline.Affinity != nil {
-		snsSpec.Affinity = nodeSetSpecInline.Affinity
+		nodeSetSpec.Affinity = nodeSetSpecInline.Affinity
 	}
 
-	snsSpec.Tolerations = b.Spec.Tolerations
+	nodeSetSpec.Tolerations = b.Spec.Tolerations
 	if nodeSetSpecInline.Tolerations != nil {
-		snsSpec.Tolerations = nodeSetSpecInline.Tolerations
+		nodeSetSpec.Tolerations = nodeSetSpecInline.Tolerations
 	}
 
-	snsSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
+	nodeSetSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
 	if nodeSetSpecInline.TopologySpreadConstraints != nil {
-		snsSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+		nodeSetSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
 	}
 
-	snsSpec.AdditionalLabels = make(map[string]string)
+	nodeSetSpec.AdditionalLabels = make(map[string]string)
 	if b.Spec.AdditionalLabels != nil {
 		for k, v := range b.Spec.AdditionalLabels {
-			snsSpec.AdditionalLabels[k] = v
+			nodeSetSpec.AdditionalLabels[k] = v
 		}
 	}
 	if nodeSetSpecInline.AdditionalLabels != nil {
 		for k, v := range nodeSetSpecInline.AdditionalLabels {
-			snsSpec.AdditionalLabels[k] = v
+			nodeSetSpec.AdditionalLabels[k] = v
 		}
 	}
-	snsSpec.AdditionalLabels[labels.StorageNodeSetComponent] = nodeSetSpecInline.Name
+	nodeSetSpec.AdditionalLabels[labels.StorageNodeSetComponent] = nodeSetSpecInline.Name
 
-	snsSpec.AdditionalAnnotations = make(map[string]string)
+	nodeSetSpec.AdditionalAnnotations = make(map[string]string)
 	if b.Spec.AdditionalAnnotations != nil {
 		for k, v := range b.Spec.AdditionalAnnotations {
-			snsSpec.AdditionalAnnotations[k] = v
+			nodeSetSpec.AdditionalAnnotations[k] = v
 		}
 	}
 	if nodeSetSpecInline.AdditionalAnnotations != nil {
 		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
-			snsSpec.AdditionalAnnotations[k] = v
+			nodeSetSpec.AdditionalAnnotations[k] = v
 		}
 	}
 
-	snsSpec.PriorityClassName = b.Spec.PriorityClassName
-	if nodeSetSpecInline.PriorityClassName != snsSpec.PriorityClassName {
-		snsSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
+	nodeSetSpec.PriorityClassName = b.Spec.PriorityClassName
+	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
+		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
-	return snsSpec
+	return nodeSetSpec
 }

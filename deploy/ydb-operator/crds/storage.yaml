@@ -4120,6 +4120,20 @@ spec:
                     - username
                     type: object
                 type: object
+              operatorSync:
+                default: true
+                description: Enables or disables operator's reconcile loop. `false`
+                  means all the Pods are running, but the reconcile is effectively
+                  turned off. `true` means the default state of the system, all Pods
+                  running, operator reacts to specification change of this Storage
+                  resource.
+                type: boolean
+              pause:
+                default: false
+                description: The state of the Storage processes. `true` means all
+                  the Storage Pods are being killed, but the Storage resource is persisted.
+                  `false` means the default state of the system, all Pods running.
+                type: boolean
               priorityClassName:
                 description: (Optional) If specified, the pod's priorityClassName.
                 type: string
@@ -4604,7 +4618,7 @@ spec:
                 type: string
               volumes:
                 description: 'Additional volumes that will be mounted into the well-known
-                  directory of every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+                  directory of every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
                   Only `hostPath` volume type is supported for now.'
                 items:
                   description: Volume represents a named volume in a pod that may

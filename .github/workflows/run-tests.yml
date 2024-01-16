@@ -158,14 +158,17 @@ jobs:
       - name: load-and-deploy-operator
         run: |
           kind load docker-image kind/ydb-operator:current
-      - name: pull-and-load-ydb-image
+      - name: pull-and-load-other-images
         run: |
+          docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+          kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
           docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
           kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
       - name: run-tests
         run: |
-          go test -timeout 1800s -p 1 ./...
+          go test -v -timeout 1800s -p 1 ./... -args -ginkgo.v
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster

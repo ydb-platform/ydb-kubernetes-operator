@@ -20,6 +20,7 @@ import (
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
 // Reconciler reconciles a Storage object
@@ -104,7 +105,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&ydbv1alpha1.StorageNodeSet{},
-		ownerControllerKey,
+		OwnerControllerKey,
 		func(obj client.Object) []string {
 			// grab the StorageNodeSet object, extract the owner...
 			storageNodeSet := obj.(*ydbv1alpha1.StorageNodeSet)

@@ -66,8 +66,13 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 	sts.ObjectMeta.Namespace = b.GetNamespace()
 	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
 
+	replicas := ptr.Int32(b.Spec.Nodes)
+	if b.Spec.Pause {
+		replicas = ptr.Int32(0)
+	}
+
 	sts.Spec = appsv1.StatefulSetSpec{
-		Replicas: ptr.Int32(b.Spec.Nodes),
+		Replicas: replicas,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: b.Labels,
 		},

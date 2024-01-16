@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -54,25 +55,25 @@ func (r *Reconciler) setInitialStatus(
 	// does not make sense, since some nodes can be down for a long time (and it is okay, since
 	// database is healthy even with partial outage).
 	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil ||
-			meta.IsStatusConditionFalse(storage.Status.Conditions, StorageInitializedCondition) {
+		if meta.FindStatusCondition(storage.Status.Conditions, BlobStorageInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(storage.Status.Conditions, BlobStorageInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, storage)
 		}
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
 	changed := false
-	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
+	if meta.FindStatusCondition(storage.Status.Conditions, BlobStorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    StorageInitializedCondition,
+			Type:    BlobStorageInitializedCondition,
 			Status:  "False",
-			Reason:  StorageInitializedReasonInProgress,
+			Reason:  ReasonInProgress,
 			Message: "Storage is not ready yet",
 		})
 		changed = true
 	}
-	if storage.Status.State == string(Pending) {
-		storage.Status.State = string(Preparing)
+	if storage.Status.State == StoragePending {
+		storage.Status.State = StoragePreparing
 		changed = true
 	}
 	if changed {
@@ -87,13 +88,13 @@ func (r *Reconciler) setInitStorageCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    StorageInitializedCondition,
+		Type:    BlobStorageInitializedCondition,
 		Status:  "True",
-		Reason:  StorageInitializedReasonCompleted,
+		Reason:  ReasonCompleted,
 		Message: message,
 	})
 
-	storage.Status.State = string(Ready)
+	storage.Status.State = StorageReady
 	return r.setState(ctx, storage)
 }
 
@@ -104,8 +105,8 @@ func (r *Reconciler) initializeStorage(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
 
-	if storage.Status.State == string(Provisioning) {
-		storage.Status.State = string(Initializing)
+	if storage.Status.State == StorageProvisioning {
+		storage.Status.State = StorageInitializing
 		return r.setState(ctx, storage)
 	}
 

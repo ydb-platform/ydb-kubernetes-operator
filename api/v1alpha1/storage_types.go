@@ -3,6 +3,8 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 // StorageSpec defines the desired state of Storage
@@ -40,6 +42,21 @@ type StorageSpec struct {
 	// Default: (not specified)
 	// +optional
 	Service StorageServices `json:"service,omitempty"`
+
+	// The state of the Storage processes.
+	// `true` means all the Storage Pods are being killed, but the Storage resource is persisted.
+	// `false` means the default state of the system, all Pods running.
+	// +kubebuilder:default:=false
+	// +optional
+	Pause bool `json:"pause"`
+
+	// Enables or disables operator's reconcile loop.
+	// `false` means all the Pods are running, but the reconcile is effectively turned off.
+	// `true` means the default state of the system, all Pods running, operator reacts
+	// to specification change of this Storage resource.
+	// +kubebuilder:default:=true
+	// +optional
+	OperatorSync bool `json:"operatorSync"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root
@@ -96,7 +113,7 @@ type StorageSpec struct {
 	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
 
 	// Additional volumes that will be mounted into the well-known directory of
-	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+	// every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
 	// Only `hostPath` volume type is supported for now.
 	// +optional
 	Volumes []*corev1.Volume `json:"volumes,omitempty"`
@@ -146,8 +163,8 @@ type StorageSpec struct {
 
 // StorageStatus defines the observed state of Storage
 type StorageStatus struct {
-	State      string             `json:"state"`
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true

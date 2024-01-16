@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -45,6 +46,21 @@ type DatabaseNodeSetSpec struct {
 	// Datastreams config
 	// +optional
 	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
+
+	// The state of the Database processes.
+	// `true` means all the Database Pods are being killed, but the Database resource is persisted.
+	// `false` means the default state of the system, all Pods running.
+	// +kubebuilder:default:=false
+	// +optional
+	Pause bool `json:"pause"`
+
+	// Enables or disables operator's reconcile loop.
+	// `false` means all the Pods are running, but the reconcile is effectively turned off.
+	// `true` means the default state of the system, all Pods running, operator reacts
+	// to specification change of this Database resource.
+	// +kubebuilder:default:=true
+	// +optional
+	OperatorSync bool `json:"operatorSync"`
 
 	// (Optional) Name of the root storage domain
 	// Default: root
@@ -159,9 +175,9 @@ type DatabaseNodeSet struct {
 
 // DatabaseNodeSetStatus defines the observed state
 type DatabaseNodeSetStatus struct {
-	State                      string             `json:"state"`
-	Conditions                 []metav1.Condition `json:"conditions,omitempty"`
-	ObservedDatabaseGeneration int64              `json:"observedDatabaseGeneration,omitempty"`
+	State                      constants.ClusterState `json:"state"`
+	Conditions                 []metav1.Condition     `json:"conditions,omitempty"`
+	ObservedDatabaseGeneration int64                  `json:"observedDatabaseGeneration,omitempty"`
 }
 
 // DatabaseNodeSetSpecInline describes an group nodes object inside parent object

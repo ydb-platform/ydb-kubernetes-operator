@@ -4,42 +4,22 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
-
-const (
-	Pending      State = "Pending"
-	Provisioning State = "Provisioning"
-	Ready        State = "Ready"
-
-	DefaultRequeueDelay      = 10 * time.Second
-	StatusUpdateRequeueDelay = 1 * time.Second
-
-	ReasonInProgress = "InProgress"
-	ReasonCompleted  = "Completed"
-
-	StorageNodeSetConditionReady   = "StorageNodeSetReady"
-	StorageNodeSetReasonInProgress = ReasonInProgress
-	StorageNodeSetReasonCompleted  = ReasonCompleted
-
-	Stop     = true
-	Continue = false
-)
-
-type State string
 
 func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *ydbv1alpha1.StorageNodeSet) (ctrl.Result, error) {
 	var stop bool
@@ -47,7 +27,20 @@ func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *ydbv1alpha1.Sto
 	var err error
 
 	storageNodeSet := resources.NewStorageNodeSet(crStorageNodeSet)
-	storageNodeSet.SetStatusOnFirstReconcile()
+	stop, result, err = storageNodeSet.SetStatusOnFirstReconcile()
+	if stop {
+		return result, err
+	}
+
+	stop, result = r.checkStorageFrozen(&storageNodeSet)
+	if stop {
+		return result, nil
+	}
+
+	stop, result, err = r.handlePauseResume(ctx, &storageNodeSet)
+	if stop {
+		return result, err
+	}
 
 	stop, result, err = r.handleResourcesSync(ctx, &storageNodeSet)
 	if stop {
@@ -71,7 +64,7 @@ func (r *Reconciler) handleResourcesSync(
 	for _, builder := range storageNodeSet.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(storageNodeSet)
 
-		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {
+		result, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 			var err error
 
 			err = builder.Build(newResource)
@@ -96,7 +89,7 @@ func (r *Reconciler) handleResourcesSync(
 			}
 
 			return nil
-		})
+		}, shouldIgnoreStorageNodeSetChange(storageNodeSet))
 
 		eventMessage := fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
@@ -116,7 +109,7 @@ func (r *Reconciler) handleResourcesSync(
 			r.Recorder.Event(
 				storageNodeSet,
 				corev1.EventTypeNormal,
-				string(Provisioning),
+				string(StorageNodeSetProvisioning),
 				eventMessage+fmt.Sprintf(", changed, result: %s", result),
 			)
 		}
@@ -131,14 +124,14 @@ func (r *Reconciler) waitForStatefulSetToScale(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale for StorageNodeSet")
 
-	if storageNodeSet.Status.State == string(Pending) {
+	if storageNodeSet.Status.State == StorageNodeSetPending {
 		msg := fmt.Sprintf("Starting to track number of running storageNodeSet pods, expected: %d", storageNodeSet.Spec.Nodes)
 		r.Recorder.Event(
 			storageNodeSet,
 			corev1.EventTypeNormal,
-			string(Provisioning),
+			string(StorageNodeSetProvisioning),
 			msg)
-		storageNodeSet.Status.State = string(Provisioning)
+		storageNodeSet.Status.State = StorageNodeSetProvisioning
 		return r.setState(ctx, storageNodeSet)
 	}
 
@@ -197,7 +190,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		r.Recorder.Event(
 			storageNodeSet,
 			corev1.EventTypeNormal,
-			string(Provisioning),
+			string(StorageNodeSetProvisioning),
 			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
@@ -211,12 +204,12 @@ func (r *Reconciler) setStorageNodeSetReady(
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-		Type:    StorageNodeSetConditionReady,
+		Type:    string(StorageNodeSetReady),
 		Status:  "True",
-		Reason:  StorageNodeSetReasonCompleted,
+		Reason:  ReasonCompleted,
 		Message: "Sync StorageNodeSet is completed",
 	})
-	storageNodeSet.Status.State = string(Ready)
+	storageNodeSet.Status.State = StorageNodeSetReady
 	return r.setState(ctx, storageNodeSet)
 }
 
@@ -262,4 +255,59 @@ func (r *Reconciler) setState(
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+}
+
+func shouldIgnoreStorageNodeSetChange(storageNodeSet *resources.StorageNodeSetResource) resources.IgnoreChangesFunction {
+	return func(oldObj, newObj runtime.Object) bool {
+		if _, ok := newObj.(*appsv1.StatefulSet); ok {
+			if storageNodeSet.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func (r *Reconciler) handlePauseResume(
+	ctx context.Context,
+	storageNodeSet *resources.StorageNodeSetResource,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handlePauseResume for Storage")
+	if storageNodeSet.Status.State == StorageReady && storageNodeSet.Spec.Pause {
+		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
+		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, string(StorageNodeSetReady))
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    string(StorageNodeSetPaused),
+			Status:  "False",
+			Reason:  ReasonInProgress,
+			Message: "Transitioning StorageNodeSet to Paused state",
+		})
+		storageNodeSet.Status.State = StorageNodeSetPaused
+		return r.setState(ctx, storageNodeSet)
+	}
+
+	if storageNodeSet.Status.State == StoragePaused && !storageNodeSet.Spec.Pause {
+		r.Log.Info("`pause: false` was noticed, moving Storage to state `Ready`")
+		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, string(StorageNodeSetPaused))
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    string(StorageNodeSetReady),
+			Status:  "False",
+			Reason:  ReasonInProgress,
+			Message: "Recovering StorageNodeSet from Paused state",
+		})
+		storageNodeSet.Status.State = StorageNodeSetReady
+		return r.setState(ctx, storageNodeSet)
+	}
+
+	return Continue, ctrl.Result{}, nil
+}
+
+func (r *Reconciler) checkStorageFrozen(storageNodeSet *resources.StorageNodeSetResource) (bool, ctrl.Result) {
+	r.Log.Info("running step checkStorageFrozen for StorageNodeSet parent object")
+	if !storageNodeSet.Spec.OperatorSync {
+		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
+		return Stop, ctrl.Result{}
+	}
+
+	return Continue, ctrl.Result{}
 }

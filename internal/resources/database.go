@@ -4,11 +4,14 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -24,10 +27,23 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	return DatabaseBuilder{Database: cr, Storage: nil}
 }
 
-func (b *DatabaseBuilder) SetStatusOnFirstReconcile() {
+func (b *DatabaseBuilder) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
+
+		if b.Spec.Pause {
+			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
+				Type:    string(DatabasePaused),
+				Status:  "True",
+				Reason:  ReasonCompleted,
+				Message: "State Database set to Paused",
+			})
+
+			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+		}
 	}
+
+	return Continue, ctrl.Result{}, nil
 }
 
 func (b *DatabaseBuilder) Unwrap() *api.Database {
@@ -227,97 +243,99 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 }
 
 func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api.DatabaseNodeSetSpecInline, configuration string) api.DatabaseNodeSetSpec {
-	dnsSpec := api.DatabaseNodeSetSpec{}
+	nodeSetSpec := api.DatabaseNodeSetSpec{}
 
-	dnsSpec.DatabaseRef = api.NamespacedRef{
+	nodeSetSpec.DatabaseRef = api.NamespacedRef{
 		Name:      b.Name,
 		Namespace: b.Namespace,
 	}
-	dnsSpec.StorageEndpoint = b.GetStorageEndpointWithProto()
+	nodeSetSpec.StorageEndpoint = b.GetStorageEndpointWithProto()
 
-	dnsSpec.Nodes = nodeSetSpecInline.Nodes
-	dnsSpec.Configuration = configuration
+	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
+	nodeSetSpec.Configuration = configuration
 
-	dnsSpec.Service = b.Spec.Service
+	nodeSetSpec.Service = b.Spec.Service
 	if nodeSetSpecInline.Service != nil {
-		dnsSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
+		nodeSetSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
 	}
-	dnsSpec.StorageDomains = b.Spec.StorageDomains
-	dnsSpec.Encryption = b.Spec.Encryption
-	dnsSpec.Volumes = b.Spec.Volumes
-	dnsSpec.Datastreams = b.Spec.Datastreams
-	dnsSpec.Domain = b.Spec.Domain
-	dnsSpec.Path = b.Spec.Path
+	nodeSetSpec.StorageDomains = b.Spec.StorageDomains
+	nodeSetSpec.Encryption = b.Spec.Encryption
+	nodeSetSpec.Volumes = b.Spec.Volumes
+	nodeSetSpec.Datastreams = b.Spec.Datastreams
+	nodeSetSpec.Pause = b.Spec.Pause
+	nodeSetSpec.OperatorSync = b.Spec.OperatorSync
+	nodeSetSpec.Domain = b.Spec.Domain
+	nodeSetSpec.Path = b.Spec.Path
 
-	dnsSpec.Resources = b.Spec.Resources
+	nodeSetSpec.Resources = b.Spec.Resources
 	if nodeSetSpecInline.Resources != nil {
-		dnsSpec.Resources = nodeSetSpecInline.Resources
+		nodeSetSpec.Resources = nodeSetSpecInline.Resources
 	}
 
-	dnsSpec.SharedResources = b.Spec.SharedResources
+	nodeSetSpec.SharedResources = b.Spec.SharedResources
 	if nodeSetSpecInline.SharedResources != nil {
-		dnsSpec.SharedResources = nodeSetSpecInline.SharedResources
+		nodeSetSpec.SharedResources = nodeSetSpecInline.SharedResources
 	}
 
-	dnsSpec.ServerlessResources = b.Spec.ServerlessResources
-	dnsSpec.Image = b.Spec.Image
+	nodeSetSpec.ServerlessResources = b.Spec.ServerlessResources
+	nodeSetSpec.Image = b.Spec.Image
 	// if nodeSetSpecInline.Image != nil {
-	// 	dnsSpec.Image = *nodeSetSpecInline.Image.DeepCopy()
+	// 	nodeSetSpec.Image = *nodeSetSpecInline.Image.DeepCopy()
 	// }
 
-	dnsSpec.InitContainers = b.Spec.InitContainers
-	dnsSpec.CABundle = b.Spec.CABundle
-	dnsSpec.Secrets = b.Spec.Secrets
+	nodeSetSpec.InitContainers = b.Spec.InitContainers
+	nodeSetSpec.CABundle = b.Spec.CABundle
+	nodeSetSpec.Secrets = b.Spec.Secrets
 
-	dnsSpec.NodeSelector = b.Spec.NodeSelector
+	nodeSetSpec.NodeSelector = b.Spec.NodeSelector
 	if nodeSetSpecInline.NodeSelector != nil {
-		dnsSpec.NodeSelector = nodeSetSpecInline.NodeSelector
+		nodeSetSpec.NodeSelector = nodeSetSpecInline.NodeSelector
 	}
 
-	dnsSpec.Affinity = b.Spec.Affinity
+	nodeSetSpec.Affinity = b.Spec.Affinity
 	if nodeSetSpecInline.Affinity != nil {
-		dnsSpec.Affinity = nodeSetSpecInline.Affinity
+		nodeSetSpec.Affinity = nodeSetSpecInline.Affinity
 	}
 
-	dnsSpec.Tolerations = b.Spec.Tolerations
+	nodeSetSpec.Tolerations = b.Spec.Tolerations
 	if nodeSetSpecInline.Tolerations != nil {
-		dnsSpec.Tolerations = nodeSetSpecInline.Tolerations
+		nodeSetSpec.Tolerations = nodeSetSpecInline.Tolerations
 	}
 
-	dnsSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
+	nodeSetSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
 	if nodeSetSpecInline.TopologySpreadConstraints != nil {
-		dnsSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+		nodeSetSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
 	}
 
-	dnsSpec.AdditionalLabels = make(map[string]string)
+	nodeSetSpec.AdditionalLabels = make(map[string]string)
 	if b.Spec.AdditionalLabels != nil {
 		for k, v := range b.Spec.AdditionalLabels {
-			dnsSpec.AdditionalLabels[k] = v
+			nodeSetSpec.AdditionalLabels[k] = v
 		}
 	}
 	if nodeSetSpecInline.AdditionalLabels != nil {
 		for k, v := range nodeSetSpecInline.AdditionalLabels {
-			dnsSpec.AdditionalLabels[k] = v
+			nodeSetSpec.AdditionalLabels[k] = v
 		}
 	}
-	dnsSpec.AdditionalLabels[labels.StorageNodeSetComponent] = nodeSetSpecInline.Name
+	nodeSetSpec.AdditionalLabels[labels.StorageNodeSetComponent] = nodeSetSpecInline.Name
 
-	dnsSpec.AdditionalAnnotations = make(map[string]string)
+	nodeSetSpec.AdditionalAnnotations = make(map[string]string)
 	if b.Spec.AdditionalAnnotations != nil {
 		for k, v := range b.Spec.AdditionalAnnotations {
-			dnsSpec.AdditionalAnnotations[k] = v
+			nodeSetSpec.AdditionalAnnotations[k] = v
 		}
 	}
 	if nodeSetSpecInline.AdditionalAnnotations != nil {
 		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
-			dnsSpec.AdditionalAnnotations[k] = v
+			nodeSetSpec.AdditionalAnnotations[k] = v
 		}
 	}
 
-	dnsSpec.PriorityClassName = b.Spec.PriorityClassName
-	if nodeSetSpecInline.PriorityClassName != dnsSpec.PriorityClassName {
-		dnsSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
+	nodeSetSpec.PriorityClassName = b.Spec.PriorityClassName
+	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
+		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
-	return dnsSpec
+	return nodeSetSpec
 }

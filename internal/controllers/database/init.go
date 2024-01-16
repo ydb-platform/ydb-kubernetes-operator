@@ -14,6 +14,7 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -44,30 +45,26 @@ func (r *Reconciler) setInitialStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
 
-	// This block is special internal logic that skips all Database initialization.
-	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
-	// does not make sense, since some nodes can be down for a long time (and it is okay, since
-	// database is healthy even with partial outage).
 	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil ||
-			meta.IsStatusConditionFalse(database.Status.Conditions, TenantInitializedCondition) {
+		if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(database.Status.Conditions, DatabaseTenantInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, database)
 		}
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
 	changed := false
-	if meta.FindStatusCondition(database.Status.Conditions, TenantInitializedCondition) == nil {
+	if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    TenantInitializedCondition,
+			Type:    DatabaseTenantInitializedCondition,
 			Status:  "False",
-			Reason:  TenantInitializedReasonInProgress,
+			Reason:  ReasonInProgress,
 			Message: "Tenant creation in progress",
 		})
 		changed = true
 	}
-	if database.Status.State == string(Pending) {
-		database.Status.State = string(Preparing)
+	if database.Status.State == DatabasePending {
+		database.Status.State = DatabaseInitializing
 		changed = true
 	}
 	if changed {
@@ -82,13 +79,13 @@ func (r *Reconciler) setInitDatabaseCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    TenantInitializedCondition,
+		Type:    DatabaseTenantInitializedCondition,
 		Status:  "True",
-		Reason:  TenantInitializedReasonCompleted,
+		Reason:  ReasonCompleted,
 		Message: message,
 	})
 
-	database.Status.State = string(Ready)
+	database.Status.State = DatabaseReady
 	return r.setState(ctx, database)
 }
 
@@ -158,7 +155,7 @@ func (r *Reconciler) handleTenantCreation(
 			)
 			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
 		}
-		sharedDatabasePath = database.GetDatabasePath()
+		sharedDatabasePath = sharedDatabaseCr.GetDatabasePath()
 	default:
 		// TODO: move this logic to webhook
 		r.Recorder.Event(
@@ -171,7 +168,7 @@ func (r *Reconciler) handleTenantCreation(
 	}
 
 	tenant := cms.Tenant{
-		StorageEndpoint:    database.Storage.GetGRPCEndpointWithProto(),
+		StorageEndpoint:    database.GetStorageEndpointWithProto(),
 		Path:               path,
 		StorageUnits:       storageUnits,
 		Shared:             shared,

@@ -10,6 +10,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
 const (
@@ -187,5 +189,8 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 }
 
 func (r *Database) ValidateDelete() error {
+	if r.Status.State != DatabasePaused {
+		return fmt.Errorf("database deletion is only possible from `Paused` state, current state %v", r.Status.State)
+	}
 	return nil
 }

@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"time"
 
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,37 +20,13 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-const (
-	Pending      TenantState = "Pending"
-	Preparing    TenantState = "Preparing"
-	Provisioning TenantState = "Provisioning"
-	Initializing TenantState = "Initializing"
-	Ready        TenantState = "Ready"
-
-	DefaultRequeueDelay             = 10 * time.Second
-	StatusUpdateRequeueDelay        = 1 * time.Second
-	TenantCreationRequeueDelay      = 30 * time.Second
-	StorageAwaitRequeueDelay        = 30 * time.Second
-	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
-
-	TenantInitializedCondition        = "TenantInitialized"
-	TenantInitializedReasonInProgress = "InProgres"
-	TenantInitializedReasonCompleted  = "Completed"
-
-	Stop     = true
-	Continue = false
-
-	ownerControllerKey = ".metadata.controller"
-)
-
 var ErrIncorrectDatabaseResourcesConfiguration = errors.New("incorrect database resources configuration, " +
 	"must be one of: Resources, SharedResources, ServerlessResources")
-
-type TenantState string
 
 func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.Result, error) {
 	var stop bool
@@ -57,14 +34,22 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 	var err error
 
 	database := resources.NewDatabase(ydbCr)
-	database.SetStatusOnFirstReconcile()
-
-	stop, result, err = r.waitForClusterResources(ctx, &database)
+	stop, result, err = database.SetStatusOnFirstReconcile()
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.handleResourcesSync(ctx, &database)
+	stop, result = r.checkDatabaseFrozen(&database)
+	if stop {
+		return result, nil
+	}
+
+	stop, result, err = r.handlePauseResume(ctx, &database)
+	if stop {
+		return result, err
+	}
+
+	stop, result, err = r.waitForClusterResources(ctx, &database)
 	if stop {
 		return result, err
 	}
@@ -74,36 +59,16 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	auth, result, err := r.getYDBCredentials(ctx, &database)
-	if auth == nil {
+	stop, result, err = r.handleResourcesSync(ctx, &database)
+	if stop {
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(database.Status.Conditions, TenantInitializedCondition) { //nolint:nestif
-		stop, result, err = r.setInitialStatus(ctx, &database)
-		if stop {
-			return result, err
-		}
-
-		if database.Spec.NodeSet != nil {
-			stop, result, err = r.waitForDatabaseNodeSetsToReady(ctx, &database)
-			if stop {
-				return result, err
-			}
-		} else {
-			stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
-			if stop {
-				return result, err
-			}
-		}
-
-		stop, result, err = r.handleTenantCreation(ctx, &database, auth)
-		if stop {
-			return result, err
-		}
+	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseTenantInitializedCondition) {
+		return r.handleFirstStart(ctx, &database)
 	}
 
-	return ctrl.Result{Requeue: false}, nil
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) waitForClusterResources(ctx context.Context, database *resources.DatabaseBuilder) (bool, ctrl.Result, error) {
@@ -141,7 +106,7 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 		return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, err
 	}
 
-	if storage.Status.State != string(Ready) {
+	if storage.Status.State != DatabaseReady {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
@@ -167,15 +132,15 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForDatabaseNodeSetToReady for Database")
 
-	if database.Status.State == string(Preparing) {
+	if database.Status.State == DatabasePending {
 		msg := fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSet))
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
-			string(Provisioning),
+			string(DatabaseProvisioning),
 			msg,
 		)
-		database.Status.State = string(Provisioning)
+		database.Status.State = DatabaseProvisioning
 		return r.setState(ctx, database)
 	}
 
@@ -205,16 +170,16 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		if foundDatabaseNodeSet.Status.State != string(Ready) {
+		if foundDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
 			msg := fmt.Sprintf("Waiting %s state for DatabaseNodeSet object %s, current: %s",
-				string(Ready),
+				string(DatabaseReady),
 				foundDatabaseNodeSet.Name,
 				foundDatabaseNodeSet.Status.State,
 			)
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeNormal,
-				string(Provisioning),
+				string(DatabaseProvisioning),
 				msg,
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
@@ -230,15 +195,15 @@ func (r *Reconciler) waitForStatefulSetToScale(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale for Database")
 
-	if database.Status.State == string(Preparing) {
+	if database.Status.State == DatabasePending {
 		msg := fmt.Sprintf("Starting to track number of running database pods, expected: %d", database.Spec.Nodes)
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
-			string(Provisioning),
+			string(DatabaseProvisioning),
 			msg,
 		)
-		database.Status.State = string(Provisioning)
+		database.Status.State = DatabaseProvisioning
 		return r.setState(ctx, database)
 	}
 
@@ -294,7 +259,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list cluster pods: %s", err),
 		)
-		database.Status.State = string(Provisioning)
+		database.Status.State = DatabaseProvisioning
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
@@ -306,17 +271,28 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	}
 
 	if runningPods != int(database.Spec.Nodes) {
-		msg := fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes)
+		message := fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes)
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
-			string(Provisioning),
-			msg,
+			string(DatabaseProvisioning),
+			message,
 		)
 		return r.setState(ctx, database)
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func shouldIgnoreDatabaseChange(database *resources.DatabaseBuilder) resources.IgnoreChangesFunction {
+	return func(oldObj, newObj runtime.Object) bool {
+		if _, ok := newObj.(*appsv1.StatefulSet); ok {
+			if database.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 func (r *Reconciler) handleResourcesSync(
@@ -328,7 +304,7 @@ func (r *Reconciler) handleResourcesSync(
 	for _, builder := range database.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(database)
 
-		result, err := resources.CreateOrUpdateIgnoreStatus(ctx, r.Client, newResource, func() error {
+		result, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 			var err error
 
 			err = builder.Build(newResource)
@@ -354,7 +330,7 @@ func (r *Reconciler) handleResourcesSync(
 			}
 
 			return nil
-		})
+		}, shouldIgnoreDatabaseChange(database))
 
 		eventMessage := fmt.Sprintf(
 			"Resource: %s, Namespace: %s, Name: %s",
@@ -492,7 +468,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 
 	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 	matchingFields := client.MatchingFields{
-		ownerControllerKey: database.Name,
+		OwnerControllerKey: database.Name,
 	}
 	if err := r.List(ctx, databaseNodeSets,
 		client.InNamespace(database.Namespace),
@@ -564,4 +540,80 @@ func (r *Reconciler) syncNodeSetSpecInline(
 
 	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func (r *Reconciler) handlePauseResume(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handlePauseResume for Database")
+	if database.Status.State == DatabaseReady && database.Spec.Pause {
+		r.Log.Info("`pause: true` was noticed, moving Database to state `Paused`")
+		// meta.RemoveStatusCondition(&database.Status.Conditions, string(DatabaseReady))
+		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+			Type:    string(DatabasePaused),
+			Status:  "True",
+			Reason:  ReasonCompleted,
+			Message: "State Database set to Paused",
+		})
+		database.Status.State = DatabasePaused
+		return r.setState(ctx, database)
+	}
+
+	if database.Status.State == DatabasePaused && !database.Spec.Pause {
+		r.Log.Info("`pause: false` was noticed, moving Database to state `Ready`")
+		meta.RemoveStatusCondition(&database.Status.Conditions, string(DatabasePaused))
+		// meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+		// 	Type:    string(DatabaseReady),
+		// 	Status:  "False",
+		// 	Reason:  ReasonInProgress,
+		// 	Message: "Recovering Database from Paused state",
+		// })
+		database.Status.State = DatabaseReady
+		return r.setState(ctx, database)
+	}
+
+	return Continue, ctrl.Result{}, nil
+}
+
+func (r *Reconciler) handleFirstStart(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+) (ctrl.Result, error) {
+	stop, result, err := r.setInitialStatus(ctx, database)
+	if stop {
+		return result, err
+	}
+
+	if database.Spec.NodeSet != nil {
+		stop, result, err = r.waitForDatabaseNodeSetsToReady(ctx, database)
+		if stop {
+			return result, err
+		}
+	} else {
+		stop, result, err = r.waitForStatefulSetToScale(ctx, database)
+		if stop {
+			return result, err
+		}
+	}
+
+	auth, result, err := r.getYDBCredentials(ctx, database)
+	if auth == nil {
+		return result, err
+	}
+
+	_, result, err = r.handleTenantCreation(ctx, database, auth)
+	return result, err
+}
+
+func (r *Reconciler) checkDatabaseFrozen(
+	database *resources.DatabaseBuilder,
+) (bool, ctrl.Result) {
+	r.Log.Info("running step checkStorageFrozen for Database")
+	if !database.Spec.OperatorSync {
+		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
+		return Stop, ctrl.Result{}
+	}
+
+	return Continue, ctrl.Result{}
 }

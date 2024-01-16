@@ -3,6 +3,8 @@ package v1alpha1
 import (
 	"fmt"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -10,6 +12,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
 // log is for logging in this package.
@@ -184,6 +188,21 @@ func (r *Storage) ValidateCreate() error {
 	return nil
 }
 
+func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
+	oldStorageCopy := oldStorage.DeepCopy()
+	newStorageCopy := newStorage.DeepCopy()
+
+	// If we set Frozen field to the same value,
+	// the remaining diff must be empty.
+	oldStorageCopy.Spec.OperatorSync = false
+	newStorageCopy.Spec.OperatorSync = false
+
+	ignoreNonSpecFields := cmpopts.IgnoreFields(Storage{}, "Status", "ObjectMeta", "TypeMeta")
+
+	diff := cmp.Diff(oldStorageCopy, newStorageCopy, ignoreNonSpecFields)
+	return diff != "", diff
+}
+
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
@@ -192,6 +211,24 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
 	if err != nil {
 		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
+	}
+
+	if !r.Spec.OperatorSync {
+		oldStorage := old.(*Storage)
+
+		hasIllegalUpdates, diff := hasUpdatesBesidesFrozen(old.(*Storage), r)
+
+		if hasIllegalUpdates {
+			if oldStorage.Spec.OperatorSync {
+				return fmt.Errorf(
+					"it is illegal to update spec.OperatorSync and any other "+
+						"spec fields at the same time. Here is what you else tried to update: %s", diff)
+			}
+
+			return fmt.Errorf(
+				"it is illegal to update any spec fields when spec.OperatorSync is false. "+
+					"Here is what you else tried to update: %s", diff)
+		}
 	}
 
 	yamlConfig := PartialYamlConfig{}
@@ -206,7 +243,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
-		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
@@ -214,10 +251,12 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return crdCheckError
 	}
 
-	// TODO(user): fill in your validation logic upon object update.
 	return nil
 }
 
 func (r *Storage) ValidateDelete() error {
+	if r.Status.State != StoragePaused {
+		return fmt.Errorf("storage deletion is only possible from `Paused` state, current state %v", r.Status.State)
+	}
 	return nil
 }

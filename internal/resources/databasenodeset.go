@@ -3,11 +3,14 @@ package resources
 import (
 	"errors"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
 type DatabaseNodeSetBuilder struct {
@@ -80,10 +83,23 @@ func NewDatabaseNodeSet(databaseNodeSet *api.DatabaseNodeSet) DatabaseNodeSetRes
 	return DatabaseNodeSetResource{DatabaseNodeSet: crDatabaseNodeSet}
 }
 
-func (b *DatabaseNodeSetResource) SetStatusOnFirstReconcile() {
+func (b *DatabaseNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
+
+		if b.Spec.Pause {
+			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
+				Type:    string(DatabaseNodeSetPaused),
+				Status:  "True",
+				Reason:  ReasonCompleted,
+				Message: "State DatabaseNodeSet set to Paused",
+			})
+
+			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+		}
 	}
+
+	return Continue, ctrl.Result{}, nil
 }
 
 func (b *DatabaseNodeSetResource) Unwrap() *api.DatabaseNodeSet {

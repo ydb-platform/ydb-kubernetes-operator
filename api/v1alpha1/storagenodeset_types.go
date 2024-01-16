@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -35,6 +36,21 @@ type StorageNodeSetSpec struct {
 	// Default: (not specified)
 	// +optional
 	Service StorageServices `json:"service,omitempty"`
+
+	// The state of the Storage processes.
+	// `true` means all the Stprage Pods are being killed, but the Storage resource is persisted.
+	// `false` means the default state of the system, all Pods running.
+	// +kubebuilder:default:=false
+	// +optional
+	Pause bool `json:"pause"`
+
+	// Enables or disables operator's reconcile loop.
+	// `false` means all the Pods are running, but the reconcile is effectively turned off.
+	// `true` means the default state of the system, all Pods running, operator reacts
+	// to specification change of this Database resource.
+	// +kubebuilder:default:=true
+	// +optional
+	OperatorSync bool `json:"operatorSync"`
 
 	// (Optional) Storage container resource limits. Any container limits
 	// can be specified.
@@ -123,9 +139,9 @@ type StorageNodeSetSpec struct {
 
 // StorageNodeSetStatus defines the observed state
 type StorageNodeSetStatus struct {
-	State                     string             `json:"state"`
-	Conditions                []metav1.Condition `json:"conditions,omitempty"`
-	ObservedStorageGeneration int64              `json:"observedStorageGeneration,omitempty"`
+	State                     constants.ClusterState `json:"state"`
+	Conditions                []metav1.Condition     `json:"conditions,omitempty"`
+	ObservedStorageGeneration int64                  `json:"observedStorageGeneration,omitempty"`
 }
 
 // StorageNodeSetSpecInline describes an group nodes object inside parent object

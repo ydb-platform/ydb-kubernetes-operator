@@ -15,7 +15,6 @@ import (
 )
 
 func Open(ctx context.Context, endpoint string, opts ...ydb.Option) (*ydb.Driver, error) {
-	logger := log.FromContext(ctx)
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
@@ -25,12 +24,11 @@ func Open(ctx context.Context, endpoint string, opts ...ydb.Option) (*ydb.Driver
 		opts...,
 	)
 	if err != nil {
-		logger.Error(err,
-			fmt.Sprintf(
-				"Failed to open grpc connection to YDB, endpoint %s",
-				endpoint,
-			))
-		return nil, err
+		return nil, fmt.Errorf(
+			"failed to open grpc connection to YDB, endpoint %s. %w",
+			endpoint,
+			err,
+		)
 	}
 
 	return db, nil
