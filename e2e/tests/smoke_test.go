@@ -73,6 +73,7 @@ func installOperatorWithHelm(namespace string) bool {
 		"-n",
 		namespace,
 		"install",
+		"--wait",
 		"ydb-operator",
 		filepath.Join("..", "..", "deploy", "ydb-operator"),
 		"-f",
@@ -92,6 +93,7 @@ func uninstallOperatorWithHelm(namespace string) bool {
 		"-n",
 		namespace,
 		"uninstall",
+		"--wait",
 		"ydb-operator",
 	}
 	result := exec.Command("helm", args...)
