@@ -1,9 +1,10 @@
 package v1alpha1
 
 import (
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 // StorageNodeSetSpec describes an group nodes of Storage object

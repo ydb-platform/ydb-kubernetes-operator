@@ -338,7 +338,6 @@ var _ = Describe("Operator smoke test", func() {
 
 			return len(storagePods.Items) == 0
 		}, Timeout, Interval).Should(BeTrue())
-
 		By("... and then storage pods must not restart for a while...")
 		Consistently(func(g Gomega) bool {
 			storagePods := corev1.PodList{}

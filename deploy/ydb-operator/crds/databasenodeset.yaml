@@ -2236,12 +2236,27 @@ spec:
                 description: Number of nodes (pods) in the set
                 format: int32
                 type: integer
+              operatorSync:
+                default: true
+                description: Enables or disables operator's reconcile loop. `false`
+                  means all the Pods are running, but the reconcile is effectively
+                  turned off. `true` means the default state of the system, all Pods
+                  running, operator reacts to specification change of this Database
+                  resource.
+                type: boolean
               path:
                 description: '(Optional) Custom database path in schemeshard Default:
                   /<spec.domain>/<metadata.name>'
                 maxLength: 255
                 pattern: /[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
                 type: string
+              pause:
+                default: false
+                description: The state of the Database processes. `true` means all
+                  the Database Pods are being killed, but the Database resource is
+                  persisted. `false` means the default state of the system, all Pods
+                  running.
+                type: boolean
               priorityClassName:
                 description: (Optional) If specified, the pod's priorityClassName.
                 type: string

@@ -66,6 +66,8 @@ vet: ## Run go vet against code.
 kind-init:
 	if kind get clusters | grep "kind-ydb-operator"; then exit 0; fi; \
 	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator; \
+	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0@sha256:f3b6b39a6062328c095337b4cadcefd1612348fdd5190b1dcbcb9b9e90bd8068; \
+    kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0@sha256:f3b6b39a6062328c095337b4cadcefd1612348fdd5190b1dcbcb9b9e90bd8068 --name kind-ydb-operator; \
 	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44; \
 	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44 --name kind-ydb-operator
 
