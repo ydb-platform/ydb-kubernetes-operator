@@ -67,7 +67,7 @@ kind-init:
 	if kind get clusters | grep "kind-ydb-operator"; then exit 0; fi; \
 	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator; \
 	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0; \
-    kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --name kind-ydb-operator; \
+	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --name kind-ydb-operator; \
 	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44; \
 	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44 --name kind-ydb-operator
 
