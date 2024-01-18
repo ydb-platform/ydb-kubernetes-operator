@@ -1086,6 +1086,13 @@ spec:
                       type: string
                   type: object
                 type: array
+              domain:
+                default: Root
+                description: '(Optional) Name of the root storage domain Default:
+                  root'
+                maxLength: 63
+                pattern: '[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?'
+                type: string
               erasure:
                 default: block-4-2
                 description: Data storage mode. For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
@@ -1097,8 +1104,8 @@ spec:
                 - none
                 type: string
               hostNetwork:
-                description: 'Whether host network should be enabled. Automatically
-                  sets `dnsPolicy` to `clusterFirstWithHostNet`. Default: false'
+                description: '(Optional) Whether host network should be enabled. Default:
+                  false'
                 type: boolean
               image:
                 description: (Optional) Container image information
@@ -1119,19 +1126,9 @@ spec:
                     type: string
                 type: object
               initContainers:
-                description: 'List of initialization containers belonging to the pod.
-                  Init containers are executed in order prior to containers being
-                  started. If any init container fails, the pod is considered to have
-                  failed and is handled according to its restartPolicy. The name for
-                  an init container or normal container must be unique among all containers.
-                  Init containers may not have Lifecycle actions, Readiness probes,
-                  Liveness probes, or Startup probes. The resourceRequirements of
-                  an init container are taken into account during scheduling by finding
-                  the highest request/limit for each resource type, and then using
-                  the max of that value or the sum of the normal containers. Limits
-                  are applied to init containers in a similar fashion. Init containers
-                  cannot currently be added or removed. Cannot be updated. More info:
-                  https://kubernetes.io/docs/concepts/workloads/pods/init-containers/'
+                description: '(Optional) List of initialization containers belonging
+                  to the pod. Init containers are executed in order prior to containers
+                  being started. More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/'
                 items:
                   description: A single application container that you want to run
                     within a pod.
@@ -2368,6 +2365,64 @@ spec:
                   - name
                   type: object
                 type: array
+              monitoring:
+                description: '(Optional) Monitoring sets configuration options for
+                  YDB observability Default: ""'
+                properties:
+                  enabled:
+                    type: boolean
+                  interval:
+                    description: Interval at which metrics should be scraped
+                    type: string
+                  metricRelabelings:
+                    description: RelabelConfig allows dynamic rewriting of the label
+                      set, being applied to sample before ingestion.
+                    items:
+                      description: 'RelabelConfig allows dynamic rewriting of the
+                        label set, being applied to samples before ingestion. It defines
+                        `<metric_relabel_configs>`-section of Prometheus configuration.
+                        More info: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#metric_relabel_configs'
+                      properties:
+                        action:
+                          description: Action to perform based on regex matching.
+                            Default is 'replace'
+                          type: string
+                        modulus:
+                          description: Modulus to take of the hash of the source label
+                            values.
+                          format: int64
+                          type: integer
+                        regex:
+                          description: Regular expression against which the extracted
+                            value is matched. Default is '(.*)'
+                          type: string
+                        replacement:
+                          description: Replacement value against which a regex replace
+                            is performed if the regular expression matches. Regex
+                            capture groups are available. Default is '$1'
+                          type: string
+                        separator:
+                          description: Separator placed between concatenated source
+                            label values. default is ';'.
+                          type: string
+                        sourceLabels:
+                          description: The source labels select values from existing
+                            labels. Their content is concatenated using the configured
+                            separator and matched against the configured regular expression
+                            for the replace, keep, and drop actions.
+                          items:
+                            type: string
+                          type: array
+                        targetLabel:
+                          description: Label to which the resulting value is written
+                            in a replace action. It is mandatory for replace actions.
+                            Regex capture groups are available.
+                          type: string
+                      type: object
+                    type: array
+                required:
+                - enabled
+                type: object
               nodeSelector:
                 additionalProperties:
                   type: string
@@ -2376,28 +2431,87 @@ spec:
                   labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/'
                 type: object
               nodes:
-                description: Number of nodes (pods) in the set
+                description: Number of nodes (pods)
                 format: int32
                 type: integer
+              operatorConnection:
+                description: '(Optional) Operator connection settings Default: (not
+                  specified)'
+                properties:
+                  accessToken:
+                    properties:
+                      secretKeyRef:
+                        description: SecretKeySelector selects a key of a Secret.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                    required:
+                    - secretKeyRef
+                    type: object
+                  staticCredentials:
+                    properties:
+                      password:
+                        properties:
+                          secretKeyRef:
+                            description: SecretKeySelector selects a key of a Secret.
+                            properties:
+                              key:
+                                description: The key of the secret to select from.  Must
+                                  be a valid secret key.
+                                type: string
+                              name:
+                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  TODO: Add other useful fields. apiVersion, kind,
+                                  uid?'
+                                type: string
+                              optional:
+                                description: Specify whether the Secret or its key
+                                  must be defined
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                        required:
+                        - secretKeyRef
+                        type: object
+                      username:
+                        type: string
+                    required:
+                    - username
+                    type: object
+                type: object
               operatorSync:
                 default: true
                 description: Enables or disables operator's reconcile loop. `false`
                   means all the Pods are running, but the reconcile is effectively
                   turned off. `true` means the default state of the system, all Pods
-                  running, operator reacts to specification change of this Database
+                  running, operator reacts to specification change of this Storage
                   resource.
                 type: boolean
               pause:
                 default: false
                 description: The state of the Storage processes. `true` means all
-                  the Stprage Pods are being killed, but the Storage resource is persisted.
+                  the Storage Pods are being killed, but the Storage resource is persisted.
                   `false` means the default state of the system, all Pods running.
                 type: boolean
               priorityClassName:
                 description: (Optional) If specified, the pod's priorityClassName.
                 type: string
               resources:
-                description: '(Optional) Storage container resource limits. Any container
+                description: '(Optional) Container resource limits. Any container
                   limits can be specified. Default: (not specified)'
                 properties:
                   claims:
@@ -2885,9 +2999,13 @@ spec:
                 - topologyKey
                 - whenUnsatisfiable
                 x-kubernetes-list-type: map
+              version:
+                description: '(Optional) YDBVersion sets the explicit version of the
+                  YDB image Default: ""'
+                type: string
               volumes:
                 description: 'Additional volumes that will be mounted into the well-known
-                  directory of every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+                  directory of every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
                   Only `hostPath` volume type is supported for now.'
                 items:
                   description: Volume represents a named volume in a pod that may

@@ -117,25 +117,8 @@ func (b *StorageNodeSetResource) recastStorageNodeSet() api.Storage {
 			Labels:    b.StorageNodeSet.Labels,
 		},
 		Spec: api.StorageSpec{
-			Nodes:                     b.StorageNodeSet.Spec.Nodes,
-			Configuration:             b.StorageNodeSet.Spec.Configuration, // TODO: migrate to configmapRef
-			Erasure:                   b.StorageNodeSet.Spec.Erasure,       // TODO: get from configuration
-			DataStore:                 b.StorageNodeSet.Spec.DataStore,
-			Service:                   b.StorageNodeSet.Spec.Service,
-			Resources:                 b.StorageNodeSet.Spec.Resources,
-			Image:                     b.StorageNodeSet.Spec.Image,
-			InitContainers:            b.StorageNodeSet.Spec.InitContainers,
-			CABundle:                  b.StorageNodeSet.Spec.CABundle, // TODO: migrate to trust-manager
-			Secrets:                   b.StorageNodeSet.Spec.Secrets,
-			Volumes:                   b.StorageNodeSet.Spec.Volumes,
-			HostNetwork:               b.StorageNodeSet.Spec.HostNetwork,
-			NodeSelector:              b.StorageNodeSet.Spec.NodeSelector,
-			Affinity:                  b.StorageNodeSet.Spec.Affinity,
-			Tolerations:               b.StorageNodeSet.Spec.Tolerations,
-			TopologySpreadConstraints: b.StorageNodeSet.Spec.TopologySpreadConstraints,
-			AdditionalLabels:          b.StorageNodeSet.Spec.AdditionalLabels,
-			AdditionalAnnotations:     b.StorageNodeSet.Spec.AdditionalAnnotations,
-			PriorityClassName:         b.StorageNodeSet.Spec.PriorityClassName,
+			StorageClusterSpec: b.StorageNodeSet.Spec.StorageClusterSpec,
+			StorageNodeSpec:    b.StorageNodeSet.Spec.StorageNodeSpec,
 		},
 	}
 }

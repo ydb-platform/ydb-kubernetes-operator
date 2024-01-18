@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
@@ -13,129 +12,9 @@ type StorageNodeSetSpec struct {
 	// +required
 	StorageRef NamespacedRef `json:"storageRef"`
 
-	// Number of nodes (pods) in the set
-	// +required
-	Nodes int32 `json:"nodes"`
+	StorageClusterSpec `json:",inline"`
 
-	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
-	// +optional
-	Configuration string `json:"configuration"`
-
-	// Data storage mode.
-	// For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
-	// TODO English docs link
-	// FIXME mirror-3-dc is only supported with external configuration
-	// +kubebuilder:validation:Enum=mirror-3-dc;block-4-2;none
-	// +kubebuilder:default:=block-4-2
-	Erasure ErasureType `json:"erasure"`
-
-	// (Optional) Where cluster data should be kept
-	// +optional
-	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore,omitempty"`
-
-	// (Optional) Storage services parameter overrides
-	// Default: (not specified)
-	// +optional
-	Service StorageServices `json:"service,omitempty"`
-
-	// The state of the Storage processes.
-	// `true` means all the Stprage Pods are being killed, but the Storage resource is persisted.
-	// `false` means the default state of the system, all Pods running.
-	// +kubebuilder:default:=false
-	// +optional
-	Pause bool `json:"pause"`
-
-	// Enables or disables operator's reconcile loop.
-	// `false` means all the Pods are running, but the reconcile is effectively turned off.
-	// `true` means the default state of the system, all Pods running, operator reacts
-	// to specification change of this Database resource.
-	// +kubebuilder:default:=true
-	// +optional
-	OperatorSync bool `json:"operatorSync"`
-
-	// (Optional) Storage container resource limits. Any container limits
-	// can be specified.
-	// Default: (not specified)
-	// +optional
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
-
-	// (Optional) Container image information
-	// +optional
-	Image PodImage `json:"image,omitempty"`
-
-	// List of initialization containers belonging to the pod.
-	// Init containers are executed in order prior to containers being started. If any
-	// init container fails, the pod is considered to have failed and is handled according
-	// to its restartPolicy. The name for an init container or normal container must be
-	// unique among all containers.
-	// Init containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.
-	// The resourceRequirements of an init container are taken into account during scheduling
-	// by finding the highest request/limit for each resource type, and then using the max of
-	// that value or the sum of the normal containers. Limits are applied to init containers
-	// in a similar fashion.
-	// Init containers cannot currently be added or removed.
-	// Cannot be updated.
-	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
-	// +optional
-	InitContainers []corev1.Container `json:"initContainers,omitempty"`
-
-	// User-defined root certificate authority that is added to system trust
-	// store of Storage pods on startup.
-	// +optional
-	CABundle string `json:"caBundle,omitempty"`
-
-	// Secret names that will be mounted into the well-known directory of
-	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
-	// +optional
-	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
-
-	// Additional volumes that will be mounted into the well-known directory of
-	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
-	// Only `hostPath` volume type is supported for now.
-	// +optional
-	Volumes []*corev1.Volume `json:"volumes,omitempty"`
-
-	// Whether host network should be enabled. Automatically sets
-	// `dnsPolicy` to `clusterFirstWithHostNet`.
-	// Default: false
-	// +optional
-	HostNetwork bool `json:"hostNetwork,omitempty"`
-
-	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
-	// Selector which must match a node's labels for the pod to be scheduled on that node.
-	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
-	// +optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// (Optional) If specified, the pod's scheduling constraints
-	// +optional
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-
-	// (Optional) If specified, the pod's tolerations.
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
-
-	// (Optional) If specified, the pod's topologySpreadConstraints.
-	// All topologySpreadConstraints are ANDed.
-	// +optional
-	// +patchMergeKey=topologyKey
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=topologyKey
-	// +listMapKey=whenUnsatisfiable
-	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
-
-	// (Optional) Additional custom resource labels that are added to all resources
-	// +optional
-	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
-
-	// (Optional) Additional custom resource annotations that are added to all resources
-	// +optional
-	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
-
-	// (Optional) If specified, the pod's priorityClassName.
-	// +optional
-	PriorityClassName string `json:"priorityClassName,omitempty"`
+	StorageNodeSpec `json:",inline"`
 }
 
 // StorageNodeSetStatus defines the observed state
@@ -149,66 +28,13 @@ type StorageNodeSetStatus struct {
 type StorageNodeSetSpecInline struct {
 	// Name of child *NodeSet object
 	// +required
-	Name string `json:"name,omitempty"`
+	Name string `json:"name"`
 
 	// (Optional) Object should be reference to remote object
 	// +optional
 	Remote bool `json:"remote,omitempty"`
 
-	// (Optional) Additional labels that will be added to the *NodeSet
-	// +optional
-	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
-
-	// (Optional) Additional annotations that will be added to the *NodeSet
-	// +optional
-	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
-
-	// Number of nodes (pods) in the set
-	// +required
-	Nodes int32 `json:"nodes"`
-
-	// (Optional) Storage services parameter overrides
-	// Default: (not specified)
-	// +optional
-	Service *StorageServices `json:"service,omitempty"`
-
-	// (Optional) Storage container resource limits. Any container limits
-	// can be specified.
-	// Default: (not specified)
-	// +optional
-	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-
-	// (Optional) Where cluster data should be kept
-	// +optional
-	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore,omitempty"`
-
-	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
-	// Selector which must match a node's labels for the pod to be scheduled on that node.
-	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
-	// +optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// (Optional) If specified, the pod's scheduling constraints
-	// +optional
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-
-	// (Optional) If specified, the pod's tolerations.
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
-
-	// (Optional) If specified, the pod's topologySpreadConstraints.
-	// All topologySpreadConstraints are ANDed.
-	// +optional
-	// +patchMergeKey=topologyKey
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=topologyKey
-	// +listMapKey=whenUnsatisfiable
-	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
-
-	// (Optional) If specified, the pod's priorityClassName.
-	// +optional
-	PriorityClassName string `json:"priorityClassName,omitempty"`
+	StorageNodeSpec `json:",inline"`
 }
 
 //+kubebuilder:object:root=true

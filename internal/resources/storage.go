@@ -178,56 +178,56 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 		Namespace: b.Namespace,
 	}
 
-	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
-	nodeSetSpec.Configuration = configuration
-	nodeSetSpec.Erasure = b.Spec.Erasure
+	nodeSetSpec.StorageClusterSpec = b.Spec.StorageClusterSpec
+	nodeSetSpec.StorageNodeSpec = b.Spec.StorageNodeSpec
 
-	nodeSetSpec.DataStore = b.Spec.DataStore
+	nodeSetSpec.Configuration = configuration
+
+	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
+
+	if nodeSetSpecInline.Image != nil {
+		nodeSetSpec.Image = nodeSetSpecInline.Image
+	}
+
 	if nodeSetSpecInline.DataStore != nil {
 		nodeSetSpec.DataStore = nodeSetSpecInline.DataStore
 	}
 
-	nodeSetSpec.Service = b.Spec.Service
-	if nodeSetSpecInline.Service != nil {
-		nodeSetSpec.Service = *nodeSetSpecInline.Service
-	}
-
-	nodeSetSpec.Resources = b.Spec.Resources
 	if nodeSetSpecInline.Resources != nil {
-		nodeSetSpec.Resources = *nodeSetSpecInline.Resources
+		nodeSetSpec.Resources = nodeSetSpecInline.Resources
 	}
 
-	nodeSetSpec.Image = b.Spec.Image
-	// if nodeSetSpecInline.Image != nil {
-	// 	nodeSetSpec.Image = *nodeSetSpecInline.Image.DeepCopy()
-	// }
+	if nodeSetSpecInline.InitContainers != nil {
+		nodeSetSpec.InitContainers = append(nodeSetSpec.InitContainers, nodeSetSpecInline.InitContainers...)
+	}
 
-	nodeSetSpec.InitContainers = b.Spec.InitContainers
-	nodeSetSpec.CABundle = b.Spec.CABundle
-	nodeSetSpec.Secrets = b.Spec.Secrets
-	nodeSetSpec.Volumes = b.Spec.Volumes
-	nodeSetSpec.Pause = b.Spec.Pause
-	nodeSetSpec.OperatorSync = b.Spec.OperatorSync
-	nodeSetSpec.HostNetwork = b.Spec.HostNetwork
+	if nodeSetSpecInline.HostNetwork != nodeSetSpec.HostNetwork {
+		nodeSetSpec.HostNetwork = nodeSetSpecInline.HostNetwork
+	}
 
-	nodeSetSpec.NodeSelector = b.Spec.NodeSelector
 	if nodeSetSpecInline.NodeSelector != nil {
-		nodeSetSpec.NodeSelector = nodeSetSpecInline.NodeSelector
+		if nodeSetSpec.NodeSelector == nil {
+			nodeSetSpec.NodeSelector = make(map[string]string)
+		}
+		for k, v := range nodeSetSpecInline.NodeSelector {
+			nodeSetSpec.NodeSelector[k] = v
+		}
 	}
 
-	nodeSetSpec.Affinity = b.Spec.Affinity
 	if nodeSetSpecInline.Affinity != nil {
 		nodeSetSpec.Affinity = nodeSetSpecInline.Affinity
 	}
 
-	nodeSetSpec.Tolerations = b.Spec.Tolerations
 	if nodeSetSpecInline.Tolerations != nil {
-		nodeSetSpec.Tolerations = nodeSetSpecInline.Tolerations
+		nodeSetSpec.Tolerations = append(nodeSetSpec.Tolerations, nodeSetSpecInline.Tolerations...)
 	}
 
-	nodeSetSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
 	if nodeSetSpecInline.TopologySpreadConstraints != nil {
-		nodeSetSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+		nodeSetSpec.TopologySpreadConstraints = append(nodeSetSpec.TopologySpreadConstraints, nodeSetSpecInline.TopologySpreadConstraints...)
+	}
+
+	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
+		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
 	nodeSetSpec.AdditionalLabels = make(map[string]string)
@@ -241,7 +241,6 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 			nodeSetSpec.AdditionalLabels[k] = v
 		}
 	}
-	nodeSetSpec.AdditionalLabels[labels.StorageNodeSetComponent] = nodeSetSpecInline.Name
 
 	nodeSetSpec.AdditionalAnnotations = make(map[string]string)
 	if b.Spec.AdditionalAnnotations != nil {
@@ -253,11 +252,6 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
 			nodeSetSpec.AdditionalAnnotations[k] = v
 		}
-	}
-
-	nodeSetSpec.PriorityClassName = b.Spec.PriorityClassName
-	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
-		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
 	return nodeSetSpec

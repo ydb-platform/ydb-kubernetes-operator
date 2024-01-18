@@ -383,9 +383,11 @@ var _ = Describe("Operator smoke test", func() {
 		databaseSample = testobjects.DefaultDatabase()
 		testNodeSetName := "nodeset"
 		for idx := 1; idx <= 2; idx++ {
-			storageSample.Spec.NodeSet = append(storageSample.Spec.NodeSet, &v1alpha1.StorageNodeSetSpecInline{
-				Name:  testNodeSetName + "-" + strconv.Itoa(idx),
-				Nodes: 4,
+			storageSample.Spec.NodeSet = append(storageSample.Spec.NodeSet, v1alpha1.StorageNodeSetSpecInline{
+				Name: testNodeSetName + "-" + strconv.Itoa(idx),
+				StorageNodeSpec: v1alpha1.StorageNodeSpec{
+					Nodes: 4,
+				},
 			})
 			databaseSample.Spec.NodeSet = append(databaseSample.Spec.NodeSet, &v1alpha1.DatabaseNodeSetSpecInline{
 				Name:  testNodeSetName + "-" + strconv.Itoa(idx),

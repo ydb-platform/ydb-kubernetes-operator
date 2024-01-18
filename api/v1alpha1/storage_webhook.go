@@ -63,7 +63,7 @@ func (r *Storage) IsGRPCSecure() bool {
 func (r *Storage) Default() {
 	storagelog.Info("default", "name", r.Name)
 
-	if r.Spec.Image.Name == "" {
+	if r.Spec.Image == nil || r.Spec.Image.Name == "" {
 		if r.Spec.YDBVersion == "" {
 			r.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
 		} else {
@@ -76,9 +76,18 @@ func (r *Storage) Default() {
 		r.Spec.Image.PullPolicyName = &policy
 	}
 
+	if r.Spec.Resources == nil {
+		r.Spec.Resources = &v1.ResourceRequirements{}
+	}
+
+	if r.Spec.Service == nil {
+		r.Spec.Service = &StorageServices{}
+	}
+
 	if r.Spec.Service.GRPC.TLSConfiguration == nil {
 		r.Spec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
+
 	if r.Spec.Service.Interconnect.TLSConfiguration == nil {
 		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
@@ -148,7 +157,7 @@ func (r *Storage) ValidateCreate() error {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
 		if nodesInSetsCount != r.Spec.Nodes {
-			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSet: %d ", r.Spec.Nodes, nodesInSetsCount)
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
 		}
 	}
 
@@ -167,16 +176,6 @@ func (r *Storage) ValidateCreate() error {
 			if volume.HostPath == nil {
 				return fmt.Errorf("unsupported volume source, %v. Only hostPath is supported ", volume.VolumeSource)
 			}
-		}
-	}
-
-	if r.Spec.NodeSet != nil {
-		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSet {
-			nodesInSetsCount += nodeSetInline.Nodes
-		}
-		if nodesInSetsCount != r.Spec.Nodes {
-			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSet: %d ", r.Spec.Nodes, nodesInSetsCount)
 		}
 	}
 
@@ -244,6 +243,16 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 
 	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
 		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
+	}
+
+	if r.Spec.NodeSet != nil {
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSet {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
 	}
 
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
