@@ -114,29 +114,8 @@ func (b *DatabaseNodeSetResource) recastDatabaseNodeSet() *api.Database {
 			Labels:    b.DatabaseNodeSet.Labels,
 		},
 		Spec: api.DatabaseSpec{
-			Nodes:                     b.DatabaseNodeSet.Spec.Nodes,
-			Configuration:             b.DatabaseNodeSet.Spec.Configuration, // TODO: migrate to configmapRef
-			Service:                   b.DatabaseNodeSet.Spec.Service,
-			StorageDomains:            b.DatabaseNodeSet.Spec.StorageDomains,
-			Encryption:                b.DatabaseNodeSet.Spec.Encryption,
-			Volumes:                   b.DatabaseNodeSet.Spec.Volumes,
-			Datastreams:               b.DatabaseNodeSet.Spec.Datastreams,
-			Domain:                    b.DatabaseNodeSet.Spec.Domain,
-			Path:                      b.DatabaseNodeSet.Spec.Path,
-			Resources:                 b.DatabaseNodeSet.Spec.Resources,
-			SharedResources:           b.DatabaseNodeSet.Spec.SharedResources,
-			ServerlessResources:       b.DatabaseNodeSet.Spec.ServerlessResources,
-			Image:                     b.DatabaseNodeSet.Spec.Image,
-			InitContainers:            b.DatabaseNodeSet.Spec.InitContainers,
-			CABundle:                  b.DatabaseNodeSet.Spec.CABundle, // TODO: migrate to trust-manager
-			Secrets:                   b.DatabaseNodeSet.Spec.Secrets,
-			NodeSelector:              b.DatabaseNodeSet.Spec.NodeSelector,
-			Affinity:                  b.DatabaseNodeSet.Spec.Affinity,
-			Tolerations:               b.DatabaseNodeSet.Spec.Tolerations,
-			TopologySpreadConstraints: b.DatabaseNodeSet.Spec.TopologySpreadConstraints,
-			AdditionalLabels:          b.DatabaseNodeSet.Spec.AdditionalLabels,
-			AdditionalAnnotations:     b.DatabaseNodeSet.Spec.AdditionalAnnotations,
-			PriorityClassName:         b.DatabaseNodeSet.Spec.PriorityClassName,
+			DatabaseClusterSpec: b.Spec.DatabaseClusterSpec,
+			DatabaseNodeSpec:    b.Spec.DatabaseNodeSpec,
 		},
 	}
 }

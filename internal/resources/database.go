@@ -249,62 +249,52 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 		Name:      b.Name,
 		Namespace: b.Namespace,
 	}
-	nodeSetSpec.StorageEndpoint = b.GetStorageEndpointWithProto()
+
+	nodeSetSpec.DatabaseClusterSpec = b.Spec.DatabaseClusterSpec
+	nodeSetSpec.DatabaseNodeSpec = b.Spec.DatabaseNodeSpec
 
 	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
-	nodeSetSpec.Configuration = configuration
+	nodeSetSpec.StorageEndpoint = b.GetStorageEndpointWithProto()
 
-	nodeSetSpec.Service = b.Spec.Service
-	if nodeSetSpecInline.Service != nil {
-		nodeSetSpec.Service = *nodeSetSpecInline.Service.DeepCopy()
+	if nodeSetSpecInline.Image != nil {
+		nodeSetSpec.Image = nodeSetSpecInline.Image
 	}
-	nodeSetSpec.StorageDomains = b.Spec.StorageDomains
-	nodeSetSpec.Encryption = b.Spec.Encryption
-	nodeSetSpec.Volumes = b.Spec.Volumes
-	nodeSetSpec.Datastreams = b.Spec.Datastreams
-	nodeSetSpec.Pause = b.Spec.Pause
-	nodeSetSpec.OperatorSync = b.Spec.OperatorSync
-	nodeSetSpec.Domain = b.Spec.Domain
-	nodeSetSpec.Path = b.Spec.Path
 
-	nodeSetSpec.Resources = b.Spec.Resources
 	if nodeSetSpecInline.Resources != nil {
 		nodeSetSpec.Resources = nodeSetSpecInline.Resources
 	}
 
-	nodeSetSpec.SharedResources = b.Spec.SharedResources
 	if nodeSetSpecInline.SharedResources != nil {
-		nodeSetSpec.SharedResources = nodeSetSpecInline.SharedResources
+		nodeSetSpec.Resources = nodeSetSpecInline.SharedResources
 	}
 
-	nodeSetSpec.ServerlessResources = b.Spec.ServerlessResources
-	nodeSetSpec.Image = b.Spec.Image
-	// if nodeSetSpecInline.Image != nil {
-	// 	nodeSetSpec.Image = *nodeSetSpecInline.Image.DeepCopy()
-	// }
+	if nodeSetSpecInline.InitContainers != nil {
+		nodeSetSpec.InitContainers = append(nodeSetSpec.InitContainers, nodeSetSpecInline.InitContainers...)
+	}
 
-	nodeSetSpec.InitContainers = b.Spec.InitContainers
-	nodeSetSpec.CABundle = b.Spec.CABundle
-	nodeSetSpec.Secrets = b.Spec.Secrets
-
-	nodeSetSpec.NodeSelector = b.Spec.NodeSelector
 	if nodeSetSpecInline.NodeSelector != nil {
-		nodeSetSpec.NodeSelector = nodeSetSpecInline.NodeSelector
+		if nodeSetSpec.NodeSelector == nil {
+			nodeSetSpec.NodeSelector = make(map[string]string)
+		}
+		for k, v := range nodeSetSpecInline.NodeSelector {
+			nodeSetSpec.NodeSelector[k] = v
+		}
 	}
 
-	nodeSetSpec.Affinity = b.Spec.Affinity
 	if nodeSetSpecInline.Affinity != nil {
 		nodeSetSpec.Affinity = nodeSetSpecInline.Affinity
 	}
 
-	nodeSetSpec.Tolerations = b.Spec.Tolerations
-	if nodeSetSpecInline.Tolerations != nil {
-		nodeSetSpec.Tolerations = nodeSetSpecInline.Tolerations
-	}
-
-	nodeSetSpec.TopologySpreadConstraints = b.Spec.TopologySpreadConstraints
 	if nodeSetSpecInline.TopologySpreadConstraints != nil {
 		nodeSetSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+	}
+
+	if nodeSetSpecInline.Tolerations != nil {
+		nodeSetSpec.Tolerations = append(nodeSetSpec.Tolerations, nodeSetSpecInline.Tolerations...)
+	}
+
+	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
+		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
 	nodeSetSpec.AdditionalLabels = make(map[string]string)
@@ -318,7 +308,6 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 			nodeSetSpec.AdditionalLabels[k] = v
 		}
 	}
-	nodeSetSpec.AdditionalLabels[labels.StorageNodeSetComponent] = nodeSetSpecInline.Name
 
 	nodeSetSpec.AdditionalAnnotations = make(map[string]string)
 	if b.Spec.AdditionalAnnotations != nil {
@@ -330,11 +319,6 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
 			nodeSetSpec.AdditionalAnnotations[k] = v
 		}
-	}
-
-	nodeSetSpec.PriorityClassName = b.Spec.PriorityClassName
-	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
-		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
 	return nodeSetSpec

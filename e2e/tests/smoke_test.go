@@ -389,9 +389,11 @@ var _ = Describe("Operator smoke test", func() {
 					Nodes: 4,
 				},
 			})
-			databaseSample.Spec.NodeSet = append(databaseSample.Spec.NodeSet, &v1alpha1.DatabaseNodeSetSpecInline{
-				Name:  testNodeSetName + "-" + strconv.Itoa(idx),
-				Nodes: 4,
+			databaseSample.Spec.NodeSet = append(databaseSample.Spec.NodeSet, v1alpha1.DatabaseNodeSetSpecInline{
+				Name: testNodeSetName + "-" + strconv.Itoa(idx),
+				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+					Nodes: 4,
+				},
 			})
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())

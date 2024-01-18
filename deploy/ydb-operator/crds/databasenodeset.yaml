@@ -925,7 +925,7 @@ spec:
               domain:
                 default: root
                 description: '(Optional) Name of the root storage domain Default:
-                  root'
+                  Root'
                 maxLength: 63
                 pattern: '[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?'
                 type: string
@@ -958,7 +958,7 @@ spec:
                 - enabled
                 type: object
               image:
-                description: (Optional) Container image information
+                description: (Optional) YDB Image
                 properties:
                   name:
                     description: 'Container image with supported YDB version. This
@@ -976,19 +976,9 @@ spec:
                     type: string
                 type: object
               initContainers:
-                description: 'List of initialization containers belonging to the pod.
-                  Init containers are executed in order prior to containers being
-                  started. If any init container fails, the pod is considered to have
-                  failed and is handled according to its restartPolicy. The name for
-                  an init container or normal container must be unique among all containers.
-                  Init containers may not have Lifecycle actions, Readiness probes,
-                  Liveness probes, or Startup probes. The resourceRequirements of
-                  an init container are taken into account during scheduling by finding
-                  the highest request/limit for each resource type, and then using
-                  the max of that value or the sum of the normal containers. Limits
-                  are applied to init containers in a similar fashion. Init containers
-                  cannot currently be added or removed. Cannot be updated. More info:
-                  https://kubernetes.io/docs/concepts/workloads/pods/init-containers/'
+                description: '(Optional) List of initialization containers belonging
+                  to the pod. Init containers are executed in order prior to containers
+                  being started. More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/'
                 items:
                   description: A single application container that you want to run
                     within a pod.
@@ -2225,6 +2215,64 @@ spec:
                   - name
                   type: object
                 type: array
+              monitoring:
+                description: '(Optional) Monitoring sets configuration options for
+                  YDB observability Default: ""'
+                properties:
+                  enabled:
+                    type: boolean
+                  interval:
+                    description: Interval at which metrics should be scraped
+                    type: string
+                  metricRelabelings:
+                    description: RelabelConfig allows dynamic rewriting of the label
+                      set, being applied to sample before ingestion.
+                    items:
+                      description: 'RelabelConfig allows dynamic rewriting of the
+                        label set, being applied to samples before ingestion. It defines
+                        `<metric_relabel_configs>`-section of Prometheus configuration.
+                        More info: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#metric_relabel_configs'
+                      properties:
+                        action:
+                          description: Action to perform based on regex matching.
+                            Default is 'replace'
+                          type: string
+                        modulus:
+                          description: Modulus to take of the hash of the source label
+                            values.
+                          format: int64
+                          type: integer
+                        regex:
+                          description: Regular expression against which the extracted
+                            value is matched. Default is '(.*)'
+                          type: string
+                        replacement:
+                          description: Replacement value against which a regex replace
+                            is performed if the regular expression matches. Regex
+                            capture groups are available. Default is '$1'
+                          type: string
+                        separator:
+                          description: Separator placed between concatenated source
+                            label values. default is ';'.
+                          type: string
+                        sourceLabels:
+                          description: The source labels select values from existing
+                            labels. Their content is concatenated using the configured
+                            separator and matched against the configured regular expression
+                            for the replace, keep, and drop actions.
+                          items:
+                            type: string
+                          type: array
+                        targetLabel:
+                          description: Label to which the resulting value is written
+                            in a replace action. It is mandatory for replace actions.
+                            Regex capture groups are available.
+                          type: string
+                      type: object
+                    type: array
+                required:
+                - enabled
+                type: object
               nodeSelector:
                 additionalProperties:
                   type: string
@@ -2233,7 +2281,7 @@ spec:
                   labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/'
                 type: object
               nodes:
-                description: Number of nodes (pods) in the set
+                description: Number of nodes (pods) in the cluster
                 format: int32
                 type: integer
               operatorSync:
@@ -2363,6 +2411,8 @@ spec:
                     required:
                     - name
                     type: object
+                required:
+                - sharedDatabaseRef
                 type: object
               service:
                 description: '(Optional) Storage services parameter overrides Default:
@@ -2726,13 +2776,28 @@ spec:
                       type: object
                     type: array
                 type: object
+              storageClusterRef:
+                description: YDB Storage cluster reference
+                properties:
+                  name:
+                    maxLength: 63
+                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                  namespace:
+                    maxLength: 63
+                    pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                    type: string
+                required:
+                - name
+                type: object
               storageDomains:
-                description: (Optional) YDB Storage domain to discovery
+                description: '(Optional) YDB Storage domain to discovery Default:
+                  <spec.StorageClusterRef.Name>-grpc.<spec.StorageClusterRef.Namespace>.svc.cluster.local'
                 items:
                   type: string
                 type: array
               storageEndpoint:
-                description: (Optional) Node broker address host:port
+                description: YDB Storage Node broker address
                 type: string
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
@@ -2946,9 +3011,13 @@ spec:
                 - topologyKey
                 - whenUnsatisfiable
                 x-kubernetes-list-type: map
+              version:
+                description: '(Optional) YDBVersion sets the explicit version of the
+                  YDB image Default: ""'
+                type: string
               volumes:
                 description: 'Additional volumes that will be mounted into the well-known
-                  directory of every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
+                  directory of every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
                   Only `hostPath` volume type is supported for now.'
                 items:
                   description: Volume represents a named volume in a pod that may
@@ -4493,6 +4562,8 @@ spec:
             required:
             - databaseRef
             - nodes
+            - storageClusterRef
+            - storageEndpoint
             type: object
           status:
             default:

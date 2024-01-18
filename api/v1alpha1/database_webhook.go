@@ -65,7 +65,7 @@ func (r *Database) Default() {
 		}
 	}
 
-	if r.Spec.Image.Name == "" {
+	if r.Spec.Image == nil && r.Spec.Image.Name == "" {
 		if r.Spec.YDBVersion == "" {
 			r.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
 		} else {
@@ -145,7 +145,7 @@ func (r *Database) ValidateCreate() error {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
 		if nodesInSetsCount != r.Spec.Nodes {
-			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSet: %d ", r.Spec.Nodes, nodesInSetsCount)
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
 		}
 	}
 
@@ -176,7 +176,7 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
 		if nodesInSetsCount != r.Spec.Nodes {
-			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSet: %d ", r.Spec.Nodes, nodesInSetsCount)
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
 		}
 	}
 

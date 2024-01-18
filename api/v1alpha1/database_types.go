@@ -9,9 +9,19 @@ import (
 
 // DatabaseSpec defines the desired state of Database
 type DatabaseSpec struct {
-	// Number of nodes (pods) in the cluster
+	DatabaseClusterSpec `json:",inline"`
+
+	DatabaseNodeSpec `json:",inline"`
+
+	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
+	// +optional
+	NodeSet []DatabaseNodeSetSpecInline `json:"nodeSet,omitempty"`
+}
+
+type DatabaseClusterSpec struct {
+	// YDB Storage cluster reference
 	// +required
-	Nodes int32 `json:"nodes"`
+	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
 
 	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
 	// +optional
@@ -20,20 +30,12 @@ type DatabaseSpec struct {
 	// (Optional) Storage services parameter overrides
 	// Default: (not specified)
 	// +optional
-	Service DatabaseServices `json:"service,omitempty"`
-
-	// YDB Storage cluster reference
-	// +required
-	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
+	Service *DatabaseServices `json:"service,omitempty"`
 
 	// (Optional) YDB Storage domain to discovery
 	// Default: <spec.StorageClusterRef.Name>-grpc.<spec.StorageClusterRef.Namespace>.svc.cluster.local
 	// +optional
 	StorageDomains []string `json:"storageDomains,omitempty"`
-
-	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
-	// +optional
-	NodeSet []*DatabaseNodeSetSpecInline `json:"nodeSet,omitempty"`
 
 	// Encryption
 	// +optional
@@ -79,42 +81,9 @@ type DatabaseSpec struct {
 	// +optional
 	Path string `json:"path,omitempty"`
 
-	// (Optional) Database storage and compute resources
-	// +optional
-	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
-
-	// (Optional) Shared resources can be used by serverless databases.
-	// +optional
-	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
-
 	// (Optional) If specified, created database will be "serverless".
 	// +optional
 	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
-
-	// (Optional) YDBVersion sets the explicit version of the YDB image
-	// Default: ""
-	// +optional
-	YDBVersion string `json:"version,omitempty"`
-
-	// (Optional) YDB Image
-	// +optional
-	Image PodImage `json:"image,omitempty"`
-
-	// List of initialization containers belonging to the pod.
-	// Init containers are executed in order prior to containers being started. If any
-	// init container fails, the pod is considered to have failed and is handled according
-	// to its restartPolicy. The name for an init container or normal container must be
-	// unique among all containers.
-	// Init containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.
-	// The resourceRequirements of an init container are taken into account during scheduling
-	// by finding the highest request/limit for each resource type, and then using the max of
-	// that value or the sum of the normal containers. Limits are applied to init containers
-	// in a similar fashion.
-	// Init containers cannot currently be added or removed.
-	// Cannot be updated.
-	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
-	// +optional
-	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
 	// (Optional) Monitoring sets configuration options for YDB observability
 	// Default: ""
@@ -130,8 +99,37 @@ type DatabaseSpec struct {
 	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
 	// +optional
 	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
+}
 
-	// NodeSelector is a selector which must be true for the pod to fit on a node.
+type DatabaseNodeSpec struct {
+	// Number of nodes (pods) in the cluster
+	// +required
+	Nodes int32 `json:"nodes"`
+
+	// (Optional) YDB Image
+	// +optional
+	Image *PodImage `json:"image,omitempty"`
+
+	// (Optional) YDBVersion sets the explicit version of the YDB image
+	// Default: ""
+	// +optional
+	YDBVersion string `json:"version,omitempty"`
+
+	// (Optional) Database storage and compute resources
+	// +optional
+	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
+
+	// (Optional) Shared resources can be used by serverless databases.
+	// +optional
+	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
+
+	// (Optional) List of initialization containers belonging to the pod.
+	// Init containers are executed in order prior to containers being started.
+	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+	// +optional
+	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+
+	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 	// +optional
@@ -155,6 +153,10 @@ type DatabaseSpec struct {
 	// +listMapKey=whenUnsatisfiable
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
 
+	// (Optional) If specified, the pod's priorityClassName.
+	// +optional
+	PriorityClassName string `json:"priorityClassName,omitempty"`
+
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
@@ -162,10 +164,6 @@ type DatabaseSpec struct {
 	// (Optional) Additional custom resource annotations that are added to all resources
 	// +optional
 	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
-
-	// (Optional) If specified, the pod's priorityClassName.
-	// +optional
-	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
 type DatabaseResources struct {
@@ -185,7 +183,7 @@ type DatabaseResources struct {
 type ServerlessDatabaseResources struct {
 	// Reference to YDB Database with configured shared resources
 	// +required
-	SharedDatabaseRef SharedDatabaseRef `json:"sharedDatabaseRef,omitempty"`
+	SharedDatabaseRef SharedDatabaseRef `json:"sharedDatabaseRef"`
 }
 
 type StorageUnit struct {
@@ -237,7 +235,7 @@ type PodImage struct {
 	// Container image with supported YDB version.
 	// This defaults to the version pinned to the operator and requires a full container and tag/sha name.
 	// For instance: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22
-	// +required
+	// +optional
 	Name string `json:"name,omitempty"`
 
 	// (Optional) PullPolicy for the image, which defaults to IfNotPresent.

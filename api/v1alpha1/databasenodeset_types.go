@@ -13,148 +13,13 @@ type DatabaseNodeSetSpec struct {
 	// +required
 	DatabaseRef NamespacedRef `json:"databaseRef"`
 
-	// (Optional) Node broker address host:port
-	// +optional
+	// YDB Storage Node broker address
+	// +required
 	StorageEndpoint string `json:"storageEndpoint"`
 
-	// Number of nodes (pods) in the set
-	// +required
-	Nodes int32 `json:"nodes"`
+	DatabaseClusterSpec `json:",inline"`
 
-	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
-	// +optional
-	Configuration string `json:"configuration"`
-
-	// (Optional) YDB Storage domain to discovery
-	// +optional
-	StorageDomains []string `json:"storageDomains"`
-
-	// (Optional) Storage services parameter overrides
-	// Default: (not specified)
-	// +optional
-	Service DatabaseServices `json:"service,omitempty"`
-
-	// Encryption
-	// +optional
-	Encryption *EncryptionConfig `json:"encryption,omitempty"`
-
-	// Additional volumes that will be mounted into the well-known directory of
-	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
-	// Only `hostPath` volume type is supported for now.
-	// +optional
-	Volumes []*corev1.Volume `json:"volumes,omitempty"`
-
-	// Datastreams config
-	// +optional
-	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
-
-	// The state of the Database processes.
-	// `true` means all the Database Pods are being killed, but the Database resource is persisted.
-	// `false` means the default state of the system, all Pods running.
-	// +kubebuilder:default:=false
-	// +optional
-	Pause bool `json:"pause"`
-
-	// Enables or disables operator's reconcile loop.
-	// `false` means all the Pods are running, but the reconcile is effectively turned off.
-	// `true` means the default state of the system, all Pods running, operator reacts
-	// to specification change of this Database resource.
-	// +kubebuilder:default:=true
-	// +optional
-	OperatorSync bool `json:"operatorSync"`
-
-	// (Optional) Name of the root storage domain
-	// Default: root
-	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +kubebuilder:default:="root"
-	// +optional
-	Domain string `json:"domain"`
-
-	// (Optional) Custom database path in schemeshard
-	// Default: /<spec.domain>/<metadata.name>
-	// +kubebuilder:validation:Pattern:=/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
-	// +kubebuilder:validation:MaxLength:=255
-	// +optional
-	Path string `json:"path,omitempty"`
-
-	// (Optional) Database storage and compute resources
-	// +optional
-	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
-
-	// (Optional) Shared resources can be used by serverless databases.
-	// +optional
-	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
-
-	// (Optional) If specified, created database will be "serverless".
-	// +optional
-	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
-
-	// (Optional) Container image information
-	// +optional
-	Image PodImage `json:"image,omitempty"`
-
-	// List of initialization containers belonging to the pod.
-	// Init containers are executed in order prior to containers being started. If any
-	// init container fails, the pod is considered to have failed and is handled according
-	// to its restartPolicy. The name for an init container or normal container must be
-	// unique among all containers.
-	// Init containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.
-	// The resourceRequirements of an init container are taken into account during scheduling
-	// by finding the highest request/limit for each resource type, and then using the max of
-	// that value or the sum of the normal containers. Limits are applied to init containers
-	// in a similar fashion.
-	// Init containers cannot currently be added or removed.
-	// Cannot be updated.
-	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
-	// +optional
-	InitContainers []corev1.Container `json:"initContainers,omitempty"`
-
-	// User-defined root certificate authority that is added to system trust
-	// store of Storage pods on startup.
-	// +optional
-	CABundle string `json:"caBundle,omitempty"`
-
-	// Secret names that will be mounted into the well-known directory of
-	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
-	// +optional
-	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
-
-	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
-	// Selector which must match a node's labels for the pod to be scheduled on that node.
-	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
-	// +optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// (Optional) If specified, the pod's scheduling constraints
-	// +optional
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-
-	// (Optional) If specified, the pod's tolerations.
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
-
-	// (Optional) If specified, the pod's topologySpreadConstraints.
-	// All topologySpreadConstraints are ANDed.
-	// +optional
-	// +patchMergeKey=topologyKey
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=topologyKey
-	// +listMapKey=whenUnsatisfiable
-	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
-
-	// (Optional) Additional custom resource labels that are added to all resources
-	// +optional
-	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
-
-	// (Optional) Additional custom resource annotations that are added to all resources
-	// +optional
-	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
-
-	// (Optional) If specified, the pod's priorityClassName.
-	// +optional
-	PriorityClassName string `json:"priorityClassName,omitempty"`
+	DatabaseNodeSpec `json:",inline"`
 }
 
 //+kubebuilder:object:root=true
@@ -191,44 +56,7 @@ type DatabaseNodeSetSpecInline struct {
 	// +optional
 	Remote bool `json:"remote,omitempty"`
 
-	// (Optional) Additional labels that will be added to the DatabaseNodeSet
-	// +optional
-	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
-
-	// (Optional) Additional annotations that will be added to the DatabaseNodeSet
-	// +optional
-	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
-
-	// Number of nodes (pods) in the set
-	// +required
-	Nodes int32 `json:"nodes"`
-
-	// (Optional) Storage services parameter overrides
-	// Default: (not specified)
-	// +optional
-	Service *DatabaseServices `json:"service,omitempty"`
-
-	// (Optional) Database storage and compute resources
-	// +optional
-	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
-
-	// (Optional) Shared resources can be used by serverless databases.
-	// +optional
-	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
-
-	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
-	// Selector which must match a node's labels for the pod to be scheduled on that node.
-	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
-	// +optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// (Optional) If specified, the pod's scheduling constraints
-	// +optional
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-
-	// (Optional) If specified, the pod's tolerations.
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	DatabaseNodeSpec `json:",inline"`
 
 	// (Optional) If specified, the pod's topologySpreadConstraints.
 	// All topologySpreadConstraints are ANDed.
