@@ -23,6 +23,21 @@ type DatabaseClusterSpec struct {
 	// +required
 	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
 
+	// (Optional) YDB Image
+	// +optional
+	Image *PodImage `json:"image,omitempty"`
+
+	// (Optional) YDBVersion sets the explicit version of the YDB image
+	// Default: ""
+	// +optional
+	YDBVersion string `json:"version,omitempty"`
+
+	// (Optional) List of initialization containers belonging to the pod.
+	// Init containers are executed in order prior to containers being started.
+	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+	// +optional
+	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+
 	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
 	// +optional
 	Configuration string `json:"configuration"`
@@ -106,15 +121,6 @@ type DatabaseNodeSpec struct {
 	// +required
 	Nodes int32 `json:"nodes"`
 
-	// (Optional) YDB Image
-	// +optional
-	Image *PodImage `json:"image,omitempty"`
-
-	// (Optional) YDBVersion sets the explicit version of the YDB image
-	// Default: ""
-	// +optional
-	YDBVersion string `json:"version,omitempty"`
-
 	// (Optional) Database storage and compute resources
 	// +optional
 	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
@@ -122,12 +128,6 @@ type DatabaseNodeSpec struct {
 	// (Optional) Shared resources can be used by serverless databases.
 	// +optional
 	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
-
-	// (Optional) List of initialization containers belonging to the pod.
-	// Init containers are executed in order prior to containers being started.
-	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
-	// +optional
-	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
 	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.

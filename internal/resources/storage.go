@@ -185,20 +185,12 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 
 	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
 
-	if nodeSetSpecInline.Image != nil {
-		nodeSetSpec.Image = nodeSetSpecInline.Image
-	}
-
 	if nodeSetSpecInline.DataStore != nil {
 		nodeSetSpec.DataStore = nodeSetSpecInline.DataStore
 	}
 
 	if nodeSetSpecInline.Resources != nil {
 		nodeSetSpec.Resources = nodeSetSpecInline.Resources
-	}
-
-	if nodeSetSpecInline.InitContainers != nil {
-		nodeSetSpec.InitContainers = append(nodeSetSpec.InitContainers, nodeSetSpecInline.InitContainers...)
 	}
 
 	if nodeSetSpecInline.HostNetwork != nodeSetSpec.HostNetwork {

@@ -65,15 +65,6 @@ type StorageNodeSpec struct {
 	// +required
 	Nodes int32 `json:"nodes"`
 
-	// (Optional) Container image information
-	// +optional
-	Image *PodImage `json:"image,omitempty"`
-
-	// (Optional) YDBVersion sets the explicit version of the YDB image
-	// Default: ""
-	// +optional
-	YDBVersion string `json:"version,omitempty"`
-
 	// (Optional) Where cluster data should be kept
 	// +optional
 	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore,omitempty"`
@@ -83,12 +74,6 @@ type StorageNodeSpec struct {
 	// Default: (not specified)
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-
-	// (Optional) List of initialization containers belonging to the pod.
-	// Init containers are executed in order prior to containers being started.
-	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
-	// +optional
-	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
 	// (Optional) Whether host network should be enabled.
 	// Default: false
@@ -133,6 +118,21 @@ type StorageNodeSpec struct {
 }
 
 type StorageClusterSpec struct {
+	// (Optional) Container image information
+	// +optional
+	Image *PodImage `json:"image,omitempty"`
+
+	// (Optional) YDBVersion sets the explicit version of the YDB image
+	// Default: ""
+	// +optional
+	YDBVersion string `json:"version,omitempty"`
+
+	// (Optional) List of initialization containers belonging to the pod.
+	// Init containers are executed in order prior to containers being started.
+	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+	// +optional
+	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+
 	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
 	// +optional
 	Configuration string `json:"configuration"`

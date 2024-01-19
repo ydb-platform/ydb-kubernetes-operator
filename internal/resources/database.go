@@ -256,20 +256,12 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
 	nodeSetSpec.StorageEndpoint = b.GetStorageEndpointWithProto()
 
-	if nodeSetSpecInline.Image != nil {
-		nodeSetSpec.Image = nodeSetSpecInline.Image
-	}
-
 	if nodeSetSpecInline.Resources != nil {
 		nodeSetSpec.Resources = nodeSetSpecInline.Resources
 	}
 
 	if nodeSetSpecInline.SharedResources != nil {
 		nodeSetSpec.Resources = nodeSetSpecInline.SharedResources
-	}
-
-	if nodeSetSpecInline.InitContainers != nil {
-		nodeSetSpec.InitContainers = append(nodeSetSpec.InitContainers, nodeSetSpecInline.InitContainers...)
 	}
 
 	if nodeSetSpecInline.NodeSelector != nil {
