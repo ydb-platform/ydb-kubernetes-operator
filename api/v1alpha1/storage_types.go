@@ -15,7 +15,7 @@ type StorageSpec struct {
 
 	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
 	// +optional
-	NodeSet []StorageNodeSetSpecInline `json:"nodeSet,omitempty"`
+	NodeSets []StorageNodeSetSpecInline `json:"nodeSets,omitempty"`
 }
 
 // StorageStatus defines the observed state of Storage

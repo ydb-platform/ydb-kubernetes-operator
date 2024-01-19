@@ -180,7 +180,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 		return r.setState(ctx, storage)
 	}
 
-	for _, nodeSetSpec := range storage.Spec.NodeSet {
+	for _, nodeSetSpec := range storage.Spec.NodeSets {
 		foundStorageNodeSet := ydbv1alpha1.StorageNodeSet{}
 		storageNodeSetName := storage.Name + "-" + nodeSetSpec.Name
 		err := r.Get(ctx, types.NamespacedName{
@@ -326,7 +326,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	for _, storageNodeSet := range storageNodeSets.Items {
 		storageNodeSet := storageNodeSet.DeepCopy()
 		isFoundStorageNodeSetSpecInline := false
-		for _, nodeSetSpecInline := range storage.Spec.NodeSet {
+		for _, nodeSetSpecInline := range storage.Spec.NodeSets {
 			nodeSetName := storage.Name + "-" + nodeSetSpecInline.Name
 			if storageNodeSet.Name == nodeSetName {
 				isFoundStorageNodeSetSpecInline = true
@@ -591,7 +591,7 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	if storage.Spec.NodeSet != nil {
+	if storage.Spec.NodeSets != nil {
 		stop, result, err = r.waitForStorageNodeSetsToReady(ctx, storage)
 		if stop {
 			return result, err

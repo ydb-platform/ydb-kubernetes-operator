@@ -67,7 +67,7 @@ var _ = Describe("StorageNodeSet controller medium tests", func() {
 		// Test create inline nodeSetSpec in Storage object
 		testNodeSetName := "nodeset"
 		for idx := 1; idx <= 4; idx++ {
-			storageSample.Spec.NodeSet = append(storageSample.Spec.NodeSet, v1alpha1.StorageNodeSetSpecInline{
+			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
 				Name: testNodeSetName + "-" + strconv.Itoa(idx),
 				StorageNodeSpec: v1alpha1.StorageNodeSpec{
 					Nodes: 2,

@@ -151,9 +151,9 @@ func (r *Storage) ValidateCreate() error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
-	if r.Spec.NodeSet != nil {
+	if r.Spec.NodeSets != nil {
 		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSet {
+		for _, nodeSetInline := range r.Spec.NodeSets {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
 		if nodesInSetsCount != r.Spec.Nodes {
@@ -245,9 +245,9 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
-	if r.Spec.NodeSet != nil {
+	if r.Spec.NodeSets != nil {
 		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSet {
+		for _, nodeSetInline := range r.Spec.NodeSets {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
 		if nodesInSetsCount != r.Spec.Nodes {

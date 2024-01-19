@@ -91,7 +91,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 		)
 	}
 
-	if b.Spec.NodeSet == nil {
+	if b.Spec.NodeSets == nil {
 		optionalBuilders = append(
 			optionalBuilders,
 			&StorageStatefulSetBuilder{
@@ -103,7 +103,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		for _, nodeSetSpecInline := range b.Spec.NodeSet {
+		for _, nodeSetSpecInline := range b.Spec.NodeSets {
 			nodeSetLabels := storageLabels.Copy()
 			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
 			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})

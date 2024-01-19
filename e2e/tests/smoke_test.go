@@ -383,13 +383,13 @@ var _ = Describe("Operator smoke test", func() {
 		databaseSample = testobjects.DefaultDatabase()
 		testNodeSetName := "nodeset"
 		for idx := 1; idx <= 2; idx++ {
-			storageSample.Spec.NodeSet = append(storageSample.Spec.NodeSet, v1alpha1.StorageNodeSetSpecInline{
+			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
 				Name: testNodeSetName + "-" + strconv.Itoa(idx),
 				StorageNodeSpec: v1alpha1.StorageNodeSpec{
 					Nodes: 4,
 				},
 			})
-			databaseSample.Spec.NodeSet = append(databaseSample.Spec.NodeSet, v1alpha1.DatabaseNodeSetSpecInline{
+			databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 				Name: testNodeSetName + "-" + strconv.Itoa(idx),
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
 					Nodes: 4,
@@ -425,7 +425,7 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &database)).Should(Succeed())
 		database.Spec.Nodes -= 4
-		database.Spec.NodeSet = database.Spec.NodeSet[1:]
+		database.Spec.NodeSets = database.Spec.NodeSets[1:]
 
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
@@ -439,7 +439,7 @@ var _ = Describe("Operator smoke test", func() {
 			)).Should(Succeed())
 			return len(databaseNodeSetList.Items) == 1
 		}, Timeout, Interval).Should(BeTrue())
-		Expect(len(databaseNodeSetList.Items)).Should(BeEquivalentTo(len(database.Spec.NodeSet)))
+		Expect(len(databaseNodeSetList.Items)).Should(BeEquivalentTo(len(database.Spec.NodeSets)))
 		for _, databaseNodeSet := range databaseNodeSetList.Items {
 			Expect(database.GetGeneration()).Should(BeEquivalentTo(databaseNodeSet.Status.ObservedDatabaseGeneration))
 		}

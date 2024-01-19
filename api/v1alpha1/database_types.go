@@ -15,7 +15,7 @@ type DatabaseSpec struct {
 
 	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
 	// +optional
-	NodeSet []DatabaseNodeSetSpecInline `json:"nodeSet,omitempty"`
+	NodeSets []DatabaseNodeSetSpecInline `json:"nodeSets,omitempty"`
 }
 
 type DatabaseClusterSpec struct {

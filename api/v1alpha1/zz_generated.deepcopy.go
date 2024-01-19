@@ -552,8 +552,8 @@ func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 	*out = *in
 	in.DatabaseClusterSpec.DeepCopyInto(&out.DatabaseClusterSpec)
 	in.DatabaseNodeSpec.DeepCopyInto(&out.DatabaseNodeSpec)
-	if in.NodeSet != nil {
-		in, out := &in.NodeSet, &out.NodeSet
+	if in.NodeSets != nil {
+		in, out := &in.NodeSets, &out.NodeSets
 		*out = make([]DatabaseNodeSetSpecInline, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
@@ -1320,8 +1320,8 @@ func (in *StorageSpec) DeepCopyInto(out *StorageSpec) {
 	*out = *in
 	in.StorageClusterSpec.DeepCopyInto(&out.StorageClusterSpec)
 	in.StorageNodeSpec.DeepCopyInto(&out.StorageNodeSpec)
-	if in.NodeSet != nil {
-		in, out := &in.NodeSet, &out.NodeSet
+	if in.NodeSets != nil {
+		in, out := &in.NodeSets, &out.NodeSets
 		*out = make([]StorageNodeSetSpecInline, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])

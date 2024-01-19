@@ -204,7 +204,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		)
 	}
 
-	if b.Spec.NodeSet == nil {
+	if b.Spec.NodeSets == nil {
 		optionalBuilders = append(
 			optionalBuilders,
 			&DatabaseStatefulSetBuilder{
@@ -217,7 +217,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			},
 		)
 	} else {
-		for _, nodeSetSpecInline := range b.Spec.NodeSet {
+		for _, nodeSetSpecInline := range b.Spec.NodeSets {
 			nodeSetLabels := databaseLabels.Copy()
 			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
 			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})

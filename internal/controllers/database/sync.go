@@ -133,7 +133,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	r.Log.Info("running step waitForDatabaseNodeSetToReady for Database")
 
 	if database.Status.State == DatabasePending {
-		msg := fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSet))
+		msg := fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSets))
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
@@ -144,7 +144,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 		return r.setState(ctx, database)
 	}
 
-	for _, nodeSetSpec := range database.Spec.NodeSet {
+	for _, nodeSetSpec := range database.Spec.NodeSets {
 		foundDatabaseNodeSet := v1alpha1.DatabaseNodeSet{}
 		databaseNodeSetName := database.Name + "-" + nodeSetSpec.Name
 		err := r.Get(ctx, types.NamespacedName{
@@ -486,7 +486,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	for _, databaseNodeSet := range databaseNodeSets.Items {
 		databaseNodeSet := databaseNodeSet.DeepCopy()
 		isFoundDatabaseNodeSetSpecInline := false
-		for _, nodeSetSpecInline := range database.Spec.NodeSet {
+		for _, nodeSetSpecInline := range database.Spec.NodeSets {
 			databaseNodeSetName := database.Name + "-" + nodeSetSpecInline.Name
 			if databaseNodeSet.Name == databaseNodeSetName {
 				isFoundDatabaseNodeSetSpecInline = true
@@ -585,7 +585,7 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	if database.Spec.NodeSet != nil {
+	if database.Spec.NodeSets != nil {
 		stop, result, err = r.waitForDatabaseNodeSetsToReady(ctx, database)
 		if stop {
 			return result, err

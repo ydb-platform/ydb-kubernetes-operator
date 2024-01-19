@@ -139,9 +139,9 @@ func (r *Database) ValidateCreate() error {
 		}
 	}
 
-	if r.Spec.NodeSet != nil {
+	if r.Spec.NodeSets != nil {
 		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSet {
+		for _, nodeSetInline := range r.Spec.NodeSets {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
 		if nodesInSetsCount != r.Spec.Nodes {
@@ -170,9 +170,9 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 		return errors.New("database path cannot be changed")
 	}
 
-	if r.Spec.NodeSet != nil {
+	if r.Spec.NodeSets != nil {
 		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSet {
+		for _, nodeSetInline := range r.Spec.NodeSets {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
 		if nodesInSetsCount != r.Spec.Nodes {

@@ -47,9 +47,9 @@ func generateSomeDefaults(cr *v1alpha1.Storage, crDB *v1alpha1.Database) schema.
 		})
 	}
 
-	if cr.Spec.NodeSet != nil {
+	if cr.Spec.NodeSets != nil {
 		hostIndex := 0
-		for _, nodeSetSpec := range cr.Spec.NodeSet {
+		for _, nodeSetSpec := range cr.Spec.NodeSets {
 			for podIndex := 0; podIndex < int(nodeSetSpec.Nodes); podIndex++ {
 				podName := cr.GetName() + "-" + nodeSetSpec.Name + "-" + strconv.Itoa(podIndex)
 				hosts[hostIndex].Host = podName
