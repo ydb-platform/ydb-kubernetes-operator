@@ -1095,9 +1095,8 @@ spec:
                 type: string
               erasure:
                 default: block-4-2
-                description: Data storage mode. For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
-                  TODO English docs link FIXME mirror-3-dc is only supported with
-                  external configuration
+                description: Data storage topology mode For details, see https://ydb.tech/docs/en/cluster/topology
+                  FIXME mirror-3-dc is only supported with external configuration
                 enum:
                 - mirror-3-dc
                 - block-4-2
@@ -1113,7 +1112,7 @@ spec:
                   name:
                     description: 'Container image with supported YDB version. This
                       defaults to the version pinned to the operator and requires
-                      a full container and tag/sha name. For instance: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22'
+                      a full container and tag/sha name. For example: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22'
                     type: string
                   pullPolicy:
                     description: '(Optional) PullPolicy for the image, which defaults
@@ -2431,8 +2430,8 @@ spec:
                   labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/'
                 type: object
               nodeSets:
-                description: (Optional) NodeSet inline configuration to split into
-                  multiple StatefulSets
+                description: '(Optional) NodeSet inline configuration to split into
+                  multiple StatefulSets Default: (not specified)'
                 items:
                   description: StorageNodeSetSpecInline describes an group nodes object
                     inside parent object

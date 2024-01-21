@@ -1086,18 +1086,10 @@ spec:
                       type: string
                   type: object
                 type: array
-              domain:
-                default: Root
-                description: '(Optional) Name of the root storage domain Default:
-                  root'
-                maxLength: 63
-                pattern: '[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?'
-                type: string
               erasure:
                 default: block-4-2
-                description: Data storage mode. For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
-                  TODO English docs link FIXME mirror-3-dc is only supported with
-                  external configuration
+                description: Data storage topology mode For details, see https://ydb.tech/docs/en/cluster/topology
+                  FIXME mirror-3-dc is only supported with external configuration
                 enum:
                 - mirror-3-dc
                 - block-4-2
@@ -1113,7 +1105,7 @@ spec:
                   name:
                     description: 'Container image with supported YDB version. This
                       defaults to the version pinned to the operator and requires
-                      a full container and tag/sha name. For instance: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22'
+                      a full container and tag/sha name. For example: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22'
                     type: string
                   pullPolicy:
                     description: '(Optional) PullPolicy for the image, which defaults
@@ -2434,65 +2426,6 @@ spec:
                 description: Number of nodes (pods)
                 format: int32
                 type: integer
-              operatorConnection:
-                description: '(Optional) Operator connection settings Default: (not
-                  specified)'
-                properties:
-                  accessToken:
-                    properties:
-                      secretKeyRef:
-                        description: SecretKeySelector selects a key of a Secret.
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                    required:
-                    - secretKeyRef
-                    type: object
-                  staticCredentials:
-                    properties:
-                      password:
-                        properties:
-                          secretKeyRef:
-                            description: SecretKeySelector selects a key of a Secret.
-                            properties:
-                              key:
-                                description: The key of the secret to select from.  Must
-                                  be a valid secret key.
-                                type: string
-                              name:
-                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                  TODO: Add other useful fields. apiVersion, kind,
-                                  uid?'
-                                type: string
-                              optional:
-                                description: Specify whether the Secret or its key
-                                  must be defined
-                                type: boolean
-                            required:
-                            - key
-                            type: object
-                        required:
-                        - secretKeyRef
-                        type: object
-                      username:
-                        type: string
-                    required:
-                    - username
-                    type: object
-                type: object
               operatorSync:
                 default: true
                 description: Enables or disables operator's reconcile loop. `false`
