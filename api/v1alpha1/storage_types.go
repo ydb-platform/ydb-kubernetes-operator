@@ -9,11 +9,25 @@ import (
 
 // StorageSpec defines the desired state of Storage
 type StorageSpec struct {
+	// (Optional) Name of the root storage domain
+	// Default: root
+	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +kubebuilder:default:="Root"
+	// +optional
+	Domain string `json:"domain"`
+
+	// (Optional) Operator connection settings
+	// Default: (not specified)
+	// +optional
+	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
+
 	StorageClusterSpec `json:",inline"`
 
 	StorageNodeSpec `json:",inline"`
 
 	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
+	// Default: (not specified)
 	// +optional
 	NodeSets []StorageNodeSetSpecInline `json:"nodeSets,omitempty"`
 }
@@ -118,6 +132,13 @@ type StorageNodeSpec struct {
 }
 
 type StorageClusterSpec struct {
+	// Data storage topology mode
+	// For details, see https://ydb.tech/docs/en/cluster/topology
+	// FIXME mirror-3-dc is only supported with external configuration
+	// +kubebuilder:validation:Enum=mirror-3-dc;block-4-2;none
+	// +kubebuilder:default:=block-4-2
+	Erasure ErasureType `json:"erasure"`
+
 	// (Optional) Container image information
 	// +optional
 	Image *PodImage `json:"image,omitempty"`
@@ -137,18 +158,10 @@ type StorageClusterSpec struct {
 	// +optional
 	Configuration string `json:"configuration"`
 
-	// Data storage mode.
-	// For details, see https://cloud.yandex.ru/docs/ydb/oss/public/administration/deploy/production_checklist#topologiya
-	// TODO English docs link
-	// FIXME mirror-3-dc is only supported with external configuration
-	// +kubebuilder:validation:Enum=mirror-3-dc;block-4-2;none
-	// +kubebuilder:default:=block-4-2
-	Erasure ErasureType `json:"erasure"`
-
-	// (Optional) Operator connection settings
+	// (Optional) Storage services parameter overrides
 	// Default: (not specified)
 	// +optional
-	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
+	Service *StorageServices `json:"service,omitempty"`
 
 	// The state of the Storage processes.
 	// `true` means all the Storage Pods are being killed, but the Storage resource is persisted.
@@ -165,28 +178,15 @@ type StorageClusterSpec struct {
 	// +optional
 	OperatorSync bool `json:"operatorSync"`
 
-	// (Optional) Name of the root storage domain
-	// Default: root
-	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +kubebuilder:default:="Root"
+	// (Optional) Monitoring sets configuration options for YDB observability
+	// Default: ""
 	// +optional
-	Domain string `json:"domain"`
+	Monitoring *MonitoringOptions `json:"monitoring,omitempty"`
 
 	// User-defined root certificate authority that is added to system trust
 	// store of Storage pods on startup.
 	// +optional
 	CABundle string `json:"caBundle,omitempty"`
-
-	// (Optional) Storage services parameter overrides
-	// Default: (not specified)
-	// +optional
-	Service *StorageServices `json:"service,omitempty"`
-
-	// Secret names that will be mounted into the well-known directory of
-	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
-	// +optional
-	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
 
 	// Additional volumes that will be mounted into the well-known directory of
 	// every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
@@ -194,8 +194,8 @@ type StorageClusterSpec struct {
 	// +optional
 	Volumes []*corev1.Volume `json:"volumes,omitempty"`
 
-	// (Optional) Monitoring sets configuration options for YDB observability
-	// Default: ""
+	// Secret names that will be mounted into the well-known directory of
+	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
 	// +optional
-	Monitoring *MonitoringOptions `json:"monitoring,omitempty"`
+	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
 }

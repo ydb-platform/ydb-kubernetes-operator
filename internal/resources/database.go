@@ -254,6 +254,7 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 	nodeSetSpec.DatabaseNodeSpec = b.Spec.DatabaseNodeSpec
 
 	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
+	nodeSetSpec.Configuration = configuration
 	nodeSetSpec.StorageEndpoint = b.GetStorageEndpointWithProto()
 
 	if nodeSetSpecInline.Resources != nil {

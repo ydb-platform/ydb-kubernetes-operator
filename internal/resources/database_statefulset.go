@@ -100,7 +100,9 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
-				Searches: b.Spec.StorageDomains,
+				Searches: []string{
+					fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace),
+				},
 			},
 		},
 	}
@@ -153,10 +155,6 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
-	}
-
-	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
-		volumes = append(volumes, b.buildEncryptionVolume())
 	}
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {

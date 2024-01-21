@@ -53,12 +53,6 @@ func (r *Database) Default() {
 		r.Spec.StorageClusterRef.Namespace = r.Namespace
 	}
 
-	if r.Spec.StorageDomains == nil {
-		r.Spec.StorageDomains = []string{
-			fmt.Sprintf(InterconnectServiceFQDNFormat, r.Spec.StorageClusterRef.Name, r.Spec.StorageClusterRef.Namespace),
-		}
-	}
-
 	if r.Spec.ServerlessResources != nil {
 		if r.Spec.ServerlessResources.SharedDatabaseRef.Namespace == "" {
 			r.Spec.ServerlessResources.SharedDatabaseRef.Namespace = r.Namespace

@@ -922,41 +922,6 @@ spec:
                 required:
                 - enabled
                 type: object
-              domain:
-                default: root
-                description: '(Optional) Name of the root storage domain Default:
-                  Root'
-                maxLength: 63
-                pattern: '[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?'
-                type: string
-              encryption:
-                description: Encryption
-                properties:
-                  enabled:
-                    type: boolean
-                  key:
-                    description: SecretKeySelector selects a key of a Secret.
-                    properties:
-                      key:
-                        description: The key of the secret to select from.  Must be
-                          a valid secret key.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                      optional:
-                        description: Specify whether the Secret or its key must be
-                          defined
-                        type: boolean
-                    required:
-                    - key
-                    type: object
-                  pin:
-                    type: string
-                required:
-                - enabled
-                type: object
               image:
                 description: (Optional) YDB Image
                 properties:
@@ -2292,12 +2257,6 @@ spec:
                   running, operator reacts to specification change of this Database
                   resource.
                 type: boolean
-              path:
-                description: '(Optional) Custom database path in schemeshard Default:
-                  /<spec.domain>/<metadata.name>'
-                maxLength: 255
-                pattern: /[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
-                type: string
               pause:
                 default: false
                 description: The state of the Database processes. `true` means all
@@ -2393,27 +2352,6 @@ spec:
                       type: string
                   type: object
                 type: array
-              serverlessResources:
-                description: (Optional) If specified, created database will be "serverless".
-                properties:
-                  sharedDatabaseRef:
-                    description: Reference to YDB Database with configured shared
-                      resources
-                    properties:
-                      name:
-                        maxLength: 63
-                        pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
-                        type: string
-                      namespace:
-                        maxLength: 63
-                        pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
-                        type: string
-                    required:
-                    - name
-                    type: object
-                required:
-                - sharedDatabaseRef
-                type: object
               service:
                 description: '(Optional) Storage services parameter overrides Default:
                   (not specified)'
@@ -2790,12 +2728,6 @@ spec:
                 required:
                 - name
                 type: object
-              storageDomains:
-                description: '(Optional) YDB Storage domain to discovery Default:
-                  <spec.StorageClusterRef.Name>-grpc.<spec.StorageClusterRef.Namespace>.svc.cluster.local'
-                items:
-                  type: string
-                type: array
               storageEndpoint:
                 description: YDB Storage Node broker address
                 type: string

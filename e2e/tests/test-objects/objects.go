@@ -54,14 +54,14 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 			Namespace: YdbNamespace,
 		},
 		Spec: v1alpha1.StorageSpec{
+			Domain: DefaultDomain,
 			StorageClusterSpec: v1alpha1.StorageClusterSpec{
+				Erasure: "block-4-2",
 				Image: &v1alpha1.PodImage{
 					Name:           YdbImage,
 					PullPolicyName: &defaultPolicy,
 				},
 				Configuration: string(storageConfig),
-				Erasure:       "block-4-2",
-				Domain:        DefaultDomain,
 				Service: &v1alpha1.StorageServices{
 					GRPC: v1alpha1.GRPCService{
 						TLSConfiguration: &v1alpha1.TLSConfiguration{
@@ -104,6 +104,7 @@ func DefaultDatabase() *v1alpha1.Database {
 			Namespace: YdbNamespace,
 		},
 		Spec: v1alpha1.DatabaseSpec{
+			Domain: DefaultDomain,
 			DatabaseClusterSpec: v1alpha1.DatabaseClusterSpec{
 				StorageClusterRef: v1alpha1.NamespacedRef{
 					Name:      StorageName,
@@ -113,7 +114,6 @@ func DefaultDatabase() *v1alpha1.Database {
 					Name:           YdbImage,
 					PullPolicyName: &defaultPolicy,
 				},
-				Domain: DefaultDomain,
 				Service: &v1alpha1.DatabaseServices{
 					GRPC: v1alpha1.GRPCService{
 						TLSConfiguration: &v1alpha1.TLSConfiguration{

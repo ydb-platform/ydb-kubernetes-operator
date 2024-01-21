@@ -9,6 +9,25 @@ import (
 
 // DatabaseSpec defines the desired state of Database
 type DatabaseSpec struct {
+	// (Optional) Name of the root storage domain
+	// Default: Root
+	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +kubebuilder:default:="root"
+	// +optional
+	Domain string `json:"domain"`
+
+	// (Optional) Custom database path in schemeshard
+	// Default: /<spec.domain>/<metadata.name>
+	// +kubebuilder:validation:Pattern:=/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
+	// +kubebuilder:validation:MaxLength:=255
+	// +optional
+	Path string `json:"path,omitempty"`
+
+	// (Optional) If specified, created database will be "serverless".
+	// +optional
+	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
+
 	DatabaseClusterSpec `json:",inline"`
 
 	DatabaseNodeSpec `json:",inline"`
@@ -19,6 +38,10 @@ type DatabaseSpec struct {
 }
 
 type DatabaseClusterSpec struct {
+	// Encryption configuration
+	// +optional
+	Encryption *EncryptionConfig `json:"encryption,omitempty"`
+
 	// YDB Storage cluster reference
 	// +required
 	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
@@ -47,21 +70,6 @@ type DatabaseClusterSpec struct {
 	// +optional
 	Service *DatabaseServices `json:"service,omitempty"`
 
-	// (Optional) YDB Storage domain to discovery
-	// Default: <spec.StorageClusterRef.Name>-grpc.<spec.StorageClusterRef.Namespace>.svc.cluster.local
-	// +optional
-	StorageDomains []string `json:"storageDomains,omitempty"`
-
-	// Encryption
-	// +optional
-	Encryption *EncryptionConfig `json:"encryption,omitempty"`
-
-	// Additional volumes that will be mounted into the well-known directory of
-	// every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
-	// Only `hostPath` volume type is supported for now.
-	// +optional
-	Volumes []*corev1.Volume `json:"volumes,omitempty"`
-
 	// Datastreams config
 	// +optional
 	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
@@ -81,25 +89,6 @@ type DatabaseClusterSpec struct {
 	// +optional
 	OperatorSync bool `json:"operatorSync"`
 
-	// (Optional) Name of the root storage domain
-	// Default: Root
-	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +kubebuilder:default:="root"
-	// +optional
-	Domain string `json:"domain"`
-
-	// (Optional) Custom database path in schemeshard
-	// Default: /<spec.domain>/<metadata.name>
-	// +kubebuilder:validation:Pattern:=/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
-	// +kubebuilder:validation:MaxLength:=255
-	// +optional
-	Path string `json:"path,omitempty"`
-
-	// (Optional) If specified, created database will be "serverless".
-	// +optional
-	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
-
 	// (Optional) Monitoring sets configuration options for YDB observability
 	// Default: ""
 	// +optional
@@ -114,6 +103,12 @@ type DatabaseClusterSpec struct {
 	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
 	// +optional
 	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
+
+	// Additional volumes that will be mounted into the well-known directory of
+	// every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
+	// Only `hostPath` volume type is supported for now.
+	// +optional
+	Volumes []*corev1.Volume `json:"volumes,omitempty"`
 }
 
 type DatabaseNodeSpec struct {
@@ -183,7 +178,7 @@ type DatabaseResources struct {
 type ServerlessDatabaseResources struct {
 	// Reference to YDB Database with configured shared resources
 	// +required
-	SharedDatabaseRef SharedDatabaseRef `json:"sharedDatabaseRef"`
+	SharedDatabaseRef NamespacedRef `json:"sharedDatabaseRef"`
 }
 
 type StorageUnit struct {
@@ -229,26 +224,6 @@ type DatabaseList struct {
 	Items           []Database `json:"items"`
 }
 
-// PodImage represents the image information for a container that is used
-// to build the StatefulSet.
-type PodImage struct {
-	// Container image with supported YDB version.
-	// This defaults to the version pinned to the operator and requires a full container and tag/sha name.
-	// For instance: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22
-	// +optional
-	Name string `json:"name,omitempty"`
-
-	// (Optional) PullPolicy for the image, which defaults to IfNotPresent.
-	// Default: IfNotPresent
-	// +optional
-	PullPolicyName *corev1.PullPolicy `json:"pullPolicy,omitempty"`
-
-	// (Optional) Secret name containing the dockerconfig to use for a registry that requires authentication. The secret
-	// must be configured first by the user.
-	// +optional
-	PullSecret *string `json:"pullSecret,omitempty"`
-}
-
 // EncryptionConfig todo
 type EncryptionConfig struct {
 	// +required
@@ -268,31 +243,6 @@ type DatastreamsConfig struct {
 
 	// +required
 	IAMServiceAccountKey *corev1.SecretKeySelector `json:"iam_service_account_key,omitempty"`
-}
-
-// StorageRef todo
-type StorageRef struct {
-	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +required
-	Name string `json:"name"`
-
-	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +optional
-	Namespace string `json:"namespace"`
-}
-
-type SharedDatabaseRef struct {
-	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +required
-	Name string `json:"name"`
-
-	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +optional
-	Namespace string `json:"namespace"`
 }
 
 type DatabaseServices struct {
