@@ -77,7 +77,7 @@ kind-load:
 
 .PHONY: test
 test: manifests generate fmt vet docker-build kind-init kind-load envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -timeout 1800s -p 1 ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -timeout 1800s -p 1 ./... -ginkgo.v -coverprofile cover.out
 
 .PHONY: clean
 clean:

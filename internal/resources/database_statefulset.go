@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -155,6 +154,10 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
+	}
+
+	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
+		volumes = append(volumes, b.buildEncryptionVolume())
 	}
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
@@ -325,7 +328,7 @@ func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
 				Items: []corev1.KeyToPath{
 					{
 						Key:  secretKey,
-						Path: configuration.DatabaseEncryptionKeyFile,
+						Path: v1alpha1.DatabaseEncryptionKeyFile,
 					},
 				},
 			},
@@ -342,7 +345,7 @@ func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume(
 				Items: []corev1.KeyToPath{
 					{
 						Key:  b.Spec.Datastreams.IAMServiceAccountKey.Key,
-						Path: configuration.DatastreamsIAMServiceAccountKeyFile,
+						Path: v1alpha1.DatastreamsIAMServiceAccountKeyFile,
 					},
 				},
 			},
@@ -432,7 +435,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      encryptionVolumeName,
 			ReadOnly:  true,
-			MountPath: configuration.DatabaseEncryptionKeyPath,
+			MountPath: v1alpha1.DatabaseEncryptionKeyPath,
 		})
 	}
 
@@ -440,7 +443,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      datastreamsIAMServiceAccountKeyVolumeName,
 			ReadOnly:  true,
-			MountPath: configuration.DatastreamsIAMServiceAccountKeyPath,
+			MountPath: v1alpha1.DatastreamsIAMServiceAccountKeyPath,
 		})
 		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{

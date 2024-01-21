@@ -16,8 +16,9 @@ import (
 type DatabaseNodeSetBuilder struct {
 	client.Object
 
-	Name                string
-	Labels              map[string]string
+	Name   string
+	Labels map[string]string
+
 	DatabaseNodeSetSpec api.DatabaseNodeSetSpec
 }
 

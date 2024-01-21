@@ -168,7 +168,7 @@ func (r *Reconciler) handleTenantCreation(
 	}
 
 	tenant := cms.Tenant{
-		StorageEndpoint:    database.GetStorageEndpointWithProto(),
+		StorageEndpoint:    database.Spec.StorageEndpoint,
 		Path:               path,
 		StorageUnits:       storageUnits,
 		Shared:             shared,

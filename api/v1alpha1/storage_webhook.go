@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/google/go-cmp/cmp"
@@ -10,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -22,12 +24,33 @@ var storagelog = logf.Log.WithName("storage-resource")
 func (r *Storage) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
+		WithDefaulter(&StorageDefaulter{Client: mgr.GetClient()}).
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
+func (r *Storage) GetStorageEndpointWithProto() string {
+	proto := GRPCProto
+	if r.IsStorageEndpointSecure() {
+		proto = GRPCSProto
+	}
 
-var _ webhook.Defaulter = &Storage{}
+	return fmt.Sprintf("%s%s", proto, r.GetStorageEndpoint())
+}
+
+func (r *Storage) GetStorageEndpoint() string {
+	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace)
+	if r.Spec.Service.GRPC.ExternalHost != "" {
+		host = r.Spec.Service.GRPC.ExternalHost
+	}
+
+	return fmt.Sprintf("%s:%d", host, GRPCPort)
+}
+
+func (r *Storage) IsStorageEndpointSecure() bool {
+	return r.Spec.Service.GRPC.TLSConfiguration.Enabled
+}
+
+//+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
 
 // +k8s:deepcopy-gen=false
 type PartialYamlConfig struct {
@@ -59,48 +82,63 @@ func (r *Storage) IsGRPCSecure() bool {
 	return r.Spec.Service.GRPC.TLSConfiguration.Enabled
 }
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *Storage) Default() {
-	storagelog.Info("default", "name", r.Name)
+// StorageDefaulter mutates Storages
+// +k8s:deepcopy-gen=false
+type StorageDefaulter struct {
+	Client client.Client
+}
 
-	if r.Spec.Image == nil || r.Spec.Image.Name == "" {
-		if r.Spec.YDBVersion == "" {
-			r.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
+// Default implements webhook.Defaulter so a webhook will be registered for the type
+func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) error {
+	storage := obj.(*Storage)
+	storagelog.Info("default", "name", storage.Name)
+
+	if storage.Spec.Image == nil || storage.Spec.Image.Name == "" {
+		if storage.Spec.YDBVersion == "" {
+			storage.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
 		} else {
-			r.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, r.Spec.YDBVersion)
+			storage.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, storage.Spec.YDBVersion)
 		}
 	}
 
-	if r.Spec.Image.PullPolicyName == nil {
+	configuration, err := buildConfiguration(storage, nil)
+	if err != nil {
+		return err
+	}
+	storage.Spec.Configuration = configuration
+
+	if storage.Spec.Image.PullPolicyName == nil {
 		policy := v1.PullIfNotPresent
-		r.Spec.Image.PullPolicyName = &policy
+		storage.Spec.Image.PullPolicyName = &policy
 	}
 
-	if r.Spec.Resources == nil {
-		r.Spec.Resources = &v1.ResourceRequirements{}
+	if storage.Spec.Resources == nil {
+		storage.Spec.Resources = &v1.ResourceRequirements{}
 	}
 
-	if r.Spec.Service == nil {
-		r.Spec.Service = &StorageServices{}
+	if storage.Spec.Service == nil {
+		storage.Spec.Service = &StorageServices{}
 	}
 
-	if r.Spec.Service.GRPC.TLSConfiguration == nil {
-		r.Spec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	if storage.Spec.Service.GRPC.TLSConfiguration == nil {
+		storage.Spec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
-	if r.Spec.Service.Interconnect.TLSConfiguration == nil {
-		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	if storage.Spec.Service.Interconnect.TLSConfiguration == nil {
+		storage.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
-	if r.Spec.Monitoring == nil {
-		r.Spec.Monitoring = &MonitoringOptions{
+	if storage.Spec.Monitoring == nil {
+		storage.Spec.Monitoring = &MonitoringOptions{
 			Enabled: false,
 		}
 	}
 
-	if r.Spec.Domain == "" {
-		r.Spec.Domain = "root" // FIXME
+	if storage.Spec.Domain == "" {
+		storage.Spec.Domain = "root" // FIXME
 	}
+
+	return nil
 }
 
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=validate-storage.ydb.tech,admissionReviewVersions=v1

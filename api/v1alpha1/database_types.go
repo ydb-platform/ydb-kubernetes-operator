@@ -38,13 +38,17 @@ type DatabaseSpec struct {
 }
 
 type DatabaseClusterSpec struct {
-	// Encryption configuration
-	// +optional
-	Encryption *EncryptionConfig `json:"encryption,omitempty"`
-
 	// YDB Storage cluster reference
 	// +required
 	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
+
+	// YDB Storage Node broker address
+	// +optional
+	StorageEndpoint string `json:"storageEndpoint"`
+
+	// Encryption configuration
+	// +optional
+	Encryption *EncryptionConfig `json:"encryption,omitempty"`
 
 	// (Optional) YDB Image
 	// +optional

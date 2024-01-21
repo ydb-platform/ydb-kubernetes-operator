@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,7 +8,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
@@ -50,28 +47,6 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 	return b.DeepCopy()
 }
 
-func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
-	proto := api.GRPCProto
-	if b.IsStorageEndpointSecure() {
-		proto = api.GRPCSProto
-	}
-
-	return fmt.Sprintf("%s%s", proto, b.GetStorageEndpoint())
-}
-
-func (b *DatabaseBuilder) GetStorageEndpoint() string {
-	host := fmt.Sprintf(api.GRPCServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
-	if b.Storage.Spec.Service.GRPC.ExternalHost != "" {
-		host = b.Storage.Spec.Service.GRPC.ExternalHost
-	}
-
-	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
-}
-
-func (b *DatabaseBuilder) IsStorageEndpointSecure() bool {
-	return b.Storage.Spec.Service.GRPC.TLSConfiguration.Enabled
-}
-
 func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	if b.Spec.ServerlessResources != nil {
 		return []ResourceBuilder{}
@@ -97,14 +72,14 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.Storage, b.Unwrap())
-
 	optionalBuilders = append(
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
 			Name:   b.GetName(),
-			Data:   cfg,
+			Data: map[string]string{
+				api.ConfigFileName: b.Spec.Configuration,
+			},
 			Labels: databaseLabels,
 		},
 	)
@@ -211,9 +186,8 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				Database:   b.Unwrap(),
 				RestConfig: restConfig,
 
-				Name:            b.Name,
-				Labels:          databaseLabels,
-				StorageEndpoint: b.GetStorageEndpointWithProto(),
+				Name:   b.Name,
+				Labels: databaseLabels,
 			},
 		)
 	} else {
@@ -230,10 +204,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 					Name:   b.Name + "-" + nodeSetSpecInline.Name,
 					Labels: nodeSetLabels,
 
-					DatabaseNodeSetSpec: b.recastDatabaseNodeSetSpecInline(
-						nodeSetSpecInline.DeepCopy(),
-						cfg[api.ConfigFileName],
-					),
+					DatabaseNodeSetSpec: b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
 				},
 			)
 		}
@@ -242,20 +213,18 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 	return optionalBuilders
 }
 
-func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api.DatabaseNodeSetSpecInline, configuration string) api.DatabaseNodeSetSpec {
+func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api.DatabaseNodeSetSpecInline) api.DatabaseNodeSetSpec {
 	nodeSetSpec := api.DatabaseNodeSetSpec{}
 
 	nodeSetSpec.DatabaseRef = api.NamespacedRef{
 		Name:      b.Name,
-		Namespace: b.Namespace,
+		Namespace: b.GetNamespace(),
 	}
 
 	nodeSetSpec.DatabaseClusterSpec = b.Spec.DatabaseClusterSpec
 	nodeSetSpec.DatabaseNodeSpec = b.Spec.DatabaseNodeSpec
 
 	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
-	nodeSetSpec.Configuration = configuration
-	nodeSetSpec.StorageEndpoint = b.GetStorageEndpointWithProto()
 
 	if nodeSetSpecInline.Resources != nil {
 		nodeSetSpec.Resources = nodeSetSpecInline.Resources

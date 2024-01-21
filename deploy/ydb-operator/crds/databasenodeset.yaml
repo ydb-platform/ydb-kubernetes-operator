@@ -4523,7 +4523,6 @@ spec:
             - databaseRef
             - nodes
             - storageClusterRef
-            - storageEndpoint
             type: object
           status:
             default:

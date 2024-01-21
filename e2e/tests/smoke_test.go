@@ -419,36 +419,63 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("delete nodeSetSpec inline to check inheritance...")
 		database := v1alpha1.Database{}
-		databaseNodeSetList := v1alpha1.DatabaseNodeSetList{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
 			Name:      databaseSample.Name,
 			Namespace: testobjects.YdbNamespace,
 		}, &database)).Should(Succeed())
-		database.Spec.Nodes -= 4
-		database.Spec.NodeSets = database.Spec.NodeSets[1:]
+		database.Spec.Nodes = 4
+		database.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
+			v1alpha1.DatabaseNodeSetSpecInline{
+				Name: testNodeSetName + "-" + strconv.Itoa(1),
+				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+					Nodes: 4,
+				},
+			},
+		}
+		Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
 
+		By("check that ObservedDatabaseGeneration changed...")
 		Eventually(func(g Gomega) bool {
-			g.Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
+			database := v1alpha1.Database{}
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      databaseSample.Name,
+				Name:      database.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &database)).Should(Succeed())
+
+			databaseNodeSetList := v1alpha1.DatabaseNodeSetList{}
 			g.Expect(k8sClient.List(ctx, &databaseNodeSetList,
 				client.InNamespace(testobjects.YdbNamespace),
-				client.MatchingLabels{"ydb-cluster": "kind-database"},
 			)).Should(Succeed())
-			return len(databaseNodeSetList.Items) == 1
+			for _, databaseNodeSet := range databaseNodeSetList.Items {
+				if database.GetGeneration() != databaseNodeSet.Status.ObservedDatabaseGeneration {
+					return false
+				}
+			}
+			return true
 		}, Timeout, Interval).Should(BeTrue())
-		Expect(len(databaseNodeSetList.Items)).Should(BeEquivalentTo(len(database.Spec.NodeSets)))
-		for _, databaseNodeSet := range databaseNodeSetList.Items {
-			Expect(database.GetGeneration()).Should(BeEquivalentTo(databaseNodeSet.Status.ObservedDatabaseGeneration))
-		}
+
+		By("expecting databaseNodeSet pods deletion...")
+		Eventually(func(g Gomega) bool {
+			database := v1alpha1.Database{}
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      database.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &database)).Should(Succeed())
+
+			databasePods := corev1.PodList{}
+			g.Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+				"ydb-cluster": "kind-database",
+			})).Should(Succeed())
+			return len(databasePods.Items) == int(database.Spec.Nodes)
+		}, Timeout, Interval).Should(BeTrue())
 
 		By("execute simple query inside ydb database pod...")
 		databasePods := corev1.PodList{}
-		err := k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
-			"ydb-cluster": "kind-database",
-		})
+		err := k8sClient.List(ctx, &databasePods,
+			client.InNamespace(testobjects.YdbNamespace),
+			client.MatchingLabels{
+				"ydb-cluster": "kind-database",
+			})
 		Expect(err).To(BeNil())
 		firstDBPod := databasePods.Items[0].Name
 

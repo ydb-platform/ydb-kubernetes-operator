@@ -8,7 +8,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
@@ -52,14 +51,14 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.Unwrap(), nil)
-
 	optionalBuilders = append(
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
 			Name:   b.Storage.GetName(),
-			Data:   cfg,
+			Data: map[string]string{
+				api.ConfigFileName: b.Spec.Configuration,
+			},
 			Labels: storageLabels,
 		},
 	)
@@ -116,10 +115,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 					Name:   b.Name + "-" + nodeSetSpecInline.Name,
 					Labels: nodeSetLabels,
 
-					StorageNodeSetSpec: b.recastStorageNodeSetSpecInline(
-						nodeSetSpecInline.DeepCopy(),
-						cfg[api.ConfigFileName],
-					),
+					StorageNodeSetSpec: b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
 				},
 			)
 		}
@@ -170,7 +166,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	)
 }
 
-func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline *api.StorageNodeSetSpecInline, configuration string) api.StorageNodeSetSpec {
+func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline *api.StorageNodeSetSpecInline) api.StorageNodeSetSpec {
 	nodeSetSpec := api.StorageNodeSetSpec{}
 
 	nodeSetSpec.StorageRef = api.NamespacedRef{
@@ -180,8 +176,6 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 
 	nodeSetSpec.StorageClusterSpec = b.Spec.StorageClusterSpec
 	nodeSetSpec.StorageNodeSpec = b.Spec.StorageNodeSpec
-
-	nodeSetSpec.Configuration = configuration
 
 	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
 

@@ -1,4 +1,4 @@
-package configuration
+package v1alpha1
 
 import (
 	"crypto/sha256"
@@ -8,7 +8,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 )
 
@@ -25,12 +24,12 @@ func hash(text string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func generateSomeDefaults(cr *v1alpha1.Storage, crDB *v1alpha1.Database) schema.Configuration {
+func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
 	var hosts []schema.Host
 
 	for i := 0; i < int(cr.Spec.Nodes); i++ {
 		datacenter := "az-1"
-		if cr.Spec.Erasure == v1alpha1.ErasureMirror3DC {
+		if cr.Spec.Erasure == ErasureMirror3DC {
 			datacenter = fmt.Sprintf("az-%d", i%3)
 		}
 
@@ -38,7 +37,7 @@ func generateSomeDefaults(cr *v1alpha1.Storage, crDB *v1alpha1.Database) schema.
 			Host:         fmt.Sprintf("%v-%d", cr.GetName(), i),
 			HostConfigID: 1, // TODO
 			NodeID:       i + 1,
-			Port:         v1alpha1.InterconnectPort,
+			Port:         InterconnectPort,
 			WalleLocation: schema.WalleLocation{
 				Body:       12340 + i,
 				DataCenter: datacenter,
@@ -90,7 +89,7 @@ func tryFillMissingSections(
 	}
 }
 
-func Build(cr *v1alpha1.Storage, crDB *v1alpha1.Database) (map[string]string, error) {
+func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
 	config := make(map[string]interface{})
 
 	// If any kind of configuration exists on Database object, then
@@ -106,7 +105,7 @@ func Build(cr *v1alpha1.Storage, crDB *v1alpha1.Database) (map[string]string, er
 
 	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	generatedConfig := generateSomeDefaults(cr, crDB)
@@ -114,12 +113,8 @@ func Build(cr *v1alpha1.Storage, crDB *v1alpha1.Database) (map[string]string, er
 
 	data, err := yaml.Marshal(config)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	result := string(data)
-
-	return map[string]string{
-		v1alpha1.ConfigFileName: result,
-	}, nil
+	return string(data), nil
 }

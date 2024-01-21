@@ -56,7 +56,8 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 		Spec: v1alpha1.StorageSpec{
 			Domain: DefaultDomain,
 			StorageClusterSpec: v1alpha1.StorageClusterSpec{
-				Erasure: "block-4-2",
+				OperatorSync: true,
+				Erasure:      "block-4-2",
 				Image: &v1alpha1.PodImage{
 					Name:           YdbImage,
 					PullPolicyName: &defaultPolicy,
@@ -87,6 +88,7 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 				Nodes:     8,
 				DataStore: []corev1.PersistentVolumeClaimSpec{},
 
+				Resources:        &corev1.ResourceRequirements{},
 				AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
 				Affinity:         storageAntiAffinity,
 			},
@@ -106,6 +108,7 @@ func DefaultDatabase() *v1alpha1.Database {
 		Spec: v1alpha1.DatabaseSpec{
 			Domain: DefaultDomain,
 			DatabaseClusterSpec: v1alpha1.DatabaseClusterSpec{
+				OperatorSync: true,
 				StorageClusterRef: v1alpha1.NamespacedRef{
 					Name:      StorageName,
 					Namespace: YdbNamespace,
@@ -145,7 +148,15 @@ func DefaultDatabase() *v1alpha1.Database {
 				},
 			},
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes:            8,
+				Nodes: 8,
+				Resources: &v1alpha1.DatabaseResources{
+					StorageUnits: []v1alpha1.StorageUnit{
+						{
+							UnitKind: "ssd",
+							Count:    1,
+						},
+					},
+				},
 				AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
 				Affinity:         databaseAntiAffinity,
 			},

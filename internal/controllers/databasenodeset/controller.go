@@ -31,9 +31,9 @@ type Reconciler struct {
 }
 
 //+kubebuilder:rbac:groups=ydb.tech,resources=databases,verbs=get;list;watch
-//+kubebuilder:rbac:groups=ydb.tech,resources=databasesnodesets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ydb.tech,resources=databasesnodesets/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=ydb.tech,resources=databasesnodesets/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ydb.tech,resources=databasenodesets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ydb.tech,resources=databasenodesets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ydb.tech,resources=databasenodesets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/finalizers,verbs=get;list;watch

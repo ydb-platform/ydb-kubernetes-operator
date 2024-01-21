@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
@@ -12,10 +11,6 @@ type DatabaseNodeSetSpec struct {
 	// YDB Database namespaced reference
 	// +required
 	DatabaseRef NamespacedRef `json:"databaseRef"`
-
-	// YDB Storage Node broker address
-	// +required
-	StorageEndpoint string `json:"storageEndpoint"`
 
 	DatabaseClusterSpec `json:",inline"`
 
@@ -57,20 +52,6 @@ type DatabaseNodeSetSpecInline struct {
 	Remote bool `json:"remote,omitempty"`
 
 	DatabaseNodeSpec `json:",inline"`
-
-	// (Optional) If specified, the pod's topologySpreadConstraints.
-	// All topologySpreadConstraints are ANDed.
-	// +optional
-	// +patchMergeKey=topologyKey
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=topologyKey
-	// +listMapKey=whenUnsatisfiable
-	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
-
-	// (Optional) If specified, the pod's priorityClassName.
-	// +optional
-	PriorityClassName string `json:"priorityClassName,omitempty"`
 }
 
 //+kubebuilder:object:root=true
