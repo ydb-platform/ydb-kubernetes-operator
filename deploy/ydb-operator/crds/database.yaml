@@ -908,7 +908,7 @@ spec:
                 - enabled
                 type: object
               domain:
-                default: root
+                default: Root
                 description: '(Optional) Name of the root storage domain Default:
                   Root'
                 maxLength: 63

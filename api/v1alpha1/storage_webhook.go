@@ -135,7 +135,7 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 	}
 
 	if storage.Spec.Domain == "" {
-		storage.Spec.Domain = "root" // FIXME
+		storage.Spec.Domain = "Root" // FIXME
 	}
 
 	return nil

@@ -9,25 +9,6 @@ import (
 
 // DatabaseSpec defines the desired state of Database
 type DatabaseSpec struct {
-	// (Optional) Name of the root storage domain
-	// Default: Root
-	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +kubebuilder:default:="root"
-	// +optional
-	Domain string `json:"domain"`
-
-	// (Optional) Custom database path in schemeshard
-	// Default: /<spec.domain>/<metadata.name>
-	// +kubebuilder:validation:Pattern:=/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
-	// +kubebuilder:validation:MaxLength:=255
-	// +optional
-	Path string `json:"path,omitempty"`
-
-	// (Optional) If specified, created database will be "serverless".
-	// +optional
-	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
-
 	DatabaseClusterSpec `json:",inline"`
 
 	DatabaseNodeSpec `json:",inline"`
@@ -45,6 +26,25 @@ type DatabaseClusterSpec struct {
 	// YDB Storage Node broker address
 	// +optional
 	StorageEndpoint string `json:"storageEndpoint"`
+
+	// (Optional) Name of the root storage domain
+	// Default: Root
+	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +kubebuilder:default:="Root"
+	// +optional
+	Domain string `json:"domain"`
+
+	// (Optional) Custom database path in schemeshard
+	// Default: /<spec.domain>/<metadata.name>
+	// +kubebuilder:validation:Pattern:=/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
+	// +kubebuilder:validation:MaxLength:=255
+	// +optional
+	Path string `json:"path,omitempty"`
+
+	// (Optional) If specified, created database will be "serverless".
+	// +optional
+	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
 
 	// Encryption configuration
 	// +optional

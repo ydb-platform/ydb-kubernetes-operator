@@ -922,6 +922,13 @@ spec:
                 required:
                 - enabled
                 type: object
+              domain:
+                default: Root
+                description: '(Optional) Name of the root storage domain Default:
+                  Root'
+                maxLength: 63
+                pattern: '[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?'
+                type: string
               encryption:
                 description: Encryption configuration
                 properties:
@@ -2285,6 +2292,12 @@ spec:
                   running, operator reacts to specification change of this Database
                   resource.
                 type: boolean
+              path:
+                description: '(Optional) Custom database path in schemeshard Default:
+                  /<spec.domain>/<metadata.name>'
+                maxLength: 255
+                pattern: /[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?(/[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?)*
+                type: string
               pause:
                 default: false
                 description: The state of the Database processes. `true` means all
@@ -2380,6 +2393,27 @@ spec:
                       type: string
                   type: object
                 type: array
+              serverlessResources:
+                description: (Optional) If specified, created database will be "serverless".
+                properties:
+                  sharedDatabaseRef:
+                    description: Reference to YDB Database with configured shared
+                      resources
+                    properties:
+                      name:
+                        maxLength: 63
+                        pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                        type: string
+                      namespace:
+                        maxLength: 63
+                        pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - sharedDatabaseRef
+                type: object
               service:
                 description: '(Optional) Storage services parameter overrides Default:
                   (not specified)'

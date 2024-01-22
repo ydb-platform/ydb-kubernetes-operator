@@ -425,7 +425,7 @@ var _ = Describe("Operator smoke test", func() {
 		}, &database)).Should(Succeed())
 		database.Spec.Nodes = 4
 		database.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
-			v1alpha1.DatabaseNodeSetSpecInline{
+			{
 				Name: testNodeSetName + "-" + strconv.Itoa(1),
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
 					Nodes: 4,
@@ -438,7 +438,7 @@ var _ = Describe("Operator smoke test", func() {
 		Eventually(func(g Gomega) bool {
 			database := v1alpha1.Database{}
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      database.Name,
+				Name:      databaseSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &database)).Should(Succeed())
 
@@ -458,7 +458,7 @@ var _ = Describe("Operator smoke test", func() {
 		Eventually(func(g Gomega) bool {
 			database := v1alpha1.Database{}
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      database.Name,
+				Name:      databaseSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &database)).Should(Succeed())
 

@@ -9,19 +9,6 @@ import (
 
 // StorageSpec defines the desired state of Storage
 type StorageSpec struct {
-	// (Optional) Name of the root storage domain
-	// Default: root
-	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +kubebuilder:default:="Root"
-	// +optional
-	Domain string `json:"domain"`
-
-	// (Optional) Operator connection settings
-	// Default: (not specified)
-	// +optional
-	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
-
 	StorageClusterSpec `json:",inline"`
 
 	StorageNodeSpec `json:",inline"`
@@ -132,6 +119,19 @@ type StorageNodeSpec struct {
 }
 
 type StorageClusterSpec struct {
+	// (Optional) Name of the root storage domain
+	// Default: root
+	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
+	// +kubebuilder:validation:MaxLength:=63
+	// +kubebuilder:default:="Root"
+	// +optional
+	Domain string `json:"domain"`
+
+	// (Optional) Operator connection settings
+	// Default: (not specified)
+	// +optional
+	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
+
 	// Data storage topology mode
 	// For details, see https://ydb.tech/docs/en/cluster/topology
 	// FIXME mirror-3-dc is only supported with external configuration

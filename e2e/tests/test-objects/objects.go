@@ -54,8 +54,8 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 			Namespace: YdbNamespace,
 		},
 		Spec: v1alpha1.StorageSpec{
-			Domain: DefaultDomain,
 			StorageClusterSpec: v1alpha1.StorageClusterSpec{
+				Domain:       DefaultDomain,
 				OperatorSync: true,
 				Erasure:      "block-4-2",
 				Image: &v1alpha1.PodImage{
@@ -106,8 +106,8 @@ func DefaultDatabase() *v1alpha1.Database {
 			Namespace: YdbNamespace,
 		},
 		Spec: v1alpha1.DatabaseSpec{
-			Domain: DefaultDomain,
 			DatabaseClusterSpec: v1alpha1.DatabaseClusterSpec{
+				Domain:       DefaultDomain,
 				OperatorSync: true,
 				StorageClusterRef: v1alpha1.NamespacedRef{
 					Name:      StorageName,
