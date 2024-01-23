@@ -243,11 +243,19 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
 	command, args := b.buildCaStorePatchingInitContainerArgs()
+	containerResources := corev1.ResourceRequirements{}
+	if b.Spec.Resources != nil {
+		containerResources = *b.Spec.Resources
+	}
+	imagePullPolicy := corev1.PullIfNotPresent
+	if b.Spec.Image.PullPolicyName != nil {
+		imagePullPolicy = *b.Spec.Image.PullPolicyName
+	}
 
 	container := corev1.Container{
 		Name:            "ydb-storage-init-container",
 		Image:           b.Spec.Image.Name,
-		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
 		SecurityContext: &corev1.SecurityContext{
@@ -255,7 +263,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		},
 
 		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
-		Resources:    *b.Spec.Resources,
+		Resources:    containerResources,
 	}
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{
@@ -309,11 +317,19 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 
 func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo add init container for sparse files?
 	command, args := b.buildContainerArgs()
+	containerResources := corev1.ResourceRequirements{}
+	if b.Spec.Resources != nil {
+		containerResources = *b.Spec.Resources
+	}
+	imagePullPolicy := corev1.PullIfNotPresent
+	if b.Spec.Image.PullPolicyName != nil {
+		imagePullPolicy = *b.Spec.Image.PullPolicyName
+	}
 
 	container := corev1.Container{
 		Name:            "ydb-storage",
 		Image:           b.Spec.Image.Name,
-		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
 
@@ -333,7 +349,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		}},
 
 		VolumeMounts: b.buildVolumeMounts(),
-		Resources:    *b.Spec.Resources,
+		Resources:    containerResources,
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != v1alpha1.AnnotationValueTrue {

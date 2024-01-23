@@ -203,11 +203,14 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
 	command, args := b.buildCaStorePatchingInitContainerArgs()
-
+	imagePullPolicy := corev1.PullIfNotPresent
+	if b.Spec.Image.PullPolicyName != nil {
+		imagePullPolicy = *b.Spec.Image.PullPolicyName
+	}
 	container := corev1.Container{
 		Name:            "ydb-storage-init-container",
 		Image:           b.Spec.Image.Name,
-		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
 		SecurityContext: &corev1.SecurityContext{
@@ -355,10 +358,14 @@ func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume(
 
 func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 	command, args := b.buildContainerArgs()
+	imagePullPolicy := corev1.PullIfNotPresent
+	if b.Spec.Image.PullPolicyName != nil {
+		imagePullPolicy = *b.Spec.Image.PullPolicyName
+	}
 	container := corev1.Container{
 		Name:            "ydb-dynamic",
 		Image:           b.Spec.Image.Name,
-		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
 		Env:             b.buildEnv(),
