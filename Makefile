@@ -51,6 +51,8 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	cp config/crd/bases/ydb.tech_databases.yaml deploy/ydb-operator/crds/database.yaml
 	cp config/crd/bases/ydb.tech_storagenodesets.yaml deploy/ydb-operator/crds/storagenodeset.yaml
 	cp config/crd/bases/ydb.tech_databasenodesets.yaml deploy/ydb-operator/crds/databasenodeset.yaml
+	cp config/crd/bases/ydb.tech_remotestoragenodesets.yaml deploy/ydb-operator/crds/remotestoragenodeset.yaml
+	cp config/crd/bases/ydb.tech_remotedatabasenodesets.yaml deploy/ydb-operator/crds/remotedatabasenodeset.yaml
 	cp config/crd/bases/ydb.tech_databasemonitorings.yaml deploy/ydb-operator/crds/databasemonitoring.yaml
 	cp config/crd/bases/ydb.tech_storagemonitorings.yaml deploy/ydb-operator/crds/storagemonitoring.yaml
 
