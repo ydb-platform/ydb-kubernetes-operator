@@ -32,7 +32,7 @@ type DatabaseNodeSetSpecInline struct {
 
 	// (Optional) Object should be reference to remote object
 	// +optional
-	Remote bool `json:"remote,omitempty"`
+	Remote *RemoteSpec `json:"remote,omitempty"`
 
 	DatabaseNodeSpec `json:",inline"`
 }

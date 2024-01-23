@@ -34,3 +34,13 @@ type PodImage struct {
 	// +optional
 	PullSecret *string `json:"pullSecret,omitempty"`
 }
+
+type RemoteSpec struct {
+	// (Optional) Remote cloud region to deploy into
+	// +optional
+	Region string `json:"region,omitempty"`
+
+	// Remote cloud zone to deploy into
+	// +required
+	Zone string `json:"zone"`
+}
