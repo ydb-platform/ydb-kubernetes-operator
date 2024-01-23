@@ -461,11 +461,11 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step syncNodeSetSpecInline")
-
-	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 	matchingFields := client.MatchingFields{
 		OwnerControllerKey: database.Name,
 	}
+
+	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 	if err := r.List(ctx, databaseNodeSets,
 		client.InNamespace(database.Namespace),
 		matchingFields,
@@ -483,10 +483,12 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		databaseNodeSet := databaseNodeSet.DeepCopy()
 		isFoundDatabaseNodeSetSpecInline := false
 		for _, nodeSetSpecInline := range database.Spec.NodeSets {
-			databaseNodeSetName := database.Name + "-" + nodeSetSpecInline.Name
-			if databaseNodeSet.Name == databaseNodeSetName {
-				isFoundDatabaseNodeSetSpecInline = true
-				break
+			if !nodeSetSpecInline.Remote {
+				nodeSetName := database.Name + "-" + nodeSetSpecInline.Name
+				if databaseNodeSet.Name == nodeSetName {
+					isFoundDatabaseNodeSetSpecInline = true
+					break
+				}
 			}
 		}
 		if !isFoundDatabaseNodeSetSpecInline {
@@ -509,27 +511,64 @@ func (r *Reconciler) syncNodeSetSpecInline(
 					databaseNodeSet.Name),
 			)
 		}
+	}
 
-		oldGeneration := databaseNodeSet.Status.ObservedDatabaseGeneration
-		if oldGeneration != database.Generation {
-			databaseNodeSet.Status.ObservedDatabaseGeneration = database.Generation
-			if err := r.Status().Update(ctx, databaseNodeSet); err != nil {
+	remoteDatabaseNodeSets := &v1alpha1.RemoteDatabaseNodeSetList{}
+	if err := r.List(ctx, remoteDatabaseNodeSets,
+		client.InNamespace(database.Namespace),
+		matchingFields,
+	); err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed to list RemoteDatabaseNodeSets: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	for _, remoteDatabaseNodeSet := range remoteDatabaseNodeSets.Items {
+		remoteDatabaseNodeSet := remoteDatabaseNodeSet.DeepCopy()
+		isFoundRemoteDatabaseNodeSetSpecInline := false
+		for _, nodeSetSpecInline := range database.Spec.NodeSets {
+			if nodeSetSpecInline.Remote {
+				nodeSetName := database.Name + "-" + nodeSetSpecInline.Name
+				if remoteDatabaseNodeSet.Name == nodeSetName {
+					isFoundRemoteDatabaseNodeSetSpecInline = true
+					break
+				}
+			}
+		}
+
+		if !isFoundRemoteDatabaseNodeSetSpecInline {
+			if err := r.Delete(ctx, remoteDatabaseNodeSet); err != nil {
 				r.Recorder.Event(
-					databaseNodeSet,
+					database,
 					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed setting status: %s", err),
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to delete RemoteDatabaseNodeSet: %s", err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 			r.Recorder.Event(
-				databaseNodeSet,
+				database,
 				corev1.EventTypeNormal,
-				"StatusChanged",
-				fmt.Sprintf("DatabaseNodeSet updated observedStorageGeneration from %d to %d", oldGeneration, database.Generation),
+				"Syncing",
+				fmt.Sprintf("Resource: %s, Namespace: %s, Name: %s, deleted",
+					reflect.TypeOf(remoteDatabaseNodeSet),
+					remoteDatabaseNodeSet.Namespace,
+					remoteDatabaseNodeSet.Name),
 			)
 		}
 	}
+
+	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+		Type:               DatabaseNodeSetsSyncedCondition,
+		Status:             "True",
+		ObservedGeneration: database.Generation,
+		Reason:             ReasonCompleted,
+		Message:            "Synced (Remote)DatabaseNodeSets with Database spec",
+	})
 
 	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil

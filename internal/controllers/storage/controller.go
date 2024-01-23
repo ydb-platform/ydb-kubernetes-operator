@@ -104,6 +104,28 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
+		&ydbv1alpha1.RemoteStorageNodeSet{},
+		OwnerControllerKey,
+		func(obj client.Object) []string {
+			// grab the RemoteStorageNodeSet object, extract the owner...
+			remoteStorageNodeSet := obj.(*ydbv1alpha1.RemoteStorageNodeSet)
+			owner := metav1.GetControllerOf(remoteStorageNodeSet)
+			if owner == nil {
+				return nil
+			}
+			// ...make sure it's a Storage...
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != "Storage" {
+				return nil
+			}
+
+			// ...and if so, return it
+			return []string{owner.Name}
+		}); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
 		&ydbv1alpha1.StorageNodeSet{},
 		OwnerControllerKey,
 		func(obj client.Object) []string {
