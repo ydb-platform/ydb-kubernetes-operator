@@ -19,105 +19,6 @@ type StorageSpec struct {
 	NodeSets []StorageNodeSetSpecInline `json:"nodeSets,omitempty"`
 }
 
-// StorageStatus defines the observed state of Storage
-type StorageStatus struct {
-	State      constants.ClusterState `json:"state"`
-	Conditions []metav1.Condition     `json:"conditions,omitempty"`
-}
-
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.state",description="The status of this DB"
-//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
-
-// Storage is the Schema for the Storages API
-type Storage struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec StorageSpec `json:"spec,omitempty"`
-
-	// +kubebuilder:default:={state: "Pending"}
-	Status StorageStatus `json:"status,omitempty"`
-}
-
-//+kubebuilder:object:root=true
-
-// StorageList contains a list of Storage
-type StorageList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Storage `json:"items"`
-}
-
-// StorageServices defines parameter overrides for Storage Services
-type StorageServices struct {
-	GRPC         GRPCService         `json:"grpc,omitempty"`
-	Interconnect InterconnectService `json:"interconnect,omitempty"`
-	Status       StatusService       `json:"status,omitempty"`
-}
-
-func init() {
-	SchemeBuilder.Register(&Storage{}, &StorageList{})
-}
-
-type StorageNodeSpec struct {
-	// Number of nodes (pods)
-	// +required
-	Nodes int32 `json:"nodes"`
-
-	// (Optional) Where cluster data should be kept
-	// +optional
-	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore,omitempty"`
-
-	// (Optional) Container resource limits. Any container limits
-	// can be specified.
-	// Default: (not specified)
-	// +optional
-	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
-
-	// (Optional) Whether host network should be enabled.
-	// Default: false
-	// +optional
-	HostNetwork bool `json:"hostNetwork,omitempty"`
-
-	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
-	// Selector which must match a node's labels for the pod to be scheduled on that node.
-	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
-	// +optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// (Optional) If specified, the pod's scheduling constraints
-	// +optional
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-
-	// (Optional) If specified, the pod's tolerations.
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
-
-	// (Optional) If specified, the pod's topologySpreadConstraints.
-	// All topologySpreadConstraints are ANDed.
-	// +optional
-	// +patchMergeKey=topologyKey
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=topologyKey
-	// +listMapKey=whenUnsatisfiable
-	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
-
-	// (Optional) If specified, the pod's priorityClassName.
-	// +optional
-	PriorityClassName string `json:"priorityClassName,omitempty"`
-
-	// (Optional) Additional custom resource labels that are added to all resources
-	// +optional
-	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
-
-	// (Optional) Additional custom resource annotations that are added to all resources
-	// +optional
-	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
-}
-
 type StorageClusterSpec struct {
 	// (Optional) Name of the root storage domain
 	// Default: root
@@ -198,4 +99,103 @@ type StorageClusterSpec struct {
 	// every storage pod. Directory: `/opt/ydb/secrets/<secret_name>/<secret_key>`
 	// +optional
 	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
+}
+
+type StorageNodeSpec struct {
+	// Number of nodes (pods)
+	// +required
+	Nodes int32 `json:"nodes"`
+
+	// (Optional) Where cluster data should be kept
+	// +optional
+	DataStore []corev1.PersistentVolumeClaimSpec `json:"dataStore,omitempty"`
+
+	// (Optional) Container resource limits. Any container limits
+	// can be specified.
+	// Default: (not specified)
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// (Optional) Whether host network should be enabled.
+	// Default: false
+	// +optional
+	HostNetwork bool `json:"hostNetwork,omitempty"`
+
+	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// (Optional) If specified, the pod's scheduling constraints
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// (Optional) If specified, the pod's tolerations.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+
+	// (Optional) If specified, the pod's topologySpreadConstraints.
+	// All topologySpreadConstraints are ANDed.
+	// +optional
+	// +patchMergeKey=topologyKey
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=topologyKey
+	// +listMapKey=whenUnsatisfiable
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
+
+	// (Optional) If specified, the pod's priorityClassName.
+	// +optional
+	PriorityClassName string `json:"priorityClassName,omitempty"`
+
+	// (Optional) Additional custom resource labels that are added to all resources
+	// +optional
+	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
+
+	// (Optional) Additional custom resource annotations that are added to all resources
+	// +optional
+	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
+}
+
+// StorageStatus defines the observed state of Storage
+type StorageStatus struct {
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
+}
+
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.state",description="The status of this DB"
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+
+// Storage is the Schema for the Storages API
+type Storage struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec StorageSpec `json:"spec,omitempty"`
+
+	// +kubebuilder:default:={state: "Pending"}
+	Status StorageStatus `json:"status,omitempty"`
+}
+
+//+kubebuilder:object:root=true
+
+// StorageList contains a list of Storage
+type StorageList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Storage `json:"items"`
+}
+
+// StorageServices defines parameter overrides for Storage Services
+type StorageServices struct {
+	GRPC         GRPCService         `json:"grpc,omitempty"`
+	Interconnect InterconnectService `json:"interconnect,omitempty"`
+	Status       StatusService       `json:"status,omitempty"`
+}
+
+func init() {
+	SchemeBuilder.Register(&Storage{}, &StorageList{})
 }

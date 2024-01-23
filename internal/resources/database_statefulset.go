@@ -162,7 +162,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
 		volumes = append(volumes, b.buildDatastreamsIAMServiceAccountKeyVolume())
-		if b.Spec.Service.Datastreams.TLSConfiguration != nil && b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
+		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumes = append(volumes, buildTLSVolume(datastreamsTLSVolumeName, b.Spec.Service.Datastreams.TLSConfiguration))
 		}
 	}

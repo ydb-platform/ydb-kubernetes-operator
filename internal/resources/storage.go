@@ -29,7 +29,7 @@ func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() (bool, ctrl.Result, 
 
 		if b.Spec.Pause {
 			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
-				Type:    string(StoragePaused),
+				Type:    StoragePausedCondition,
 				Status:  "True",
 				Reason:  ReasonCompleted,
 				Message: "State Storage set to Paused",
@@ -191,10 +191,8 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 		nodeSetSpec.HostNetwork = nodeSetSpecInline.HostNetwork
 	}
 
+	nodeSetSpec.NodeSelector = CopyDict(b.Spec.NodeSelector)
 	if nodeSetSpecInline.NodeSelector != nil {
-		if nodeSetSpec.NodeSelector == nil {
-			nodeSetSpec.NodeSelector = make(map[string]string)
-		}
 		for k, v := range nodeSetSpecInline.NodeSelector {
 			nodeSetSpec.NodeSelector[k] = v
 		}
@@ -216,24 +214,14 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
-	nodeSetSpec.AdditionalLabels = make(map[string]string)
-	if b.Spec.AdditionalLabels != nil {
-		for k, v := range b.Spec.AdditionalLabels {
-			nodeSetSpec.AdditionalLabels[k] = v
-		}
-	}
+	nodeSetSpec.AdditionalLabels = CopyDict(b.Spec.AdditionalLabels)
 	if nodeSetSpecInline.AdditionalLabels != nil {
 		for k, v := range nodeSetSpecInline.AdditionalLabels {
 			nodeSetSpec.AdditionalLabels[k] = v
 		}
 	}
 
-	nodeSetSpec.AdditionalAnnotations = make(map[string]string)
-	if b.Spec.AdditionalAnnotations != nil {
-		for k, v := range b.Spec.AdditionalAnnotations {
-			nodeSetSpec.AdditionalAnnotations[k] = v
-		}
-	}
+	nodeSetSpec.AdditionalAnnotations = CopyDict(b.Spec.AdditionalAnnotations)
 	if nodeSetSpecInline.AdditionalAnnotations != nil {
 		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
 			nodeSetSpec.AdditionalAnnotations[k] = v

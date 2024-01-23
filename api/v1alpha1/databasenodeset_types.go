@@ -17,23 +17,6 @@ type DatabaseNodeSetSpec struct {
 	DatabaseNodeSpec `json:",inline"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.state",description="The status of this DatabaseNodeSet"
-//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
-
-// DatabaseNodeSet declares StatefulSet parameters for storageRef
-type DatabaseNodeSet struct {
-	metav1.TypeMeta `json:",inline"`
-	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// +optional
-	Spec DatabaseNodeSetSpec `json:"spec,omitempty"`
-	// +optional
-	// +kubebuilder:default:={state: "Pending"}
-	Status DatabaseNodeSetStatus `json:"status,omitempty"`
-}
-
 // DatabaseNodeSetStatus defines the observed state
 type DatabaseNodeSetStatus struct {
 	State                      constants.ClusterState `json:"state"`
@@ -52,6 +35,23 @@ type DatabaseNodeSetSpecInline struct {
 	Remote bool `json:"remote,omitempty"`
 
 	DatabaseNodeSpec `json:",inline"`
+}
+
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.state",description="The status of this DatabaseNodeSet"
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+
+// DatabaseNodeSet declares StatefulSet parameters for storageRef
+type DatabaseNodeSet struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// +optional
+	Spec DatabaseNodeSetSpec `json:"spec,omitempty"`
+	// +optional
+	// +kubebuilder:default:={state: "Pending"}
+	Status DatabaseNodeSetStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

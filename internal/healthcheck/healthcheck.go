@@ -19,7 +19,7 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 	logger := log.FromContext(ctx)
 	getSelfCheckURL := fmt.Sprintf(
 		"%s/%s",
-		cluster.GetGRPCEndpointWithProto(),
+		cluster.GetStorageEndpointWithProto(),
 		cluster.Storage.Spec.Domain,
 	)
 

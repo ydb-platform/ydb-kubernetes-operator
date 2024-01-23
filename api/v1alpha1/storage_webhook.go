@@ -47,10 +47,11 @@ func (r *Storage) GetStorageEndpoint() string {
 }
 
 func (r *Storage) IsStorageEndpointSecure() bool {
-	return r.Spec.Service.GRPC.TLSConfiguration.Enabled
+	if r.Spec.Service.GRPC.TLSConfiguration != nil {
+		return r.Spec.Service.GRPC.TLSConfiguration.Enabled
+	}
+	return false
 }
-
-//+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
 
 // +k8s:deepcopy-gen=false
 type PartialYamlConfig struct {
@@ -61,32 +62,13 @@ type PartialYamlConfig struct {
 	} `yaml:"domains_config"`
 }
 
-func (r *Storage) GetGRPCEndpoint() string {
-	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace) // FIXME .svc.cluster.local should not be hardcoded
-	if r.Spec.Service.GRPC.ExternalHost != "" {
-		host = r.Spec.Service.GRPC.ExternalHost
-	}
-	return fmt.Sprintf("%s:%d", host, GRPCPort)
-}
-
-func (r *Storage) GetGRPCEndpointWithProto() string {
-	proto := GRPCProto
-	if r.IsGRPCSecure() {
-		proto = GRPCSProto
-	}
-
-	return fmt.Sprintf("%s%s", proto, r.GetGRPCEndpoint())
-}
-
-func (r *Storage) IsGRPCSecure() bool {
-	return r.Spec.Service.GRPC.TLSConfiguration.Enabled
-}
-
 // StorageDefaulter mutates Storages
 // +k8s:deepcopy-gen=false
 type StorageDefaulter struct {
 	Client client.Client
 }
+
+//+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) error {
@@ -101,12 +83,6 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 		}
 	}
 
-	configuration, err := buildConfiguration(storage, nil)
-	if err != nil {
-		return err
-	}
-	storage.Spec.Configuration = configuration
-
 	if storage.Spec.Image.PullPolicyName == nil {
 		policy := v1.PullIfNotPresent
 		storage.Spec.Image.PullPolicyName = &policy
@@ -117,7 +93,11 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 	}
 
 	if storage.Spec.Service == nil {
-		storage.Spec.Service = &StorageServices{}
+		storage.Spec.Service = &StorageServices{
+			GRPC:         GRPCService{},
+			Interconnect: InterconnectService{},
+			Status:       StatusService{},
+		}
 	}
 
 	if storage.Spec.Service.GRPC.TLSConfiguration == nil {
@@ -135,8 +115,14 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 	}
 
 	if storage.Spec.Domain == "" {
-		storage.Spec.Domain = "Root" // FIXME
+		storage.Spec.Domain = DefaultDatabaseDomain
 	}
+
+	configuration, err := buildConfiguration(storage, nil)
+	if err != nil {
+		return err
+	}
+	storage.Spec.Configuration = configuration
 
 	return nil
 }

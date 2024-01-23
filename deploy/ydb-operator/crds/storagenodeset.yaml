@@ -2671,8 +2671,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      externalHost:
-                        type: string
                       ipFamilies:
                         items:
                           description: IPFamily represents the IP Family (IPv4 or

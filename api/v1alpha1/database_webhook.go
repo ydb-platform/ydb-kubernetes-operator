@@ -34,8 +34,6 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databases,verbs=create;update,versions=v1alpha1,name=mutate-database.ydb.tech,admissionReviewVersions=v1
-
 func (r *Database) GetDatabasePath() string {
 	if r.Spec.Path != "" {
 		return r.Spec.Path
@@ -53,6 +51,8 @@ type DatabaseDefaulter struct {
 	Client client.Client
 }
 
+// +kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databases,verbs=create;update,versions=v1alpha1,name=mutate-database.ydb.tech,admissionReviewVersions=v1
+
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) error {
 	database := obj.(*Database)
@@ -68,25 +68,6 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		}
 	}
 
-	storage := &Storage{}
-	err := r.Client.Get(ctx, types.NamespacedName{
-		Namespace: database.Spec.StorageClusterRef.Namespace,
-		Name:      database.Spec.StorageClusterRef.Name,
-	}, storage)
-	if err != nil {
-		return err
-	}
-
-	if database.Spec.StorageEndpoint == "" {
-		database.Spec.StorageEndpoint = storage.GetGRPCEndpointWithProto()
-	}
-
-	configuration, err := buildConfiguration(storage, database)
-	if err != nil {
-		return err
-	}
-	database.Spec.Configuration = configuration
-
 	if database.Spec.Image == nil && database.Spec.Image.Name == "" {
 		if database.Spec.YDBVersion == "" {
 			database.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
@@ -98,6 +79,15 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 	if database.Spec.Image.PullPolicyName == nil {
 		policy := v1.PullIfNotPresent
 		database.Spec.Image.PullPolicyName = &policy
+	}
+
+	if database.Spec.Service == nil {
+		database.Spec.Service = &DatabaseServices{
+			GRPC:         GRPCService{},
+			Interconnect: InterconnectService{},
+			Status:       StatusService{},
+			Datastreams:  DatastreamsService{},
+		}
 	}
 
 	if database.Spec.Service.GRPC.TLSConfiguration == nil {
@@ -120,10 +110,6 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		database.Spec.Path = database.GetLegacyDatabasePath()
 	}
 
-	if database.Spec.StorageEndpoint == "" {
-		database.Spec.Path = database.GetLegacyDatabasePath()
-	}
-
 	if database.Spec.Encryption == nil {
 		database.Spec.Encryption = &EncryptionConfig{Enabled: false}
 	}
@@ -137,6 +123,25 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 			Enabled: false,
 		}
 	}
+
+	storage := &Storage{}
+	err := r.Client.Get(ctx, types.NamespacedName{
+		Namespace: database.Spec.StorageClusterRef.Namespace,
+		Name:      database.Spec.StorageClusterRef.Name,
+	}, storage)
+	if err != nil {
+		return err
+	}
+
+	if database.Spec.StorageEndpoint == "" {
+		database.Spec.StorageEndpoint = storage.GetStorageEndpointWithProto()
+	}
+
+	configuration, err := buildConfiguration(storage, database)
+	if err != nil {
+		return err
+	}
+	database.Spec.Configuration = configuration
 
 	return nil
 }

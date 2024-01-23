@@ -5,8 +5,12 @@ import "time"
 type ClusterState string
 
 const (
-	BlobStorageInitializedCondition    = "BlobStorageInitialized"
+	StoragePausedCondition             = "StoragePaused"
+	StorageInitializedCondition        = "StorageReady"
+	StorageNodeSetReadyCondition       = "StorageNodeSetReady"
+	DatabasePausedCondition            = "DatabasePaused"
 	DatabaseTenantInitializedCondition = "TenantInitialized"
+	DatabaseNodeSetReadyCondition      = "DatabaseNodeSetReady"
 
 	Stop     = true
 	Continue = false
@@ -25,7 +29,6 @@ const (
 	DatabaseInitializing ClusterState = "Initializing"
 	DatabaseReady        ClusterState = "Ready"
 	DatabasePaused       ClusterState = "Paused"
-	DatabaseResuming     ClusterState = "Resuming"
 
 	DatabaseNodeSetPending      ClusterState = "Pending"
 	DatabaseNodeSetProvisioning ClusterState = "Provisioning"
@@ -38,7 +41,6 @@ const (
 	StorageInitializing ClusterState = "Initializing"
 	StorageReady        ClusterState = "Ready"
 	StoragePaused       ClusterState = "Paused"
-	StorageResuming     ClusterState = "Resuming"
 
 	StorageNodeSetPending      ClusterState = "Pending"
 	StorageNodeSetProvisioning ClusterState = "Provisioning"

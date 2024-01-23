@@ -54,12 +54,12 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	stop, result, err = r.syncNodeSetSpecInline(ctx, &database)
+	stop, result, err = r.handleResourcesSync(ctx, &database)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.handleResourcesSync(ctx, &database)
+	stop, result, err = r.syncNodeSetSpecInline(ctx, &database)
 	if stop {
 		return result, err
 	}
@@ -133,12 +133,11 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	r.Log.Info("running step waitForDatabaseNodeSetToReady for Database")
 
 	if database.Status.State == DatabasePending {
-		msg := fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSets))
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
 			string(DatabaseProvisioning),
-			msg,
+			fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSets)),
 		)
 		database.Status.State = DatabaseProvisioning
 		return r.setState(ctx, database)
@@ -171,7 +170,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 		}
 
 		if foundDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
-			msg := fmt.Sprintf("Waiting %s state for DatabaseNodeSet object %s, current: %s",
+			eventMessage := fmt.Sprintf("Waiting %s state for DatabaseNodeSet object %s, current: %s",
 				string(DatabaseReady),
 				foundDatabaseNodeSet.Name,
 				foundDatabaseNodeSet.Status.State,
@@ -180,7 +179,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 				database,
 				corev1.EventTypeNormal,
 				string(DatabaseProvisioning),
-				msg,
+				eventMessage,
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
@@ -196,12 +195,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	r.Log.Info("running step waitForStatefulSetToScale for Database")
 
 	if database.Status.State == DatabasePending {
-		msg := fmt.Sprintf("Starting to track number of running database pods, expected: %d", database.Spec.Nodes)
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
 			string(DatabaseProvisioning),
-			msg,
+			fmt.Sprintf("Starting to track number of running database pods, expected: %d", database.Spec.Nodes),
 		)
 		database.Status.State = DatabaseProvisioning
 		return r.setState(ctx, database)
@@ -259,7 +257,6 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list cluster pods: %s", err),
 		)
-		database.Status.State = DatabaseProvisioning
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
@@ -271,14 +268,13 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	}
 
 	if runningPods != int(database.Spec.Nodes) {
-		message := fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes)
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
 			string(DatabaseProvisioning),
-			message,
+			fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes),
 		)
-		return r.setState(ctx, database)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil
@@ -530,10 +526,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 				databaseNodeSet,
 				corev1.EventTypeNormal,
 				"StatusChanged",
-				fmt.Sprintf(
-					"DatabaseNodeSet updated observedStorageGeneration from %d to %d",
-					oldGeneration,
-					database.Generation),
+				fmt.Sprintf("DatabaseNodeSet updated observedStorageGeneration from %d to %d", oldGeneration, database.Generation),
 			)
 		}
 	}
@@ -549,9 +542,8 @@ func (r *Reconciler) handlePauseResume(
 	r.Log.Info("running step handlePauseResume for Database")
 	if database.Status.State == DatabaseReady && database.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Database to state `Paused`")
-		// meta.RemoveStatusCondition(&database.Status.Conditions, string(DatabaseReady))
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    string(DatabasePaused),
+			Type:    DatabasePausedCondition,
 			Status:  "True",
 			Reason:  ReasonCompleted,
 			Message: "State Database set to Paused",
@@ -562,13 +554,7 @@ func (r *Reconciler) handlePauseResume(
 
 	if database.Status.State == DatabasePaused && !database.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving Database to state `Ready`")
-		meta.RemoveStatusCondition(&database.Status.Conditions, string(DatabasePaused))
-		// meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		// 	Type:    string(DatabaseReady),
-		// 	Status:  "False",
-		// 	Reason:  ReasonInProgress,
-		// 	Message: "Recovering Database from Paused state",
-		// })
+		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 		database.Status.State = DatabaseReady
 		return r.setState(ctx, database)
 	}

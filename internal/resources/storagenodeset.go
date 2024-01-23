@@ -92,10 +92,10 @@ func (b *StorageNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.Result,
 
 		if b.Spec.Pause {
 			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
-				Type:    string(StorageNodeSetPaused),
-				Status:  "True",
-				Reason:  ReasonCompleted,
-				Message: "State DatabaseNodeSet set to Paused",
+				Type:    StoragePausedCondition,
+				Status:  "False",
+				Reason:  ReasonInProgress,
+				Message: "Transitioning StorageNodeSet to Paused state",
 			})
 
 			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil

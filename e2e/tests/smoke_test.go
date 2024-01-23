@@ -115,7 +115,7 @@ func waitUntilStorageReady(ctx context.Context, storageName, storageNamespace st
 
 		return meta.IsStatusConditionPresentAndEqual(
 			storage.Status.Conditions,
-			BlobStorageInitializedCondition,
+			StorageInitializedCondition,
 			metav1.ConditionTrue,
 		) && storage.Status.State == testobjects.ReadyStatus
 	}, Timeout, Interval).Should(BeTrue())

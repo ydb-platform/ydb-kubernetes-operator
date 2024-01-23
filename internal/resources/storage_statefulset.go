@@ -38,14 +38,6 @@ func StringRJust(str, pad string, length int) string {
 	}
 }
 
-func (b *StorageStatefulSetBuilder) GenerateSearchDomain() string {
-	searchDomain := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace())
-	if b.Spec.Service.Interconnect.ExternalHost != "" {
-		searchDomain = b.Spec.Service.Interconnect.ExternalHost
-	}
-	return searchDomain
-}
-
 func (b *StorageStatefulSetBuilder) GeneratePVCName(index int) string {
 	return b.Name + "-" + StringRJust(strconv.Itoa(index), "0", v1alpha1.DiskNumberMaxDigits)
 }
@@ -106,7 +98,9 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 }
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	dnsConfigSearches := []string{b.GenerateSearchDomain()}
+	dnsConfigSearches := []string{
+		fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,

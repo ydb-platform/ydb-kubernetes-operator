@@ -55,17 +55,17 @@ func (r *Reconciler) setInitialStatus(
 	// does not make sense, since some nodes can be down for a long time (and it is okay, since
 	// database is healthy even with partial outage).
 	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		if meta.FindStatusCondition(storage.Status.Conditions, BlobStorageInitializedCondition) == nil ||
-			meta.IsStatusConditionFalse(storage.Status.Conditions, BlobStorageInitializedCondition) {
+		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(storage.Status.Conditions, StorageInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, storage)
 		}
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
 	changed := false
-	if meta.FindStatusCondition(storage.Status.Conditions, BlobStorageInitializedCondition) == nil {
+	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    BlobStorageInitializedCondition,
+			Type:    StorageInitializedCondition,
 			Status:  "False",
 			Reason:  ReasonInProgress,
 			Message: "Storage is not ready yet",
@@ -88,7 +88,7 @@ func (r *Reconciler) setInitStorageCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    BlobStorageInitializedCondition,
+		Type:    StorageInitializedCondition,
 		Status:  "True",
 		Reason:  ReasonCompleted,
 		Message: message,
@@ -154,7 +154,7 @@ func (r *Reconciler) initializeStorage(
 	cmd = append(
 		cmd,
 		"-s",
-		storage.GetGRPCEndpointWithProto(),
+		storage.GetStorageEndpointWithProto(),
 	)
 
 	cmd = append(

@@ -57,27 +57,9 @@ func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Re
 		return result, err
 	}
 
-	auth, result, err := r.getYDBCredentials(ctx, &storage)
-	if auth == nil {
-		return result, err
+	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
+		return r.handleFirstStart(ctx, &storage)
 	}
-
-	if storage.Status.State == StorageResuming {
-		return r.handleResuming(ctx, &storage, auth)
-	}
-
-	initialized := meta.IsStatusConditionTrue(storage.Status.Conditions, BlobStorageInitializedCondition)
-
-	if !initialized {
-		return r.handleFirstStart(ctx, &storage, auth)
-	}
-
-	if storage.Status.State != StoragePaused {
-		_, result, err = r.runSelfCheck(ctx, &storage, auth, false)
-		return result, err
-	}
-
-	r.Log.Info(fmt.Sprintf("not running SelfCheck for storage %s, Storage is paused", storage.Name))
 
 	return ctrl.Result{}, nil
 }
@@ -89,8 +71,12 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	r.Log.Info("running step waitForStatefulSetToScale for Storage")
 
 	if storage.Status.State == StoragePreparing {
-		msg := fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storage.Spec.Nodes)
-		r.Recorder.Event(storage, corev1.EventTypeNormal, string(StorageProvisioning), msg)
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			string(StorageProvisioning),
+			fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storage.Spec.Nodes),
+		)
 		storage.Status.State = StorageProvisioning
 		return r.setState(ctx, storage)
 	}
@@ -154,8 +140,12 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	}
 
 	if runningPods != int(storage.Spec.Nodes) {
-		msg := fmt.Sprintf("Waiting for number of running storage pods to match expected: %d != %d", runningPods, storage.Spec.Nodes)
-		r.Recorder.Event(storage, corev1.EventTypeNormal, string(StorageProvisioning), msg)
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			string(StorageProvisioning),
+			fmt.Sprintf("Waiting for number of running storage pods to match expected: %d != %d", runningPods, storage.Spec.Nodes),
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
@@ -169,12 +159,11 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 	r.Log.Info("running step waitForStorageNodeSetToReady for Storage")
 
 	if storage.Status.State == StoragePreparing {
-		msg := fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", storage.Spec.Nodes)
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
 			string(StorageProvisioning),
-			msg,
+			fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", storage.Spec.Nodes),
 		)
 		storage.Status.State = StorageProvisioning
 		return r.setState(ctx, storage)
@@ -207,7 +196,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 		}
 
 		if foundStorageNodeSet.Status.State != StorageNodeSetReady {
-			msg := fmt.Sprintf("Waiting %s state for StorageNodeSet object %s, current: %s",
+			eventMessage := fmt.Sprintf("Waiting %s state for StorageNodeSet object %s, current: %s",
 				string(StorageReady),
 				foundStorageNodeSet.Name,
 				foundStorageNodeSet.Status.State,
@@ -216,7 +205,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 				storage,
 				corev1.EventTypeNormal,
 				string(StorageProvisioning),
-				msg,
+				eventMessage,
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
@@ -496,8 +485,8 @@ func (r *Reconciler) getYDBCredentials(
 					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 				}
 			}
-			endpoint := storage.GetGRPCEndpoint()
-			secure := connection.LoadTLSCredentials(storage.IsGRPCSecure())
+			endpoint := storage.GetStorageEndpoint()
+			secure := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure())
 			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
 		}
 	}
@@ -536,9 +525,8 @@ func (r *Reconciler) handlePauseResume(
 	r.Log.Info("running step handlePauseResume for Storage")
 	if storage.Status.State == StorageReady && storage.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Storage to state `Paused`")
-		// meta.RemoveStatusCondition(&database.Status.Conditions, string(DatabaseReady))
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    string(StoragePaused),
+			Type:    StoragePausedCondition,
 			Status:  "True",
 			Reason:  ReasonCompleted,
 			Message: "State Storage set to Paused",
@@ -549,13 +537,7 @@ func (r *Reconciler) handlePauseResume(
 
 	if storage.Status.State == StoragePaused && !storage.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving Storage to state `Ready`")
-		meta.RemoveStatusCondition(&storage.Status.Conditions, string(DatabasePaused))
-		// meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		// 	Type:    string(DatabaseReady),
-		// 	Status:  "False",
-		// 	Reason:  ReasonInProgress,
-		// 	Message: "Recovering Database from Paused state",
-		// })
+		meta.RemoveStatusCondition(&storage.Status.Conditions, StoragePausedCondition)
 		storage.Status.State = StorageReady
 		return r.setState(ctx, storage)
 	}
@@ -563,28 +545,9 @@ func (r *Reconciler) handlePauseResume(
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) handleResuming(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-	auth ydbCredentials.Credentials,
-) (ctrl.Result, error) {
-	// TODO(tarasov-egor@) discuss, why waitForGoodResultWithoutIssues is switched off everywhere with artgromov@ and apkobzev@
-	// if it's off even in the main reconcile loop, we can not implement the Resuming state using health check
-	waitForGoodResultWithoutIssues := false
-	stop, result, err := r.runSelfCheck(ctx, storage, auth, waitForGoodResultWithoutIssues)
-	if stop {
-		return result, err
-	}
-
-	storage.Status.State = StorageReady
-	_, result, err = r.setState(ctx, storage)
-	return result, err
-}
-
 func (r *Reconciler) handleFirstStart(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-	auth ydbCredentials.Credentials,
 ) (ctrl.Result, error) {
 	stop, result, err := r.setInitialStatus(ctx, storage)
 	if stop {
@@ -601,6 +564,11 @@ func (r *Reconciler) handleFirstStart(
 		if stop {
 			return result, err
 		}
+	}
+
+	auth, result, err := r.getYDBCredentials(ctx, storage)
+	if auth == nil {
+		return result, err
 	}
 
 	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
