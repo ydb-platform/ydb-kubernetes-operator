@@ -294,11 +294,11 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step syncNodeSetSpecInline")
-
-	storageNodeSets := &ydbv1alpha1.StorageNodeSetList{}
 	matchingFields := client.MatchingFields{
 		OwnerControllerKey: storage.Name,
 	}
+
+	storageNodeSets := &ydbv1alpha1.StorageNodeSetList{}
 	if err := r.List(ctx, storageNodeSets,
 		client.InNamespace(storage.Namespace),
 		matchingFields,
@@ -316,10 +316,12 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		storageNodeSet := storageNodeSet.DeepCopy()
 		isFoundStorageNodeSetSpecInline := false
 		for _, nodeSetSpecInline := range storage.Spec.NodeSets {
-			nodeSetName := storage.Name + "-" + nodeSetSpecInline.Name
-			if storageNodeSet.Name == nodeSetName {
-				isFoundStorageNodeSetSpecInline = true
-				break
+			if !nodeSetSpecInline.Remote {
+				nodeSetName := storage.Name + "-" + nodeSetSpecInline.Name
+				if storageNodeSet.Name == nodeSetName {
+					isFoundStorageNodeSetSpecInline = true
+					break
+				}
 			}
 		}
 
@@ -343,30 +345,64 @@ func (r *Reconciler) syncNodeSetSpecInline(
 					storageNodeSet.Name),
 			)
 		}
+	}
 
-		oldGeneration := storageNodeSet.Status.ObservedStorageGeneration
-		if oldGeneration != storage.Generation {
-			storageNodeSet.Status.ObservedStorageGeneration = storage.Generation
-			if err := r.Status().Update(ctx, storageNodeSet); err != nil {
+	remoteStorageNodeSets := &ydbv1alpha1.RemoteStorageNodeSetList{}
+	if err := r.List(ctx, remoteStorageNodeSets,
+		client.InNamespace(storage.Namespace),
+		matchingFields,
+	); err != nil {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed to list RemoteStorageNodeSets: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	for _, remoteStorageNodeSet := range remoteStorageNodeSets.Items {
+		remoteStorageNodeSet := remoteStorageNodeSet.DeepCopy()
+		isFoundRemoteStorageNodeSetSpecInline := false
+		for _, nodeSetSpecInline := range storage.Spec.NodeSets {
+			if nodeSetSpecInline.Remote {
+				nodeSetName := storage.Name + "-" + nodeSetSpecInline.Name
+				if remoteStorageNodeSet.Name == nodeSetName {
+					isFoundRemoteStorageNodeSetSpecInline = true
+					break
+				}
+			}
+		}
+
+		if !isFoundRemoteStorageNodeSetSpecInline {
+			if err := r.Delete(ctx, remoteStorageNodeSet); err != nil {
 				r.Recorder.Event(
-					storageNodeSet,
+					storage,
 					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed setting status: %s", err),
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to delete RemoteStorageNodeSet: %s", err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 			r.Recorder.Event(
-				storageNodeSet,
+				storage,
 				corev1.EventTypeNormal,
-				"StatusChanged",
-				fmt.Sprintf(
-					"StorageNodeSet updated observedStorageGeneration from %d to %d",
-					oldGeneration,
-					storage.Generation),
+				"Syncing",
+				fmt.Sprintf("Resource: %s, Namespace: %s, Name: %s, deleted",
+					reflect.TypeOf(remoteStorageNodeSet),
+					remoteStorageNodeSet.Namespace,
+					remoteStorageNodeSet.Name),
 			)
 		}
 	}
+
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:               StorageNodeSetsSyncedCondition,
+		Status:             "True",
+		ObservedGeneration: storage.Generation,
+		Reason:             ReasonCompleted,
+		Message:            "Synced (Remote)StorageNodeSets with Storage spec",
+	})
 
 	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil

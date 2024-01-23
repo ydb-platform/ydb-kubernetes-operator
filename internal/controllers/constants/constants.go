@@ -8,9 +8,11 @@ const (
 	StoragePausedCondition             = "StoragePaused"
 	StorageInitializedCondition        = "StorageReady"
 	StorageNodeSetReadyCondition       = "StorageNodeSetReady"
+	StorageNodeSetsSyncedCondition     = "StorageNodeSetsSynced"
 	DatabasePausedCondition            = "DatabasePaused"
 	DatabaseTenantInitializedCondition = "TenantInitialized"
 	DatabaseNodeSetReadyCondition      = "DatabaseNodeSetReady"
+	DatabaseNodeSetsSyncedCondition    = "DatabaseNodeSetsSynced"
 
 	Stop     = true
 	Continue = false

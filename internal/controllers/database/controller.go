@@ -94,6 +94,28 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
+		&ydbv1alpha1.RemoteDatabaseNodeSet{},
+		OwnerControllerKey,
+		func(obj client.Object) []string {
+			// grab the RemoteDatabaseNodeSet object, extract the owner...
+			remoteDatabaseNodeSet := obj.(*ydbv1alpha1.RemoteDatabaseNodeSet)
+			owner := metav1.GetControllerOf(remoteDatabaseNodeSet)
+			if owner == nil {
+				return nil
+			}
+			// ...make sure it's a Database...
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != "Database" {
+				return nil
+			}
+
+			// ...and if so, return it
+			return []string{owner.Name}
+		}); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
 		&ydbv1alpha1.DatabaseNodeSet{},
 		OwnerControllerKey,
 		func(obj client.Object) []string {
@@ -115,6 +137,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.
+		Owns(&ydbv1alpha1.RemoteDatabaseNodeSet{}).
 		Owns(&ydbv1alpha1.DatabaseNodeSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
