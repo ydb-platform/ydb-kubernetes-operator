@@ -121,8 +121,8 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: []string{
-          fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
-        },
+					fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+				},
 			},
 		},
 	}
