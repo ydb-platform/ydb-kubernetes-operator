@@ -107,17 +107,40 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
 			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
 
-			optionalBuilders = append(
-				optionalBuilders,
-				&StorageNodeSetBuilder{
-					Object: b,
+			storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
+			if nodeSetSpecInline.Remote != nil {
+				if nodeSetSpecInline.Remote.Region != "" {
+					nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+						labels.TopologyRegionKey: nodeSetSpecInline.Remote.Region,
+					})
+				}
+				nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+					labels.TopologyZoneKey: nodeSetSpecInline.Remote.Zone,
+				})
+				optionalBuilders = append(
+					optionalBuilders,
+					&RemoteStorageNodeSetBuilder{
+						Object: b,
 
-					Name:   b.Name + "-" + nodeSetSpecInline.Name,
-					Labels: nodeSetLabels,
+						Name:   b.Name + "-" + nodeSetSpecInline.Name,
+						Labels: nodeSetLabels,
 
-					StorageNodeSetSpec: b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
-				},
-			)
+						StorageNodeSetSpec: storageNodeSetSpec,
+					},
+				)
+			} else {
+				optionalBuilders = append(
+					optionalBuilders,
+					&StorageNodeSetBuilder{
+						Object: b,
+
+						Name:   b.Name + "-" + nodeSetSpecInline.Name,
+						Labels: nodeSetLabels,
+
+						StorageNodeSetSpec: storageNodeSetSpec,
+					},
+				)
+			}
 		}
 	}
 

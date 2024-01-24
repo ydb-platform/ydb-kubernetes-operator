@@ -316,7 +316,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		storageNodeSet := storageNodeSet.DeepCopy()
 		isFoundStorageNodeSetSpecInline := false
 		for _, nodeSetSpecInline := range storage.Spec.NodeSets {
-			if !nodeSetSpecInline.Remote {
+			if nodeSetSpecInline.Remote == nil {
 				nodeSetName := storage.Name + "-" + nodeSetSpecInline.Name
 				if storageNodeSet.Name == nodeSetName {
 					isFoundStorageNodeSetSpecInline = true
@@ -365,7 +365,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		remoteStorageNodeSet := remoteStorageNodeSet.DeepCopy()
 		isFoundRemoteStorageNodeSetSpecInline := false
 		for _, nodeSetSpecInline := range storage.Spec.NodeSets {
-			if nodeSetSpecInline.Remote {
+			if nodeSetSpecInline.Remote != nil {
 				nodeSetName := storage.Name + "-" + nodeSetSpecInline.Name
 				if remoteStorageNodeSet.Name == nodeSetName {
 					isFoundRemoteStorageNodeSetSpecInline = true
