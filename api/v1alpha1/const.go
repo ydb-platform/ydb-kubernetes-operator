@@ -6,13 +6,15 @@ const (
 
 	ImagePathFormat = "%s:%s"
 
-	GRPCPort            = 2135
-	GRPCServicePortName = "grpc"
-	GRPCProto           = "grpc://"
-	GRPCSProto          = "grpcs://"
+	GRPCPort              = 2135
+	GRPCServicePortName   = "grpc"
+	GRPCProto             = "grpc://"
+	GRPCSProto            = "grpcs://"
+	GRPCServiceFQDNFormat = "%s-grpc.%s.svc.cluster.local"
 
-	InterconnectPort            = 19001
-	InterconnectServicePortName = "interconnect"
+	InterconnectPort              = 19001
+	InterconnectServicePortName   = "interconnect"
+	InterconnectServiceFQDNFormat = "%s-interconnect.%s.svc.cluster.local"
 
 	StatusPort            = 8765
 	StatusServicePortName = "status"

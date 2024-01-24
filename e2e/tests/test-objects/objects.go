@@ -54,93 +54,43 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 			Namespace: YdbNamespace,
 		},
 		Spec: v1alpha1.StorageSpec{
-			Nodes:         8,
-			OperatorSync:  true,
-			Configuration: string(storageConfig),
-			Erasure:       "block-4-2",
-			DataStore:     []corev1.PersistentVolumeClaimSpec{},
-			Service: v1alpha1.StorageServices{
-				GRPC: v1alpha1.GRPCService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
+			StorageClusterSpec: v1alpha1.StorageClusterSpec{
+				Domain:       DefaultDomain,
+				OperatorSync: true,
+				Erasure:      "block-4-2",
+				Image: &v1alpha1.PodImage{
+					Name:           YdbImage,
+					PullPolicyName: &defaultPolicy,
+				},
+				Configuration: string(storageConfig),
+				Service: &v1alpha1.StorageServices{
+					GRPC: v1alpha1.GRPCService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
 					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Interconnect: v1alpha1.InterconnectService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
+					Interconnect: v1alpha1.InterconnectService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
 					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					Status: v1alpha1.StatusService{
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
 				},
-				Status: v1alpha1.StatusService{
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+				Monitoring: &v1alpha1.MonitoringOptions{
+					Enabled: false,
 				},
 			},
-			Domain:    DefaultDomain,
-			Resources: corev1.ResourceRequirements{},
-			Image: v1alpha1.PodImage{
-				Name:           YdbImage,
-				PullPolicyName: &defaultPolicy,
-			},
-			AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
-			Affinity:         storageAntiAffinity,
-			Monitoring: &v1alpha1.MonitoringOptions{
-				Enabled: false,
-			},
-		},
-	}
-}
+			StorageNodeSpec: v1alpha1.StorageNodeSpec{
+				Nodes:     8,
+				DataStore: []corev1.PersistentVolumeClaimSpec{},
 
-func StorageWithStaticCredentials(storageYamlConfigPath string) *v1alpha1.Storage {
-	storageConfig, err := os.ReadFile(storageYamlConfigPath)
-	Expect(err).To(BeNil())
-
-	defaultPolicy := corev1.PullIfNotPresent
-	storageAntiAffinity := constructAntiAffinityFor("ydb-cluster", "kind-storage")
-
-	return &v1alpha1.Storage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      StorageName,
-			Namespace: YdbNamespace,
-		},
-		Spec: v1alpha1.StorageSpec{
-			Nodes:        8,
-			OperatorSync: true,
-			OperatorConnection: &v1alpha1.ConnectionOptions{
-				StaticCredentials: &v1alpha1.StaticCredentialsAuth{
-					Username: "root",
-				},
-			},
-			Configuration: string(storageConfig),
-			Erasure:       "block-4-2",
-			DataStore:     []corev1.PersistentVolumeClaimSpec{},
-			Service: v1alpha1.StorageServices{
-				GRPC: v1alpha1.GRPCService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Interconnect: v1alpha1.InterconnectService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Status: v1alpha1.StatusService{
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-			},
-			Domain:    DefaultDomain,
-			Resources: corev1.ResourceRequirements{},
-			Image: v1alpha1.PodImage{
-				Name:           YdbImage,
-				PullPolicyName: &defaultPolicy,
-			},
-			AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
-			Affinity:         storageAntiAffinity,
-			Monitoring: &v1alpha1.MonitoringOptions{
-				Enabled: false,
+				Resources:        &corev1.ResourceRequirements{},
+				AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
+				Affinity:         storageAntiAffinity,
 			},
 		},
 	}
@@ -156,56 +106,60 @@ func DefaultDatabase() *v1alpha1.Database {
 			Namespace: YdbNamespace,
 		},
 		Spec: v1alpha1.DatabaseSpec{
-			Nodes:        8,
-			OperatorSync: true,
-			Resources: &v1alpha1.DatabaseResources{
-				StorageUnits: []v1alpha1.StorageUnit{
-					{
-						UnitKind: "ssd",
-						Count:    1,
+			DatabaseClusterSpec: v1alpha1.DatabaseClusterSpec{
+				Domain:       DefaultDomain,
+				OperatorSync: true,
+				StorageClusterRef: v1alpha1.NamespacedRef{
+					Name:      StorageName,
+					Namespace: YdbNamespace,
+				},
+				Image: &v1alpha1.PodImage{
+					Name:           YdbImage,
+					PullPolicyName: &defaultPolicy,
+				},
+				Service: &v1alpha1.DatabaseServices{
+					GRPC: v1alpha1.GRPCService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+					Interconnect: v1alpha1.InterconnectService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+					Datastreams: v1alpha1.DatastreamsService{
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+					},
+					Status: v1alpha1.StatusService{
+						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
 					},
 				},
+				Datastreams: &v1alpha1.DatastreamsConfig{
+					Enabled: false,
+				},
+				Monitoring: &v1alpha1.MonitoringOptions{
+					Enabled: false,
+				},
 			},
-			Service: v1alpha1.DatabaseServices{
-				GRPC: v1alpha1.GRPCService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
+			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+				Nodes: 8,
+				Resources: &v1alpha1.DatabaseResources{
+					StorageUnits: []v1alpha1.StorageUnit{
+						{
+							UnitKind: "ssd",
+							Count:    1,
+						},
 					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
 				},
-				Interconnect: v1alpha1.InterconnectService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Datastreams: v1alpha1.DatastreamsService{
-					TLSConfiguration: &v1alpha1.TLSConfiguration{
-						Enabled: false,
-					},
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
-				Status: v1alpha1.StatusService{
-					Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-				},
+				AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
+				Affinity:         databaseAntiAffinity,
 			},
-			Datastreams: &v1alpha1.DatastreamsConfig{
-				Enabled: false,
-			},
-			Monitoring: &v1alpha1.MonitoringOptions{
-				Enabled: false,
-			},
-			StorageClusterRef: v1alpha1.StorageRef{
-				Name:      StorageName,
-				Namespace: YdbNamespace,
-			},
-			Domain: DefaultDomain,
-			Image: v1alpha1.PodImage{
-				Name:           YdbImage,
-				PullPolicyName: &defaultPolicy,
-			},
-			AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
-			Affinity:         databaseAntiAffinity,
 		},
 	}
 }
