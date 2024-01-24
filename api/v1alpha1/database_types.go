@@ -14,7 +14,7 @@ type DatabaseSpec struct {
 	DatabaseNodeSpec `json:",inline"`
 
 	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
-  // Default: (not specified)
+	// Default: (not specified)
 	// +optional
 	NodeSets []DatabaseNodeSetSpecInline `json:"nodeSets,omitempty"`
 }
@@ -157,7 +157,7 @@ type DatabaseNodeSpec struct {
 	// +optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
 
-  // (Optional) If specified, the pod's terminationGracePeriodSeconds.
+	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
 	// +optional
 	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
   
