@@ -16,13 +16,15 @@ const (
 	PartOfKey = "app.kubernetes.io/part-of"
 	// ManagedByKey The tool being used to manage the operation of an application
 	ManagedByKey = "app.kubernetes.io/managed-by"
+	// TopologyZoneKey A zone represents a logical failure domain
+	TopologyZoneKey = "topology.kubernetes.io/zone"
+	// TopologyRegionKey A region represents a larger domain, made up of one or more zones
+	TopologyRegionKey = "topology.kubernetes.io/region"
 
 	// ServiceComponent The specialization of a Service resource
 	ServiceComponent = "ydb.tech/service-for"
-
 	// StorageNodeSetComponent The specialization of a StorageNodeSet resource
 	StorageNodeSetComponent = "ydb.tech/storage-nodeset"
-
 	// DatabaseNodeSetComponent The specialization of a DatabaseNodeSet resource
 	DatabaseNodeSetComponent = "ydb.tech/database-nodeset"
 

@@ -196,17 +196,41 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
 			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
 
-			optionalBuilders = append(
-				optionalBuilders,
-				&DatabaseNodeSetBuilder{
-					Object: b,
+			databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 
-					Name:   b.Name + "-" + nodeSetSpecInline.Name,
-					Labels: nodeSetLabels,
+			if nodeSetSpecInline.Remote != nil {
+				if nodeSetSpecInline.Remote.Region != "" {
+					nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+						labels.TopologyRegionKey: nodeSetSpecInline.Remote.Region,
+					})
+				}
+				nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+					labels.TopologyZoneKey: nodeSetSpecInline.Remote.Zone,
+				})
+				optionalBuilders = append(
+					optionalBuilders,
+					&RemoteDatabaseNodeSetBuilder{
+						Object: b,
 
-					DatabaseNodeSetSpec: b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
-				},
-			)
+						Name:   b.Name + "-" + nodeSetSpecInline.Name,
+						Labels: nodeSetLabels,
+
+						DatabaseNodeSetSpec: databaseNodeSetSpec,
+					},
+				)
+			} else {
+				optionalBuilders = append(
+					optionalBuilders,
+					&DatabaseNodeSetBuilder{
+						Object: b,
+
+						Name:   b.Name + "-" + nodeSetSpecInline.Name,
+						Labels: nodeSetLabels,
+
+						DatabaseNodeSetSpec: databaseNodeSetSpec,
+					},
+				)
+			}
 		}
 	}
 
