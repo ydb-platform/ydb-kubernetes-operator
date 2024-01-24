@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,7 +8,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
@@ -24,8 +21,6 @@ type DatabaseBuilder struct {
 func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	cr := ydbCr.DeepCopy()
 
-	api.SetDatabaseSpecDefaults(cr, &cr.Spec)
-
 	return DatabaseBuilder{Database: cr, Storage: nil}
 }
 
@@ -37,8 +32,8 @@ func (b *DatabaseBuilder) SetStatusOnFirstReconcile() (bool, ctrl.Result, error)
 			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
 				Type:    DatabasePausedCondition,
 				Status:  "True",
-				Reason:  DatabasePausedReason,
-				Message: "pause: Paused is set on Database",
+				Reason:  ReasonCompleted,
+				Message: "State Database set to Paused",
 			})
 
 			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
@@ -52,30 +47,13 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 	return b.DeepCopy()
 }
 
-func (b *DatabaseBuilder) GetStorageEndpointWithProto() string {
-	proto := api.GRPCProto
-	if IsGrpcSecure(b.Storage) {
-		proto = api.GRPCSProto
-	}
-
-	return fmt.Sprintf("%s%s", proto, b.GetStorageEndpoint())
-}
-
-func (b *DatabaseBuilder) GetStorageEndpoint() string {
-	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace)
-	if b.Storage.Spec.Service.GRPC.ExternalHost != "" {
-		host = b.Storage.Spec.Service.GRPC.ExternalHost
-	}
-
-	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
-}
-
 func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	if b.Spec.ServerlessResources != nil {
 		return []ResourceBuilder{}
 	}
 
 	databaseLabels := labels.DatabaseLabels(b.Unwrap())
+
 	grpcServiceLabels := databaseLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
 	grpcServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.GRPCComponent})
@@ -94,14 +72,14 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.Storage, b.Unwrap())
-
 	optionalBuilders = append(
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
 			Name:   b.GetName(),
-			Data:   cfg,
+			Data: map[string]string{
+				api.ConfigFileName: b.Spec.Configuration,
+			},
 			Labels: databaseLabels,
 		},
 	)
@@ -201,15 +179,97 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		)
 	}
 
-	optionalBuilders = append(
-		optionalBuilders,
-		&DatabaseStatefulSetBuilder{
-			Database:   b.Unwrap(),
-			Labels:     databaseLabels,
-			RestConfig: restConfig,
-			Storage:    b.Storage,
-		},
-	)
+	if b.Spec.NodeSets == nil {
+		optionalBuilders = append(
+			optionalBuilders,
+			&DatabaseStatefulSetBuilder{
+				Database:   b.Unwrap(),
+				RestConfig: restConfig,
+
+				Name:   b.Name,
+				Labels: databaseLabels,
+			},
+		)
+	} else {
+		for _, nodeSetSpecInline := range b.Spec.NodeSets {
+			nodeSetLabels := databaseLabels.Copy()
+			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+
+			optionalBuilders = append(
+				optionalBuilders,
+				&DatabaseNodeSetBuilder{
+					Object: b,
+
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
+
+					DatabaseNodeSetSpec: b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
+				},
+			)
+		}
+	}
 
 	return optionalBuilders
+}
+
+func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api.DatabaseNodeSetSpecInline) api.DatabaseNodeSetSpec {
+	nodeSetSpec := api.DatabaseNodeSetSpec{}
+
+	nodeSetSpec.DatabaseRef = api.NamespacedRef{
+		Name:      b.Name,
+		Namespace: b.GetNamespace(),
+	}
+
+	nodeSetSpec.DatabaseClusterSpec = b.Spec.DatabaseClusterSpec
+	nodeSetSpec.DatabaseNodeSpec = b.Spec.DatabaseNodeSpec
+
+	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
+
+	if nodeSetSpecInline.Resources != nil {
+		nodeSetSpec.Resources = nodeSetSpecInline.Resources
+	}
+
+	if nodeSetSpecInline.SharedResources != nil {
+		nodeSetSpec.Resources = nodeSetSpecInline.SharedResources
+	}
+
+	nodeSetSpec.NodeSelector = CopyDict(b.Spec.NodeSelector)
+	if nodeSetSpecInline.NodeSelector != nil {
+		for k, v := range nodeSetSpecInline.NodeSelector {
+			nodeSetSpec.NodeSelector[k] = v
+		}
+	}
+
+	if nodeSetSpecInline.Affinity != nil {
+		nodeSetSpec.Affinity = nodeSetSpecInline.Affinity
+	}
+
+	if nodeSetSpecInline.TopologySpreadConstraints != nil {
+		nodeSetSpec.TopologySpreadConstraints = nodeSetSpecInline.TopologySpreadConstraints
+	}
+
+	if nodeSetSpecInline.Tolerations != nil {
+		nodeSetSpec.Tolerations = append(nodeSetSpec.Tolerations, nodeSetSpecInline.Tolerations...)
+	}
+
+	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
+		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
+	}
+
+	nodeSetSpec.AdditionalLabels = CopyDict(b.Spec.AdditionalLabels)
+	if nodeSetSpecInline.AdditionalLabels != nil {
+		for k, v := range nodeSetSpecInline.AdditionalLabels {
+			nodeSetSpec.AdditionalLabels[k] = v
+		}
+	}
+
+	nodeSetSpec.AdditionalAnnotations = CopyDict(b.Spec.AdditionalAnnotations)
+	if nodeSetSpecInline.AdditionalAnnotations != nil {
+		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
+			nodeSetSpec.AdditionalAnnotations[k] = v
+		}
+	}
+
+	return nodeSetSpec
 }

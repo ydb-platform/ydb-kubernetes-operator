@@ -5,11 +5,12 @@ import "time"
 type ClusterState string
 
 const (
-	StoragePausedCondition = "StoragePaused"
-	StoragePausedReason    = "PauseIsSet"
-
-	DatabasePausedCondition = "DatabasePaused"
-	DatabasePausedReason    = "PauseIsSet"
+	StoragePausedCondition             = "StoragePaused"
+	StorageInitializedCondition        = "StorageReady"
+	StorageNodeSetReadyCondition       = "StorageNodeSetReady"
+	DatabasePausedCondition            = "DatabasePaused"
+	DatabaseTenantInitializedCondition = "TenantInitialized"
+	DatabaseNodeSetReadyCondition      = "DatabaseNodeSetReady"
 
 	Stop     = true
 	Continue = false
@@ -28,11 +29,11 @@ const (
 	DatabaseInitializing ClusterState = "Initializing"
 	DatabaseReady        ClusterState = "Ready"
 	DatabasePaused       ClusterState = "Paused"
-	DatabaseResuming     ClusterState = "Resuming"
 
-	DatabaseTenantInitializedCondition        = "TenantInitialized"
-	DatabaseTenantInitializedReasonInProgress = ReasonInProgress
-	DatabaseTenantInitializedReasonCompleted  = ReasonCompleted
+	DatabaseNodeSetPending      ClusterState = "Pending"
+	DatabaseNodeSetProvisioning ClusterState = "Provisioning"
+	DatabaseNodeSetReady        ClusterState = "Ready"
+	DatabaseNodeSetPaused       ClusterState = "Paused"
 
 	StoragePending      ClusterState = "Pending"
 	StoragePreparing    ClusterState = "Preparing"
@@ -40,13 +41,15 @@ const (
 	StorageInitializing ClusterState = "Initializing"
 	StorageReady        ClusterState = "Ready"
 	StoragePaused       ClusterState = "Paused"
-	StorageResuming     ClusterState = "Resuming"
 
-	StorageInitializedCondition        = "StorageReady"
-	StorageInitializedReasonInProgress = ReasonInProgress
-	StorageInitializedReasonCompleted  = ReasonCompleted
+	StorageNodeSetPending      ClusterState = "Pending"
+	StorageNodeSetProvisioning ClusterState = "Provisioning"
+	StorageNodeSetReady        ClusterState = "Ready"
+	StorageNodeSetPaused       ClusterState = "Paused"
 
 	TenantCreationRequeueDelay      = 30 * time.Second
 	StorageAwaitRequeueDelay        = 30 * time.Second
 	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
+
+	OwnerControllerKey = ".metadata.controller"
 )

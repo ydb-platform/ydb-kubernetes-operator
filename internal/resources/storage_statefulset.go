@@ -26,6 +26,7 @@ type StorageStatefulSetBuilder struct {
 	*v1alpha1.Storage
 	RestConfig *rest.Config
 
+	Name   string
 	Labels map[string]string
 }
 
@@ -55,11 +56,16 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 	if sts.ObjectMeta.Name == "" {
 		sts.ObjectMeta.Name = b.Name
 	}
-	sts.ObjectMeta.Namespace = b.Namespace
+	sts.ObjectMeta.Namespace = b.GetNamespace()
 	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
 
+	replicas := ptr.Int32(b.Spec.Nodes)
+	if b.Spec.Pause {
+		replicas = ptr.Int32(0)
+	}
+
 	sts.Spec = appsv1.StatefulSetSpec{
-		Replicas: ptr.Int32(b.Spec.Nodes),
+		Replicas: replicas,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				labels.StatefulsetComponent: b.Name,
@@ -67,7 +73,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.GetName()),
+		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Storage.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 
@@ -95,14 +101,6 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 }
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	dnsConfigSearches := []string{
-		fmt.Sprintf(
-			"%s-interconnect.%s.svc.cluster.local", // fixme .svc.cluster.local should not be hardcoded
-			b.Name,
-			b.Namespace,
-		),
-	}
-
 	podTemplateLabels := CopyDict(b.Labels)
 	podTemplateLabels[labels.StatefulsetComponent] = b.Name
 
@@ -122,7 +120,9 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
-				Searches: dnsConfigSearches,
+				Searches: []string{
+          fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+        },
 			},
 		},
 	}
@@ -198,7 +198,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		},
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
@@ -242,11 +242,19 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
 	command, args := b.buildCaStorePatchingInitContainerArgs()
+	containerResources := corev1.ResourceRequirements{}
+	if b.Spec.Resources != nil {
+		containerResources = *b.Spec.Resources
+	}
+	imagePullPolicy := corev1.PullIfNotPresent
+	if b.Spec.Image.PullPolicyName != nil {
+		imagePullPolicy = *b.Spec.Image.PullPolicyName
+	}
 
 	container := corev1.Container{
 		Name:            "ydb-storage-init-container",
 		Image:           b.Spec.Image.Name,
-		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
 		SecurityContext: &corev1.SecurityContext{
@@ -254,7 +262,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		},
 
 		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
-		Resources:    b.Spec.Resources,
+		Resources:    containerResources,
 	}
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{
@@ -269,7 +277,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 
 func (b *StorageStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
 	return len(b.Spec.CABundle) > 0 ||
-		IsGrpcSecure(b.Storage) ||
+		b.Spec.Service.GRPC.TLSConfiguration.Enabled ||
 		b.Spec.Service.Interconnect.TLSConfiguration.Enabled
 }
 
@@ -288,7 +296,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		})
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
@@ -308,11 +316,19 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 
 func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo add init container for sparse files?
 	command, args := b.buildContainerArgs()
+	containerResources := corev1.ResourceRequirements{}
+	if b.Spec.Resources != nil {
+		containerResources = *b.Spec.Resources
+	}
+	imagePullPolicy := corev1.PullIfNotPresent
+	if b.Spec.Image.PullPolicyName != nil {
+		imagePullPolicy = *b.Spec.Image.PullPolicyName
+	}
 
 	container := corev1.Container{
 		Name:            "ydb-storage",
 		Image:           b.Spec.Image.Name,
-		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
 
@@ -332,7 +348,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		}},
 
 		VolumeMounts: b.buildVolumeMounts(),
-		Resources:    b.Spec.Resources,
+		Resources:    containerResources,
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != v1alpha1.AnnotationValueTrue {
@@ -382,7 +398,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		},
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
@@ -436,7 +452,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]s
 		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt && ", localCertsDir) // fixme const
 	}
 

@@ -23,6 +23,13 @@ const (
 	// StatefulsetComponent The specialization of a Statefulset resource
 	StatefulsetComponent = "ydb.tech/statefulset-name"
 
+	// StorageNodeSetComponent The specialization of a StorageNodeSet resource
+	StorageNodeSetComponent = "ydb.tech/storage-nodeset"
+
+	// DatabaseNodeSetComponent The specialization of a DatabaseNodeSet resource
+	DatabaseNodeSetComponent = "ydb.tech/database-nodeset"
+
+
 	StorageComponent = "storage-node"
 	DynamicComponent = "dynamic-node"
 
