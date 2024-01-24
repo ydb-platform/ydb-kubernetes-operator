@@ -29,7 +29,6 @@ const (
 	// DatabaseNodeSetComponent The specialization of a DatabaseNodeSet resource
 	DatabaseNodeSetComponent = "ydb.tech/database-nodeset"
 
-
 	StorageComponent = "storage-node"
 	DynamicComponent = "dynamic-node"
 
