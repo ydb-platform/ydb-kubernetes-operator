@@ -144,12 +144,12 @@ type StorageNodeSpec struct {
 	// +listMapKey=topologyKey
 	// +listMapKey=whenUnsatisfiable
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
-  
+
 	// (Optional) If specified, the pod's priorityClassName.
 	// +optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
 
-  // (Optional) If specified, the pod's terminationGracePeriodSeconds.
+	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
 	// +optional
 	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
   
