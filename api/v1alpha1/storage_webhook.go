@@ -1,15 +1,21 @@
 package v1alpha1
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
 // log is for logging in this package.
@@ -18,12 +24,34 @@ var storagelog = logf.Log.WithName("storage-resource")
 func (r *Storage) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
+		WithDefaulter(&StorageDefaulter{Client: mgr.GetClient()}).
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
+func (r *Storage) GetStorageEndpointWithProto() string {
+	proto := GRPCProto
+	if r.IsStorageEndpointSecure() {
+		proto = GRPCSProto
+	}
 
-var _ webhook.Defaulter = &Storage{}
+	return fmt.Sprintf("%s%s", proto, r.GetStorageEndpoint())
+}
+
+func (r *Storage) GetStorageEndpoint() string {
+	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace)
+	if r.Spec.Service.GRPC.ExternalHost != "" {
+		host = r.Spec.Service.GRPC.ExternalHost
+	}
+
+	return fmt.Sprintf("%s:%d", host, GRPCPort)
+}
+
+func (r *Storage) IsStorageEndpointSecure() bool {
+	if r.Spec.Service.GRPC.TLSConfiguration != nil {
+		return r.Spec.Service.GRPC.TLSConfiguration.Enabled
+	}
+	return false
+}
 
 // +k8s:deepcopy-gen=false
 type PartialYamlConfig struct {
@@ -34,39 +62,69 @@ type PartialYamlConfig struct {
 	} `yaml:"domains_config"`
 }
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *Storage) Default() {
-	storagelog.Info("default", "name", r.Name)
+// StorageDefaulter mutates Storages
+// +k8s:deepcopy-gen=false
+type StorageDefaulter struct {
+	Client client.Client
+}
 
-	if r.Spec.Image.Name == "" {
-		if r.Spec.YDBVersion == "" {
-			r.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
+//+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=mutate-storage.ydb.tech,admissionReviewVersions=v1
+
+// Default implements webhook.Defaulter so a webhook will be registered for the type
+func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) error {
+	storage := obj.(*Storage)
+	storagelog.Info("default", "name", storage.Name)
+
+	if storage.Spec.Image == nil || storage.Spec.Image.Name == "" {
+		if storage.Spec.YDBVersion == "" {
+			storage.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
 		} else {
-			r.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, r.Spec.YDBVersion)
+			storage.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, storage.Spec.YDBVersion)
 		}
 	}
 
-	if r.Spec.Image.PullPolicyName == nil {
+	if storage.Spec.Image.PullPolicyName == nil {
 		policy := v1.PullIfNotPresent
-		r.Spec.Image.PullPolicyName = &policy
+		storage.Spec.Image.PullPolicyName = &policy
 	}
 
-	if r.Spec.Service.GRPC.TLSConfiguration == nil {
-		r.Spec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
-	}
-	if r.Spec.Service.Interconnect.TLSConfiguration == nil {
-		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	if storage.Spec.Resources == nil {
+		storage.Spec.Resources = &v1.ResourceRequirements{}
 	}
 
-	if r.Spec.Monitoring == nil {
-		r.Spec.Monitoring = &MonitoringOptions{
+	if storage.Spec.Service == nil {
+		storage.Spec.Service = &StorageServices{
+			GRPC:         GRPCService{},
+			Interconnect: InterconnectService{},
+			Status:       StatusService{},
+		}
+	}
+
+	if storage.Spec.Service.GRPC.TLSConfiguration == nil {
+		storage.Spec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
+
+	if storage.Spec.Service.Interconnect.TLSConfiguration == nil {
+		storage.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
+
+	if storage.Spec.Monitoring == nil {
+		storage.Spec.Monitoring = &MonitoringOptions{
 			Enabled: false,
 		}
 	}
 
-	if r.Spec.Domain == "" {
-		r.Spec.Domain = "root" // FIXME
+	if storage.Spec.Domain == "" {
+		storage.Spec.Domain = DefaultDatabaseDomain
 	}
+
+	configuration, err := buildConfiguration(storage, nil)
+	if err != nil {
+		return err
+	}
+	storage.Spec.Configuration = configuration
+
+	return nil
 }
 
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=validate-storage.ydb.tech,admissionReviewVersions=v1
@@ -117,6 +175,16 @@ func (r *Storage) ValidateCreate() error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
+	if r.Spec.NodeSets != nil {
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSets {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
+	}
+
 	reservedSecretNames := []string{
 		"database_encryption",
 		"datastreams",
@@ -143,6 +211,21 @@ func (r *Storage) ValidateCreate() error {
 	return nil
 }
 
+func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
+	oldStorageCopy := oldStorage.DeepCopy()
+	newStorageCopy := newStorage.DeepCopy()
+
+	// If we set Frozen field to the same value,
+	// the remaining diff must be empty.
+	oldStorageCopy.Spec.OperatorSync = false
+	newStorageCopy.Spec.OperatorSync = false
+
+	ignoreNonSpecFields := cmpopts.IgnoreFields(Storage{}, "Status", "ObjectMeta", "TypeMeta")
+
+	diff := cmp.Diff(oldStorageCopy, newStorageCopy, ignoreNonSpecFields)
+	return diff != "", diff
+}
+
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
@@ -151,6 +234,24 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
 	if err != nil {
 		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
+	}
+
+	if !r.Spec.OperatorSync {
+		oldStorage := old.(*Storage)
+
+		hasIllegalUpdates, diff := hasUpdatesBesidesFrozen(old.(*Storage), r)
+
+		if hasIllegalUpdates {
+			if oldStorage.Spec.OperatorSync {
+				return fmt.Errorf(
+					"it is illegal to update spec.OperatorSync and any other "+
+						"spec fields at the same time. Here is what you else tried to update: %s", diff)
+			}
+
+			return fmt.Errorf(
+				"it is illegal to update any spec fields when spec.OperatorSync is false. "+
+					"Here is what you else tried to update: %s", diff)
+		}
 	}
 
 	yamlConfig := PartialYamlConfig{}
@@ -165,7 +266,17 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
-		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
+	}
+
+	if r.Spec.NodeSets != nil {
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSets {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
 	}
 
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
@@ -173,10 +284,12 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return crdCheckError
 	}
 
-	// TODO(user): fill in your validation logic upon object update.
 	return nil
 }
 
 func (r *Storage) ValidateDelete() error {
+	if r.Status.State != StoragePaused {
+		return fmt.Errorf("storage deletion is only possible from `Paused` state, current state %v", r.Status.State)
+	}
 	return nil
 }

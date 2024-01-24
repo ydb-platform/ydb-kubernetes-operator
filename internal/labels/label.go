@@ -20,6 +20,12 @@ const (
 	// ServiceComponent The specialization of a Service resource
 	ServiceComponent = "ydb.tech/service-for"
 
+	// StorageNodeSetComponent The specialization of a StorageNodeSet resource
+	StorageNodeSetComponent = "ydb.tech/storage-nodeset"
+
+	// DatabaseNodeSetComponent The specialization of a DatabaseNodeSet resource
+	DatabaseNodeSetComponent = "ydb.tech/database-nodeset"
+
 	StorageComponent = "storage-node"
 	DynamicComponent = "dynamic-node"
 

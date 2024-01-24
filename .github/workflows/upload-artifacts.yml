@@ -7,7 +7,7 @@ on:
     branches:
       - master
 jobs:
-  tag-job: 
+  tag-job:
     runs-on: ubuntu-latest
     outputs:
       tagcreated: ${{steps.tag-step.outputs.tagcreated}}
@@ -60,7 +60,7 @@ jobs:
       env:
         SA_KEYS_FOR_PRIVATE_DOCKER_HELM_AND_PUBLIC_DOCKER: ${{ secrets.SA_KEYS_FOR_PRIVATE_DOCKER_HELM_AND_PUBLIC_DOCKER }}
     - name: parse-version-from-chart
-      run: | 
+      run: |
         VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p')
         echo "VERSION=$VERSION" >> $GITHUB_ENV
     - name: login-to-registries

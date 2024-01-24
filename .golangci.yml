@@ -169,7 +169,7 @@ linters:
     - nestif
 #    - nilnil
 #    - nlreturn
-    - nolintlint
+#    - nolintlint
 #    - prealloc
     - predeclared
     - rowserrcheck

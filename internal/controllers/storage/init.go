@@ -12,8 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -65,13 +67,13 @@ func (r *Reconciler) setInitialStatus(
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageInitializedCondition,
 			Status:  "False",
-			Reason:  StorageInitializedReasonInProgress,
+			Reason:  ReasonInProgress,
 			Message: "Storage is not ready yet",
 		})
 		changed = true
 	}
-	if storage.Status.State == string(Pending) {
-		storage.Status.State = string(Preparing)
+	if storage.Status.State == StoragePending {
+		storage.Status.State = StoragePreparing
 		changed = true
 	}
 	if changed {
@@ -88,11 +90,11 @@ func (r *Reconciler) setInitStorageCompleted(
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 		Type:    StorageInitializedCondition,
 		Status:  "True",
-		Reason:  StorageInitializedReasonCompleted,
+		Reason:  ReasonCompleted,
 		Message: message,
 	})
 
-	storage.Status.State = string(Ready)
+	storage.Status.State = StorageReady
 	return r.setState(ctx, storage)
 }
 
@@ -103,12 +105,30 @@ func (r *Reconciler) initializeStorage(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runInitScripts")
 
-	if storage.Status.State == string(Provisioning) {
-		storage.Status.State = string(Initializing)
+	if storage.Status.State == StorageProvisioning {
+		storage.Status.State = StorageInitializing
 		return r.setState(ctx, storage)
 	}
 
-	podName := fmt.Sprintf("%s-0", storage.Name)
+	// List Pods by label Selector
+	podList := &corev1.PodList{}
+	matchingLabels := client.MatchingLabels{}
+	for k, v := range storage.Labels {
+		matchingLabels[k] = v
+	}
+	opts := []client.ListOption{
+		client.InNamespace(storage.Namespace),
+		matchingLabels,
+	}
+	if err := r.List(ctx, podList, opts...); err != nil || len(podList.Items) == 0 {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"Syncing",
+			fmt.Sprintf("Failed to list storage pods: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
 
 	cmd := []string{
 		fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName),
@@ -131,13 +151,11 @@ func (r *Reconciler) initializeStorage(
 		)
 	}
 
-	if resources.IsGrpcSecure(storage.Storage) {
-		cmd = append(
-			cmd,
-			"-s",
-			storage.GetGRPCEndpointWithProto(),
-		)
-	}
+	cmd = append(
+		cmd,
+		"-s",
+		storage.GetStorageEndpointWithProto(),
+	)
 
 	cmd = append(
 		cmd,
@@ -146,7 +164,7 @@ func (r *Reconciler) initializeStorage(
 		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
 	)
 
-	stdout, _, err := exec.InPod(r.Scheme, r.Config, storage.Namespace, podName, "ydb-storage", cmd)
+	stdout, _, err := exec.InPod(r.Scheme, r.Config, storage.Namespace, podList.Items[0].Name, "ydb-storage", cmd)
 	if err != nil {
 		if mismatchItemConfigGenerationRegexp.MatchString(stdout) {
 			r.Log.Info("Storage is already initialized, continuing...")

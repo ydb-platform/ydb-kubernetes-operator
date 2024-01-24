@@ -19,7 +19,7 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 	logger := log.FromContext(ctx)
 	getSelfCheckURL := fmt.Sprintf(
 		"%s/%s",
-		cluster.GetGRPCEndpointWithProto(),
+		cluster.GetStorageEndpointWithProto(),
 		cluster.Storage.Spec.Domain,
 	)
 
@@ -28,7 +28,6 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 		ydb.WithCredentials(creds),
 	)
 	if err != nil {
-		logger.Error(err, "Error connecting to YDB storage")
 		return nil, err
 	}
 	defer func() {

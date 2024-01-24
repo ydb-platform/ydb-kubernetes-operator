@@ -1,15 +1,24 @@
 package v1alpha1
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
+)
+
+const (
+	DefaultDatabaseDomain = "Root"
 )
 
 // log is for logging in this package.
@@ -21,83 +30,120 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	manager = mgr
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
+		WithDefaulter(&DatabaseDefaulter{Client: mgr.GetClient()}).
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databases,verbs=create;update,versions=v1alpha1,name=mutate-database.ydb.tech,admissionReviewVersions=v1
-
-var _ webhook.Defaulter = &Database{}
-
-func GetDatabasePath(r *Database) string {
+func (r *Database) GetDatabasePath() string {
 	if r.Spec.Path != "" {
 		return r.Spec.Path
 	}
-	return GetLegacyDatabasePath(r)
+	return r.GetLegacyDatabasePath()
 }
 
-func GetLegacyDatabasePath(r *Database) string {
+func (r *Database) GetLegacyDatabasePath() string {
 	return fmt.Sprintf(legacyTenantNameFormat, r.Spec.Domain, r.Name) // FIXME: review later in context of multiple namespaces
 }
 
+// DatabaseDefaulter mutates Databases
+// +k8s:deepcopy-gen=false
+type DatabaseDefaulter struct {
+	Client client.Client
+}
+
+// +kubebuilder:webhook:path=/mutate-ydb-tech-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databases,verbs=create;update,versions=v1alpha1,name=mutate-database.ydb.tech,admissionReviewVersions=v1
+
 // Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *Database) Default() {
-	databaselog.Info("default", "name", r.Name)
+func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) error {
+	database := obj.(*Database)
+	databaselog.Info("default", "name", database.Name)
 
-	if r.Spec.StorageClusterRef.Namespace == "" {
-		r.Spec.StorageClusterRef.Namespace = r.Namespace
+	if database.Spec.StorageClusterRef.Namespace == "" {
+		database.Spec.StorageClusterRef.Namespace = database.Namespace
 	}
 
-	if r.Spec.ServerlessResources != nil {
-		if r.Spec.ServerlessResources.SharedDatabaseRef.Namespace == "" {
-			r.Spec.ServerlessResources.SharedDatabaseRef.Namespace = r.Namespace
+	if database.Spec.ServerlessResources != nil {
+		if database.Spec.ServerlessResources.SharedDatabaseRef.Namespace == "" {
+			database.Spec.ServerlessResources.SharedDatabaseRef.Namespace = database.Namespace
 		}
 	}
 
-	if r.Spec.Image.Name == "" {
-		if r.Spec.YDBVersion == "" {
-			r.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
+	if database.Spec.Image == nil && database.Spec.Image.Name == "" {
+		if database.Spec.YDBVersion == "" {
+			database.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
 		} else {
-			r.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, r.Spec.YDBVersion)
+			database.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, database.Spec.YDBVersion)
 		}
 	}
 
-	if r.Spec.Image.PullPolicyName == nil {
+	if database.Spec.Image.PullPolicyName == nil {
 		policy := v1.PullIfNotPresent
-		r.Spec.Image.PullPolicyName = &policy
+		database.Spec.Image.PullPolicyName = &policy
 	}
 
-	if r.Spec.Service.GRPC.TLSConfiguration == nil {
-		r.Spec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
-	}
-	if r.Spec.Service.Interconnect.TLSConfiguration == nil {
-		r.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
-	}
-
-	if r.Spec.Service.Datastreams.TLSConfiguration == nil {
-		r.Spec.Service.Datastreams.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	if database.Spec.Service == nil {
+		database.Spec.Service = &DatabaseServices{
+			GRPC:         GRPCService{},
+			Interconnect: InterconnectService{},
+			Status:       StatusService{},
+			Datastreams:  DatastreamsService{},
+		}
 	}
 
-	if r.Spec.Domain == "" {
-		r.Spec.Domain = DefaultDatabaseDomain // FIXME: default domain should be "Root", not "root"
+	if database.Spec.Service.GRPC.TLSConfiguration == nil {
+		database.Spec.Service.GRPC.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
-	if r.Spec.Path == "" {
-		r.Spec.Path = GetLegacyDatabasePath(r)
+	if database.Spec.Service.Interconnect.TLSConfiguration == nil {
+		database.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
-	if r.Spec.Encryption == nil {
-		r.Spec.Encryption = &EncryptionConfig{Enabled: false}
+	if database.Spec.Service.Datastreams.TLSConfiguration == nil {
+		database.Spec.Service.Datastreams.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
-	if r.Spec.Datastreams == nil {
-		r.Spec.Datastreams = &DatastreamsConfig{Enabled: false}
+	if database.Spec.Domain == "" {
+		database.Spec.Domain = DefaultDatabaseDomain
 	}
 
-	if r.Spec.Monitoring == nil {
-		r.Spec.Monitoring = &MonitoringOptions{
+	if database.Spec.Path == "" {
+		database.Spec.Path = database.GetLegacyDatabasePath()
+	}
+
+	if database.Spec.Encryption == nil {
+		database.Spec.Encryption = &EncryptionConfig{Enabled: false}
+	}
+
+	if database.Spec.Datastreams == nil {
+		database.Spec.Datastreams = &DatastreamsConfig{Enabled: false}
+	}
+
+	if database.Spec.Monitoring == nil {
+		database.Spec.Monitoring = &MonitoringOptions{
 			Enabled: false,
 		}
 	}
+
+	storage := &Storage{}
+	err := r.Client.Get(ctx, types.NamespacedName{
+		Namespace: database.Spec.StorageClusterRef.Namespace,
+		Name:      database.Spec.StorageClusterRef.Name,
+	}, storage)
+	if err != nil {
+		return err
+	}
+
+	if database.Spec.StorageEndpoint == "" {
+		database.Spec.StorageEndpoint = storage.GetStorageEndpointWithProto()
+	}
+
+	configuration, err := buildConfiguration(storage, database)
+	if err != nil {
+		return err
+	}
+	database.Spec.Configuration = configuration
+
+	return nil
 }
 
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databases,verbs=create;update,versions=v1alpha1,name=validate-database.ydb.tech,admissionReviewVersions=v1
@@ -126,6 +172,16 @@ func (r *Database) ValidateCreate() error {
 		}
 	}
 
+	if r.Spec.NodeSets != nil {
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSets {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
+	}
+
 	crdCheckError := checkMonitoringCRD(manager, databaselog, r.Spec.Monitoring != nil)
 	if crdCheckError != nil {
 		return crdCheckError
@@ -143,8 +199,18 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 		return errors.New("database domain cannot be changed")
 	}
 
-	if GetDatabasePath(oldDatabase) != GetDatabasePath(r) {
+	if oldDatabase.GetDatabasePath() != r.GetDatabasePath() {
 		return errors.New("database path cannot be changed")
+	}
+
+	if r.Spec.NodeSets != nil {
+		var nodesInSetsCount int32
+		for _, nodeSetInline := range r.Spec.NodeSets {
+			nodesInSetsCount += nodeSetInline.Nodes
+		}
+		if nodesInSetsCount != r.Spec.Nodes {
+			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		}
 	}
 
 	crdCheckError := checkMonitoringCRD(manager, databaselog, r.Spec.Monitoring != nil)
@@ -156,5 +222,8 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 }
 
 func (r *Database) ValidateDelete() error {
+	if r.Status.State != DatabasePaused {
+		return fmt.Errorf("database deletion is only possible from `Paused` state, current state %v", r.Status.State)
+	}
 	return nil
 }

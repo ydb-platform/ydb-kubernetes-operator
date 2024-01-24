@@ -44,7 +44,7 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	if useExistingCluster && !(strings.Contains(cfg.Host, "127.0.0.1") || strings.Contains(cfg.Host, "localhost")) {
+	if useExistingCluster && !(strings.Contains(cfg.Host, "127.0.0.1") || strings.Contains(cfg.Host, "::1") || strings.Contains(cfg.Host, "localhost")) {
 		Fail("You are trying to run e2e tests against some real cluster, not the local `kind` cluster!")
 	}
 

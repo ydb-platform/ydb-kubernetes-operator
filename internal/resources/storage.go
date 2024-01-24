@@ -1,14 +1,14 @@
 package resources
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -23,35 +23,27 @@ func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	return StorageClusterBuilder{cr}
 }
 
-func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() {
+func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
 	if b.Status.Conditions == nil {
 		b.Status.Conditions = []metav1.Condition{}
+
+		if b.Spec.Pause {
+			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
+				Type:    StoragePausedCondition,
+				Status:  "True",
+				Reason:  ReasonCompleted,
+				Message: "State Storage set to Paused",
+			})
+
+			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+		}
 	}
+
+	return Continue, ctrl.Result{}, nil
 }
 
 func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 	return b.DeepCopy()
-}
-
-func (b *StorageClusterBuilder) GetGRPCEndpoint() string {
-	host := fmt.Sprintf("%s-grpc.%s.svc.cluster.local", b.Name, b.Namespace) // FIXME .svc.cluster.local should not be hardcoded
-	if b.Spec.Service.GRPC.ExternalHost != "" {
-		host = b.Spec.Service.GRPC.ExternalHost
-	}
-	return fmt.Sprintf("%s:%d", host, api.GRPCPort)
-}
-
-func (b *StorageClusterBuilder) GetGRPCEndpointWithProto() string {
-	proto := api.GRPCProto
-	if IsGrpcSecure(b.Storage) {
-		proto = api.GRPCSProto
-	}
-
-	return fmt.Sprintf("%s%s", proto, b.GetGRPCEndpoint())
-}
-
-func IsGrpcSecure(s *api.Storage) bool {
-	return s.Spec.Service.GRPC.TLSConfiguration != nil && s.Spec.Service.GRPC.TLSConfiguration.Enabled
 }
 
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
@@ -59,14 +51,14 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	cfg, _ := configuration.Build(b.Unwrap(), nil)
-
 	optionalBuilders = append(
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
 			Name:   b.Storage.GetName(),
-			Data:   cfg,
+			Data: map[string]string{
+				api.ConfigFileName: b.Spec.Configuration,
+			},
 			Labels: storageLabels,
 		},
 	)
@@ -97,6 +89,38 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	}
+
+	if b.Spec.NodeSets == nil {
+		optionalBuilders = append(
+			optionalBuilders,
+			&StorageStatefulSetBuilder{
+				Storage:    b.Unwrap(),
+				RestConfig: restConfig,
+
+				Name:   b.Name,
+				Labels: storageLabels,
+			},
+		)
+	} else {
+		for _, nodeSetSpecInline := range b.Spec.NodeSets {
+			nodeSetLabels := storageLabels.Copy()
+			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+
+			optionalBuilders = append(
+				optionalBuilders,
+				&StorageNodeSetBuilder{
+					Object: b,
+
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
+
+					StorageNodeSetSpec: b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
+				},
+			)
+		}
+	}
+
 	return append(
 		optionalBuilders,
 		&ServiceBuilder{
@@ -139,10 +163,70 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			IPFamilies:     b.Spec.Service.Status.IPFamilies,
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
-		&StorageStatefulSetBuilder{
-			Storage:    b.Unwrap(),
-			Labels:     storageLabels,
-			RestConfig: restConfig,
-		},
 	)
+}
+
+func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline *api.StorageNodeSetSpecInline) api.StorageNodeSetSpec {
+	nodeSetSpec := api.StorageNodeSetSpec{}
+
+	nodeSetSpec.StorageRef = api.NamespacedRef{
+		Name:      b.Name,
+		Namespace: b.Namespace,
+	}
+
+	nodeSetSpec.StorageClusterSpec = b.Spec.StorageClusterSpec
+	nodeSetSpec.StorageNodeSpec = b.Spec.StorageNodeSpec
+
+	nodeSetSpec.Nodes = nodeSetSpecInline.Nodes
+
+	if nodeSetSpecInline.DataStore != nil {
+		nodeSetSpec.DataStore = nodeSetSpecInline.DataStore
+	}
+
+	if nodeSetSpecInline.Resources != nil {
+		nodeSetSpec.Resources = nodeSetSpecInline.Resources
+	}
+
+	if nodeSetSpecInline.HostNetwork != nodeSetSpec.HostNetwork {
+		nodeSetSpec.HostNetwork = nodeSetSpecInline.HostNetwork
+	}
+
+	nodeSetSpec.NodeSelector = CopyDict(b.Spec.NodeSelector)
+	if nodeSetSpecInline.NodeSelector != nil {
+		for k, v := range nodeSetSpecInline.NodeSelector {
+			nodeSetSpec.NodeSelector[k] = v
+		}
+	}
+
+	if nodeSetSpecInline.Affinity != nil {
+		nodeSetSpec.Affinity = nodeSetSpecInline.Affinity
+	}
+
+	if nodeSetSpecInline.Tolerations != nil {
+		nodeSetSpec.Tolerations = append(nodeSetSpec.Tolerations, nodeSetSpecInline.Tolerations...)
+	}
+
+	if nodeSetSpecInline.TopologySpreadConstraints != nil {
+		nodeSetSpec.TopologySpreadConstraints = append(nodeSetSpec.TopologySpreadConstraints, nodeSetSpecInline.TopologySpreadConstraints...)
+	}
+
+	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
+		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
+	}
+
+	nodeSetSpec.AdditionalLabels = CopyDict(b.Spec.AdditionalLabels)
+	if nodeSetSpecInline.AdditionalLabels != nil {
+		for k, v := range nodeSetSpecInline.AdditionalLabels {
+			nodeSetSpec.AdditionalLabels[k] = v
+		}
+	}
+
+	nodeSetSpec.AdditionalAnnotations = CopyDict(b.Spec.AdditionalAnnotations)
+	if nodeSetSpecInline.AdditionalAnnotations != nil {
+		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
+			nodeSetSpec.AdditionalAnnotations[k] = v
+		}
+	}
+
+	return nodeSetSpec
 }

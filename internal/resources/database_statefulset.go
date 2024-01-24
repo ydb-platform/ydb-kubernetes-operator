@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -23,8 +22,9 @@ type DatabaseStatefulSetBuilder struct {
 	*v1alpha1.Database
 	RestConfig *rest.Config
 
-	Labels  map[string]string
-	Storage *v1alpha1.Storage
+	Name            string
+	Labels          map[string]string
+	StorageEndpoint string
 }
 
 var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
@@ -38,17 +38,22 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	if sts.ObjectMeta.Name == "" {
 		sts.ObjectMeta.Name = b.Name
 	}
-	sts.ObjectMeta.Namespace = b.Namespace
+	sts.ObjectMeta.Namespace = b.GetNamespace()
 	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
 
+	replicas := ptr.Int32(b.Spec.Nodes)
+	if b.Spec.Pause {
+		replicas = ptr.Int32(0)
+	}
+
 	sts.Spec = appsv1.StatefulSetSpec{
-		Replicas: ptr.Int32(b.Spec.Nodes),
+		Replicas: replicas,
 		Selector: &metav1.LabelSelector{
 			MatchLabels: b.Labels,
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Name),
+		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Database.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 
@@ -78,14 +83,6 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	dnsConfigSearches := []string{
-		fmt.Sprintf(
-			"%s-interconnect.%s.svc.cluster.local",
-			b.Spec.StorageClusterRef.Name,
-			b.Namespace,
-		),
-	}
-
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
@@ -103,7 +100,9 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
-				Searches: dnsConfigSearches,
+				Searches: []string{
+					fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace),
+				},
 			},
 		},
 	}
@@ -150,11 +149,11 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		},
 	}
 
-	if IsGrpcSecure(b.Storage) {
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
-	if b.Spec.Service.Interconnect.TLSConfiguration != nil && b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
@@ -164,7 +163,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
 		volumes = append(volumes, b.buildDatastreamsIAMServiceAccountKeyVolume())
-		if b.Spec.Service.Datastreams.TLSConfiguration != nil && b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
+		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumes = append(volumes, buildTLSVolume(datastreamsTLSVolumeName, b.Spec.Service.Datastreams.TLSConfiguration))
 		}
 	}
@@ -205,11 +204,14 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
 	command, args := b.buildCaStorePatchingInitContainerArgs()
-
+	imagePullPolicy := corev1.PullIfNotPresent
+	if b.Spec.Image.PullPolicyName != nil {
+		imagePullPolicy = *b.Spec.Image.PullPolicyName
+	}
 	container := corev1.Container{
 		Name:            "ydb-storage-init-container",
 		Image:           b.Spec.Image.Name,
-		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
 		SecurityContext: &corev1.SecurityContext{
@@ -330,7 +332,7 @@ func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
 				Items: []corev1.KeyToPath{
 					{
 						Key:  secretKey,
-						Path: configuration.DatabaseEncryptionKeyFile,
+						Path: v1alpha1.DatabaseEncryptionKeyFile,
 					},
 				},
 			},
@@ -347,7 +349,7 @@ func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume(
 				Items: []corev1.KeyToPath{
 					{
 						Key:  b.Spec.Datastreams.IAMServiceAccountKey.Key,
-						Path: configuration.DatastreamsIAMServiceAccountKeyFile,
+						Path: v1alpha1.DatastreamsIAMServiceAccountKeyFile,
 					},
 				},
 			},
@@ -357,10 +359,14 @@ func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume(
 
 func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 	command, args := b.buildContainerArgs()
+	imagePullPolicy := corev1.PullIfNotPresent
+	if b.Spec.Image.PullPolicyName != nil {
+		imagePullPolicy = *b.Spec.Image.PullPolicyName
+	}
 	container := corev1.Container{
 		Name:            "ydb-dynamic",
 		Image:           b.Spec.Image.Name,
-		ImagePullPolicy: *b.Spec.Image.PullPolicyName,
+		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
 		Env:             b.buildEnv(),
@@ -417,7 +423,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		MountPath: v1alpha1.ConfigDir,
 	})
 
-	if IsGrpcSecure(b.Storage) {
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
@@ -437,7 +443,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      encryptionVolumeName,
 			ReadOnly:  true,
-			MountPath: configuration.DatabaseEncryptionKeyPath,
+			MountPath: v1alpha1.DatabaseEncryptionKeyPath,
 		})
 	}
 
@@ -445,7 +451,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      datastreamsIAMServiceAccountKeyVolumeName,
 			ReadOnly:  true,
-			MountPath: configuration.DatastreamsIAMServiceAccountKeyPath,
+			MountPath: v1alpha1.DatastreamsIAMServiceAccountKeyPath,
 		})
 		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
@@ -514,11 +520,6 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
 
-	db := NewDatabase(b.DeepCopy())
-	db.Storage = b.Storage
-
-	tenantName := v1alpha1.GetDatabasePath(b.Database)
-
 	args := []string{
 		"server",
 
@@ -532,10 +533,10 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
 
 		"--tenant",
-		tenantName,
+		b.GetDatabasePath(),
 
 		"--node-broker",
-		db.GetStorageEndpointWithProto(),
+		b.StorageEndpoint,
 	}
 
 	for _, secret := range b.Spec.Secrets {
@@ -561,22 +562,22 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		}
 	}
 
-	if b.Spec.Service.GRPC.ExternalHost == "" {
-		service := fmt.Sprintf(interconnectServiceNameFormat, b.GetName())
-		b.Spec.Service.GRPC.ExternalHost = fmt.Sprintf("%s.%s.svc.cluster.local", service, b.GetNamespace()) // FIXME .svc.cluster.local
-	}
-
 	publicHostOption := "--grpc-public-host"
+	publicHost := fmt.Sprintf(v1alpha1.GRPCServiceFQDNFormat, b.Database.Name, b.GetNamespace()) // FIXME .svc.cluster.local
+	if b.Spec.Service.GRPC.ExternalHost != "" {
+		publicHost = b.Spec.Service.GRPC.ExternalHost
+	}
 	publicPortOption := "--grpc-public-port"
+	publicPort := v1alpha1.GRPCPort
 
 	args = append(
 		args,
 
 		publicHostOption,
-		fmt.Sprintf("%s.%s", "$(NODE_NAME)", b.Spec.Service.GRPC.ExternalHost), // fixme $(NODE_NAME)
+		fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
 
 		publicPortOption,
-		strconv.Itoa(v1alpha1.GRPCPort),
+		strconv.Itoa(publicPort),
 	)
 
 	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDataCenter]; ok {

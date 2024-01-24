@@ -3,46 +3,36 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 // DatabaseSpec defines the desired state of Database
 type DatabaseSpec struct {
-	// Number of nodes (pods) in the cluster
-	// +required
-	Nodes int32 `json:"nodes"`
+	DatabaseClusterSpec `json:",inline"`
 
-	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
+	DatabaseNodeSpec `json:",inline"`
+
+	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
+  // Default: (not specified)
 	// +optional
-	Configuration string `json:"configuration"`
+	NodeSets []DatabaseNodeSetSpecInline `json:"nodeSets,omitempty"`
+}
 
-	// (Optional) Storage services parameter overrides
-	// Default: (not specified)
-	// +optional
-	Service DatabaseServices `json:"service,omitempty"`
-
+type DatabaseClusterSpec struct {
 	// YDB Storage cluster reference
 	// +required
-	StorageClusterRef StorageRef `json:"storageClusterRef"`
+	StorageClusterRef NamespacedRef `json:"storageClusterRef"`
 
-	// Encryption
+	// YDB Storage Node broker address
 	// +optional
-	Encryption *EncryptionConfig `json:"encryption,omitempty"`
-
-	// Additional volumes that will be mounted into the well-known directory of
-	// every storage pod. Directiry: `/opt/ydb/volumes/<volume_name>`.
-	// Only `hostPath` volume type is supported for now.
-	// +optional
-	Volumes []*corev1.Volume `json:"volumes,omitempty"`
-
-	// Datastreams config
-	// +optional
-	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
+	StorageEndpoint string `json:"storageEndpoint"`
 
 	// (Optional) Name of the root storage domain
-	// Default: root
+	// Default: Root
 	// +kubebuilder:validation:Pattern:=[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?
 	// +kubebuilder:validation:MaxLength:=63
-	// +kubebuilder:default:="root"
+	// +kubebuilder:default:="Root"
 	// +optional
 	Domain string `json:"domain"`
 
@@ -53,47 +43,56 @@ type DatabaseSpec struct {
 	// +optional
 	Path string `json:"path,omitempty"`
 
-	// (Optional) Database storage and compute resources
-	// +optional
-	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
-
-	// (Optional) Shared resources can be used by serverless databases.
-	// +optional
-	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
-
 	// (Optional) If specified, created database will be "serverless".
 	// +optional
 	ServerlessResources *ServerlessDatabaseResources `json:"serverlessResources,omitempty"`
 
-	// (Optional) Public host to advertise on discovery requests
-	// Default: ""
+	// Encryption configuration
 	// +optional
-	PublicHost string `json:"publicHost,omitempty"`
+	Encryption *EncryptionConfig `json:"encryption,omitempty"`
+
+	// (Optional) YDB Image
+	// +optional
+	Image *PodImage `json:"image,omitempty"`
 
 	// (Optional) YDBVersion sets the explicit version of the YDB image
 	// Default: ""
 	// +optional
 	YDBVersion string `json:"version,omitempty"`
 
-	// (Optional) YDB Image
-	// +optional
-	Image PodImage `json:"image,omitempty"`
-
-	// List of initialization containers belonging to the pod.
-	// Init containers are executed in order prior to containers being started. If any
-	// init container fails, the pod is considered to have failed and is handled according
-	// to its restartPolicy. The name for an init container or normal container must be
-	// unique among all containers.
-	// Init containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.
-	// The resourceRequirements of an init container are taken into account during scheduling
-	// by finding the highest request/limit for each resource type, and then using the max of
-	// that value or the sum of the normal containers. Limits are applied to init containers
-	// in a similar fashion.
-	// Init containers cannot currently be added or removed.
-	// Cannot be updated.
+	// (Optional) List of initialization containers belonging to the pod.
+	// Init containers are executed in order prior to containers being started.
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 	// +optional
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+
+	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
+	// +optional
+	Configuration string `json:"configuration"`
+
+	// (Optional) Storage services parameter overrides
+	// Default: (not specified)
+	// +optional
+	Service *DatabaseServices `json:"service,omitempty"`
+
+	// Datastreams config
+	// +optional
+	Datastreams *DatastreamsConfig `json:"datastreams,omitempty"`
+
+	// The state of the Database processes.
+	// `true` means all the Database Pods are being killed, but the Database resource is persisted.
+	// `false` means the default state of the system, all Pods running.
+	// +kubebuilder:default:=false
+	// +optional
+	Pause bool `json:"pause"`
+
+	// Enables or disables operator's reconcile loop.
+	// `false` means all the Pods are running, but the reconcile is effectively turned off.
+	// `true` means the default state of the system, all Pods running, operator reacts
+	// to specification change of this Database resource.
+	// +kubebuilder:default:=true
+	// +optional
+	OperatorSync bool `json:"operatorSync"`
 
 	// (Optional) Monitoring sets configuration options for YDB observability
 	// Default: ""
@@ -110,7 +109,27 @@ type DatabaseSpec struct {
 	// +optional
 	Secrets []*corev1.LocalObjectReference `json:"secrets,omitempty"`
 
-	// NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Additional volumes that will be mounted into the well-known directory of
+	// every storage pod. Directory: `/opt/ydb/volumes/<volume_name>`.
+	// Only `hostPath` volume type is supported for now.
+	// +optional
+	Volumes []*corev1.Volume `json:"volumes,omitempty"`
+}
+
+type DatabaseNodeSpec struct {
+	// Number of nodes (pods) in the cluster
+	// +required
+	Nodes int32 `json:"nodes"`
+
+	// (Optional) Database storage and compute resources
+	// +optional
+	Resources *DatabaseResources `json:"resources,omitempty"` // TODO: Add validation webhook: some resources must be specified
+
+	// (Optional) Shared resources can be used by serverless databases.
+	// +optional
+	SharedResources *DatabaseResources `json:"sharedResources,omitempty"`
+
+	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 	// +optional
@@ -133,7 +152,15 @@ type DatabaseSpec struct {
 	// +listMapKey=topologyKey
 	// +listMapKey=whenUnsatisfiable
 	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty" patchStrategy:"merge" patchMergeKey:"topologyKey"`
+  
+	// (Optional) If specified, the pod's priorityClassName.
+	// +optional
+	PriorityClassName string `json:"priorityClassName,omitempty"`
 
+  // (Optional) If specified, the pod's terminationGracePeriodSeconds.
+	// +optional
+	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
+  
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
@@ -141,14 +168,6 @@ type DatabaseSpec struct {
 	// (Optional) Additional custom resource annotations that are added to all resources
 	// +optional
 	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
-
-	// (Optional) If specified, the pod's priorityClassName.
-	// +optional
-	PriorityClassName string `json:"priorityClassName,omitempty"`
-
-	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
-	// +optional
-	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
 }
 
 type DatabaseResources struct {
@@ -168,7 +187,7 @@ type DatabaseResources struct {
 type ServerlessDatabaseResources struct {
 	// Reference to YDB Database with configured shared resources
 	// +required
-	SharedDatabaseRef SharedDatabaseRef `json:"sharedDatabaseRef,omitempty"`
+	SharedDatabaseRef NamespacedRef `json:"sharedDatabaseRef"`
 }
 
 type StorageUnit struct {
@@ -185,8 +204,8 @@ type StorageUnit struct {
 
 // DatabaseStatus defines the observed state of Database
 type DatabaseStatus struct {
-	State      string             `json:"state"`
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -214,26 +233,6 @@ type DatabaseList struct {
 	Items           []Database `json:"items"`
 }
 
-// PodImage represents the image information for a container that is used
-// to build the StatefulSet.
-type PodImage struct {
-	// Container image with supported YDB version.
-	// This defaults to the version pinned to the operator and requires a full container and tag/sha name.
-	// For instance: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.2.22
-	// +required
-	Name string `json:"name,omitempty"`
-
-	// (Optional) PullPolicy for the image, which defaults to IfNotPresent.
-	// Default: IfNotPresent
-	// +optional
-	PullPolicyName *corev1.PullPolicy `json:"pullPolicy,omitempty"`
-
-	// (Optional) Secret name containing the dockerconfig to use for a registry that requires authentication. The secret
-	// must be configured first by the user.
-	// +optional
-	PullSecret *string `json:"pullSecret,omitempty"`
-}
-
 // EncryptionConfig todo
 type EncryptionConfig struct {
 	// +required
@@ -253,31 +252,6 @@ type DatastreamsConfig struct {
 
 	// +required
 	IAMServiceAccountKey *corev1.SecretKeySelector `json:"iam_service_account_key,omitempty"`
-}
-
-// StorageRef todo
-type StorageRef struct {
-	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +required
-	Name string `json:"name"`
-
-	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +optional
-	Namespace string `json:"namespace"`
-}
-
-type SharedDatabaseRef struct {
-	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +required
-	Name string `json:"name"`
-
-	// +kubebuilder:validation:Pattern:=[a-z0-9]([-a-z0-9]*[a-z0-9])?
-	// +kubebuilder:validation:MaxLength:=63
-	// +optional
-	Namespace string `json:"namespace"`
 }
 
 type DatabaseServices struct {
