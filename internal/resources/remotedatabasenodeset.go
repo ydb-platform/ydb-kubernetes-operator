@@ -53,26 +53,14 @@ func (b *RemoteDatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Obje
 }
 
 func (b *RemoteDatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	database := b.recastRemoteDatabaseNodeSet()
-
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
-		&DatabaseStatefulSetBuilder{
-			Database:   database.DeepCopy(),
-			RestConfig: restConfig,
-
-			Name:            b.Name,
-			Labels:          b.Labels,
-			StorageEndpoint: b.Spec.StorageEndpoint,
-		},
-		&ConfigMapBuilder{
+		&DatabaseNodeSetBuilder{
 			Object: b,
 
-			Name: b.Name,
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
-			},
-			Labels: b.Labels,
+			Name:                b.Name,
+			Labels:              b.Labels,
+			DatabaseNodeSetSpec: b.Spec,
 		},
 	)
 	return resourceBuilders
@@ -101,22 +89,4 @@ func (b *RemoteDatabaseNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.
 	}
 
 	return Continue, ctrl.Result{}, nil
-}
-
-func (b *RemoteDatabaseNodeSetResource) Unwrap() *api.RemoteDatabaseNodeSet {
-	return b.DeepCopy()
-}
-
-func (b *RemoteDatabaseNodeSetResource) recastRemoteDatabaseNodeSet() *api.Database {
-	return &api.Database{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.RemoteDatabaseNodeSet.Spec.DatabaseRef.Name,
-			Namespace: b.RemoteDatabaseNodeSet.Spec.DatabaseRef.Namespace,
-			Labels:    b.RemoteDatabaseNodeSet.Labels,
-		},
-		Spec: api.DatabaseSpec{
-			DatabaseClusterSpec: b.Spec.DatabaseClusterSpec,
-			DatabaseNodeSpec:    b.Spec.DatabaseNodeSpec,
-		},
-	}
 }
