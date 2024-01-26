@@ -53,25 +53,14 @@ func (b *RemoteStorageNodeSetBuilder) Placeholder(cr client.Object) client.Objec
 }
 
 func (b *RemoteStorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	Storage := b.recastRemoteStorageNodeSet()
-
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
-		&StorageStatefulSetBuilder{
-			Storage:    Storage.DeepCopy(),
-			RestConfig: restConfig,
-
-			Name:   b.Name,
-			Labels: b.Labels,
-		},
-		&ConfigMapBuilder{
+		&StorageNodeSetBuilder{
 			Object: b,
 
-			Name: b.Name,
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
-			},
-			Labels: b.Labels,
+			Name:               b.Name,
+			Labels:             b.Labels,
+			StorageNodeSetSpec: b.Spec,
 		},
 	)
 	return resourceBuilders
@@ -100,22 +89,4 @@ func (b *RemoteStorageNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.R
 	}
 
 	return Continue, ctrl.Result{}, nil
-}
-
-func (b *RemoteStorageNodeSetResource) Unwrap() *api.RemoteStorageNodeSet {
-	return b.DeepCopy()
-}
-
-func (b *RemoteStorageNodeSetResource) recastRemoteStorageNodeSet() *api.Storage {
-	return &api.Storage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.RemoteStorageNodeSet.Spec.StorageRef.Name,
-			Namespace: b.RemoteStorageNodeSet.Spec.StorageRef.Namespace,
-			Labels:    b.RemoteStorageNodeSet.Labels,
-		},
-		Spec: api.StorageSpec{
-			StorageClusterSpec: b.Spec.StorageClusterSpec,
-			StorageNodeSpec:    b.Spec.StorageNodeSpec,
-		},
-	}
 }
