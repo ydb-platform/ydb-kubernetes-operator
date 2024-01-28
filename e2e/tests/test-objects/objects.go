@@ -13,7 +13,6 @@ import (
 const (
 	YdbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
 	YdbNamespace  = "ydb"
-	YdbHome       = "/home/ydb"
 	StorageName   = "storage"
 	DatabaseName  = "database"
 	DefaultDomain = "Root"
