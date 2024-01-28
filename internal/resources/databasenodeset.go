@@ -61,9 +61,8 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 			Database:   database.DeepCopy(),
 			RestConfig: restConfig,
 
-			Name:            b.Name,
-			Labels:          b.Labels,
-			StorageEndpoint: b.Spec.StorageEndpoint,
+			Name:   b.Name,
+			Labels: b.Labels,
 		},
 		&ConfigMapBuilder{
 			Object: b,
