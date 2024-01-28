@@ -22,9 +22,8 @@ type DatabaseStatefulSetBuilder struct {
 	*v1alpha1.Database
 	RestConfig *rest.Config
 
-	Name            string
-	Labels          map[string]string
-	StorageEndpoint string
+	Name   string
+	Labels map[string]string
 }
 
 var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
@@ -536,7 +535,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		b.GetDatabasePath(),
 
 		"--node-broker",
-		b.StorageEndpoint,
+		b.Spec.StorageEndpoint,
 	}
 
 	for _, secret := range b.Spec.Secrets {
