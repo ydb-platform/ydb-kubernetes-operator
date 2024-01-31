@@ -469,6 +469,11 @@ func (in *DatabaseNodeSpec) DeepCopyInto(out *DatabaseNodeSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.TerminationGracePeriodSeconds != nil {
+		in, out := &in.TerminationGracePeriodSeconds, &out.TerminationGracePeriodSeconds
+		*out = new(int64)
+		**out = **in
+	}
 	if in.AdditionalLabels != nil {
 		in, out := &in.AdditionalLabels, &out.AdditionalLabels
 		*out = make(map[string]string, len(*in))
@@ -482,11 +487,6 @@ func (in *DatabaseNodeSpec) DeepCopyInto(out *DatabaseNodeSpec) {
 		for key, val := range *in {
 			(*out)[key] = val
 		}
-	}
-	if in.TerminationGracePeriodSeconds != nil {
-		in, out := &in.TerminationGracePeriodSeconds, &out.TerminationGracePeriodSeconds
-		*out = new(int64)
-		**out = **in
 	}
 }
 
@@ -1234,6 +1234,11 @@ func (in *StorageNodeSpec) DeepCopyInto(out *StorageNodeSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.TerminationGracePeriodSeconds != nil {
+		in, out := &in.TerminationGracePeriodSeconds, &out.TerminationGracePeriodSeconds
+		*out = new(int64)
+		**out = **in
+	}
 	if in.AdditionalLabels != nil {
 		in, out := &in.AdditionalLabels, &out.AdditionalLabels
 		*out = make(map[string]string, len(*in))
@@ -1247,11 +1252,6 @@ func (in *StorageNodeSpec) DeepCopyInto(out *StorageNodeSpec) {
 		for key, val := range *in {
 			(*out)[key] = val
 		}
-	}
-	if in.TerminationGracePeriodSeconds != nil {
-		in, out := &in.TerminationGracePeriodSeconds, &out.TerminationGracePeriodSeconds
-		*out = new(int64)
-		**out = **in
 	}
 }
 
