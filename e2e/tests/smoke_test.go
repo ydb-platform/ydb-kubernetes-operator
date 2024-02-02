@@ -195,7 +195,6 @@ var _ = Describe("Operator smoke test", func() {
 
 		databaseSample.Spec.StorageClusterRef.Namespace = ""
 		databaseSample.Spec.Image = nil
-		databaseSample.Spec.Resources = nil
 		databaseSample.Spec.Service = nil
 		databaseSample.Spec.Domain = ""
 		databaseSample.Spec.Path = ""
