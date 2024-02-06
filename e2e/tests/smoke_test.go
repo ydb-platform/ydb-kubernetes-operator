@@ -431,7 +431,6 @@ var _ = Describe("Operator smoke test", func() {
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
 
 		database := v1alpha1.Database{}
-		databaseNodeSetList := v1alpha1.DatabaseNodeSetList{}
 		databasePods := corev1.PodList{}
 		By("delete nodeSetSpec inline to check inheritance...")
 		Eventually(func(g Gomega) error {
