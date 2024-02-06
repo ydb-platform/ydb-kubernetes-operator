@@ -19,9 +19,8 @@ type StorageNodeSetSpec struct {
 
 // StorageNodeSetStatus defines the observed state
 type StorageNodeSetStatus struct {
-	State                     constants.ClusterState `json:"state"`
-	Conditions                []metav1.Condition     `json:"conditions,omitempty"`
-	ObservedStorageGeneration int64                  `json:"observedStorageGeneration,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 // StorageNodeSetSpecInline describes an group nodes object inside parent object

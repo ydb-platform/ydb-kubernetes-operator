@@ -57,7 +57,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.Get(ctx, req.NamespacedName, database)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.Log.Info("database resources not found")
+			r.Log.Info("%s resources not found", DatabaseResourceKind)
 			return ctrl.Result{Requeue: false}, nil
 		}
 		r.Log.Error(err, "unexpected Get error")
@@ -104,7 +104,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Database...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != "Database" {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != DatabaseResourceKind {
 				return nil
 			}
 
@@ -126,7 +126,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Database...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != "Database" {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != DatabaseResourceKind {
 				return nil
 			}
 

@@ -434,26 +434,6 @@ var _ = Describe("Operator smoke test", func() {
 		}
 		Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
 
-		By("check that ObservedDatabaseGeneration changed...")
-		Eventually(func(g Gomega) bool {
-			database := v1alpha1.Database{}
-			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      databaseSample.Name,
-				Namespace: testobjects.YdbNamespace,
-			}, &database)).Should(Succeed())
-
-			databaseNodeSetList := v1alpha1.DatabaseNodeSetList{}
-			g.Expect(k8sClient.List(ctx, &databaseNodeSetList,
-				client.InNamespace(testobjects.YdbNamespace),
-			)).Should(Succeed())
-			for _, databaseNodeSet := range databaseNodeSetList.Items {
-				if database.GetGeneration() != databaseNodeSet.Status.ObservedDatabaseGeneration {
-					return false
-				}
-			}
-			return true
-		}, Timeout, Interval).Should(BeTrue())
-
 		By("expecting databaseNodeSet pods deletion...")
 		Eventually(func(g Gomega) bool {
 			database := v1alpha1.Database{}

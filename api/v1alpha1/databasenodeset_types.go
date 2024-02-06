@@ -19,9 +19,8 @@ type DatabaseNodeSetSpec struct {
 
 // DatabaseNodeSetStatus defines the observed state
 type DatabaseNodeSetStatus struct {
-	State                      constants.ClusterState `json:"state"`
-	Conditions                 []metav1.Condition     `json:"conditions,omitempty"`
-	ObservedDatabaseGeneration int64                  `json:"observedDatabaseGeneration,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 // DatabaseNodeSetSpecInline describes an group nodes object inside parent object
