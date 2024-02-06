@@ -4624,9 +4624,6 @@ spec:
                   - type
                   type: object
                 type: array
-              observedStorageGeneration:
-                format: int64
-                type: integer
               state:
                 type: string
             required:
