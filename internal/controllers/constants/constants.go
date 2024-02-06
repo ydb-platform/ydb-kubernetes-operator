@@ -5,6 +5,9 @@ import "time"
 type ClusterState string
 
 const (
+	StorageResourceKind  = "Storage"
+	DatabaseResourceKind = "Database"
+
 	StoragePausedCondition             = "StoragePaused"
 	StorageInitializedCondition        = "StorageReady"
 	StorageNodeSetReadyCondition       = "StorageNodeSetReady"
