@@ -3175,7 +3175,16 @@ spec:
                     remote:
                       description: (Optional) Object should be reference to remote
                         object
-                      type: boolean
+                      properties:
+                        region:
+                          description: (Optional) Remote cloud region to deploy into
+                          type: string
+                        zone:
+                          description: Remote cloud zone to deploy into
+                          type: string
+                      required:
+                      - zone
+                      type: object
                     resources:
                       description: (Optional) Database storage and compute resources
                       properties:
