@@ -191,50 +191,58 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			},
 		)
 	} else {
-		for _, nodeSetSpecInline := range b.Spec.NodeSets {
-			nodeSetLabels := databaseLabels.Copy()
-			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
-			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
-
-			databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
-
-			if nodeSetSpecInline.Remote != nil {
-				if nodeSetSpecInline.Remote.Region != "" {
-					nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-						labels.TopologyRegionKey: nodeSetSpecInline.Remote.Region,
-					})
-				}
-				nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-					labels.TopologyZoneKey: nodeSetSpecInline.Remote.Zone,
-				})
-				optionalBuilders = append(
-					optionalBuilders,
-					&RemoteDatabaseNodeSetBuilder{
-						Object: b,
-
-						Name:   b.Name + "-" + nodeSetSpecInline.Name,
-						Labels: nodeSetLabels,
-
-						DatabaseNodeSetSpec: databaseNodeSetSpec,
-					},
-				)
-			} else {
-				optionalBuilders = append(
-					optionalBuilders,
-					&DatabaseNodeSetBuilder{
-						Object: b,
-
-						Name:   b.Name + "-" + nodeSetSpecInline.Name,
-						Labels: nodeSetLabels,
-
-						DatabaseNodeSetSpec: databaseNodeSetSpec,
-					},
-				)
-			}
-		}
+		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(databaseLabels)...)
 	}
 
 	return optionalBuilders
+}
+
+func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []ResourceBuilder {
+	var nodeSetBuilders []ResourceBuilder
+
+	for _, nodeSetSpecInline := range b.Spec.NodeSets {
+		nodeSetLabels := databaseLabels.Copy()
+		nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+		nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+
+		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
+
+		if nodeSetSpecInline.Remote != nil {
+			if nodeSetSpecInline.Remote.Region != "" {
+				nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+					labels.TopologyRegionKey: nodeSetSpecInline.Remote.Region,
+				})
+			}
+			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+				labels.TopologyZoneKey: nodeSetSpecInline.Remote.Zone,
+			})
+			nodeSetBuilders = append(
+				nodeSetBuilders,
+				&RemoteDatabaseNodeSetBuilder{
+					Object: b,
+
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
+
+					DatabaseNodeSetSpec: databaseNodeSetSpec,
+				},
+			)
+		} else {
+			nodeSetBuilders = append(
+				nodeSetBuilders,
+				&DatabaseNodeSetBuilder{
+					Object: b,
+
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
+
+					DatabaseNodeSetSpec: databaseNodeSetSpec,
+				},
+			)
+		}
+	}
+
+	return nodeSetBuilders
 }
 
 func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api.DatabaseNodeSetSpecInline) api.DatabaseNodeSetSpec {
