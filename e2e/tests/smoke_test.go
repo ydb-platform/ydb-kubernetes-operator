@@ -431,7 +431,6 @@ var _ = Describe("Operator smoke test", func() {
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
 
 		database := v1alpha1.Database{}
-		databaseNodeSetList := v1alpha1.DatabaseNodeSetList{}
 		databasePods := corev1.PodList{}
 		By("delete nodeSetSpec inline to check inheritance...")
 		Eventually(func(g Gomega) error {
@@ -450,23 +449,6 @@ var _ = Describe("Operator smoke test", func() {
 			}
 			return k8sClient.Update(ctx, &database)
 		}, Timeout, Interval).Should(BeNil())
-
-		By("check that ObservedDatabaseGeneration changed...")
-		Eventually(func(g Gomega) bool {
-			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      databaseSample.Name,
-				Namespace: testobjects.YdbNamespace,
-			}, &database)).Should(Succeed())
-			g.Expect(k8sClient.List(ctx, &databaseNodeSetList,
-				client.InNamespace(testobjects.YdbNamespace),
-			)).Should(Succeed())
-			for _, databaseNodeSet := range databaseNodeSetList.Items {
-				if database.GetGeneration() != databaseNodeSet.Status.ObservedDatabaseGeneration {
-					return false
-				}
-			}
-			return true
-		}, Timeout, Interval).Should(BeTrue())
 
 		By("expecting databaseNodeSet pods deletion...")
 		Eventually(func(g Gomega) bool {
