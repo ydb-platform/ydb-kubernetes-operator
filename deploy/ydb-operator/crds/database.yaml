@@ -3175,7 +3175,13 @@ spec:
                     remote:
                       description: (Optional) Object should be reference to remote
                         object
-                      type: boolean
+                      properties:
+                        cluster:
+                          description: Remote cluster to deploy NodeSet into
+                          type: string
+                      required:
+                      - cluster
+                      type: object
                     resources:
                       description: (Optional) Database storage and compute resources
                       properties:
