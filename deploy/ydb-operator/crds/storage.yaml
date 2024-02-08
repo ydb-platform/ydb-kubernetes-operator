@@ -3558,14 +3558,11 @@ spec:
                       description: (Optional) Object should be reference to remote
                         object
                       properties:
-                        region:
-                          description: (Optional) Remote cloud region to deploy into
-                          type: string
-                        zone:
-                          description: Remote cloud zone to deploy into
+                        cluster:
+                          description: Remote cluster to deploy NodeSet into
                           type: string
                       required:
-                      - zone
+                      - cluster
                       type: object
                     resources:
                       description: '(Optional) Container resource limits. Any container

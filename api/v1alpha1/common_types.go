@@ -36,11 +36,7 @@ type PodImage struct {
 }
 
 type RemoteSpec struct {
-	// (Optional) Remote cloud region to deploy into
-	// +optional
-	Region string `json:"region,omitempty"`
-
-	// Remote cloud zone to deploy into
+	// Remote cluster to deploy NodeSet into
 	// +required
-	Zone string `json:"zone"`
+	Cluster string `json:"cluster"`
 }
