@@ -4069,6 +4069,10 @@ spec:
                 required:
                 - name
                 type: object
+              terminationGracePeriodSeconds:
+                description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
+                format: int64
+                type: integer
               storageEndpoint:
                 description: YDB Storage Node broker address
                 type: string

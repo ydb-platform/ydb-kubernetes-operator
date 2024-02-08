@@ -149,6 +149,10 @@ type StorageNodeSpec struct {
 	// +optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
 
+	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
+	// +optional
+	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
+
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`

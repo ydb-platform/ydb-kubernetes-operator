@@ -4183,6 +4183,10 @@ spec:
                         type: string
                     type: object
                 type: object
+              terminationGracePeriodSeconds:
+                description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
+                format: int64
+                type: integer
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
                 items:

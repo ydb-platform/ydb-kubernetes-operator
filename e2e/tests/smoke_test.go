@@ -30,8 +30,6 @@ const (
 	Interval = time.Second * 5
 )
 
-var HostPathDirectoryType corev1.HostPathType = "Directory"
-
 func podIsReady(conditions []corev1.PodCondition) bool {
 	for _, condition := range conditions {
 		if condition.Type == testobjects.ReadyStatus && condition.Status == "True" {
@@ -39,33 +37,6 @@ func podIsReady(conditions []corev1.PodCondition) bool {
 		}
 	}
 	return false
-}
-
-func execInPod(namespace string, name string, cmd []string) (string, error) {
-	args := []string{
-		"-n",
-		namespace,
-		"exec",
-		name,
-		"--",
-	}
-	args = append(args, cmd...)
-	result := exec.Command("kubectl", args...)
-	stdout, err := result.Output()
-	return string(stdout), err
-}
-
-func bringYdbCliToPod(namespace string, name string, ydbHome string) error {
-	args := []string{
-		"-n",
-		namespace,
-		"cp",
-		fmt.Sprintf("%v/ydb/bin/ydb", os.ExpandEnv("$HOME")),
-		fmt.Sprintf("%v:%v/ydb", name, ydbHome),
-	}
-	result := exec.Command("kubectl", args...)
-	_, err := result.Output()
-	return err
 }
 
 func installOperatorWithHelm(namespace string) bool {
@@ -145,11 +116,67 @@ func checkPodsRunningAndReady(ctx context.Context, podLabelKey, podLabelValue st
 		})).Should(Succeed())
 		g.Expect(len(pods.Items)).Should(BeEquivalentTo(nPods))
 		for _, pod := range pods.Items {
-			g.Expect(pod.Status.Phase).To(BeEquivalentTo("Running"))
-			g.Expect(podIsReady(pod.Status.Conditions)).To(BeTrue())
+			g.Expect(pod.Status.Phase).Should(BeEquivalentTo("Running"))
+			g.Expect(podIsReady(pod.Status.Conditions)).Should(BeTrue())
 		}
 		return true
 	}, Timeout, Interval).Should(BeTrue())
+
+	Consistently(func(g Gomega) bool {
+		pods := corev1.PodList{}
+		g.Expect(k8sClient.List(ctx, &pods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+			podLabelKey: podLabelValue,
+		})).Should(Succeed())
+		g.Expect(len(pods.Items)).Should(BeEquivalentTo(nPods))
+		for _, pod := range pods.Items {
+			g.Expect(pod.Status.Phase).Should(BeEquivalentTo("Running"))
+			g.Expect(podIsReady(pod.Status.Conditions)).Should(BeTrue())
+		}
+		return true
+	}, 30*time.Second, Interval).Should(BeTrue())
+}
+
+func bringYdbCliToPod(podName, podNamespace string) {
+	Eventually(func(g Gomega) error {
+		args := []string{
+			"-n",
+			podNamespace,
+			"cp",
+			fmt.Sprintf("%v/ydb/bin/ydb", os.ExpandEnv("$HOME")),
+			fmt.Sprintf("%v:/tmp/ydb", podName),
+		}
+		cmd := exec.Command("kubectl", args...)
+		return cmd.Run()
+	}, Timeout, Interval).Should(BeNil())
+}
+
+func executeSimpleQuery(ctx context.Context, podName, podNamespace, storageEndpoint string) {
+	Eventually(func(g Gomega) string {
+		args := []string{
+			"-n",
+			podNamespace,
+			"exec",
+			podName,
+			"--",
+			"/tmp/ydb",
+			"-d",
+			"/" + testobjects.DefaultDomain,
+			"-e" + storageEndpoint,
+			"yql",
+			"-s",
+			"select 1",
+		}
+		output, err := exec.Command("kubectl", args...).Output()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// `yql` gives output in the following format:
+		// ┌─────────┐
+		// | column0 |
+		// ├─────────┤
+		// | 1       |
+		// └─────────┘
+		return strings.ReplaceAll(string(output), "\n", "")
+	}, Timeout, Interval).Should(MatchRegexp(".*column0.*1.*"))
 }
 
 var _ = Describe("Operator smoke test", func() {
@@ -206,38 +233,24 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the database pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
 
+		database := v1alpha1.Database{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &database)).Should(Succeed())
+		storageEndpoint := database.Spec.StorageEndpoint
+
 		databasePods := corev1.PodList{}
-		err := k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+		Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
 			"ydb-cluster": "kind-database",
-		})
-		Expect(err).To(BeNil())
-		firstDBPod := databasePods.Items[0].Name
+		})).Should(Succeed())
+		podName := databasePods.Items[0].Name
 
-		Expect(bringYdbCliToPod(testobjects.YdbNamespace, firstDBPod, testobjects.YdbHome)).To(Succeed())
+		By("bring YDB CLI inside ydb database pod...")
+		bringYdbCliToPod(podName, testobjects.YdbNamespace)
 
-		Eventually(func(g Gomega) {
-			out, err := execInPod(testobjects.YdbNamespace, firstDBPod, []string{
-				fmt.Sprintf("%v/ydb", testobjects.YdbHome),
-				"-d",
-				"/" + testobjects.DefaultDomain,
-				"-e",
-				"grpc://localhost:2135",
-				"yql",
-				"-s",
-				"select 1",
-			})
-
-			g.Expect(err).To(BeNil())
-
-			// `yql` gives output in the following format:
-			// ┌─────────┐
-			// | column0 |
-			// ├─────────┤
-			// | 1       |
-			// └─────────┘
-			g.Expect(strings.ReplaceAll(out, "\n", "")).
-				To(MatchRegexp(".*column0.*1.*"))
-		})
+		By("execute simple query inside ydb database pod...")
+		executeSimpleQuery(ctx, podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	It("pause and un-pause Storage, should destroy and bring up Pods", func() {
@@ -417,73 +430,51 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the database pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
 
-		By("delete nodeSetSpec inline to check inheritance...")
 		database := v1alpha1.Database{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      databaseSample.Name,
-			Namespace: testobjects.YdbNamespace,
-		}, &database)).Should(Succeed())
-		database.Spec.Nodes = 4
-		database.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
-			{
-				Name: testNodeSetName + "-" + strconv.Itoa(1),
-				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-					Nodes: 4,
+		databaseNodeSetList := v1alpha1.DatabaseNodeSetList{}
+		databasePods := corev1.PodList{}
+		By("delete nodeSetSpec inline to check inheritance...")
+		Eventually(func(g Gomega) error {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &database)).Should(Succeed())
+			database.Spec.Nodes = 4
+			database.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
+				{
+					Name: testNodeSetName + "-" + strconv.Itoa(1),
+					DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+						Nodes: 4,
+					},
 				},
-			},
-		}
-		Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
+			}
+			return k8sClient.Update(ctx, &database)
+		}, Timeout, Interval).Should(BeNil())
 
 		By("expecting databaseNodeSet pods deletion...")
 		Eventually(func(g Gomega) bool {
-			database := v1alpha1.Database{}
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      databaseSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &database)).Should(Succeed())
 
-			databasePods := corev1.PodList{}
 			g.Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
 				"ydb-cluster": "kind-database",
 			})).Should(Succeed())
 			return len(databasePods.Items) == int(database.Spec.Nodes)
 		}, Timeout, Interval).Should(BeTrue())
 
+		storageEndpoint := database.Spec.StorageEndpoint
+		Expect(k8sClient.List(ctx, &databasePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+			"ydb-cluster": "kind-database",
+		})).Should(Succeed())
+		podName := databasePods.Items[0].Name
+
+		By("bring YDB CLI inside ydb database pod...")
+		bringYdbCliToPod(podName, testobjects.YdbNamespace)
+
 		By("execute simple query inside ydb database pod...")
-		databasePods := corev1.PodList{}
-		err := k8sClient.List(ctx, &databasePods,
-			client.InNamespace(testobjects.YdbNamespace),
-			client.MatchingLabels{
-				"ydb-cluster": "kind-database",
-			})
-		Expect(err).To(BeNil())
-		firstDBPod := databasePods.Items[0].Name
-
-		Expect(bringYdbCliToPod(testobjects.YdbNamespace, firstDBPod, testobjects.YdbHome)).To(Succeed())
-
-		Eventually(func(g Gomega) {
-			out, err := execInPod(testobjects.YdbNamespace, firstDBPod, []string{
-				fmt.Sprintf("%v/ydb", testobjects.YdbHome),
-				"-d",
-				"/" + testobjects.DefaultDomain,
-				"-e",
-				"grpc://localhost:2135",
-				"yql",
-				"-s",
-				"select 1",
-			})
-
-			g.Expect(err).To(BeNil())
-
-			// `yql` gives output in the following format:
-			// ┌─────────┐
-			// | column0 |
-			// ├─────────┤
-			// | 1       |
-			// └─────────┘
-			g.Expect(strings.ReplaceAll(out, "\n", "")).
-				To(MatchRegexp(".*column0.*1.*"))
-		})
+		executeSimpleQuery(ctx, podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	It("operatorConnection check, create storage with default staticCredentials", func() {
@@ -518,7 +509,7 @@ var _ = Describe("Operator smoke test", func() {
 		By("tracking storage state changes...")
 		events, err := clientset.CoreV1().Events(testobjects.YdbNamespace).List(context.Background(),
 			metav1.ListOptions{TypeMeta: metav1.TypeMeta{Kind: "Storage"}})
-		Expect(err).ToNot(HaveOccurred())
+		Expect(err).ShouldNot(HaveOccurred())
 
 		allowedChanges := map[ClusterState]ClusterState{
 			StoragePending:      StoragePreparing,
@@ -531,7 +522,7 @@ var _ = Describe("Operator smoke test", func() {
 		for _, event := range events.Items {
 			if event.Reason == "StatusChanged" {
 				match := re.FindStringSubmatch(event.Message)
-				Expect(allowedChanges[ClusterState(match[1])]).To(BeEquivalentTo(ClusterState(match[2])))
+				Expect(allowedChanges[ClusterState(match[1])]).Should(BeEquivalentTo(ClusterState(match[2])))
 			}
 		}
 	})

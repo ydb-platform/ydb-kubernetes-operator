@@ -22,9 +22,8 @@ type DatabaseStatefulSetBuilder struct {
 	*v1alpha1.Database
 	RestConfig *rest.Config
 
-	Name            string
-	Labels          map[string]string
-	StorageEndpoint string
+	Name   string
+	Labels map[string]string
 }
 
 var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
@@ -89,12 +88,13 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
-			Containers:                []corev1.Container{b.buildContainer()},
-			NodeSelector:              b.Spec.NodeSelector,
-			Affinity:                  b.Spec.Affinity,
-			Tolerations:               b.Spec.Tolerations,
-			PriorityClassName:         b.Spec.PriorityClassName,
-			TopologySpreadConstraints: b.Spec.TopologySpreadConstraints,
+			Containers:                    []corev1.Container{b.buildContainer()},
+			NodeSelector:                  b.Spec.NodeSelector,
+			Affinity:                      b.Spec.Affinity,
+			Tolerations:                   b.Spec.Tolerations,
+			PriorityClassName:             b.Spec.PriorityClassName,
+			TopologySpreadConstraints:     b.Spec.TopologySpreadConstraints,
+			TerminationGracePeriodSeconds: b.Spec.TerminationGracePeriodSeconds,
 
 			Volumes: b.buildVolumes(),
 
@@ -535,7 +535,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		b.GetDatabasePath(),
 
 		"--node-broker",
-		b.StorageEndpoint,
+		b.Spec.StorageEndpoint,
 	}
 
 	for _, secret := range b.Spec.Secrets {
