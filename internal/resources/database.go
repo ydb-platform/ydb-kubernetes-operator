@@ -208,13 +208,8 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 
 		if nodeSetSpecInline.Remote != nil {
-			if nodeSetSpecInline.Remote.Region != "" {
-				nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-					labels.TopologyRegionKey: nodeSetSpecInline.Remote.Region,
-				})
-			}
 			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-				labels.TopologyZoneKey: nodeSetSpecInline.Remote.Zone,
+				labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster,
 			})
 			nodeSetBuilders = append(
 				nodeSetBuilders,

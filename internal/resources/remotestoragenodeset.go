@@ -3,14 +3,10 @@ package resources
 import (
 	"errors"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
 type RemoteStorageNodeSetBuilder struct {
@@ -52,7 +48,7 @@ func (b *RemoteStorageNodeSetBuilder) Placeholder(cr client.Object) client.Objec
 	}
 }
 
-func (b *RemoteStorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
 		&StorageNodeSetBuilder{
@@ -70,23 +66,4 @@ func NewRemoteStorageNodeSet(remoteStorageNodeSet *api.RemoteStorageNodeSet) Rem
 	crRemoteStorageNodeSet := remoteStorageNodeSet.DeepCopy()
 
 	return RemoteStorageNodeSetResource{RemoteStorageNodeSet: crRemoteStorageNodeSet}
-}
-
-func (b *RemoteStorageNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
-	if b.Status.Conditions == nil {
-		b.Status.Conditions = []metav1.Condition{}
-
-		if b.Spec.Pause {
-			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
-				Type:    StoragePausedCondition,
-				Status:  "False",
-				Reason:  ReasonInProgress,
-				Message: "Transitioning RemoteStorageNodeSet to Paused state",
-			})
-
-			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
-		}
-	}
-
-	return Continue, ctrl.Result{}, nil
 }
