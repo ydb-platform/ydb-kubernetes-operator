@@ -9,7 +9,10 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -17,6 +20,8 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/databasenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/remotedatabasenodeset"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/remotestoragenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storagenodeset"
 )
@@ -39,6 +44,8 @@ func main() {
 	var disableWebhooks bool
 	var enableServiceMonitors bool
 	var probeAddr string
+	var remoteKubeconfig string
+	var remoteCluster string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -46,6 +53,8 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&disableWebhooks, "disable-webhooks", false, "Disable webhooks registration on start.")
 	flag.BoolVar(&enableServiceMonitors, "with-service-monitors", false, "Enables service monitoring")
+	flag.StringVar(&remoteKubeconfig, "remote-kubeconfig", "/remote-kubeconfig", "Path to kubeconfig for remote k8s cluster. Only required if using Remote objects")
+	flag.StringVar(&remoteCluster, "remote-cluster", "", "The name of remote cluster to sync k8s resources. Only required if using Remote objects")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -143,6 +152,64 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	if remoteKubeconfig != "" && remoteCluster != "" {
+		remoteConfig, err := clientcmd.BuildConfigFromFlags("", remoteKubeconfig)
+		if err != nil {
+			setupLog.Error(err, "unable to read remote kubeconfig")
+			os.Exit(1)
+		}
+
+		storageSelector, err := remotestoragenodeset.BuildRemoteSelector(remoteCluster)
+		if err != nil {
+			setupLog.Error(err, "unable to create label selector", "selector", "RemoteStorageNodeSet")
+			os.Exit(1)
+		}
+
+		databaseSelector, err := remotedatabasenodeset.BuildRemoteSelector(remoteCluster)
+		if err != nil {
+			setupLog.Error(err, "unable to create label selector", "selector", "RemoteDatabaseNodeSet")
+			os.Exit(1)
+		}
+
+		remoteCluster, err := cluster.New(remoteConfig, func(o *cluster.Options) {
+			o.Scheme = scheme
+			o.NewCache = cache.BuilderWithOptions(cache.Options{
+				SelectorsByObject: cache.SelectorsByObject{
+					&ydbv1alpha1.RemoteStorageNodeSet{}:  {Label: storageSelector},
+					&ydbv1alpha1.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
+				},
+			})
+		})
+		if err != nil {
+			setupLog.Error(err, "unable to create remote client")
+			os.Exit(1)
+		}
+
+		if err = mgr.Add(remoteCluster); err != nil {
+			setupLog.Error(err, "unable to add remote client to controller manager")
+			os.Exit(1)
+		}
+
+		if err = (&remotestoragenodeset.Reconciler{
+			Client:       mgr.GetClient(),
+			RemoteClient: remoteCluster.GetClient(),
+			Scheme:       mgr.GetScheme(),
+		}).SetupWithManager(mgr, &remoteCluster); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "RemoteStorageNodeSet")
+			os.Exit(1)
+		}
+
+		if err = (&remotedatabasenodeset.Reconciler{
+			Client:       mgr.GetClient(),
+			RemoteClient: remoteCluster.GetClient(),
+			Scheme:       mgr.GetScheme(),
+		}).SetupWithManager(mgr, &remoteCluster); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "RemoteDatabaseNodeSet")
+			os.Exit(1)
+		}
+	}
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
