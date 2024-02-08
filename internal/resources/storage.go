@@ -160,13 +160,8 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 
 		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {
-			if nodeSetSpecInline.Remote.Region != "" {
-				nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-					labels.TopologyRegionKey: nodeSetSpecInline.Remote.Region,
-				})
-			}
 			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-				labels.TopologyZoneKey: nodeSetSpecInline.Remote.Zone,
+				labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster,
 			})
 			nodeSetBuilders = append(
 				nodeSetBuilders,
