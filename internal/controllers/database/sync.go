@@ -562,14 +562,6 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:               DatabaseNodeSetsSyncedCondition,
-		Status:             "True",
-		ObservedGeneration: database.Generation,
-		Reason:             ReasonCompleted,
-		Message:            "Synced (Remote)DatabaseNodeSets with Database spec",
-	})
-
 	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
