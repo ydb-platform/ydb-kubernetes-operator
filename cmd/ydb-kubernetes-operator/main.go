@@ -153,6 +153,7 @@ func main() {
 		}
 	}
 
+	//nolint:nestif
 	if remoteKubeconfig != "" && remoteCluster != "" {
 		remoteConfig, err := clientcmd.BuildConfigFromFlags("", remoteKubeconfig)
 		if err != nil {

@@ -106,7 +106,6 @@ func (r *Reconciler) updateStatus(
 		Name:      remoteDatabaseNodeSet.Name,
 		Namespace: remoteDatabaseNodeSet.Namespace,
 	}, &databaseNodeSet)
-
 	if err != nil {
 		if errors.IsNotFound(err) {
 			r.RemoteRecorder.Event(
