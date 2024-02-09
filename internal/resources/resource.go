@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	grpcServiceNameFormat         = "%s-grpc"
-	interconnectServiceNameFormat = "%s-interconnect"
-	statusServiceNameFormat       = "%s-status"
-	datastreamsServiceNameFormat  = "%s-datastreams"
+	GRPCServiceNameFormat         = "%s-grpc"
+	InterconnectServiceNameFormat = "%s-interconnect"
+	StatusServiceNameFormat       = "%s-status"
+	DatastreamsServiceNameFormat  = "%s-datastreams"
 
 	grpcTLSVolumeName         = "grpc-tls-volume"
 	interconnectTLSVolumeName = "interconnect-tls-volume"

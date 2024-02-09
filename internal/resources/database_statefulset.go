@@ -52,7 +52,7 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Database.Name),
+		ServiceName:          fmt.Sprintf(InterconnectServiceNameFormat, b.Database.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 

@@ -6,9 +6,14 @@ import (
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -22,12 +27,29 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *ydbv1alph
 	var err error
 
 	remoteStorageNodeSet := resources.NewRemoteStorageNodeSet(crRemoteStorageNodeSet)
+
+	remoteSecrets := getRemoteSecrets(&remoteStorageNodeSet)
+	for _, secret := range remoteSecrets {
+		stop, result, err = r.syncRemoteObject(ctx, &remoteStorageNodeSet, &secret)
+		if stop {
+			return result, err
+		}
+	}
+
+	remoteServices := getRemoteServices(&remoteStorageNodeSet)
+	for _, service := range remoteServices {
+		stop, result, err = r.syncRemoteObject(ctx, &remoteStorageNodeSet, &service)
+		if stop {
+			return result, err
+		}
+	}
+
 	stop, result, err = r.handleResourcesSync(ctx, &remoteStorageNodeSet)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.updateStatus(ctx, crRemoteStorageNodeSet)
+	stop, result, err = r.updateRemoteStatus(ctx, crRemoteStorageNodeSet)
 	if stop {
 		return result, err
 	}
@@ -55,13 +77,8 @@ func (r *Reconciler) handleResourcesSync(
 				)
 				return err
 			}
+			setPrimaryResourceAnnotations(newResource)
 
-			// Set primary resource annotation
-			newResource.SetAnnotations(map[string]string{
-				PrimaryResourceNameAnnotation:      remoteStorageNodeSet.GetName(),
-				PrimaryResourceNamespaceAnnotation: remoteStorageNodeSet.GetNamespace(),
-				PrimaryResourceTypeAnnotation:      remoteStorageNodeSet.GetObjectKind().GroupVersionKind().Kind,
-			})
 			return nil
 		}, func(oldObj, newObj runtime.Object) bool {
 			return false
@@ -94,7 +111,141 @@ func (r *Reconciler) handleResourcesSync(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) updateStatus(
+func (r *Reconciler) syncRemoteObject(
+	ctx context.Context,
+	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
+	remoteObj client.Object,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handleRemoteObjectSync")
+
+	remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
+	if err != nil {
+		r.Log.Error(err, "does not recognize GVK for resource")
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+	}
+	remoteObjKind := remoteObjGVK.Kind
+	remoteObjName := remoteObj.GetName()
+	remoteObjNamespace := remoteObj.GetNamespace()
+
+	err = r.RemoteClient.Get(ctx, types.NamespacedName{
+		Name:      remoteObjName,
+		Namespace: remoteObjNamespace,
+	}, remoteObj)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			r.Recorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
+				fmt.Sprintf("Resource %s with name %s was not found on remote cluster: %s", remoteObjKind, remoteObjName, err),
+			)
+			r.RemoteRecorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
+				fmt.Sprintf("Resource %s with name %s was not found: %s", remoteObjKind, remoteObjName, err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		}
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get resource %s with name %s on remote cluster: %s", remoteObjKind, remoteObjName, err),
+		)
+		r.RemoteRecorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Resource %s with name %s was not found: %s", remoteObjKind, remoteObjName, err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+	// get current resource version from remoteObj
+	remoteObjResourceVersion := remoteObj.GetResourceVersion()
+	// update remoteObj with primary-resource annotations
+	setPrimaryResourceAnnotations(remoteObj)
+	// use unstrsuctured objects for client to use generic
+	localObj := &unstructured.Unstructured{}
+	localObj.SetGroupVersionKind(remoteObjGVK)
+	err = r.Client.Get(ctx, types.NamespacedName{
+		Name:      remoteObjName,
+		Namespace: remoteObjNamespace,
+	}, localObj)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			if err := r.Client.Create(ctx, remoteObj); err != nil {
+				r.Recorder.Event(
+					remoteStorageNodeSet,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed to create resource %s with name %s: %s", remoteObjKind, remoteObjName, err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			}
+			r.Recorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeNormal,
+				"Provisioning",
+				fmt.Sprintf("Initial sync resource %s with name %s resourceVersion %s", remoteObjKind, remoteObjName, remoteObjResourceVersion),
+			)
+			return Continue, ctrl.Result{Requeue: false}, nil
+		}
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get resource %s with name %s on remote cluster: %s", remoteObjKind, remoteObjName, err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	observedResourceVersion, exist := localObj.GetAnnotations()[PrimaryResourceVersionAnnotation]
+	if !exist {
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed to find annotation %s with primary resource for %s with name %s", PrimaryResourceVersionAnnotation, remoteObjKind, remoteObjName),
+		)
+		if err := r.Client.Create(ctx, remoteObj); err != nil {
+			r.Recorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to create resource %s with name %s resourceVersion %s: %s", remoteObjKind, remoteObjName, remoteObjResourceVersion, err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		}
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeNormal,
+			"Provisioning",
+			fmt.Sprintf("Initial sync resource %s with name %s resourceVersion %s", remoteObjKind, remoteObjName, remoteObjResourceVersion),
+		)
+		return Continue, ctrl.Result{Requeue: false}, nil
+	}
+	if remoteObjResourceVersion != observedResourceVersion {
+		if err := r.Client.Update(ctx, remoteObj); err != nil {
+			r.Recorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to update resource %s with name %s to resourceVersion %s: %s", remoteObjKind, remoteObjName, remoteObjResourceVersion, err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		}
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeNormal,
+			"Provisioning",
+			fmt.Sprintf("Sync resource %s with name %s resourceVersion %s", remoteObjKind, remoteObjName, remoteObjResourceVersion),
+		)
+	}
+	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func (r *Reconciler) updateRemoteStatus(
 	ctx context.Context,
 	crRemoteStorageNodeSet *ydbv1alpha1.RemoteStorageNodeSet,
 ) (bool, ctrl.Result, error) {
@@ -150,4 +301,57 @@ func (r *Reconciler) updateStatus(
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func setPrimaryResourceAnnotations(obj client.Object) {
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	annotations[PrimaryResourceNameAnnotation] = obj.GetName()
+	annotations[PrimaryResourceNamespaceAnnotation] = obj.GetNamespace()
+	annotations[PrimaryResourceTypeAnnotation] = obj.GetObjectKind().GroupVersionKind().Kind
+	annotations[PrimaryResourceVersionAnnotation] = obj.GetResourceVersion()
+
+	obj.SetAnnotations(annotations)
+}
+
+func getRemoteSecrets(remoteStorageNodeSet *resources.RemoteStorageNodeSetResource) []corev1.Secret {
+	remoteSecrets := []corev1.Secret{}
+	for _, secret := range remoteStorageNodeSet.Spec.Secrets {
+		remoteSecrets = append(remoteSecrets,
+			corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secret.Name,
+					Namespace: remoteStorageNodeSet.Namespace,
+				},
+			})
+	}
+	return remoteSecrets
+}
+
+func getRemoteServices(remoteStorageNodeSet *resources.RemoteStorageNodeSetResource) []corev1.Service {
+	remoteServices := []corev1.Service{}
+	remoteServices = append(remoteServices,
+		corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf(resources.GRPCServiceNameFormat, remoteStorageNodeSet.Spec.StorageRef.Name),
+				Namespace: remoteStorageNodeSet.Namespace,
+			},
+		},
+		corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf(resources.InterconnectServiceNameFormat, remoteStorageNodeSet.Spec.StorageRef.Name),
+				Namespace: remoteStorageNodeSet.Namespace,
+			},
+		},
+		corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf(resources.StatusServiceNameFormat, remoteStorageNodeSet.Spec.StorageRef.Name),
+				Namespace: remoteStorageNodeSet.Namespace,
+			},
+		},
+	)
+	return remoteServices
 }

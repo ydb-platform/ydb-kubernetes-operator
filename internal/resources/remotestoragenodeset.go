@@ -54,8 +54,9 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 		&StorageNodeSetBuilder{
 			Object: b,
 
-			Name:               b.Name,
-			Labels:             b.Labels,
+			Name:   b.Name,
+			Labels: b.Labels,
+
 			StorageNodeSetSpec: b.Spec,
 		},
 	)
@@ -65,5 +66,19 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 func NewRemoteStorageNodeSet(remoteStorageNodeSet *api.RemoteStorageNodeSet) RemoteStorageNodeSetResource {
 	crRemoteStorageNodeSet := remoteStorageNodeSet.DeepCopy()
 
-	return RemoteStorageNodeSetResource{RemoteStorageNodeSet: crRemoteStorageNodeSet}
+	return RemoteStorageNodeSetResource{crRemoteStorageNodeSet}
+}
+
+func (b *RemoteStorageNodeSetResource) recastRemoteStorageNodeSet() api.Storage {
+	return api.Storage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      b.RemoteStorageNodeSet.Spec.StorageRef.Name,
+			Namespace: b.RemoteStorageNodeSet.Spec.StorageRef.Namespace,
+			Labels:    b.RemoteStorageNodeSet.Labels,
+		},
+		Spec: api.StorageSpec{
+			StorageClusterSpec: b.RemoteStorageNodeSet.Spec.StorageClusterSpec,
+			StorageNodeSpec:    b.RemoteStorageNodeSet.Spec.StorageNodeSpec,
+		},
+	}
 }

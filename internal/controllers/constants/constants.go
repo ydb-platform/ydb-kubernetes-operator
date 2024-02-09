@@ -58,6 +58,7 @@ const (
 	PrimaryResourceNameAnnotation      = "ydb.tech/primary-resource-name"
 	PrimaryResourceNamespaceAnnotation = "ydb.tech/primary-resource-namespace"
 	PrimaryResourceTypeAnnotation      = "ydb.tech/primary-resource-type"
+	PrimaryResourceVersionAnnotation   = "ydb.tech/primary-resource-version"
 
 	RemoteFinalizerKey = "ydb.tech/remote-finalizer"
 

@@ -70,7 +70,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Storage.Name),
+		ServiceName:          fmt.Sprintf(InterconnectServiceNameFormat, b.Storage.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 

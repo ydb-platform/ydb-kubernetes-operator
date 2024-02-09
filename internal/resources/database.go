@@ -120,7 +120,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     grpcServiceNameFormat,
+			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
@@ -133,7 +133,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		},
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     interconnectServiceNameFormat,
+			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
@@ -147,7 +147,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		},
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     statusServiceNameFormat,
+			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
@@ -165,7 +165,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			optionalBuilders,
 			&ServiceBuilder{
 				Object:         b,
-				NameFormat:     datastreamsServiceNameFormat,
+				NameFormat:     DatastreamsServiceNameFormat,
 				Labels:         datastreamsServiceLabels,
 				SelectorLabels: databaseLabels,
 				Annotations:    b.Spec.Service.Datastreams.AdditionalAnnotations,
