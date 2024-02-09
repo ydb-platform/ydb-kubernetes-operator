@@ -396,14 +396,6 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:               StorageNodeSetsSyncedCondition,
-		Status:             "True",
-		ObservedGeneration: storage.Generation,
-		Reason:             ReasonCompleted,
-		Message:            "Synced (Remote)StorageNodeSets with Storage spec",
-	})
-
 	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }

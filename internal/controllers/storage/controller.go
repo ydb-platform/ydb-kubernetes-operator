@@ -62,7 +62,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.Get(ctx, req.NamespacedName, storage)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.Log.Info("%s resources not found", StorageResourceKind)
+			r.Log.Info("%s resources not found", storage.Kind)
 			return ctrl.Result{Requeue: false}, nil
 		}
 		r.Log.Error(err, "unexpected Get error")
@@ -93,9 +93,9 @@ func ignoreDeletionPredicate() predicate.Predicate {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	controller := ctrl.NewControllerManagedBy(mgr).For(&ydbv1alpha1.Storage{})
-
-	r.Recorder = mgr.GetEventRecorderFor(StorageResourceKind)
+	resource := &ydbv1alpha1.Storage{}
+	controller := ctrl.NewControllerManagedBy(mgr).For(resource)
+	r.Recorder = mgr.GetEventRecorderFor("Storage")
 
 	if r.WithServiceMonitors {
 		controller = controller.
@@ -114,7 +114,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != StorageResourceKind {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resource.Kind {
 				return nil
 			}
 
@@ -136,7 +136,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != StorageResourceKind {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resource.Kind {
 				return nil
 			}
 
