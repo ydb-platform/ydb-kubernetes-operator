@@ -60,5 +60,7 @@ const (
 	PrimaryResourceNamespaceAnnotation = "ydb.tech/primary-resource-namespace"
 	PrimaryResourceTypeAnnotation      = "ydb.tech/primary-resource-type"
 
+	RemoteFinalizerKey = "ydb.tech/remote-finalizer"
+
 	OwnerControllerKey = ".metadata.controller"
 )

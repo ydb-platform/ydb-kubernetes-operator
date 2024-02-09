@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
@@ -13,6 +13,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -43,14 +44,48 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger := log.FromContext(ctx)
 
 	remoteStorageNodeSet := &api.RemoteStorageNodeSet{}
-
+	// we'll ignore not-found errors, since they can't be fixed by an immediate
+	// requeue (we'll need to wait for a new notification), and we can get them
+	// on deleted requests.
 	if err := r.RemoteClient.Get(ctx, req.NamespacedName, remoteStorageNodeSet); err != nil {
-		if apierrs.IsNotFound(err) {
-			logger.Info("RemoteStorageNodeSet has been deleted")
-			return r.handleRemoteResourceDeleted(ctx, req)
+		if apierrors.IsNotFound(err) {
+			logger.Info("StorageNodeSet has been deleted")
+			return ctrl.Result{Requeue: false}, nil
 		}
 		logger.Error(err, "unable to get RemoteStorageNodeSet")
-		return ctrl.Result{}, err
+		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+	}
+
+	// examine DeletionTimestamp to determine if object is under deletion
+	if remoteStorageNodeSet.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is not being deleted, so if it does not have our finalizer,
+		// then lets add the finalizer and update the object. This is equivalent
+		// to registering our finalizer.
+		if !controllerutil.ContainsFinalizer(remoteStorageNodeSet, RemoteFinalizerKey) {
+			controllerutil.AddFinalizer(remoteStorageNodeSet, RemoteFinalizerKey)
+			if err := r.RemoteClient.Update(ctx, remoteStorageNodeSet); err != nil {
+				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+		}
+	} else {
+		// The object is being deleted
+		if controllerutil.ContainsFinalizer(remoteStorageNodeSet, RemoteFinalizerKey) {
+			// our finalizer is present, so lets handle any external dependency
+			if err := r.deleteExternalResources(ctx, remoteStorageNodeSet); err != nil {
+				// if fail to delete the external dependency here, return with error
+				// so that it can be retried.
+				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+
+			// remove our finalizer from the list and update it.
+			controllerutil.RemoveFinalizer(remoteStorageNodeSet, RemoteFinalizerKey)
+			if err := r.RemoteClient.Update(ctx, remoteStorageNodeSet); err != nil {
+				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+		}
+
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{Requeue: false}, nil
 	}
 
 	result, err := r.Sync(ctx, remoteStorageNodeSet)
@@ -61,26 +96,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
-func (r *Reconciler) handleRemoteResourceDeleted(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) deleteExternalResources(ctx context.Context, remoteStorageNodeSet *api.RemoteStorageNodeSet) error {
 	logger := log.FromContext(ctx)
 
 	storageNodeSet := &api.StorageNodeSet{}
-
-	if err := r.Client.Get(ctx, req.NamespacedName, storageNodeSet); err != nil {
-		if apierrs.IsNotFound(err) {
-			logger.Info("StorageNodeSet has been deleted")
-			return ctrl.Result{Requeue: false}, nil
+	if err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      remoteStorageNodeSet.Name,
+		Namespace: remoteStorageNodeSet.Namespace,
+	}, storageNodeSet); err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.Info("StorageNodeSet not found")
+			return nil
 		}
 		logger.Error(err, "unable to get StorageNodeSet")
-		return ctrl.Result{}, err
+		return err
 	}
 
 	if err := r.Client.Delete(ctx, storageNodeSet); err != nil {
 		logger.Error(err, "unable to delete StorageNodeSet")
-		return ctrl.Result{}, err
+		return err
 	}
 
-	return ctrl.Result{Requeue: false}, nil
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -108,7 +145,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		Named("RemoteStorageNodeSet").
+		Named("remotestoragenodeset").
 		Watches(source.NewKindWithCache(&api.RemoteStorageNodeSet{}, cluster.GetCache()), &handler.EnqueueRequestForObject{}).
 		Watches(&source.Kind{Type: &api.StorageNodeSet{}}, handler.EnqueueRequestsFromMapFunc(annotationFilter)).
 		Complete(r)

@@ -22,13 +22,13 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *ydbv1alph
 	var result ctrl.Result
 	var err error
 
-	RemoteStorageNodeSet := resources.NewRemoteStorageNodeSet(crRemoteStorageNodeSet)
-	stop, result, err = r.handleResourcesSync(ctx, &RemoteStorageNodeSet)
+	remoteStorageNodeSet := resources.NewRemoteStorageNodeSet(crRemoteStorageNodeSet)
+	stop, result, err = r.handleResourcesSync(ctx, &remoteStorageNodeSet)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.updateStatus(ctx, &RemoteStorageNodeSet)
+	stop, result, err = r.updateStatus(ctx, &remoteStorageNodeSet)
 	if stop {
 		return result, err
 	}
@@ -106,7 +106,6 @@ func (r *Reconciler) updateStatus(
 		Name:      remoteStorageNodeSet.Name,
 		Namespace: remoteStorageNodeSet.Namespace,
 	}, &storageNodeSet)
-
 	if err != nil {
 		if errors.IsNotFound(err) {
 			r.RemoteRecorder.Event(
