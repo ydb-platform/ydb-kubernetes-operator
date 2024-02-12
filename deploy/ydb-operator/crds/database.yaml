@@ -2266,8 +2266,8 @@ spec:
                   labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/'
                 type: object
               nodeSets:
-                description: (Optional) NodeSet inline configuration to split into
-                  multiple StatefulSets
+                description: '(Optional) NodeSet inline configuration to split into
+                  multiple StatefulSets Default: (not specified)'
                 items:
                   description: DatabaseNodeSetSpecInline describes an group nodes
                     object inside parent object
@@ -3333,6 +3333,10 @@ spec:
                             type: object
                           type: array
                       type: object
+                    terminationGracePeriodSeconds:
+                      description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
+                      format: int64
+                      type: integer
                     tolerations:
                       description: (Optional) If specified, the pod's tolerations.
                       items:
@@ -4069,13 +4073,13 @@ spec:
                 required:
                 - name
                 type: object
+              storageEndpoint:
+                description: YDB Storage Node broker address
+                type: string
               terminationGracePeriodSeconds:
                 description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
                 format: int64
                 type: integer
-              storageEndpoint:
-                description: YDB Storage Node broker address
-                type: string
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
                 items:
