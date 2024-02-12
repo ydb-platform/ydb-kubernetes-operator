@@ -48,7 +48,7 @@ func (r *Reconciler) handleResourcesSync(
 		result, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 			err := builder.Build(newResource)
 			if err != nil {
-				r.RemoteRecorder.Event(
+				r.Recorder.Event(
 					remoteDatabaseNodeSet,
 					corev1.EventTypeWarning,
 					"ProvisioningFailed",
@@ -75,7 +75,7 @@ func (r *Reconciler) handleResourcesSync(
 			newResource.GetName(),
 		)
 		if err != nil {
-			r.RemoteRecorder.Event(
+			r.Recorder.Event(
 				remoteDatabaseNodeSet,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
@@ -83,7 +83,7 @@ func (r *Reconciler) handleResourcesSync(
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		} else if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
-			r.RemoteRecorder.Event(
+			r.Recorder.Event(
 				remoteDatabaseNodeSet,
 				corev1.EventTypeNormal,
 				"Provisioning",
@@ -108,19 +108,19 @@ func (r *Reconciler) updateStatus(
 	}, &databaseNodeSet)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.RemoteRecorder.Event(
+			r.Recorder.Event(
 				remoteDatabaseNodeSet,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				fmt.Sprintf("databaseNodeSet with name %s was not found: %s", remoteDatabaseNodeSet.Name, err),
+				fmt.Sprintf("DatabaseNodeSet with name %s was not found: %s", remoteDatabaseNodeSet.Name, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
-		r.RemoteRecorder.Event(
+		r.Recorder.Event(
 			remoteDatabaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			fmt.Sprintf("Failed to get databaseNodeSet: %s", err),
+			fmt.Sprintf("Failed to get DatabaseNodeSet: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -131,6 +131,12 @@ func (r *Reconciler) updateStatus(
 
 	err = r.RemoteClient.Status().Update(ctx, remoteDatabaseNodeSet)
 	if err != nil {
+		r.Recorder.Event(
+			remoteDatabaseNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed setting status on remote cluster: %s", err),
+		)
 		r.RemoteRecorder.Event(
 			remoteDatabaseNodeSet,
 			corev1.EventTypeWarning,
@@ -139,11 +145,17 @@ func (r *Reconciler) updateStatus(
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	} else if oldStatus != databaseNodeSet.Status.State {
+		r.Recorder.Event(
+			remoteDatabaseNodeSet,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			fmt.Sprintf("RemoteDatabaseNodeSet moved from %s to %s on remote cluster", oldStatus, remoteDatabaseNodeSet.Status.State),
+		)
 		r.RemoteRecorder.Event(
 			remoteDatabaseNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("databaseNodeSet moved from %s to %s", oldStatus, databaseNodeSet.Status.State),
+			fmt.Sprintf("RemoteDatabaseNodeSet moved from %s to %s", oldStatus, remoteDatabaseNodeSet.Status.State),
 		)
 	}
 
