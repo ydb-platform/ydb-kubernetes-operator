@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -57,15 +58,23 @@ var _ = BeforeSuite(func() {
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	_, curfile, _, _ := runtime.Caller(0) //nolint:dogsled
 	localEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")},
+		CRDDirectoryPaths: []string{
+			filepath.Join(curfile, filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")),
+		},
+		ErrorIfCRDPathMissing: true,
 	}
 	remoteEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")},
+		CRDDirectoryPaths: []string{
+			filepath.Join(curfile, filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")),
+		},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	err := api.AddToScheme(scheme.Scheme)
-	Expect(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
+	// +kubebuilder:scaffold:scheme
 
 	localCfg, err := localEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
@@ -75,15 +84,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(remoteCfg).ToNot(BeNil())
 
-	// +kubebuilder:scaffold:scheme
-
 	localManager, err := ctrl.NewManager(localCfg, ctrl.Options{
 		MetricsBindAddress: "0",
 		Scheme:             scheme.Scheme,
 	})
 	Expect(err).ShouldNot(HaveOccurred())
-
-	//+kubebuilder:scaffold:scheme
 
 	remoteManager, err := ctrl.NewManager(remoteCfg, ctrl.Options{
 		MetricsBindAddress: "0",
@@ -108,34 +113,30 @@ var _ = BeforeSuite(func() {
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&storage.Reconciler{
-		Client:   localManager.GetClient(),
-		Scheme:   localManager.GetScheme(),
-		Config:   localManager.GetConfig(),
-		Recorder: localManager.GetEventRecorderFor("ydb-operator"),
+		Client: localManager.GetClient(),
+		Scheme: localManager.GetScheme(),
+		Config: localManager.GetConfig(),
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&storagenodeset.Reconciler{
-		Client:   localManager.GetClient(),
-		Scheme:   localManager.GetScheme(),
-		Config:   localManager.GetConfig(),
-		Recorder: localManager.GetEventRecorderFor("ydb-operator"),
+		Client: localManager.GetClient(),
+		Scheme: localManager.GetScheme(),
+		Config: localManager.GetConfig(),
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&storagenodeset.Reconciler{
-		Client:   remoteManager.GetClient(),
-		Scheme:   remoteManager.GetScheme(),
-		Config:   remoteManager.GetConfig(),
-		Recorder: remoteManager.GetEventRecorderFor("ydb-operator"),
+		Client: remoteManager.GetClient(),
+		Scheme: remoteManager.GetScheme(),
+		Config: remoteManager.GetConfig(),
 	}).SetupWithManager(remoteManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotestoragenodeset.Reconciler{
-		Client:         remoteManager.GetClient(),
-		RemoteClient:   localManager.GetClient(),
-		Scheme:         remoteManager.GetScheme(),
-		RemoteRecorder: remoteManager.GetEventRecorderFor("ydb-operator"),
+		Client:       remoteManager.GetClient(),
+		RemoteClient: localManager.GetClient(),
+		Scheme:       remoteManager.GetScheme(),
 	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 

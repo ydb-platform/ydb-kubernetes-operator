@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -57,11 +58,18 @@ var _ = BeforeSuite(func() {
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	_, curfile, _, _ := runtime.Caller(0) //nolint:dogsled
 	localEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")},
+		CRDDirectoryPaths: []string{
+			filepath.Join(curfile, filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")),
+		},
+		ErrorIfCRDPathMissing: true,
 	}
 	remoteEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")},
+		CRDDirectoryPaths: []string{
+			filepath.Join(curfile, filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")),
+		},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	err := api.AddToScheme(scheme.Scheme)
