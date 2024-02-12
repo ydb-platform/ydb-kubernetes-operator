@@ -63,6 +63,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
+	//nolint:nestif
 	// examine DeletionTimestamp to determine if object is under deletion
 	if remoteDatabaseNodeSet.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so if it does not have our finalizer,
