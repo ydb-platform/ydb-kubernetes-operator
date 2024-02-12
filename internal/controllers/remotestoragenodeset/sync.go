@@ -48,7 +48,7 @@ func (r *Reconciler) handleResourcesSync(
 		result, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 			err := builder.Build(newResource)
 			if err != nil {
-				r.RemoteRecorder.Event(
+				r.Recorder.Event(
 					remoteStorageNodeSet,
 					corev1.EventTypeWarning,
 					"ProvisioningFailed",
@@ -75,7 +75,7 @@ func (r *Reconciler) handleResourcesSync(
 			newResource.GetName(),
 		)
 		if err != nil {
-			r.RemoteRecorder.Event(
+			r.Recorder.Event(
 				remoteStorageNodeSet,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
@@ -83,7 +83,7 @@ func (r *Reconciler) handleResourcesSync(
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		} else if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
-			r.RemoteRecorder.Event(
+			r.Recorder.Event(
 				remoteStorageNodeSet,
 				corev1.EventTypeNormal,
 				"Provisioning",
@@ -108,19 +108,19 @@ func (r *Reconciler) updateStatus(
 	}, &storageNodeSet)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.RemoteRecorder.Event(
+			r.Recorder.Event(
 				remoteStorageNodeSet,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				fmt.Sprintf("StorageNodeSet with name %s was not found on remote: %s", remoteStorageNodeSet.Name, err),
+				fmt.Sprintf("StorageNodeSet with name %s was not found: %s", remoteStorageNodeSet.Name, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
-		r.RemoteRecorder.Event(
+		r.Recorder.Event(
 			remoteStorageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			fmt.Sprintf("Failed to get StorageNodeSet on remote: %s", err),
+			fmt.Sprintf("Failed to get StorageNodeSet: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -131,6 +131,12 @@ func (r *Reconciler) updateStatus(
 
 	err = r.RemoteClient.Status().Update(ctx, remoteStorageNodeSet)
 	if err != nil {
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed setting status on remote cluster: %s", err),
+		)
 		r.RemoteRecorder.Event(
 			remoteStorageNodeSet,
 			corev1.EventTypeWarning,
@@ -139,11 +145,17 @@ func (r *Reconciler) updateStatus(
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	} else if oldStatus != storageNodeSet.Status.State {
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			fmt.Sprintf("RemoteStorageNodeSet moved from %s to %s on remote cluster", oldStatus, remoteStorageNodeSet.Status.State),
+		)
 		r.RemoteRecorder.Event(
 			remoteStorageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("RemoteStorageNodeSet moved from %s to %s", oldStatus, storageNodeSet.Status.State),
+			fmt.Sprintf("RemoteStorageNodeSet moved from %s to %s", oldStatus, remoteStorageNodeSet.Status.State),
 		)
 	}
 

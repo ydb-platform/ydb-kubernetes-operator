@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -27,6 +28,7 @@ import (
 type Reconciler struct {
 	Client         client.Client
 	RemoteClient   client.Client
+	Recorder       record.EventRecorder
 	RemoteRecorder record.EventRecorder
 	Log            logr.Logger
 	Scheme         *runtime.Scheme
@@ -86,8 +88,15 @@ func (r *Reconciler) handleRemoteResourceDeleted(ctx context.Context, req ctrl.R
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.Cluster) error {
 	cluster := *remoteCluster
+	resource := &api.RemoteDatabaseNodeSet{}
+	resourceGVK, err := apiutil.GVKForObject(resource, r.Scheme)
+	if err != nil {
+		r.Log.Error(err, "does not recognize GVK for resource")
+		return err
+	}
 
-	r.RemoteRecorder = cluster.GetEventRecorderFor("RemoteDatabaseNodeSet")
+	r.Recorder = mgr.GetEventRecorderFor(resourceGVK.Kind)
+	r.RemoteRecorder = cluster.GetEventRecorderFor(resourceGVK.Kind)
 
 	annotationFilter := func(mapObj client.Object) []reconcile.Request {
 		requests := make([]reconcile.Request, 0)
@@ -108,7 +117,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		Watches(source.NewKindWithCache(&api.RemoteDatabaseNodeSet{}, cluster.GetCache()), &handler.EnqueueRequestForObject{}).
+		Named(resourceGVK.Kind).
+		Watches(source.NewKindWithCache(resource, cluster.GetCache()), &handler.EnqueueRequestForObject{}).
 		Watches(&source.Kind{Type: &api.DatabaseNodeSet{}}, handler.EnqueueRequestsFromMapFunc(annotationFilter)).
 		Complete(r)
 }
