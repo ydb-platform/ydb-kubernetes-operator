@@ -34,3 +34,9 @@ type PodImage struct {
 	// +optional
 	PullSecret *string `json:"pullSecret,omitempty"`
 }
+
+type RemoteSpec struct {
+	// Remote cluster to deploy NodeSet into
+	// +required
+	Cluster string `json:"cluster"`
+}
