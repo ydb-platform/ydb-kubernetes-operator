@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -58,20 +59,21 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
-	storage := &ydbv1alpha1.Storage{}
-	err := r.Get(ctx, req.NamespacedName, storage)
+	resource := &ydbv1alpha1.Storage{}
+	err := r.Get(ctx, req.NamespacedName, resource)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.Log.Info("%s resources not found", storage.Kind)
+			r.Log.Info("Storage resource not found")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		r.Log.Error(err, "unexpected Get error")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
-	result, err := r.Sync(ctx, storage)
+	result, err := r.Sync(ctx, resource)
 	if err != nil {
 		r.Log.Error(err, "unexpected Sync error")
 	}
+
 	return result, err
 }
 
@@ -94,14 +96,14 @@ func ignoreDeletionPredicate() predicate.Predicate {
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	resource := &ydbv1alpha1.Storage{}
-	controller := ctrl.NewControllerManagedBy(mgr).For(resource)
-	r.Recorder = mgr.GetEventRecorderFor("Storage")
-
-	if r.WithServiceMonitors {
-		controller = controller.
-			Owns(&monitoringv1.ServiceMonitor{})
+	resourceGVK, err := apiutil.GVKForObject(resource, r.Scheme)
+	if err != nil {
+		r.Log.Error(err, "does not recognize GVK for resource")
+		return err
 	}
 
+	r.Recorder = mgr.GetEventRecorderFor(resourceGVK.Kind)
+	controller := ctrl.NewControllerManagedBy(mgr).For(resource)
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&ydbv1alpha1.RemoteStorageNodeSet{},
@@ -114,7 +116,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resource.Kind {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resourceGVK.Kind {
 				return nil
 			}
 
@@ -123,7 +125,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}); err != nil {
 		return err
 	}
-
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&ydbv1alpha1.StorageNodeSet{},
@@ -136,7 +137,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resource.Kind {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resourceGVK.Kind {
 				return nil
 			}
 
@@ -144,6 +145,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return []string{owner.Name}
 		}); err != nil {
 		return err
+	}
+
+	if r.WithServiceMonitors {
+		controller = controller.
+			Owns(&monitoringv1.ServiceMonitor{})
 	}
 
 	return controller.
