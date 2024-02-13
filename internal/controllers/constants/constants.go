@@ -28,6 +28,7 @@ const (
 	StorageInitializationRequeueDelay = 5 * time.Second
 
 	DatabasePending      ClusterState = "Pending"
+	DatabasePreparing    ClusterState = "Preparing"
 	DatabaseProvisioning ClusterState = "Provisioning"
 	DatabaseInitializing ClusterState = "Initializing"
 	DatabaseReady        ClusterState = "Ready"

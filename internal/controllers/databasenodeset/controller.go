@@ -6,7 +6,7 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
@@ -48,13 +48,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	crDatabaseNodeSet := &api.DatabaseNodeSet{}
 	err := r.Get(ctx, req.NamespacedName, crDatabaseNodeSet)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			logger.Info("DatabaseNodeSet has been deleted")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		logger.Error(err, "unable to get DatabaseNodeSet")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
+
 	result, err := r.Sync(ctx, crDatabaseNodeSet)
 	if err != nil {
 		r.Log.Error(err, "unexpected Sync error")

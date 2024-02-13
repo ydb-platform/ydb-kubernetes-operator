@@ -64,7 +64,7 @@ func (r *Reconciler) setInitialStatus(
 		changed = true
 	}
 	if database.Status.State == DatabasePending {
-		database.Status.State = DatabaseInitializing
+		database.Status.State = DatabasePreparing
 		changed = true
 	}
 	if changed {

@@ -40,7 +40,7 @@ func (b *RemoteDatabaseNodeSetBuilder) Build(obj client.Object) error {
 }
 
 func (b *RemoteDatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
-	return &api.DatabaseNodeSet{
+	return &api.RemoteDatabaseNodeSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      b.Name,
 			Namespace: cr.GetNamespace(),
