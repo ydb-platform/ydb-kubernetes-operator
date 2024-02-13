@@ -27,7 +27,7 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteDatabaseNodeSet *ydbv1alp
 		return result, err
 	}
 
-	stop, result, err = r.updateStatus(ctx, &remoteDatabaseNodeSet)
+	stop, result, err = r.updateStatus(ctx, crRemoteDatabaseNodeSet)
 	if stop {
 		return result, err
 	}
@@ -96,29 +96,14 @@ func (r *Reconciler) handleResourcesSync(
 
 func (r *Reconciler) updateStatus(
 	ctx context.Context,
-	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
+	crRemoteDatabaseNodeSet *ydbv1alpha1.RemoteDatabaseNodeSet,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step updateStatus")
 
-	crRemoteDatabaseNodeSet := &ydbv1alpha1.RemoteDatabaseNodeSet{}
-	err := r.RemoteClient.Get(ctx, types.NamespacedName{
-		Namespace: remoteDatabaseNodeSet.Namespace,
-		Name:      remoteDatabaseNodeSet.Name,
-	}, crRemoteDatabaseNodeSet)
-	if err != nil {
-		r.Recorder.Event(
-			crRemoteDatabaseNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			"Failed fetching RemoteDatabaseNodeSet on remote cluster before status update",
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
 	databaseNodeSet := &ydbv1alpha1.DatabaseNodeSet{}
-	err = r.Client.Get(ctx, types.NamespacedName{
-		Name:      remoteDatabaseNodeSet.Name,
-		Namespace: remoteDatabaseNodeSet.Namespace,
+	err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      crRemoteDatabaseNodeSet.Name,
+		Namespace: crRemoteDatabaseNodeSet.Namespace,
 	}, databaseNodeSet)
 	if err != nil {
 		r.Recorder.Event(

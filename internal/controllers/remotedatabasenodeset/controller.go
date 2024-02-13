@@ -11,16 +11,20 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
@@ -56,7 +60,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// on deleted requests.
 	if err := r.RemoteClient.Get(ctx, req.NamespacedName, remoteDatabaseNodeSet); err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("RemoteDatabaseNodeSet has been deleted on remote cluster")
+			logger.Info("RemoteDatabaseNodeSet resource not found on remote cluster")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		logger.Error(err, "unable to get RemoteDatabaseNodeSet on remote cluster")
@@ -125,6 +129,21 @@ func (r *Reconciler) deleteExternalResources(ctx context.Context, key types.Name
 	return nil
 }
 
+func ignoreDeletionPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+			annotationsChanged := !annotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
+
+			return generationChanged || annotationsChanged
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			// Evaluates to false if the object has been confirmed deleted.
+			return !e.DeleteStateUnknown
+		},
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.Cluster) error {
 	cluster := *remoteCluster
@@ -137,6 +156,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 
 	r.Recorder = mgr.GetEventRecorderFor(resourceGVK.Kind)
 	r.RemoteRecorder = cluster.GetEventRecorderFor(resourceGVK.Kind)
+	r.RemoteClient = cluster.GetClient()
 
 	annotationFilter := func(mapObj client.Object) []reconcile.Request {
 		requests := make([]reconcile.Request, 0)
@@ -158,7 +178,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(resourceGVK.Kind).
-		Watches(source.NewKindWithCache(resource, cluster.GetCache()), &handler.EnqueueRequestForObject{}).
+		Watches(source.NewKindWithCache(resource, cluster.GetCache()), &handler.EnqueueRequestForObject{}, builder.WithPredicates(ignoreDeletionPredicate())).
 		Watches(&source.Kind{Type: &api.DatabaseNodeSet{}}, handler.EnqueueRequestsFromMapFunc(annotationFilter)).
 		Complete(r)
 }
