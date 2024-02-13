@@ -27,7 +27,7 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *ydbv1alph
 		return result, err
 	}
 
-	stop, result, err = r.updateStatus(ctx, &remoteStorageNodeSet)
+	stop, result, err = r.updateStatus(ctx, crRemoteStorageNodeSet)
 	if stop {
 		return result, err
 	}
@@ -96,29 +96,14 @@ func (r *Reconciler) handleResourcesSync(
 
 func (r *Reconciler) updateStatus(
 	ctx context.Context,
-	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
+	crRemoteStorageNodeSet *ydbv1alpha1.RemoteStorageNodeSet,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step updateStatus")
 
-	crRemoteStorageNodeSet := &ydbv1alpha1.RemoteStorageNodeSet{}
-	err := r.RemoteClient.Get(ctx, types.NamespacedName{
-		Namespace: remoteStorageNodeSet.Namespace,
-		Name:      remoteStorageNodeSet.Name,
-	}, crRemoteStorageNodeSet)
-	if err != nil {
-		r.Recorder.Event(
-			crRemoteStorageNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			"Failed fetching RemoteStorageNodeSet on remote cluster before status update",
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
 	storageNodeSet := &ydbv1alpha1.StorageNodeSet{}
-	err = r.Client.Get(ctx, types.NamespacedName{
-		Name:      remoteStorageNodeSet.Name,
-		Namespace: remoteStorageNodeSet.Namespace,
+	err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      crRemoteStorageNodeSet.Name,
+		Namespace: crRemoteStorageNodeSet.Namespace,
 	}, storageNodeSet)
 	if err != nil {
 		r.Recorder.Event(

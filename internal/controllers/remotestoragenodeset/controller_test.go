@@ -138,9 +138,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotestoragenodeset.Reconciler{
-		Client:       remoteManager.GetClient(),
-		RemoteClient: localManager.GetClient(),
-		Scheme:       remoteManager.GetScheme(),
+		Client: remoteManager.GetClient(),
+		Scheme: remoteManager.GetScheme(),
 	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -222,6 +221,54 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 		By("set status Ready to Storage...")
 		foundStorage.Status.State = StorageReady
 		Expect(localClient.Status().Update(ctx, &foundStorage)).Should(Succeed())
+
+		By("checking that StorageNodeSet created on local cluster...")
+		Eventually(func() bool {
+			foundStorageNodeSet := api.StorageNodeSetList{}
+
+			Expect(localClient.List(ctx, &foundStorageNodeSet, client.InNamespace(
+				testobjects.YdbNamespace,
+			))).Should(Succeed())
+
+			for _, nodeset := range foundStorageNodeSet.Items {
+				if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-local" {
+					return true
+				}
+			}
+			return false
+		}, test.Timeout, test.Interval).Should(BeTrue())
+
+		By("checking that RemoteStorageNodeSet created on local cluster...")
+		Eventually(func() bool {
+			foundRemoteStorageNodeSet := api.RemoteStorageNodeSetList{}
+
+			Expect(localClient.List(ctx, &foundRemoteStorageNodeSet, client.InNamespace(
+				testobjects.YdbNamespace,
+			))).Should(Succeed())
+
+			for _, nodeset := range foundRemoteStorageNodeSet.Items {
+				if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
+					return true
+				}
+			}
+			return false
+		}, test.Timeout, test.Interval).Should(BeTrue())
+
+		By("checking that StorageNodeSet created on remote cluster...")
+		Eventually(func() bool {
+			foundStorageNodeSetOnRemote := api.StorageNodeSetList{}
+
+			Expect(remoteClient.List(ctx, &foundStorageNodeSetOnRemote, client.InNamespace(
+				testobjects.YdbNamespace,
+			))).Should(Succeed())
+
+			for _, nodeset := range foundStorageNodeSetOnRemote.Items {
+				if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
+					return true
+				}
+			}
+			return false
+		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 
 	AfterEach(func() {
@@ -231,55 +278,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 	When("Create Storage with RemoteStorageNodeSet in k8s-mgmt-cluster", func() {
 		It("Should create StorageNodeSet and sync resources in k8s-data-cluster", func() {
-			By("checking that StorageNodeSet created on local cluster...")
-			Eventually(func() bool {
-				foundStorageNodeSet := api.StorageNodeSetList{}
-
-				Expect(localClient.List(ctx, &foundStorageNodeSet, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
-
-				for _, nodeset := range foundStorageNodeSet.Items {
-					if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-local" {
-						return true
-					}
-				}
-				return false
-			}, test.Timeout, test.Interval).Should(BeTrue())
-
-			By("checking that RemoteStorageNodeSet created on local cluster...")
-			Eventually(func() bool {
-				foundRemoteStorageNodeSet := api.RemoteStorageNodeSetList{}
-
-				Expect(localClient.List(ctx, &foundRemoteStorageNodeSet, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
-
-				for _, nodeset := range foundRemoteStorageNodeSet.Items {
-					if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
-					}
-				}
-				return false
-			}, test.Timeout, test.Interval).Should(BeTrue())
-
-			By("checking that StorageNodeSet created on remote cluster...")
-			Eventually(func() bool {
-				foundStorageNodeSetOnRemote := api.StorageNodeSetList{}
-
-				Expect(remoteClient.List(ctx, &foundStorageNodeSetOnRemote, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
-
-				for _, nodeset := range foundStorageNodeSetOnRemote.Items {
-					if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
-					}
-				}
-				return false
-			}, test.Timeout, test.Interval).Should(BeTrue())
-
-			By("Set StorageNodeSet status to Ready on remote cluster...")
+			By("set StorageNodeSet status to Ready on remote cluster...")
 			foundStorageNodeSetOnRemote := api.StorageNodeSet{}
 			Expect(remoteClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
@@ -317,38 +316,6 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 	})
 	When("Delete Storage with RemoteStorageNodeSet in k8s-mgmt-cluster", func() {
 		It("Should delete all resources in k8s-data-cluster", func() {
-			By("checking that RemoteStorageNodeSet created on local cluster...")
-			Eventually(func() bool {
-				foundRemoteStorageNodeSet := api.RemoteStorageNodeSetList{}
-
-				Expect(localClient.List(ctx, &foundRemoteStorageNodeSet, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
-
-				for _, nodeset := range foundRemoteStorageNodeSet.Items {
-					if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
-					}
-				}
-				return false
-			}, test.Timeout, test.Interval).Should(BeTrue())
-
-			By("checking that StorageNodeSet created on remote cluster...")
-			Eventually(func() bool {
-				foundStorageNodeSet := api.StorageNodeSetList{}
-
-				Expect(remoteClient.List(ctx, &foundStorageNodeSet, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
-
-				for _, nodeset := range foundStorageNodeSet.Items {
-					if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
-					}
-				}
-				return false
-			}, test.Timeout, test.Interval).Should(BeTrue())
-
 			By("delete RemoteStorageNodeSet on local cluster...")
 			Eventually(func() error {
 				foundStorage := api.Storage{}

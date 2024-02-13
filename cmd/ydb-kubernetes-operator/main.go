@@ -193,18 +193,16 @@ func main() {
 		}
 
 		if err = (&remotestoragenodeset.Reconciler{
-			Client:       mgr.GetClient(),
-			RemoteClient: remoteCluster.GetClient(),
-			Scheme:       mgr.GetScheme(),
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr, &remoteCluster); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "RemoteStorageNodeSet")
 			os.Exit(1)
 		}
 
 		if err = (&remotedatabasenodeset.Reconciler{
-			Client:       mgr.GetClient(),
-			RemoteClient: remoteCluster.GetClient(),
-			Scheme:       mgr.GetScheme(),
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr, &remoteCluster); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "RemoteDatabaseNodeSet")
 			os.Exit(1)

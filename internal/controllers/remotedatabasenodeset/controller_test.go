@@ -149,9 +149,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotedatabasenodeset.Reconciler{
-		Client:       remoteManager.GetClient(),
-		RemoteClient: localManager.GetClient(),
-		Scheme:       remoteManager.GetScheme(),
+		Client: remoteManager.GetClient(),
+		Scheme: remoteManager.GetScheme(),
 	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 
