@@ -27,8 +27,9 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *ydbv1alph
 	var err error
 
 	remoteStorageNodeSet := resources.NewRemoteStorageNodeSet(crRemoteStorageNodeSet)
+	remoteSecrets := getRemoteSecrets(crRemoteStorageNodeSet)
+	remoteServices := getRemoteServices(crRemoteStorageNodeSet)
 
-	remoteSecrets := getRemoteSecrets(&remoteStorageNodeSet)
 	for _, secret := range remoteSecrets {
 		stop, result, err = r.syncRemoteObject(ctx, &remoteStorageNodeSet, &secret)
 		if stop {
@@ -36,7 +37,6 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *ydbv1alph
 		}
 	}
 
-	remoteServices := getRemoteServices(&remoteStorageNodeSet)
 	for _, service := range remoteServices {
 		stop, result, err = r.syncRemoteObject(ctx, &remoteStorageNodeSet, &service)
 		if stop {
@@ -49,7 +49,7 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *ydbv1alph
 		return result, err
 	}
 
-	stop, result, err = r.updateRemoteStatus(ctx, crRemoteStorageNodeSet)
+	stop, result, err = r.updateRemoteStatus(ctx, &remoteStorageNodeSet)
 	if stop {
 		return result, err
 	}
@@ -247,18 +247,18 @@ func (r *Reconciler) syncRemoteObject(
 
 func (r *Reconciler) updateRemoteStatus(
 	ctx context.Context,
-	crRemoteStorageNodeSet *ydbv1alpha1.RemoteStorageNodeSet,
+	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step updateStatus")
 
 	storageNodeSet := &ydbv1alpha1.StorageNodeSet{}
 	err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      crRemoteStorageNodeSet.Name,
-		Namespace: crRemoteStorageNodeSet.Namespace,
+		Name:      remoteStorageNodeSet.Name,
+		Namespace: remoteStorageNodeSet.Namespace,
 	}, storageNodeSet)
 	if err != nil {
 		r.Recorder.Event(
-			crRemoteStorageNodeSet,
+			remoteStorageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching StorageNodeSet before status update",
@@ -266,37 +266,37 @@ func (r *Reconciler) updateRemoteStatus(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	oldStatus := crRemoteStorageNodeSet.Status.State
-	crRemoteStorageNodeSet.Status.State = storageNodeSet.Status.State
-	crRemoteStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
+	oldStatus := remoteStorageNodeSet.Status.State
+	remoteStorageNodeSet.Status.State = storageNodeSet.Status.State
+	remoteStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
 
-	err = r.RemoteClient.Status().Update(ctx, crRemoteStorageNodeSet)
+	err = r.RemoteClient.Status().Update(ctx, remoteStorageNodeSet.RemoteStorageNodeSet)
 	if err != nil {
 		r.Recorder.Event(
-			crRemoteStorageNodeSet,
+			remoteStorageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			fmt.Sprintf("Failed setting status on remote cluster: %s", err),
 		)
 		r.RemoteRecorder.Event(
-			crRemoteStorageNodeSet,
+			remoteStorageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			fmt.Sprintf("Failed setting status: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != crRemoteStorageNodeSet.Status.State {
+	} else if oldStatus != remoteStorageNodeSet.Status.State {
 		r.Recorder.Event(
-			crRemoteStorageNodeSet,
+			remoteStorageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("StorageNodeSet moved from %s to %s on remote cluster", oldStatus, crRemoteStorageNodeSet.Status.State),
+			fmt.Sprintf("StorageNodeSet moved from %s to %s on remote cluster", oldStatus, remoteStorageNodeSet.Status.State),
 		)
 		r.RemoteRecorder.Event(
-			crRemoteStorageNodeSet,
+			remoteStorageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, crRemoteStorageNodeSet.Status.State),
+			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, remoteStorageNodeSet.Status.State),
 		)
 	}
 
@@ -317,39 +317,39 @@ func setPrimaryResourceAnnotations(obj client.Object) {
 	obj.SetAnnotations(annotations)
 }
 
-func getRemoteSecrets(remoteStorageNodeSet *resources.RemoteStorageNodeSetResource) []corev1.Secret {
+func getRemoteSecrets(crRemoteStorageNodeSet *ydbv1alpha1.RemoteStorageNodeSet) []corev1.Secret {
 	remoteSecrets := []corev1.Secret{}
-	for _, secret := range remoteStorageNodeSet.Spec.Secrets {
+	for _, secret := range crRemoteStorageNodeSet.Spec.Secrets {
 		remoteSecrets = append(remoteSecrets,
 			corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      secret.Name,
-					Namespace: remoteStorageNodeSet.Namespace,
+					Namespace: crRemoteStorageNodeSet.Namespace,
 				},
 			})
 	}
 	return remoteSecrets
 }
 
-func getRemoteServices(remoteStorageNodeSet *resources.RemoteStorageNodeSetResource) []corev1.Service {
+func getRemoteServices(crRemoteStorageNodeSet *ydbv1alpha1.RemoteStorageNodeSet) []corev1.Service {
 	remoteServices := []corev1.Service{}
 	remoteServices = append(remoteServices,
 		corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf(resources.GRPCServiceNameFormat, remoteStorageNodeSet.Spec.StorageRef.Name),
-				Namespace: remoteStorageNodeSet.Namespace,
+				Name:      fmt.Sprintf(resources.GRPCServiceNameFormat, crRemoteStorageNodeSet.Spec.StorageRef.Name),
+				Namespace: crRemoteStorageNodeSet.Namespace,
 			},
 		},
 		corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf(resources.InterconnectServiceNameFormat, remoteStorageNodeSet.Spec.StorageRef.Name),
-				Namespace: remoteStorageNodeSet.Namespace,
+				Name:      fmt.Sprintf(resources.InterconnectServiceNameFormat, crRemoteStorageNodeSet.Spec.StorageRef.Name),
+				Namespace: crRemoteStorageNodeSet.Namespace,
 			},
 		},
 		corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf(resources.StatusServiceNameFormat, remoteStorageNodeSet.Spec.StorageRef.Name),
-				Namespace: remoteStorageNodeSet.Namespace,
+				Name:      fmt.Sprintf(resources.StatusServiceNameFormat, crRemoteStorageNodeSet.Spec.StorageRef.Name),
+				Namespace: crRemoteStorageNodeSet.Namespace,
 			},
 		},
 	)
