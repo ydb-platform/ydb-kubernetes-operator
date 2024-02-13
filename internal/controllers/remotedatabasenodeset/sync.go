@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -101,61 +100,67 @@ func (r *Reconciler) updateStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step updateStatus")
 
-	databaseNodeSet := ydbv1alpha1.DatabaseNodeSet{}
-	err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      remoteDatabaseNodeSet.Name,
+	crRemoteDatabaseNodeSet := &ydbv1alpha1.RemoteDatabaseNodeSet{}
+	err := r.RemoteClient.Get(ctx, types.NamespacedName{
 		Namespace: remoteDatabaseNodeSet.Namespace,
-	}, &databaseNodeSet)
+		Name:      remoteDatabaseNodeSet.Name,
+	}, crRemoteDatabaseNodeSet)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			r.Recorder.Event(
-				remoteDatabaseNodeSet,
-				corev1.EventTypeWarning,
-				"ProvisioningFailed",
-				fmt.Sprintf("DatabaseNodeSet with name %s was not found: %s", remoteDatabaseNodeSet.Name, err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-		}
 		r.Recorder.Event(
-			remoteDatabaseNodeSet,
+			crRemoteDatabaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			fmt.Sprintf("Failed to get DatabaseNodeSet: %s", err),
+			"Failed fetching RemoteDatabaseNodeSet on remote cluster before status update",
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	oldStatus := remoteDatabaseNodeSet.Status.State
-	remoteDatabaseNodeSet.Status.State = databaseNodeSet.Status.State
-	remoteDatabaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
-
-	err = r.RemoteClient.Status().Update(ctx, remoteDatabaseNodeSet)
+	databaseNodeSet := &ydbv1alpha1.DatabaseNodeSet{}
+	err = r.Client.Get(ctx, types.NamespacedName{
+		Name:      remoteDatabaseNodeSet.Name,
+		Namespace: remoteDatabaseNodeSet.Namespace,
+	}, databaseNodeSet)
 	if err != nil {
 		r.Recorder.Event(
-			remoteDatabaseNodeSet,
+			crRemoteDatabaseNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			"Failed fetching DatabaseNodeSet before status update",
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	oldStatus := crRemoteDatabaseNodeSet.Status.State
+	crRemoteDatabaseNodeSet.Status.State = databaseNodeSet.Status.State
+	crRemoteDatabaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
+
+	err = r.RemoteClient.Status().Update(ctx, crRemoteDatabaseNodeSet)
+	if err != nil {
+		r.Recorder.Event(
+			crRemoteDatabaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			fmt.Sprintf("Failed setting status on remote cluster: %s", err),
 		)
 		r.RemoteRecorder.Event(
-			remoteDatabaseNodeSet,
+			crRemoteDatabaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			fmt.Sprintf("Failed setting status: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != databaseNodeSet.Status.State {
+	} else if oldStatus != crRemoteDatabaseNodeSet.Status.State {
 		r.Recorder.Event(
-			remoteDatabaseNodeSet,
+			crRemoteDatabaseNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("RemoteDatabaseNodeSet moved from %s to %s on remote cluster", oldStatus, remoteDatabaseNodeSet.Status.State),
+			fmt.Sprintf("DatabaseNodeSet moved from %s to %s on remote cluster", oldStatus, crRemoteDatabaseNodeSet.Status.State),
 		)
 		r.RemoteRecorder.Event(
-			remoteDatabaseNodeSet,
+			crRemoteDatabaseNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("RemoteDatabaseNodeSet moved from %s to %s", oldStatus, remoteDatabaseNodeSet.Status.State),
+			fmt.Sprintf("DatabaseNodeSet moved from %s to %s", oldStatus, crRemoteDatabaseNodeSet.Status.State),
 		)
 	}
 

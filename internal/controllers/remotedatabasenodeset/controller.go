@@ -56,10 +56,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// on deleted requests.
 	if err := r.RemoteClient.Get(ctx, req.NamespacedName, remoteDatabaseNodeSet); err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("DatabaseNodeSet has been deleted")
+			logger.Info("RemoteDatabaseNodeSet has been deleted on remote cluster")
 			return ctrl.Result{Requeue: false}, nil
 		}
-		logger.Error(err, "unable to get RemoteDatabaseNodeSet")
+		logger.Error(err, "unable to get RemoteDatabaseNodeSet on remote cluster")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
@@ -79,7 +79,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, RemoteFinalizerKey) {
 			// our finalizer is present, so lets handle any external dependency
-			if err := r.deleteExternalResources(ctx, remoteDatabaseNodeSet); err != nil {
+			if err := r.deleteExternalResources(ctx, req.NamespacedName); err != nil {
 				// if fail to delete the external dependency here, return with error
 				// so that it can be retried.
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -104,14 +104,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
-func (r *Reconciler) deleteExternalResources(ctx context.Context, remoteDatabaseNodeSet *api.RemoteDatabaseNodeSet) error {
+func (r *Reconciler) deleteExternalResources(ctx context.Context, key types.NamespacedName) error {
 	logger := log.FromContext(ctx)
 
-	storageNodeSet := &api.StorageNodeSet{}
-	if err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      remoteDatabaseNodeSet.Name,
-		Namespace: remoteDatabaseNodeSet.Namespace,
-	}, storageNodeSet); err != nil {
+	databaseNodeSet := &api.DatabaseNodeSet{}
+	if err := r.Client.Get(ctx, key, databaseNodeSet); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Info("DatabaseNodeSet not found")
 			return nil
@@ -120,7 +117,7 @@ func (r *Reconciler) deleteExternalResources(ctx context.Context, remoteDatabase
 		return err
 	}
 
-	if err := r.Client.Delete(ctx, storageNodeSet); err != nil {
+	if err := r.Client.Delete(ctx, databaseNodeSet); err != nil {
 		logger.Error(err, "unable to delete DatabaseNodeSet")
 		return err
 	}

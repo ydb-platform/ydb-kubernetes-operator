@@ -469,12 +469,12 @@ func (r *Reconciler) setState(
 			fmt.Sprintf("Failed setting status: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != storage.Status.State {
+	} else if oldStatus != storageCr.Status.State {
 		r.Recorder.Event(
 			storageCr,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storage.Status.State),
+			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storageCr.Status.State),
 		)
 	}
 

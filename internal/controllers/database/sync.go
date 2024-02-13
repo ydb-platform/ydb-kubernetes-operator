@@ -132,7 +132,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForDatabaseNodeSetToReady for Database")
 
-	if database.Status.State == DatabasePending {
+	if database.Status.State == DatabasePreparing {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
@@ -194,7 +194,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale for Database")
 
-	if database.Status.State == DatabasePending {
+	if database.Status.State == DatabasePreparing {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
@@ -375,6 +375,7 @@ func (r *Reconciler) setState(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
+	oldStatus := databaseCr.Status.State
 	databaseCr.Status.State = database.Status.State
 	databaseCr.Status.Conditions = database.Status.Conditions
 
@@ -387,6 +388,13 @@ func (r *Reconciler) setState(
 			fmt.Sprintf("failed setting status: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	} else if oldStatus != databaseCr.Status.State {
+		r.Recorder.Event(
+			databaseCr,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			fmt.Sprintf("Database moved from %s to %s", oldStatus, databaseCr.Status.State),
+		)
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil

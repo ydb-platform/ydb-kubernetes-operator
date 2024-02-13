@@ -4,15 +4,20 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -45,7 +50,7 @@ var (
 	cancel       context.CancelFunc
 )
 
-func TestRemoteNodeSetApis(t *testing.T) {
+func TestRemoteStorageNodeSetApis(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecs(t, "RemoteStorageNodeSet controller tests")
@@ -58,16 +63,15 @@ var _ = BeforeSuite(func() {
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	_, curfile, _, _ := runtime.Caller(0) //nolint:dogsled
 	localEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join(curfile, filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")),
+			filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
 	remoteEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join(curfile, filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds")),
+			filepath.Join("..", "..", "..", "deploy", "ydb-operator", "crds"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
@@ -173,6 +177,24 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 	var storageSample *api.Storage
 
 	BeforeEach(func() {
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, api.StorageNodeSetSpecInline{
+			Name: testNodeSetName + "-local",
+			StorageNodeSpec: api.StorageNodeSpec{
+				Nodes: 4,
+			},
+		})
+		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, api.StorageNodeSetSpecInline{
+			Name: testNodeSetName + "-remote",
+			Remote: &api.RemoteSpec{
+				Cluster: testRemoteCluster,
+			},
+			StorageNodeSpec: api.StorageNodeSpec{
+				Nodes: 4,
+			},
+		})
+
+		By("issuing create Namespace commands...")
 		localNamespace = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: testobjects.YdbNamespace,
@@ -185,34 +207,30 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 		}
 		Expect(localClient.Create(ctx, &localNamespace)).Should(Succeed())
 		Expect(remoteClient.Create(ctx, &remoteNamespace)).Should(Succeed())
+
+		By("issuing create Storage commands...")
+		Expect(localClient.Create(ctx, storageSample)).Should(Succeed())
+		By("checking that Storage created on local cluster...")
+		foundStorage := api.Storage{}
+		Eventually(func() bool {
+			Expect(localClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage))
+			return foundStorage.Status.State == StorageProvisioning
+		}, test.Timeout, test.Interval).Should(BeTrue())
+		By("set status Ready to Storage...")
+		foundStorage.Status.State = StorageReady
+		Expect(localClient.Status().Update(ctx, &foundStorage)).Should(Succeed())
 	})
 
 	AfterEach(func() {
-		Expect(localClient.Delete(ctx, &localNamespace)).Should(Succeed())
-		Expect(remoteClient.Delete(ctx, &remoteNamespace)).Should(Succeed())
+		deleteAll(localEnv, localClient, &localNamespace)
+		deleteAll(remoteEnv, remoteClient, &localNamespace)
 	})
 
 	When("Create Storage with RemoteStorageNodeSet in k8s-mgmt-cluster", func() {
 		It("Should create StorageNodeSet and sync resources in k8s-data-cluster", func() {
-			By("issuing create commands...")
-			storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
-			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, api.StorageNodeSetSpecInline{
-				Name: testNodeSetName + "-local",
-				StorageNodeSpec: api.StorageNodeSpec{
-					Nodes: 4,
-				},
-			})
-			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, api.StorageNodeSetSpecInline{
-				Name: testNodeSetName + "-remote",
-				Remote: &api.RemoteSpec{
-					Cluster: testRemoteCluster,
-				},
-				StorageNodeSpec: api.StorageNodeSpec{
-					Nodes: 4,
-				},
-			})
-			Expect(localClient.Create(ctx, storageSample)).Should(Succeed())
-
 			By("checking that StorageNodeSet created on local cluster...")
 			Eventually(func() bool {
 				foundStorageNodeSet := api.StorageNodeSetList{}
@@ -272,10 +290,11 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 			foundStorageNodeSetOnRemote.Status.Conditions = append(
 				foundStorageNodeSetOnRemote.Status.Conditions,
 				metav1.Condition{
-					Type:    StorageNodeSetReadyCondition,
-					Status:  "True",
-					Reason:  ReasonCompleted,
-					Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", foundStorageNodeSetOnRemote.Spec.Nodes),
+					Type:               StorageNodeSetReadyCondition,
+					Status:             "True",
+					Reason:             ReasonCompleted,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("Scaled StorageNodeSet to %d successfully", foundStorageNodeSetOnRemote.Spec.Nodes),
 				},
 			)
 			Expect(remoteClient.Status().Update(ctx, &foundStorageNodeSetOnRemote)).Should(Succeed())
@@ -298,28 +317,15 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 	})
 	When("Delete Storage with RemoteStorageNodeSet in k8s-mgmt-cluster", func() {
 		It("Should delete all resources in k8s-data-cluster", func() {
-			By("issuing create commands...")
-			storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
-			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, api.StorageNodeSetSpecInline{
-				Name: testNodeSetName + "-remote",
-				Remote: &api.RemoteSpec{
-					Cluster: testRemoteCluster,
-				},
-				StorageNodeSpec: api.StorageNodeSpec{
-					Nodes: 8,
-				},
-			})
-			Expect(localClient.Create(ctx, storageSample)).Should(Succeed())
-
-			By("checking that StorageNodeSet created on remote cluster...")
+			By("checking that RemoteStorageNodeSet created on local cluster...")
 			Eventually(func() bool {
-				foundStorageNodeSetOnRemote := api.StorageNodeSetList{}
+				foundRemoteStorageNodeSet := api.RemoteStorageNodeSetList{}
 
-				Expect(remoteClient.List(ctx, &foundStorageNodeSetOnRemote, client.InNamespace(
+				Expect(localClient.List(ctx, &foundRemoteStorageNodeSet, client.InNamespace(
 					testobjects.YdbNamespace,
 				))).Should(Succeed())
 
-				for _, nodeset := range foundStorageNodeSetOnRemote.Items {
+				for _, nodeset := range foundRemoteStorageNodeSet.Items {
 					if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
 						return true
 					}
@@ -327,36 +333,157 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
 
-			By("Delete Storage on local cluster...")
-			foundStorage := api.Storage{}
-			Expect(localClient.Get(ctx, types.NamespacedName{
-				Name:      storageSample.Name,
-				Namespace: testobjects.YdbNamespace,
-			}, &foundStorage)).Should(Succeed())
-
-			Expect(localClient.Delete(ctx, &foundStorage))
-
-			By("checking that StorageNodeSets deleted from remote cluster...")
+			By("checking that StorageNodeSet created on remote cluster...")
 			Eventually(func() bool {
-				foundStorageNodeSetOnRemote := api.StorageNodeSetList{}
+				foundStorageNodeSet := api.StorageNodeSetList{}
 
-				Expect(remoteClient.List(ctx, &foundStorageNodeSetOnRemote, client.InNamespace(
+				Expect(remoteClient.List(ctx, &foundStorageNodeSet, client.InNamespace(
 					testobjects.YdbNamespace,
 				))).Should(Succeed())
 
-				return len(foundStorageNodeSetOnRemote.Items) == 0
+				for _, nodeset := range foundStorageNodeSet.Items {
+					if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
+						return true
+					}
+				}
+				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
 
-			By("checking that Storage deleted from local cluster...")
+			By("delete RemoteStorageNodeSet on local cluster...")
+			Eventually(func() error {
+				foundStorage := api.Storage{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundStorage)).Should(Succeed())
+				foundStorage.Spec.NodeSets = []api.StorageNodeSetSpecInline{
+					{
+						Name: testNodeSetName + "-local",
+						StorageNodeSpec: api.StorageNodeSpec{
+							Nodes: 4,
+						},
+					},
+				}
+				return localClient.Update(ctx, &foundStorage)
+			}, test.Timeout, test.Interval).Should(Succeed())
+
+			By("checking that StorageNodeSet deleted from remote cluster...")
 			Eventually(func() bool {
-				foundStorages := api.StorageList{}
+				foundStorageNodeSetOnRemote := api.StorageNodeSet{}
 
-				Expect(remoteClient.List(ctx, &foundStorages, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
+				err := remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, &foundStorageNodeSetOnRemote)
 
-				return len(foundStorages.Items) == 0
+				return apierrors.IsNotFound(err)
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that RemoteStorageNodeSet deleted from local cluster...")
+			Eventually(func() bool {
+				foundRemoteStorageNodeSet := api.RemoteStorageNodeSet{}
+
+				err := localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, &foundRemoteStorageNodeSet)
+
+				return apierrors.IsNotFound(err)
 			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
 })
+
+func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client.Object) {
+	for _, obj := range objs {
+		ctx := context.Background()
+		clientGo, err := kubernetes.NewForConfig(env.Config)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, obj))).Should(Succeed())
+
+		if ns, ok := obj.(*corev1.Namespace); ok {
+			// Normally the kube-controller-manager would handle finalization
+			// and garbage collection of namespaces, but with envtest, we aren't
+			// running a kube-controller-manager. Instead we're gonna approximate
+			// (poorly) the kube-controller-manager by explicitly deleting some
+			// resources within the namespace and then removing the `kubernetes`
+			// finalizer from the namespace resource so it can finish deleting.
+			// Note that any resources within the namespace that we don't
+			// successfully delete could reappear if the namespace is ever
+			// recreated with the same name.
+
+			// Look up all namespaced resources under the discovery API
+			_, apiResources, err := clientGo.Discovery().ServerGroupsAndResources()
+			Expect(err).ShouldNot(HaveOccurred())
+			namespacedGVKs := make(map[string]schema.GroupVersionKind)
+			for _, apiResourceList := range apiResources {
+				defaultGV, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
+				Expect(err).ShouldNot(HaveOccurred())
+				for _, r := range apiResourceList.APIResources {
+					if !r.Namespaced || strings.Contains(r.Name, "/") {
+						// skip non-namespaced and subresources
+						continue
+					}
+					gvk := schema.GroupVersionKind{
+						Group:   defaultGV.Group,
+						Version: defaultGV.Version,
+						Kind:    r.Kind,
+					}
+					if r.Group != "" {
+						gvk.Group = r.Group
+					}
+					if r.Version != "" {
+						gvk.Version = r.Version
+					}
+					namespacedGVKs[gvk.String()] = gvk
+				}
+			}
+
+			// Delete all namespaced resources in this namespace
+			for _, gvk := range namespacedGVKs {
+				var u unstructured.Unstructured
+				u.SetGroupVersionKind(gvk)
+				err := k8sClient.DeleteAllOf(ctx, &u, client.InNamespace(ns.Name))
+				Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(err))).ShouldNot(HaveOccurred())
+			}
+
+			Eventually(func() error {
+				key := client.ObjectKeyFromObject(ns)
+				if err := k8sClient.Get(ctx, key, ns); err != nil {
+					return client.IgnoreNotFound(err)
+				}
+				// remove `kubernetes` finalizer
+				const kubernetes = "kubernetes"
+				finalizers := []corev1.FinalizerName{}
+				for _, f := range ns.Spec.Finalizers {
+					if f != kubernetes {
+						finalizers = append(finalizers, f)
+					}
+				}
+				ns.Spec.Finalizers = finalizers
+
+				// We have to use the k8s.io/client-go library here to expose
+				// ability to patch the /finalize subresource on the namespace
+				_, err = clientGo.CoreV1().Namespaces().Finalize(ctx, ns, metav1.UpdateOptions{})
+				return err
+			}, test.Timeout, test.Interval).Should(Succeed())
+		}
+
+		Eventually(func() metav1.StatusReason {
+			key := client.ObjectKeyFromObject(obj)
+			if err := k8sClient.Get(ctx, key, obj); err != nil {
+				return apierrors.ReasonForError(err)
+			}
+			return ""
+		}, test.Timeout, test.Interval).Should(Equal(metav1.StatusReasonNotFound))
+	}
+}
+
+func ignoreMethodNotAllowed(err error) error {
+	if err != nil {
+		if apierrors.ReasonForError(err) == metav1.StatusReasonMethodNotAllowed {
+			return nil
+		}
+	}
+	return err
+}

@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -101,61 +100,67 @@ func (r *Reconciler) updateStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step updateStatus")
 
-	storageNodeSet := ydbv1alpha1.StorageNodeSet{}
-	err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      remoteStorageNodeSet.Name,
+	crRemoteStorageNodeSet := &ydbv1alpha1.RemoteStorageNodeSet{}
+	err := r.RemoteClient.Get(ctx, types.NamespacedName{
 		Namespace: remoteStorageNodeSet.Namespace,
-	}, &storageNodeSet)
+		Name:      remoteStorageNodeSet.Name,
+	}, crRemoteStorageNodeSet)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			r.Recorder.Event(
-				remoteStorageNodeSet,
-				corev1.EventTypeWarning,
-				"ProvisioningFailed",
-				fmt.Sprintf("StorageNodeSet with name %s was not found: %s", remoteStorageNodeSet.Name, err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-		}
 		r.Recorder.Event(
-			remoteStorageNodeSet,
+			crRemoteStorageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			fmt.Sprintf("Failed to get StorageNodeSet: %s", err),
+			"Failed fetching RemoteStorageNodeSet on remote cluster before status update",
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	oldStatus := remoteStorageNodeSet.Status.State
-	remoteStorageNodeSet.Status.State = storageNodeSet.Status.State
-	remoteStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
-
-	err = r.RemoteClient.Status().Update(ctx, remoteStorageNodeSet)
+	storageNodeSet := &ydbv1alpha1.StorageNodeSet{}
+	err = r.Client.Get(ctx, types.NamespacedName{
+		Name:      remoteStorageNodeSet.Name,
+		Namespace: remoteStorageNodeSet.Namespace,
+	}, storageNodeSet)
 	if err != nil {
 		r.Recorder.Event(
-			remoteStorageNodeSet,
+			crRemoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			"Failed fetching StorageNodeSet before status update",
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	oldStatus := crRemoteStorageNodeSet.Status.State
+	crRemoteStorageNodeSet.Status.State = storageNodeSet.Status.State
+	crRemoteStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
+
+	err = r.RemoteClient.Status().Update(ctx, crRemoteStorageNodeSet)
+	if err != nil {
+		r.Recorder.Event(
+			crRemoteStorageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			fmt.Sprintf("Failed setting status on remote cluster: %s", err),
 		)
 		r.RemoteRecorder.Event(
-			remoteStorageNodeSet,
+			crRemoteStorageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			fmt.Sprintf("Failed setting status: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != storageNodeSet.Status.State {
+	} else if oldStatus != crRemoteStorageNodeSet.Status.State {
 		r.Recorder.Event(
-			remoteStorageNodeSet,
+			crRemoteStorageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("RemoteStorageNodeSet moved from %s to %s on remote cluster", oldStatus, remoteStorageNodeSet.Status.State),
+			fmt.Sprintf("StorageNodeSet moved from %s to %s on remote cluster", oldStatus, crRemoteStorageNodeSet.Status.State),
 		)
 		r.RemoteRecorder.Event(
-			remoteStorageNodeSet,
+			crRemoteStorageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("RemoteStorageNodeSet moved from %s to %s", oldStatus, remoteStorageNodeSet.Status.State),
+			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, crRemoteStorageNodeSet.Status.State),
 		)
 	}
 
