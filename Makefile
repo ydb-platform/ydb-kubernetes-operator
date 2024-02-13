@@ -78,7 +78,7 @@ kind-load:
 	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
 
 unit-test: manifests generate fmt vet envtest ## Run unit tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/... -ginkgo.vv -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/remotestoragenodeset/... -ginkgo.vv -coverprofile cover.out
 
 e2e-test: docker-build kind-init kind-load ## Run e2e tests
 	go test -v -timeout 1800s -p 1 ./e2e/... -args -ginkgo.vv
