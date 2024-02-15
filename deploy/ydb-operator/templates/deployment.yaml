@@ -30,6 +30,10 @@ spec:
             {{- if .Values.metrics.enabled }}
             - --with-service-monitors=true
             {{- end }}
+            {{- if .Values.remote.enabled }}
+            - --remote-cluster={{- .Values.remote.cluster }}
+            - --remote-kubeconfig=/remote/kubeconfig
+            {{- end }}
           command:
             - /manager
           image: {{ default "cr.yandex/yc/ydb-kubernetes-operator" .Values.image.repository }}:
@@ -60,17 +64,24 @@ spec:
             {{- toYaml .Values.resources | nindent 12  }}
           securityContext:
             allowPrivilegeEscalation: false
+          {{- if or .Values.webhook.enabled .Values.remote.enabled }}
           {{- if .Values.webhook.enabled }}
           volumeMounts:
             - mountPath: /tmp/k8s-webhook-server/serving-certs
               name: webhook-tls
           {{- end }}
+          {{- if .Values.remote.enabled }}
+            - mountPath: /remote
+              name: remote-kubeconfig
+          {{- end }}
+          {{- end }}
       securityContext:
         runAsNonRoot: true
       serviceAccountName: {{ include "ydb.fullname" . }}
       terminationGracePeriodSeconds: 10
-      {{- if .Values.webhook.enabled }}
+      {{- if or .Values.webhook.enabled .Values.remote.enabled }}
       volumes:
+        {{- if .Values.webhook.enabled }}
         - name: webhook-tls
           secret:
             secretName: {{ include "ydb.fullname" . }}-webhook
@@ -83,6 +94,12 @@ spec:
               - key: key
                 path: tls.key
             {{- end }}
+        {{- end }}
+        {{- if .Values.remote.enabled }}
+        - name: remote-kubeconfig
+          secret:
+            secretName: {{ .Values.remote.kubeconfig }}
+        {{- end }}
       {{- end }}
       {{- if .Values.imagePullSecrets }}
       {{- with .Values.imagePullSecrets }}

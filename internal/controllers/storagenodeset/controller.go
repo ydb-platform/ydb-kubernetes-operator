@@ -48,7 +48,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.Get(ctx, req.NamespacedName, crStorageNodeSet)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("StorageNodeSet has been deleted")
+			logger.Info("StorageNodeSet resource not found")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		logger.Error(err, "unable to get StorageNodeSet")

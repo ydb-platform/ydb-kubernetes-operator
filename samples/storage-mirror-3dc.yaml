@@ -13,6 +13,11 @@ spec:
   image:
     name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
   nodes: 9
+  nodeSets:
+    - name: nodeset-1
+      nodes: 9
+      remote:
+        cluster: "yc-dev"
   erasure: mirror-3-dc
   configuration: |-
     static_erasure: mirror-3-dc

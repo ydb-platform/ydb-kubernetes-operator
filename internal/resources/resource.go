@@ -7,10 +7,13 @@ import (
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 )
 
 const (
@@ -165,4 +168,61 @@ func CopyDict(src map[string]string) map[string]string {
 		dst[k] = v
 	}
 	return dst
+}
+
+func CopyResource(obj client.Object) client.Object {
+
+	copiedObj := obj.DeepCopyObject().(client.Object)
+
+	// Remove or reset fields
+	copiedObj.SetResourceVersion("")
+	copiedObj.SetCreationTimestamp(metav1.Time{})
+	copiedObj.SetUID("")
+	copiedObj.SetOwnerReferences([]metav1.OwnerReference{})
+	copiedObj.SetSelfLink("")
+	copiedObj.SetFinalizers([]string{})
+
+	return copiedObj
+}
+
+func UpdateResource(oldObj, newObj client.Object) client.Object {
+
+	updatedObj := newObj.DeepCopyObject().(client.Object)
+
+	// Save current fields
+	updatedObj.SetResourceVersion(oldObj.GetResourceVersion())
+	updatedObj.SetCreationTimestamp(oldObj.GetCreationTimestamp())
+	updatedObj.SetUID(oldObj.GetUID())
+	updatedObj.SetOwnerReferences(oldObj.GetOwnerReferences())
+	updatedObj.SetSelfLink(oldObj.GetSelfLink())
+	updatedObj.SetFinalizers(oldObj.GetFinalizers())
+
+	return updatedObj
+}
+
+func SetPrimaryResourceAnnotations(primaryObj, childObj client.Object) {
+	annotations := make(map[string]string)
+
+	for key, value := range childObj.GetAnnotations() {
+		annotations[key] = value
+	}
+
+	annotations[ydbannotations.PrimaryResourceNameAnnotation] = primaryObj.GetName()
+	annotations[ydbannotations.PrimaryResourceNamespaceAnnotation] = primaryObj.GetNamespace()
+	annotations[ydbannotations.PrimaryResourceTypeAnnotation] = primaryObj.GetObjectKind().GroupVersionKind().Kind
+	annotations[ydbannotations.PrimaryResourceUIDAnnotation] = string(primaryObj.GetUID())
+
+	childObj.SetAnnotations(annotations)
+}
+
+func SetRemoteResourceVersionAnnotation(remoteObj, localObj client.Object) {
+	annotations := make(map[string]string)
+
+	for key, value := range localObj.GetAnnotations() {
+		annotations[key] = value
+	}
+
+	annotations[ydbannotations.RemoteResourceVersionAnnotation] = remoteObj.GetResourceVersion()
+
+	localObj.SetAnnotations(annotations)
 }

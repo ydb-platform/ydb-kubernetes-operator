@@ -1,0 +1,92 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: yc-dev
+  namespace: ydb
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: yc-dev-token
+  namespace: ydb
+  annotations:
+    kubernetes.io/service-account.name: yc-dev
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ydb-operator-remote
+  namespace: ydb
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ydb.tech
+  resources:
+  - remotedatabasenodesets
+  - remotestoragenodesets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ydb.tech
+  resources:
+  - remotedatabasenodesets
+  - remotestoragenodesets
+  verbs:
+  - update
+- apiGroups:
+  - ydb.tech
+  resources:
+  - remotedatabasenodesets/status
+  - remotestoragenodesets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ydb-operator-remote-rolebinding
+  namespace: ydb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ydb-operator-remote
+subjects:
+- kind: ServiceAccount
+  name: yc-dev
+  namespace: ydb

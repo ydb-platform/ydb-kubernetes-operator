@@ -49,7 +49,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.Get(ctx, req.NamespacedName, crDatabaseNodeSet)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("DatabaseNodeSet has been deleted")
+			logger.Info("DatabaseNodeSet resource not found")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		logger.Error(err, "unable to get DatabaseNodeSet")

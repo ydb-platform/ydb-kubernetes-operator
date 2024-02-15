@@ -55,13 +55,5 @@ const (
 	StorageAwaitRequeueDelay        = 30 * time.Second
 	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
 
-	PrimaryResourceNameAnnotation      = "ydb.tech/primary-resource-name"
-	PrimaryResourceNamespaceAnnotation = "ydb.tech/primary-resource-namespace"
-	PrimaryResourceTypeAnnotation      = "ydb.tech/primary-resource-type"
-	PrimaryResourceVersionAnnotation   = "ydb.tech/primary-resource-version"
-	PrimaryResourceUIDAnnotation       = "ydb.tech/primary-resource-uid"
-
-	RemoteFinalizerKey = "ydb.tech/remote-finalizer"
-
 	OwnerControllerKey = ".metadata.controller"
 )

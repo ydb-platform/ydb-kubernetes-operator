@@ -47,6 +47,13 @@ metrics:
   ##
   enabled: false
 
+remote:
+  ## Create ServiceMonitor resources
+  ##
+  enabled: false
+  cluster: ""
+  kubeconfig: "remote-kubeconfig"
+
 webhook:
   enabled: true
 
