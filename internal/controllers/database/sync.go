@@ -140,48 +140,86 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 			fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSets)),
 		)
 		database.Status.State = DatabaseProvisioning
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	for _, nodeSetSpec := range database.Spec.NodeSets {
-		foundDatabaseNodeSet := v1alpha1.DatabaseNodeSet{}
-		databaseNodeSetName := database.Name + "-" + nodeSetSpec.Name
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      databaseNodeSetName,
-			Namespace: database.Namespace,
-		}, &foundDatabaseNodeSet)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
+		nodeSetName := database.Name + "-" + nodeSetSpec.Name
+		if nodeSetSpec.Remote != nil {
+			foundRemoteDatabaseNodeSet := v1alpha1.RemoteDatabaseNodeSet{}
+			if err := r.Get(ctx, types.NamespacedName{
+				Name:      nodeSetName,
+				Namespace: database.Namespace,
+			}, &foundRemoteDatabaseNodeSet); err != nil {
+				if apierrors.IsNotFound(err) {
+					r.Recorder.Event(
+						database,
+						corev1.EventTypeWarning,
+						"ProvisioningFailed",
+						fmt.Sprintf("RemoteDatabaseNodeSet with name %s was not found: %s", nodeSetName, err),
+					)
+					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+				}
 				r.Recorder.Event(
 					database,
 					corev1.EventTypeWarning,
 					"ProvisioningFailed",
-					fmt.Sprintf("DatabaseNodeSet with name %s was not found: %s", databaseNodeSetName, err),
+					fmt.Sprintf("Failed to get RemoteDatabaseNodeSet with name %s: %s", nodeSetName, err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+			if foundRemoteDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
+				eventMessage := fmt.Sprintf("Waiting %s state for RemoteDatabaseNodeSet with name %s, current: %s",
+					string(DatabaseNodeSetReady),
+					foundRemoteDatabaseNodeSet.Name,
+					foundRemoteDatabaseNodeSet.Status.State,
+				)
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeNormal,
+					string(DatabaseProvisioning),
+					eventMessage,
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
-			r.Recorder.Event(
-				database,
-				corev1.EventTypeWarning,
-				"ProvisioningFailed",
-				fmt.Sprintf("Failed to get DatabaseNodeSet: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
+		} else {
+			foundDatabaseNodeSet := v1alpha1.DatabaseNodeSet{}
+			if err := r.Get(ctx, types.NamespacedName{
+				Name:      nodeSetName,
+				Namespace: database.Namespace,
+			}, &foundDatabaseNodeSet); err != nil {
+				if apierrors.IsNotFound(err) {
+					r.Recorder.Event(
+						database,
+						corev1.EventTypeWarning,
+						"ProvisioningFailed",
+						fmt.Sprintf("DatabaseNodeSet with name %s was not found: %s", nodeSetName, err),
+					)
+					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+				}
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to get DatabaseNodeSet with name %s: %s", nodeSetName, err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
 
-		if foundDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
-			eventMessage := fmt.Sprintf("Waiting %s state for DatabaseNodeSet object %s, current: %s",
-				string(DatabaseReady),
-				foundDatabaseNodeSet.Name,
-				foundDatabaseNodeSet.Status.State,
-			)
-			r.Recorder.Event(
-				database,
-				corev1.EventTypeNormal,
-				string(DatabaseProvisioning),
-				eventMessage,
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			if foundDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
+				eventMessage := fmt.Sprintf("Waiting %s state for DatabaseNodeSet with name %s, current: %s",
+					string(DatabaseNodeSetReady),
+					foundDatabaseNodeSet.Name,
+					foundDatabaseNodeSet.Status.State,
+				)
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeNormal,
+					string(DatabaseProvisioning),
+					eventMessage,
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			}
 		}
 	}
 
@@ -202,7 +240,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Starting to track number of running database pods, expected: %d", database.Spec.Nodes),
 		)
 		database.Status.State = DatabaseProvisioning
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	if database.Spec.ServerlessResources != nil {
@@ -295,7 +333,7 @@ func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handleResourcesSync")
+	r.Log.Info("running step handleResourcesSync for Database")
 
 	for _, builder := range database.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(database)
@@ -352,16 +390,17 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
-	r.Log.Info("resource sync complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) setState(
+func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
+	r.Log.Info("running step updateStatus for Database")
+
 	databaseCr := &v1alpha1.Database{}
-	err := r.Get(ctx, client.ObjectKey{
+	err := r.Get(ctx, types.NamespacedName{
 		Namespace: database.Namespace,
 		Name:      database.Name,
 	}, databaseCr)
@@ -379,25 +418,29 @@ func (r *Reconciler) setState(
 	databaseCr.Status.State = database.Status.State
 	databaseCr.Status.Conditions = database.Status.Conditions
 
-	err = r.Status().Update(ctx, databaseCr)
-	if err != nil {
-		r.Recorder.Event(
-			databaseCr,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("failed setting status: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != databaseCr.Status.State {
+	if oldStatus != databaseCr.Status.State {
+		err = r.Status().Update(ctx, databaseCr)
+		if err != nil {
+			r.Recorder.Event(
+				databaseCr,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("failed setting status: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
 		r.Recorder.Event(
 			databaseCr,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("Database moved from %s to %s", oldStatus, databaseCr.Status.State),
 		)
+		r.Log.Info("step updateStatus for DatabaseNodeSet requeue reconcile")
+		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+	r.Log.Info("step updateStatus for DatabaseNodeSet completed")
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) getYDBCredentials(
@@ -468,15 +511,14 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step syncNodeSetSpecInline")
-	matchingFields := client.MatchingFields{
-		OwnerControllerKey: database.Name,
-	}
+	r.Log.Info("running step syncNodeSetSpecInline for Database")
 
 	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 	if err := r.List(ctx, databaseNodeSets,
 		client.InNamespace(database.Namespace),
-		matchingFields,
+		client.MatchingFields{
+			OwnerControllerField: database.Name,
+		},
 	); err != nil {
 		r.Recorder.Event(
 			database,
@@ -524,7 +566,9 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	remoteDatabaseNodeSets := &v1alpha1.RemoteDatabaseNodeSetList{}
 	if err := r.List(ctx, remoteDatabaseNodeSets,
 		client.InNamespace(database.Namespace),
-		matchingFields,
+		client.MatchingFields{
+			OwnerControllerField: database.Name,
+		},
 	); err != nil {
 		r.Recorder.Event(
 			database,
@@ -570,7 +614,6 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -579,6 +622,7 @@ func (r *Reconciler) handlePauseResume(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume for Database")
+
 	if database.Status.State == DatabaseReady && database.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Database to state `Paused`")
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
@@ -588,14 +632,14 @@ func (r *Reconciler) handlePauseResume(
 			Message: "State Database set to Paused",
 		})
 		database.Status.State = DatabasePaused
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	if database.Status.State == DatabasePaused && !database.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving Database to state `Ready`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 		database.Status.State = DatabaseReady
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	return Continue, ctrl.Result{}, nil
@@ -627,14 +671,19 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	_, result, err = r.handleTenantCreation(ctx, database, auth)
-	return result, err
+	stop, result, err = r.handleTenantCreation(ctx, database, auth)
+	if stop {
+		return result, err
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) checkDatabaseFrozen(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for Database")
+	r.Log.Info("running step checkDatabaseFrozen")
+
 	if !database.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

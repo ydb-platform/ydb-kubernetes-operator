@@ -22,18 +22,20 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/remotestoragenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storagenodeset"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
 
@@ -78,7 +80,7 @@ var _ = BeforeSuite(func() {
 		ErrorIfCRDPathMissing: true,
 	}
 
-	err := ydbv1alpha1.AddToScheme(scheme.Scheme)
+	err := v1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).ToNot(HaveOccurred())
 	// +kubebuilder:scaffold:scheme
 
@@ -109,7 +111,7 @@ var _ = BeforeSuite(func() {
 		o.Scheme = scheme.Scheme
 		o.NewCache = cache.BuilderWithOptions(cache.Options{
 			SelectorsByObject: cache.SelectorsByObject{
-				&ydbv1alpha1.RemoteStorageNodeSet{}: {Label: storageSelector},
+				&v1alpha1.RemoteStorageNodeSet{}: {Label: storageSelector},
 			},
 		})
 	})
@@ -122,6 +124,7 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
+		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -129,6 +132,7 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
+		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -136,12 +140,14 @@ var _ = BeforeSuite(func() {
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
 		Config: remoteManager.GetConfig(),
+		Log:    logf.Log,
 	}).SetupWithManager(remoteManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotestoragenodeset.Reconciler{
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
+		Log:    logf.Log,
 	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -155,6 +161,7 @@ var _ = BeforeSuite(func() {
 		defer GinkgoRecover()
 		err = remoteManager.Start(ctx)
 		Expect(err).ShouldNot(HaveOccurred())
+
 	}()
 
 	localClient = localManager.GetClient()
@@ -175,22 +182,31 @@ var _ = AfterSuite(func() {
 var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 	var localNamespace corev1.Namespace
 	var remoteNamespace corev1.Namespace
-	var storageSample *ydbv1alpha1.Storage
+	var storageSample *v1alpha1.Storage
 
 	BeforeEach(func() {
 		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
-		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, ydbv1alpha1.StorageNodeSetSpecInline{
+		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
 			Name: testNodeSetName + "-local",
-			StorageNodeSpec: ydbv1alpha1.StorageNodeSpec{
+			StorageNodeSpec: v1alpha1.StorageNodeSpec{
 				Nodes: 4,
 			},
 		})
-		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, ydbv1alpha1.StorageNodeSetSpecInline{
-			Name: testNodeSetName + "-remote",
-			Remote: &ydbv1alpha1.RemoteSpec{
+		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
+			Name: testNodeSetName + "-remote-static",
+			Remote: &v1alpha1.RemoteSpec{
 				Cluster: testRemoteCluster,
 			},
-			StorageNodeSpec: ydbv1alpha1.StorageNodeSpec{
+			StorageNodeSpec: v1alpha1.StorageNodeSpec{
+				Nodes: 8,
+			},
+		})
+		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
+			Name: testNodeSetName + "-remote",
+			Remote: &v1alpha1.RemoteSpec{
+				Cluster: testRemoteCluster,
+			},
+			StorageNodeSpec: v1alpha1.StorageNodeSpec{
 				Nodes: 4,
 			},
 		})
@@ -214,7 +230,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 		By("checking that Storage created on local cluster...")
 		Eventually(func() bool {
-			foundStorage := ydbv1alpha1.Storage{}
+			foundStorage := v1alpha1.Storage{}
 			Expect(localClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
 				Namespace: testobjects.YdbNamespace,
@@ -224,7 +240,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 		By("checking that StorageNodeSet created on local cluster...")
 		Eventually(func() error {
-			foundStorageNodeSet := &ydbv1alpha1.StorageNodeSet{}
+			foundStorageNodeSet := &v1alpha1.StorageNodeSet{}
 			return localClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name + "-" + testNodeSetName + "-local",
 				Namespace: testobjects.YdbNamespace,
@@ -233,30 +249,38 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 		By("checking that RemoteStorageNodeSet created on local cluster...")
 		Eventually(func() error {
-			foundRemoteStorageNodeSet := &ydbv1alpha1.RemoteStorageNodeSet{}
+			foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 			return localClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
 				Namespace: testobjects.YdbNamespace,
 			}, foundRemoteStorageNodeSet)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
-		By("set status Ready to Storage...")
+		By("checking that static RemoteStorageNodeSet created on local cluster...")
 		Eventually(func() error {
-			foundStorage := ydbv1alpha1.Storage{}
-			Expect(localClient.Get(ctx, types.NamespacedName{
-				Name:      storageSample.Name,
+			foundStaticRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+			return localClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
 				Namespace: testobjects.YdbNamespace,
-			}, &foundStorage))
-			return localClient.Status().Update(ctx, &foundStorage)
+			}, foundStaticRemoteStorageNodeSet)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
 		By("checking that StorageNodeSet created on remote cluster...")
 		Eventually(func() error {
-			foundStorageNodeSetOnRemote := &ydbv1alpha1.StorageNodeSet{}
+			foundStorageNodeSetOnRemote := &v1alpha1.StorageNodeSet{}
 			return remoteClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
 				Namespace: testobjects.YdbNamespace,
 			}, foundStorageNodeSetOnRemote)
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		By("checking that static StorageNodeSet created on remote cluster...")
+		Eventually(func() error {
+			foundStaticStorageNodeSetOnRemote := &v1alpha1.StorageNodeSet{}
+			return remoteClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+				Namespace: testobjects.YdbNamespace,
+			}, foundStaticStorageNodeSetOnRemote)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 	})
 
@@ -267,9 +291,30 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 	When("Created RemoteStorageNodeSet in k8s-mgmt-cluster", func() {
 		It("Should receive status from k8s-data-cluster", func() {
+			By("set static StorageNodeSet status to Ready on remote cluster...")
+			Eventually(func() error {
+				foundStaticStorageNodeSetOnRemote := &v1alpha1.StorageNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+					Namespace: testobjects.YdbNamespace,
+				}, foundStaticStorageNodeSetOnRemote)).Should(Succeed())
+				foundStaticStorageNodeSetOnRemote.Status.State = StorageNodeSetReady
+				foundStaticStorageNodeSetOnRemote.Status.Conditions = append(
+					foundStaticStorageNodeSetOnRemote.Status.Conditions,
+					metav1.Condition{
+						Type:               StorageNodeSetReadyCondition,
+						Status:             "True",
+						Reason:             ReasonCompleted,
+						LastTransitionTime: metav1.NewTime(time.Now()),
+						Message:            fmt.Sprintf("Scaled StorageNodeSet to %d successfully", foundStaticStorageNodeSetOnRemote.Spec.Nodes),
+					},
+				)
+				return remoteClient.Status().Update(ctx, foundStaticStorageNodeSetOnRemote)
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
 			By("set StorageNodeSet status to Ready on remote cluster...")
 			Eventually(func() error {
-				foundStorageNodeSetOnRemote := &ydbv1alpha1.StorageNodeSet{}
+				foundStorageNodeSetOnRemote := &v1alpha1.StorageNodeSet{}
 				Expect(remoteClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
 					Namespace: testobjects.YdbNamespace,
@@ -288,9 +333,24 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				return remoteClient.Status().Update(ctx, foundStorageNodeSetOnRemote)
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
+			By("checking that static RemoteStorageNodeSet status updated on local cluster...")
+			Eventually(func() bool {
+				foundStaticRemoteStorageNodeSet := v1alpha1.RemoteStorageNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+					Namespace: testobjects.YdbNamespace,
+				}, &foundStaticRemoteStorageNodeSet)).Should(Succeed())
+
+				return meta.IsStatusConditionPresentAndEqual(
+					foundStaticRemoteStorageNodeSet.Status.Conditions,
+					StorageNodeSetReadyCondition,
+					metav1.ConditionTrue,
+				) && foundStaticRemoteStorageNodeSet.Status.State == StorageNodeSetReady
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
 			By("checking that RemoteStorageNodeSet status updated on local cluster...")
 			Eventually(func() bool {
-				foundRemoteStorageNodeSet := ydbv1alpha1.RemoteStorageNodeSet{}
+				foundRemoteStorageNodeSet := v1alpha1.RemoteStorageNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
 					Namespace: testobjects.YdbNamespace,
@@ -320,7 +380,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 			By("checking that Storage updated on local cluster...")
 			Eventually(func() error {
-				foundStorage := &ydbv1alpha1.Storage{}
+				foundStorage := &v1alpha1.Storage{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name,
 					Namespace: testobjects.YdbNamespace,
@@ -337,11 +397,12 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 			By("checking that Secrets are synced...")
 			Eventually(func() error {
-				foundRemoteStorageNodeSet := &ydbv1alpha1.RemoteStorageNodeSet{}
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
 					Namespace: testobjects.YdbNamespace,
 				}, foundRemoteStorageNodeSet)).Should(Succeed())
+
 				localSecret := &corev1.Secret{}
 				err := localClient.Get(ctx, types.NamespacedName{
 					Name:      testSecretName,
@@ -350,6 +411,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				if err != nil {
 					return err
 				}
+
 				remoteSecret := &corev1.Secret{}
 				err = remoteClient.Get(ctx, types.NamespacedName{
 					Name:      testSecretName,
@@ -358,14 +420,23 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				if err != nil {
 					return err
 				}
-				localRV := localSecret.GetResourceVersion()
+
+				primaryResourceName, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceStorageAnnotation]
+				if !exist {
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceStorageAnnotation, remoteSecret.Name)
+				}
+				if primaryResourceName != foundRemoteStorageNodeSet.Spec.StorageRef.Name {
+					return fmt.Errorf("primaryResourceName %s does not equal storageRef name %s", primaryResourceName, foundRemoteStorageNodeSet.Spec.StorageRef.Name)
+				}
+
 				remoteRV, exist := remoteSecret.Annotations[ydbannotations.RemoteResourceVersionAnnotation]
 				if !exist {
 					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.RemoteResourceVersionAnnotation, remoteSecret.Name)
 				}
-				if localRV != remoteRV {
-					return fmt.Errorf("localRV %s does not equal remoteRV %s", localRV, remoteRV)
+				if localSecret.GetResourceVersion() != remoteRV {
+					return fmt.Errorf("localRV %s does not equal remoteRV %s", localSecret.GetResourceVersion(), remoteRV)
 				}
+
 				return nil
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 		})
@@ -374,7 +445,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 		It("Should sync Services into k8s-data-cluster", func() {
 			By("checking that Services are synced...")
 			Eventually(func() error {
-				foundRemoteStorageNodeSet := &ydbv1alpha1.RemoteStorageNodeSet{}
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
 					Namespace: testobjects.YdbNamespace,
@@ -396,22 +467,103 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				}
 				return nil
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("checking that static RemoteStorageNodeSet RemoteStatus are updated...")
+			Eventually(func() bool {
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteStorageNodeSet)).Should(Succeed())
+
+				foundConfigMap := corev1.ConfigMap{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundConfigMap)).Should(Succeed())
+
+				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				for _, syncedResource := range foundRemoteStorageNodeSet.Status.RemoteResources {
+					if resources.CompareRemoteResourceWithObject(
+						&syncedResource,
+						testobjects.YdbNamespace,
+						foundConfigMap.DeepCopy(),
+						gvk,
+					) {
+						if meta.IsStatusConditionPresentAndEqual(
+							syncedResource.Conditions,
+							RemoteResourceSyncedCondition,
+							metav1.ConditionTrue,
+						) {
+							return true
+						}
+					}
+				}
+				return false
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that RemoteStorageNodeSet RemoteStatus are updated...")
+			Eventually(func() bool {
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteStorageNodeSet)).Should(Succeed())
+
+				foundConfigMap := corev1.ConfigMap{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundConfigMap)).Should(Succeed())
+
+				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				for _, syncedResource := range foundRemoteStorageNodeSet.Status.RemoteResources {
+					if resources.CompareRemoteResourceWithObject(
+						&syncedResource,
+						testobjects.YdbNamespace,
+						foundConfigMap.DeepCopy(),
+						gvk,
+					) {
+						if meta.IsStatusConditionPresentAndEqual(
+							syncedResource.Conditions,
+							RemoteResourceSyncedCondition,
+							metav1.ConditionTrue,
+						) {
+							return true
+						}
+					}
+				}
+				return false
+			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
 	When("Delete Storage with RemoteStorageNodeSet in k8s-mgmt-cluster", func() {
 		It("Should delete all resources in k8s-data-cluster", func() {
 			By("delete RemoteStorageNodeSet on local cluster...")
 			Eventually(func() error {
-				foundStorage := ydbv1alpha1.Storage{}
+				foundStorage := v1alpha1.Storage{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name,
 					Namespace: testobjects.YdbNamespace,
 				}, &foundStorage)).Should(Succeed())
-				foundStorage.Spec.NodeSets = []ydbv1alpha1.StorageNodeSetSpecInline{
+				foundStorage.Spec.NodeSets = []v1alpha1.StorageNodeSetSpecInline{
 					{
 						Name: testNodeSetName + "-local",
-						StorageNodeSpec: ydbv1alpha1.StorageNodeSpec{
+						StorageNodeSpec: v1alpha1.StorageNodeSpec{
 							Nodes: 4,
+						},
+					},
+					{
+						Name: testNodeSetName + "-remote-static",
+						Remote: &v1alpha1.RemoteSpec{
+							Cluster: testRemoteCluster,
+						},
+						StorageNodeSpec: v1alpha1.StorageNodeSpec{
+							Nodes: 8,
 						},
 					},
 				}
@@ -420,7 +572,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 			By("checking that StorageNodeSet deleted from remote cluster...")
 			Eventually(func() bool {
-				foundStorageNodeSetOnRemote := ydbv1alpha1.StorageNodeSet{}
+				foundStorageNodeSetOnRemote := v1alpha1.StorageNodeSet{}
 
 				err := remoteClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
@@ -432,7 +584,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 			By("checking that RemoteStorageNodeSet deleted from local cluster...")
 			Eventually(func() bool {
-				foundRemoteStorageNodeSet := ydbv1alpha1.RemoteStorageNodeSet{}
+				foundRemoteStorageNodeSet := v1alpha1.RemoteStorageNodeSet{}
 
 				err := localClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
@@ -441,6 +593,30 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return apierrors.IsNotFound(err)
 			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that Services for static RemoteStorageNodeSet exisiting in remote cluster...")
+			Eventually(func() error {
+				foundStaticStorageNodeSetOnRemote := &v1alpha1.StorageNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+					Namespace: testobjects.YdbNamespace,
+				}, foundStaticStorageNodeSetOnRemote)).Should(Succeed())
+
+				storageServices := corev1.ServiceList{}
+				Expect(localClient.List(ctx, &storageServices,
+					client.InNamespace(testobjects.YdbNamespace),
+				)).Should(Succeed())
+				for _, storageService := range storageServices.Items {
+					remoteService := &corev1.Service{}
+					if err := remoteClient.Get(ctx, types.NamespacedName{
+						Name:      storageService.GetName(),
+						Namespace: storageService.GetNamespace(),
+					}, remoteService); err != nil {
+						return err
+					}
+				}
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 		})
 	})
 })

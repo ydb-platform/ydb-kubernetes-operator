@@ -16,12 +16,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *ydbv1alpha1.StorageNodeSet) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *v1alpha1.StorageNodeSet) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -114,7 +114,7 @@ func (r *Reconciler) handleResourcesSync(
 			)
 		}
 	}
-	r.Log.Info("resource sync complete")
+
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -131,7 +131,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			string(StorageNodeSetProvisioning),
 			fmt.Sprintf("Starting to track number of running storageNodeSet pods, expected: %d", storageNodeSet.Spec.Nodes))
 		storageNodeSet.Status.State = StorageNodeSetProvisioning
-		return r.setState(ctx, storageNodeSet)
+		return r.updateStatus(ctx, storageNodeSet)
 	}
 
 	foundStatefulSet := &appsv1.StatefulSet{}
@@ -202,26 +202,28 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Reason:  ReasonCompleted,
 			Message: "Scaled StorageNodeSet to 0 successfully",
 		})
-		storageNodeSet.Status.State = DatabaseNodeSetPaused
+		storageNodeSet.Status.State = StorageNodeSetPaused
 	} else {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    StorageNodeSetReadyCondition,
 			Status:  "True",
 			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Scaled DatabaseNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
 		})
-		storageNodeSet.Status.State = DatabaseNodeSetReady
+		storageNodeSet.Status.State = StorageNodeSetReady
 	}
 
-	return r.setState(ctx, storageNodeSet)
+	return r.updateStatus(ctx, storageNodeSet)
 }
 
-func (r *Reconciler) setState(
+func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	crStorageNodeSet := &ydbv1alpha1.StorageNodeSet{}
-	err := r.Get(ctx, client.ObjectKey{
+	r.Log.Info("running step updateStatus for StorageNodeSet")
+
+	crStorageNodeSet := &v1alpha1.StorageNodeSet{}
+	err := r.Get(ctx, types.NamespacedName{
 		Namespace: storageNodeSet.Namespace,
 		Name:      storageNodeSet.Name,
 	}, crStorageNodeSet)
@@ -239,25 +241,28 @@ func (r *Reconciler) setState(
 	crStorageNodeSet.Status.State = storageNodeSet.Status.State
 	crStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
 
-	err = r.Status().Update(ctx, crStorageNodeSet)
-	if err != nil {
-		r.Recorder.Event(
-			crStorageNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed setting status: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != storageNodeSet.Status.State {
+	if oldStatus != storageNodeSet.Status.State {
+		if err = r.Status().Update(ctx, crStorageNodeSet); err != nil {
+			r.Recorder.Event(
+				crStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed setting status: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
 		r.Recorder.Event(
 			crStorageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, storageNodeSet.Status.State),
 		)
+
+		r.Log.Info("step updateStatus for StorageNodeSet requeue reconcile")
+		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func shouldIgnoreStorageNodeSetChange(storageNodeSet *resources.StorageNodeSetResource) resources.IgnoreChangesFunction {
@@ -286,7 +291,7 @@ func (r *Reconciler) handlePauseResume(
 			Message: "Transitioning StorageNodeSet to Paused state",
 		})
 		storageNodeSet.Status.State = StorageNodeSetPaused
-		return r.setState(ctx, storageNodeSet)
+		return r.updateStatus(ctx, storageNodeSet)
 	}
 
 	if storageNodeSet.Status.State == StoragePaused && !storageNodeSet.Spec.Pause {
@@ -299,7 +304,7 @@ func (r *Reconciler) handlePauseResume(
 			Message: "Recovering StorageNodeSet from Paused state",
 		})
 		storageNodeSet.Status.State = StorageNodeSetReady
-		return r.setState(ctx, storageNodeSet)
+		return r.updateStatus(ctx, storageNodeSet)
 	}
 
 	return Continue, ctrl.Result{}, nil

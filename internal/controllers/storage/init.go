@@ -62,7 +62,6 @@ func (r *Reconciler) setInitialStatus(
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
-	changed := false
 	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageInitializedCondition,
@@ -70,16 +69,11 @@ func (r *Reconciler) setInitialStatus(
 			Reason:  ReasonInProgress,
 			Message: "Storage is not ready yet",
 		})
-		changed = true
 	}
 	if storage.Status.State == StoragePending {
 		storage.Status.State = StoragePreparing
-		changed = true
 	}
-	if changed {
-		return r.setState(ctx, storage)
-	}
-	return Continue, ctrl.Result{Requeue: false}, nil
+	return r.updateStatus(ctx, storage)
 }
 
 func (r *Reconciler) setInitStorageCompleted(
@@ -95,7 +89,7 @@ func (r *Reconciler) setInitStorageCompleted(
 	})
 
 	storage.Status.State = StorageReady
-	return r.setState(ctx, storage)
+	return r.updateStatus(ctx, storage)
 }
 
 func (r *Reconciler) initializeStorage(
@@ -107,7 +101,7 @@ func (r *Reconciler) initializeStorage(
 
 	if storage.Status.State == StorageProvisioning {
 		storage.Status.State = StorageInitializing
-		return r.setState(ctx, storage)
+		return r.updateStatus(ctx, storage)
 	}
 
 	// List Pods by label Selector

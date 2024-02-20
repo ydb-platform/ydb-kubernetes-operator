@@ -2,13 +2,18 @@ package resources
 
 import (
 	"errors"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
 type RemoteStorageNodeSetBuilder struct {
@@ -53,21 +58,6 @@ func (b *RemoteStorageNodeSetBuilder) Placeholder(cr client.Object) client.Objec
 func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
-	storage := b.recastRemoteStorageNodeSet()
-	storageLabels := labels.StorageLabels(&storage)
-
-	grpcServiceLabels := storageLabels.Copy()
-	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
-	grpcServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.GRPCComponent})
-
-	interconnectServiceLabels := storageLabels.Copy()
-	interconnectServiceLabels.Merge(b.Spec.Service.Interconnect.AdditionalLabels)
-	interconnectServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.InterconnectComponent})
-
-	statusServiceLabels := storageLabels.Copy()
-	statusServiceLabels.Merge(b.Spec.Service.Status.AdditionalLabels)
-	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
-
 	resourceBuilders = append(resourceBuilders,
 		&StorageNodeSetBuilder{
 			Object: b,
@@ -76,46 +66,6 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 			Labels: b.Labels,
 
 			StorageNodeSetSpec: b.Spec,
-		},
-		&ServiceBuilder{
-			Object:         &storage,
-			NameFormat:     GRPCServiceNameFormat,
-			Labels:         grpcServiceLabels,
-			SelectorLabels: storageLabels,
-			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
-			Ports: []corev1.ServicePort{{
-				Name: api.GRPCServicePortName,
-				Port: api.GRPCPort,
-			}},
-			IPFamilies:     b.Spec.Service.GRPC.IPFamilies,
-			IPFamilyPolicy: b.Spec.Service.GRPC.IPFamilyPolicy,
-		},
-		&ServiceBuilder{
-			Object:         &storage,
-			NameFormat:     InterconnectServiceNameFormat,
-			Labels:         interconnectServiceLabels,
-			SelectorLabels: storageLabels,
-			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
-			Headless:       true,
-			Ports: []corev1.ServicePort{{
-				Name: api.InterconnectServicePortName,
-				Port: api.InterconnectPort,
-			}},
-			IPFamilies:     b.Spec.Service.Interconnect.IPFamilies,
-			IPFamilyPolicy: b.Spec.Service.Interconnect.IPFamilyPolicy,
-		},
-		&ServiceBuilder{
-			Object:         &storage,
-			NameFormat:     StatusServiceNameFormat,
-			Labels:         statusServiceLabels,
-			SelectorLabels: storageLabels,
-			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
-			Ports: []corev1.ServicePort{{
-				Name: api.StatusServicePortName,
-				Port: api.StatusPort,
-			}},
-			IPFamilies:     b.Spec.Service.Status.IPFamilies,
-			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 	)
 	return resourceBuilders
@@ -127,8 +77,18 @@ func NewRemoteStorageNodeSet(remoteStorageNodeSet *api.RemoteStorageNodeSet) Rem
 	return RemoteStorageNodeSetResource{crRemoteStorageNodeSet}
 }
 
+func (b *RemoteStorageNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
+	if b.Status.Conditions == nil {
+		b.Status.Conditions = []metav1.Condition{}
+	}
+
+	return Continue, ctrl.Result{}, nil
+}
+
 func (b *RemoteStorageNodeSetResource) GetRemoteResources() []client.Object {
 	objects := []client.Object{}
+
+	// sync Secrets
 	for _, secret := range b.Spec.Secrets {
 		objects = append(objects,
 			&corev1.Secret{
@@ -138,19 +98,78 @@ func (b *RemoteStorageNodeSetResource) GetRemoteResources() []client.Object {
 				},
 			})
 	}
+
+	// sync ConfigMap
+	objects = append(objects,
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      b.Spec.StorageRef.Name,
+				Namespace: b.Namespace,
+			},
+		})
+
+	// sync Services
+	objects = append(objects,
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf(GRPCServiceNameFormat, b.Spec.StorageRef.Name),
+				Namespace: b.Namespace,
+			},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf(InterconnectServiceNameFormat, b.Spec.StorageRef.Name),
+				Namespace: b.Namespace,
+			},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf(StatusServiceNameFormat, b.Spec.StorageRef.Name),
+				Namespace: b.Namespace,
+			},
+		},
+	)
+
 	return objects
 }
 
-func (b *RemoteStorageNodeSetResource) recastRemoteStorageNodeSet() api.Storage {
-	return api.Storage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.RemoteStorageNodeSet.Spec.StorageRef.Name,
-			Namespace: b.RemoteStorageNodeSet.Spec.StorageRef.Namespace,
-			Labels:    b.RemoteStorageNodeSet.Labels,
-		},
-		Spec: api.StorageSpec{
-			StorageClusterSpec: b.RemoteStorageNodeSet.Spec.StorageClusterSpec,
-			StorageNodeSpec:    b.RemoteStorageNodeSet.Spec.StorageNodeSpec,
-		},
+func (b *RemoteStorageNodeSetResource) SetPrimaryResourceAnnotations(obj client.Object) {
+	annotations := make(map[string]string)
+	for key, value := range obj.GetAnnotations() {
+		annotations[key] = value
+	}
+
+	if _, exist := annotations[ydbannotations.PrimaryResourceStorageAnnotation]; !exist {
+		annotations[ydbannotations.PrimaryResourceStorageAnnotation] = b.Spec.StorageRef.Name
+	}
+
+	obj.SetAnnotations(annotations)
+}
+
+func (b *RemoteStorageNodeSetResource) SetRemoteResourceStatus(remoteResource client.Object, remoteResourceGVK schema.GroupVersionKind) {
+	for idx, syncedResource := range b.Status.RemoteResources {
+		if CompareRemoteResourceWithObject(&syncedResource, b.Namespace, remoteResource, remoteResourceGVK) {
+			meta.SetStatusCondition(&b.Status.RemoteResources[idx].Conditions,
+				metav1.Condition{
+					Type:    RemoteResourceSyncedCondition,
+					Status:  "True",
+					Reason:  ReasonCompleted,
+					Message: fmt.Sprintf("Resource updated with resourceVersion %s", remoteResource.GetResourceVersion()),
+				})
+			b.Status.RemoteResources[idx].State = ResourceSyncSuccess
+		}
+	}
+}
+
+func (b *RemoteStorageNodeSetResource) RemoveRemoteResourceStatus(remoteResource client.Object, remoteResourceGVK schema.GroupVersionKind) {
+	syncedResources := append([]api.RemoteResource{}, b.Status.RemoteResources...)
+	for idx, syncedResource := range syncedResources {
+		if CompareRemoteResourceWithObject(&syncedResource, b.Namespace, remoteResource, remoteResourceGVK) {
+			b.Status.RemoteResources = append(
+				b.Status.RemoteResources[:idx],
+				b.Status.RemoteResources[idx+1:]...,
+			)
+			break
+		}
 	}
 }

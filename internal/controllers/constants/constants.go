@@ -3,6 +3,7 @@ package constants
 import "time"
 
 type ClusterState string
+type RemoteResourceState string
 
 const (
 	StorageResourceKind  = "Storage"
@@ -14,6 +15,7 @@ const (
 	DatabasePausedCondition            = "DatabasePaused"
 	DatabaseTenantInitializedCondition = "TenantInitialized"
 	DatabaseNodeSetReadyCondition      = "DatabaseNodeSetReady"
+	RemoteResourceSyncedCondition      = "ResourceSynced"
 
 	Stop     = true
 	Continue = false
@@ -51,9 +53,15 @@ const (
 	StorageNodeSetReady        ClusterState = "Ready"
 	StorageNodeSetPaused       ClusterState = "Paused"
 
+	ResourceSyncPending RemoteResourceState = "Pending"
+	ResourceSyncSuccess RemoteResourceState = "Synced"
+
 	TenantCreationRequeueDelay      = 30 * time.Second
 	StorageAwaitRequeueDelay        = 30 * time.Second
 	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
 
-	OwnerControllerKey = ".metadata.controller"
+	OwnerControllerField = ".metadata.controller"
+	DatabaseRefField     = ".spec.databaseRef.name"
+	StorageRefField      = ".spec.storageRef.name"
+	SecretField          = ".spec.secrets"
 )

@@ -65,3 +65,17 @@ type StorageNodeSetList struct {
 func init() {
 	SchemeBuilder.Register(&StorageNodeSet{}, &StorageNodeSetList{})
 }
+
+func RecastStorageNodeSet(storageNodeSet *StorageNodeSet) *Storage {
+	return &Storage{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      storageNodeSet.Spec.StorageRef.Name,
+			Namespace: storageNodeSet.Spec.StorageRef.Namespace,
+			Labels:    storageNodeSet.Labels,
+		},
+		Spec: StorageSpec{
+			StorageClusterSpec: storageNodeSet.Spec.StorageClusterSpec,
+			StorageNodeSpec:    storageNodeSet.Spec.StorageNodeSpec,
+		},
+	}
+}

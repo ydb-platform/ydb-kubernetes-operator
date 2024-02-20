@@ -1,6 +1,11 @@
 package v1alpha1
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
+)
 
 // NamespacedRef TODO: replace StorageRef
 type NamespacedRef struct {
@@ -39,4 +44,13 @@ type RemoteSpec struct {
 	// Remote cluster to deploy NodeSet into
 	// +required
 	Cluster string `json:"cluster"`
+}
+
+type RemoteResource struct {
+	Group      string                        `json:"group"`
+	Version    string                        `json:"version"`
+	Kind       string                        `json:"kind"`
+	Name       string                        `json:"name"`
+	State      constants.RemoteResourceState `json:"state"`
+	Conditions []metav1.Condition            `json:"conditions,omitempty"`
 }

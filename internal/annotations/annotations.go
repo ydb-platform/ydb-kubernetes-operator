@@ -3,12 +3,9 @@ package annotations
 import "strings"
 
 const (
-	PrimaryResourceNameAnnotation      = "ydb.tech/primary-resource-name"
-	PrimaryResourceNamespaceAnnotation = "ydb.tech/primary-resource-namespace"
-	PrimaryResourceTypeAnnotation      = "ydb.tech/primary-resource-type"
-	PrimaryResourceUIDAnnotation       = "ydb.tech/primary-resource-uid"
-
-	RemoteResourceVersionAnnotation = "ydb.tech/remote-resource-version"
+	PrimaryResourceStorageAnnotation  = "ydb.tech/primary-resource-storage"
+	PrimaryResourceDatabaseAnnotation = "ydb.tech/primary-resource-database"
+	RemoteResourceVersionAnnotation   = "ydb.tech/remote-resource-version"
 )
 
 func GetYdbTechAnnotations(annotations map[string]string) map[string]string {

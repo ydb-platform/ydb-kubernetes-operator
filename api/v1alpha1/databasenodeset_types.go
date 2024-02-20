@@ -65,3 +65,17 @@ type DatabaseNodeSetList struct {
 func init() {
 	SchemeBuilder.Register(&DatabaseNodeSet{}, &DatabaseNodeSetList{})
 }
+
+func RecastDatabaseNodeSet(databaseNodeSet *DatabaseNodeSet) *Database {
+	return &Database{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      databaseNodeSet.Spec.DatabaseRef.Name,
+			Namespace: databaseNodeSet.Spec.DatabaseRef.Namespace,
+			Labels:    databaseNodeSet.Labels,
+		},
+		Spec: DatabaseSpec{
+			DatabaseClusterSpec: databaseNodeSet.Spec.DatabaseClusterSpec,
+			DatabaseNodeSpec:    databaseNodeSet.Spec.DatabaseNodeSpec,
+		},
+	}
+}

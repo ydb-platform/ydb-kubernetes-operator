@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,7 +19,14 @@ type RemoteDatabaseNodeSet struct {
 	Spec DatabaseNodeSetSpec `json:"spec,omitempty"`
 	// +optional
 	// +kubebuilder:default:={state: "Pending"}
-	Status DatabaseNodeSetStatus `json:"status,omitempty"`
+	Status RemoteDatabaseNodeSetStatus `json:"status,omitempty"`
+}
+
+// DatabaseNodeSetStatus defines the observed state
+type RemoteDatabaseNodeSetStatus struct {
+	State           constants.ClusterState `json:"state"`
+	Conditions      []metav1.Condition     `json:"conditions,omitempty"`
+	RemoteResources []RemoteResource       `json:"remoteResources,omitempty"`
 }
 
 //+kubebuilder:object:root=true
