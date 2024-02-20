@@ -210,6 +210,31 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(installOperatorWithHelm(testobjects.YdbNamespace)).Should(BeTrue())
 	})
 
+	It("Check webhook defaulter", func() {
+		storageSample.Spec.Image = nil
+		storageSample.Spec.Resources = nil
+		storageSample.Spec.Service = nil
+		storageSample.Spec.Monitoring = nil
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
+
+		databaseSample.Spec.StorageClusterRef.Namespace = ""
+		databaseSample.Spec.Image = nil
+		databaseSample.Spec.Service = nil
+		databaseSample.Spec.Domain = ""
+		databaseSample.Spec.Path = ""
+		databaseSample.Spec.Encryption = nil
+		databaseSample.Spec.Datastreams = nil
+		databaseSample.Spec.Monitoring = nil
+		databaseSample.Spec.StorageEndpoint = ""
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+	})
+
 	It("general smoke pipeline, create storage + database", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
