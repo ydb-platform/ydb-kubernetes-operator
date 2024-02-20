@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
 	appsv1 "k8s.io/api/apps/v1"
@@ -130,6 +131,15 @@ func CreateOrUpdateOrMaybeIgnore(
 
 	if shouldIgnoreChange(existing, obj) {
 		return ctrlutil.OperationResultNone, nil
+	}
+
+	// Prevent updating selectorLabels for StatefulSet
+	if _, ok := obj.(*appsv1.StatefulSet); ok {
+		existingMatchLabels := existing.(*appsv1.StatefulSet).Spec.Selector.MatchLabels
+		updatedMatchLabels := obj.(*appsv1.StatefulSet).Spec.Selector.MatchLabels
+		if !reflect.DeepEqual(existingMatchLabels, updatedMatchLabels) {
+			obj.(*appsv1.StatefulSet).Spec.Selector.MatchLabels = existingMatchLabels
+		}
 	}
 
 	changed, err := CheckObjectUpdatedIgnoreStatus(existing, obj)

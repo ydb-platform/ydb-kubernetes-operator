@@ -20,6 +20,9 @@ const (
 	// ServiceComponent The specialization of a Service resource
 	ServiceComponent = "ydb.tech/service-for"
 
+	// StatefulsetComponent The specialization of a Statefulset resource
+	StatefulsetComponent = "ydb.tech/statefulset-name"
+
 	// StorageNodeSetComponent The specialization of a StorageNodeSet resource
 	StorageNodeSetComponent = "ydb.tech/storage-nodeset"
 

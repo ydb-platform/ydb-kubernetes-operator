@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -66,7 +67,9 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 	sts.Spec = appsv1.StatefulSetSpec{
 		Replicas: replicas,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: b.Labels,
+			MatchLabels: map[string]string{
+				labels.StatefulsetComponent: b.Name,
+			},
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
@@ -98,12 +101,12 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 }
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	dnsConfigSearches := []string{
-		fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
-	}
+	podTemplateLabels := CopyDict(b.Labels)
+	podTemplateLabels[labels.StatefulsetComponent] = b.Name
+
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      b.Labels,
+			Labels:      podTemplateLabels,
 			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
@@ -118,7 +121,9 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
-				Searches: dnsConfigSearches,
+				Searches: []string{
+					fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+				},
 			},
 		},
 	}
