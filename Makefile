@@ -81,10 +81,10 @@ unit-test: manifests generate fmt vet envtest ## Run unit tests
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/... -ginkgo.v -coverprofile cover.out
 
 e2e-test: docker-build kind-init kind-load ## Run e2e tests
-	go test -v -timeout 1800s -p 1 ./e2e/... -args -ginkgo.vv
+	go test -v -timeout 1800s -p 1 ./e2e/... -args -ginkgo.v
 
 .PHONY: test
-test: unit-test test ## Run all tests
+test: unit-test e2e-test ## Run all tests
 
 .PHONY: clean
 clean:

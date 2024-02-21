@@ -52,7 +52,10 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		return []ResourceBuilder{}
 	}
 
-	databaseLabels := labels.DatabaseLabels(b.Unwrap())
+	selectorLabels := labels.DatabaseLabels(b.Unwrap())
+
+	databaseLabels := selectorLabels.Copy()
+	databaseLabels.Merge(b.Spec.AdditionalLabels)
 
 	grpcServiceLabels := databaseLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -76,7 +79,8 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
-			Name:   b.GetName(),
+
+			Name: b.GetName(),
 			Data: map[string]string{
 				api.ConfigFileName: b.Spec.Configuration,
 			},
@@ -110,8 +114,9 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			optionalBuilders,
 			&EncryptionSecretBuilder{
 				Object: b,
-				Labels: databaseLabels,
+
 				Pin:    pin,
+				Labels: databaseLabels,
 			},
 		)
 	}
@@ -122,7 +127,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: selectorLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
@@ -135,7 +140,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: selectorLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			Ports: []corev1.ServicePort{{
@@ -149,7 +154,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: selectorLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
@@ -167,7 +172,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				Object:         b,
 				NameFormat:     DatastreamsServiceNameFormat,
 				Labels:         datastreamsServiceLabels,
-				SelectorLabels: databaseLabels,
+				SelectorLabels: selectorLabels,
 				Annotations:    b.Spec.Service.Datastreams.AdditionalAnnotations,
 				Ports: []corev1.ServicePort{{
 					Name: api.DatastreamsServicePortName,
@@ -187,7 +192,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				RestConfig: restConfig,
 
 				Name:   b.Name,
-				Labels: databaseLabels,
+				Labels: databaseLabels.Merge(b.Spec.AdditionalAnnotations),
 			},
 		)
 	} else {

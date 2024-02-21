@@ -6,9 +6,6 @@ type ClusterState string
 type RemoteResourceState string
 
 const (
-	StorageResourceKind  = "Storage"
-	DatabaseResourceKind = "Database"
-
 	StoragePausedCondition             = "StoragePaused"
 	StorageInitializedCondition        = "StorageReady"
 	StorageNodeSetReadyCondition       = "StorageNodeSetReady"

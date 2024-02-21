@@ -45,8 +45,6 @@ const (
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
 
-	LastAppliedAnnotation = "ydb.tech/last-applied"
-
 	encryptionVolumeName                      = "encryption"
 	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
 	defaultEncryptionSecretKey                = "key"
@@ -61,7 +59,7 @@ type ResourceBuilder interface {
 }
 
 var (
-	annotator  = patch.NewAnnotator(LastAppliedAnnotation)
+	annotator  = patch.NewAnnotator(ydbannotations.LastAppliedAnnotation)
 	patchMaker = patch.NewPatchMaker(annotator)
 )
 

@@ -25,7 +25,6 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
-	ydbfinalizers "github.com/ydb-platform/ydb-kubernetes-operator/internal/finalizers"
 	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -73,15 +72,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then lets add the finalizer and update the object. This is equivalent
 		// to registering our finalizer.
-		if !controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, ydbfinalizers.RemoteFinalizerKey) {
-			controllerutil.AddFinalizer(remoteDatabaseNodeSet, ydbfinalizers.RemoteFinalizerKey)
+		if !controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey) {
+			controllerutil.AddFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey)
 			if err := r.RemoteClient.Update(ctx, remoteDatabaseNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 		}
 	} else {
 		// The object is being deleted
-		if controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, ydbfinalizers.RemoteFinalizerKey) {
+		if controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey) {
 			// our finalizer is present, so lets handle any external dependency
 			if err := r.deleteExternalResources(ctx, remoteDatabaseNodeSet); err != nil {
 				// if fail to delete the external dependency here, return with error
@@ -90,7 +89,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(remoteDatabaseNodeSet, ydbfinalizers.RemoteFinalizerKey)
+			controllerutil.RemoveFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey)
 			if err := r.RemoteClient.Update(ctx, remoteDatabaseNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}

@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	annotator  = patch.NewAnnotator(resources.LastAppliedAnnotation)
+	annotator  = patch.NewAnnotator(ydbannotations.LastAppliedAnnotation)
 	patchMaker = patch.NewPatchMaker(annotator)
 )
 
