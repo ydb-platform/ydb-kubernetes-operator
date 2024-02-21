@@ -142,10 +142,9 @@ func (r *Reconciler) updateRemoteStatus(
 	}
 
 	oldStatus := crRemoteDatabaseNodeSet.Status.State
-	crRemoteDatabaseNodeSet.Status.State = crDatabaseNodeSet.Status.State
-	crRemoteDatabaseNodeSet.Status.Conditions = crDatabaseNodeSet.Status.Conditions
-
-	if oldStatus != crRemoteDatabaseNodeSet.Status.State {
+	if oldStatus != crDatabaseNodeSet.Status.State {
+		crRemoteDatabaseNodeSet.Status.State = crDatabaseNodeSet.Status.State
+		crRemoteDatabaseNodeSet.Status.Conditions = crDatabaseNodeSet.Status.Conditions
 		if err := r.RemoteClient.Status().Update(ctx, crRemoteDatabaseNodeSet); err != nil {
 			r.Recorder.Event(
 				remoteDatabaseNodeSet,

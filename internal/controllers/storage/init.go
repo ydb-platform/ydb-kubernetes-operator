@@ -62,18 +62,18 @@ func (r *Reconciler) setInitialStatus(
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
-	if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
+	if storage.Status.State == StoragePending ||
+		meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageInitializedCondition,
 			Status:  "False",
 			Reason:  ReasonInProgress,
 			Message: "Storage is not ready yet",
 		})
-	}
-	if storage.Status.State == StoragePending {
 		storage.Status.State = StoragePreparing
+		return r.updateStatus(ctx, storage)
 	}
-	return r.updateStatus(ctx, storage)
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) setInitStorageCompleted(

@@ -195,9 +195,10 @@ func (r *Reconciler) syncRemoteResources(
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
-			// We need to check patchResult by k8s-objectmatcher
+			// We need to check patchResult by k8s-objectmatcherand and resourceVersion from annotation
 			// And update if localObj does not match updatedObj from remote cluster
-			if !patchResult.IsEmpty() {
+			if !patchResult.IsEmpty() ||
+				remoteObj.GetResourceVersion() != localObj.GetAnnotations()[ydbannotations.RemoteResourceVersionAnnotation] {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
 					corev1.EventTypeNormal,

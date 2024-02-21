@@ -229,7 +229,7 @@ func (r *Reconciler) updateStatus(
 	}, crStorageNodeSet)
 	if err != nil {
 		r.Recorder.Event(
-			crStorageNodeSet,
+			storageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching CR before status update",
@@ -238,13 +238,12 @@ func (r *Reconciler) updateStatus(
 	}
 
 	oldStatus := crStorageNodeSet.Status.State
-	crStorageNodeSet.Status.State = storageNodeSet.Status.State
-	crStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
-
 	if oldStatus != storageNodeSet.Status.State {
+		crStorageNodeSet.Status.State = storageNodeSet.Status.State
+		crStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
 		if err = r.Status().Update(ctx, crStorageNodeSet); err != nil {
 			r.Recorder.Event(
-				crStorageNodeSet,
+				storageNodeSet,
 				corev1.EventTypeWarning,
 				"ControllerError",
 				fmt.Sprintf("Failed setting status: %s", err),
@@ -252,7 +251,7 @@ func (r *Reconciler) updateStatus(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 		r.Recorder.Event(
-			crStorageNodeSet,
+			storageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, storageNodeSet.Status.State),

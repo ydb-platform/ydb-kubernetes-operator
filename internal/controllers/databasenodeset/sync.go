@@ -224,14 +224,14 @@ func (r *Reconciler) updateStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step updateStatus for DatabaseNodeSet")
 
-	crdatabaseNodeSet := &v1alpha1.DatabaseNodeSet{}
+	crDatabaseNodeSet := &v1alpha1.DatabaseNodeSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Namespace: databaseNodeSet.Namespace,
 		Name:      databaseNodeSet.Name,
-	}, crdatabaseNodeSet)
+	}, crDatabaseNodeSet)
 	if err != nil {
 		r.Recorder.Event(
-			crdatabaseNodeSet,
+			databaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching CR before status update",
@@ -239,14 +239,13 @@ func (r *Reconciler) updateStatus(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	oldStatus := crdatabaseNodeSet.Status.State
-	crdatabaseNodeSet.Status.State = databaseNodeSet.Status.State
-	crdatabaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
-
+	oldStatus := crDatabaseNodeSet.Status.State
 	if oldStatus != databaseNodeSet.Status.State {
-		if err = r.Status().Update(ctx, crdatabaseNodeSet); err != nil {
+		databaseNodeSet.Status.State = databaseNodeSet.Status.State
+		databaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
+		if err = r.Status().Update(ctx, crDatabaseNodeSet); err != nil {
 			r.Recorder.Event(
-				crdatabaseNodeSet,
+				databaseNodeSet,
 				corev1.EventTypeWarning,
 				"ControllerError",
 				fmt.Sprintf("Failed setting status: %s", err),
@@ -254,7 +253,7 @@ func (r *Reconciler) updateStatus(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 		r.Recorder.Event(
-			crdatabaseNodeSet,
+			databaseNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("DatabaseNodeSet moved from %s to %s", oldStatus, databaseNodeSet.Status.State),

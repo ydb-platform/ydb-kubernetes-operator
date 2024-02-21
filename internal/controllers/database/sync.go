@@ -406,7 +406,7 @@ func (r *Reconciler) updateStatus(
 	}, databaseCr)
 	if err != nil {
 		r.Recorder.Event(
-			databaseCr,
+			database,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching CR before status update",
@@ -415,14 +415,13 @@ func (r *Reconciler) updateStatus(
 	}
 
 	oldStatus := databaseCr.Status.State
-	databaseCr.Status.State = database.Status.State
-	databaseCr.Status.Conditions = database.Status.Conditions
-
-	if oldStatus != databaseCr.Status.State {
+	if oldStatus != database.Status.State {
+		databaseCr.Status.State = database.Status.State
+		databaseCr.Status.Conditions = database.Status.Conditions
 		err = r.Status().Update(ctx, databaseCr)
 		if err != nil {
 			r.Recorder.Event(
-				databaseCr,
+				database,
 				corev1.EventTypeWarning,
 				"ControllerError",
 				fmt.Sprintf("failed setting status: %s", err),
@@ -430,11 +429,12 @@ func (r *Reconciler) updateStatus(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 		r.Recorder.Event(
-			databaseCr,
+			database,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("Database moved from %s to %s", oldStatus, databaseCr.Status.State),
 		)
+
 		r.Log.Info("step updateStatus for DatabaseNodeSet requeue reconcile")
 		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}

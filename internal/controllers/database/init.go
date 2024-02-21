@@ -53,20 +53,20 @@ func (r *Reconciler) setInitialStatus(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil {
+	if database.Status.State == DatabasePending ||
+		meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:    DatabaseTenantInitializedCondition,
 			Status:  "False",
 			Reason:  ReasonInProgress,
 			Message: "Tenant creation in progress",
 		})
-	}
-	if database.Status.State == DatabasePending {
 		database.Status.State = DatabasePreparing
+		return r.updateStatus(ctx, database)
 	}
 
 	r.Log.Info("step setInitialStatus for Database completed")
-	return r.updateStatus(ctx, database)
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) setInitDatabaseCompleted(
