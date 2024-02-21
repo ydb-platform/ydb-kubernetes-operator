@@ -179,7 +179,9 @@ rules:
   - ydb.tech
   resources:
   - databasenodesets
+  - remotedatabasenodesets
   - storagenodesets
+  - remotestoragenodesets
   verbs:
   - create
   - delete
@@ -192,14 +194,18 @@ rules:
   - ydb.tech
   resources:
   - databasenodesets/finalizers
+  - remotedatabasenodesets/finalizers
   - storagenodesets/finalizers
+  - remotestoragenodesets/finalizers
   verbs:
   - update
 - apiGroups:
   - ydb.tech
   resources:
   - databasenodesets/status
+  - remotedatabasenodesets/status
   - storagenodesets/status
+  - remotestoragenodesets/status
   verbs:
   - get
   - patch

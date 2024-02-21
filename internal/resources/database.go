@@ -191,26 +191,53 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			},
 		)
 	} else {
-		for _, nodeSetSpecInline := range b.Spec.NodeSets {
-			nodeSetLabels := databaseLabels.Copy()
-			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
-			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(databaseLabels)...)
+	}
 
-			optionalBuilders = append(
-				optionalBuilders,
+	return optionalBuilders
+}
+
+func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []ResourceBuilder {
+	var nodeSetBuilders []ResourceBuilder
+
+	for _, nodeSetSpecInline := range b.Spec.NodeSets {
+		nodeSetLabels := databaseLabels.Copy()
+		nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+		nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+
+		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
+
+		if nodeSetSpecInline.Remote != nil {
+			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+				labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster,
+			})
+			nodeSetBuilders = append(
+				nodeSetBuilders,
+				&RemoteDatabaseNodeSetBuilder{
+					Object: b,
+
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
+
+					DatabaseNodeSetSpec: databaseNodeSetSpec,
+				},
+			)
+		} else {
+			nodeSetBuilders = append(
+				nodeSetBuilders,
 				&DatabaseNodeSetBuilder{
 					Object: b,
 
 					Name:   b.Name + "-" + nodeSetSpecInline.Name,
 					Labels: nodeSetLabels,
 
-					DatabaseNodeSetSpec: b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
+					DatabaseNodeSetSpec: databaseNodeSetSpec,
 				},
 			)
 		}
 	}
 
-	return optionalBuilders
+	return nodeSetBuilders
 }
 
 func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api.DatabaseNodeSetSpecInline) api.DatabaseNodeSetSpec {

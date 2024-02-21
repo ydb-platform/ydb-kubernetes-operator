@@ -2792,6 +2792,10 @@ spec:
               storageEndpoint:
                 description: YDB Storage Node broker address
                 type: string
+              terminationGracePeriodSeconds:
+                description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
+                format: int64
+                type: integer
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
                 items:
@@ -4632,9 +4636,6 @@ spec:
                   - type
                   type: object
                 type: array
-              observedDatabaseGeneration:
-                format: int64
-                type: integer
               state:
                 type: string
             required:

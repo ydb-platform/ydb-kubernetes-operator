@@ -4635,9 +4635,6 @@ spec:
                   - type
                   type: object
                 type: array
-              observedDatabaseGeneration:
-                format: int64
-                type: integer
               state:
                 type: string
             required:

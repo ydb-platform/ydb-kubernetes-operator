@@ -19,12 +19,12 @@ const (
 
 	// ServiceComponent The specialization of a Service resource
 	ServiceComponent = "ydb.tech/service-for"
-
 	// StorageNodeSetComponent The specialization of a StorageNodeSet resource
 	StorageNodeSetComponent = "ydb.tech/storage-nodeset"
-
 	// DatabaseNodeSetComponent The specialization of a DatabaseNodeSet resource
 	DatabaseNodeSetComponent = "ydb.tech/database-nodeset"
+	// RemoteClusterKey The specialization of a remote k8s cluster
+	RemoteClusterKey = "ydb.tech/remote-cluster"
 
 	StorageComponent = "storage-node"
 	DynamicComponent = "dynamic-node"

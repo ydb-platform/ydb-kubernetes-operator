@@ -102,23 +102,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		for _, nodeSetSpecInline := range b.Spec.NodeSets {
-			nodeSetLabels := storageLabels.Copy()
-			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
-			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
-
-			optionalBuilders = append(
-				optionalBuilders,
-				&StorageNodeSetBuilder{
-					Object: b,
-
-					Name:   b.Name + "-" + nodeSetSpecInline.Name,
-					Labels: nodeSetLabels,
-
-					StorageNodeSetSpec: b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
-				},
-			)
-		}
+		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(storageLabels)...)
 	}
 
 	return append(
@@ -164,6 +148,48 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 	)
+}
+
+func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) []ResourceBuilder {
+	var nodeSetBuilders []ResourceBuilder
+
+	for _, nodeSetSpecInline := range b.Spec.NodeSets {
+		nodeSetLabels := storageLabels.Copy()
+		nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+		nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+
+		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
+		if nodeSetSpecInline.Remote != nil {
+			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+				labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster,
+			})
+			nodeSetBuilders = append(
+				nodeSetBuilders,
+				&RemoteStorageNodeSetBuilder{
+					Object: b,
+
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
+
+					StorageNodeSetSpec: storageNodeSetSpec,
+				},
+			)
+		} else {
+			nodeSetBuilders = append(
+				nodeSetBuilders,
+				&StorageNodeSetBuilder{
+					Object: b,
+
+					Name:   b.Name + "-" + nodeSetSpecInline.Name,
+					Labels: nodeSetLabels,
+
+					StorageNodeSetSpec: storageNodeSetSpec,
+				},
+			)
+		}
+	}
+
+	return nodeSetBuilders
 }
 
 func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline *api.StorageNodeSetSpecInline) api.StorageNodeSetSpec {
