@@ -13,7 +13,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -39,7 +38,7 @@ type Reconciler struct {
 	Scheme         *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=ydb.tech,resources=remotestoragenodesets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=ydb.tech,resources=remotestoragenodesets,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups=ydb.tech,resources=remotestoragenodesets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ydb.tech,resources=remotestoragenodesets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets,verbs=get;list;watch;create;update;patch;delete
@@ -48,6 +47,8 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=services/finalizers,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=configmaps/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=secrets/status,verbs=get;update;patch
 
@@ -147,15 +148,10 @@ func ignoreDeletionPredicate() predicate.Predicate {
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.Cluster) error {
 	cluster := *remoteCluster
-	resource := &api.RemoteStorageNodeSet{}
-	resourceGVK, err := apiutil.GVKForObject(resource, r.Scheme)
-	if err != nil {
-		r.Log.Error(err, "does not recognize GVK for resource")
-		return err
-	}
+	remoteStorageNodeSet := &api.RemoteStorageNodeSet{}
 
-	r.Recorder = mgr.GetEventRecorderFor(resourceGVK.Kind)
-	r.RemoteRecorder = cluster.GetEventRecorderFor(resourceGVK.Kind)
+	r.Recorder = mgr.GetEventRecorderFor(RemoteStorageNodeSetKind)
+	r.RemoteRecorder = cluster.GetEventRecorderFor(RemoteStorageNodeSetKind)
 	r.RemoteClient = cluster.GetClient()
 
 	annotationFilter := func(mapObj client.Object) []reconcile.Request {
@@ -177,8 +173,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		Named(resourceGVK.Kind).
-		Watches(source.NewKindWithCache(resource, cluster.GetCache()), &handler.EnqueueRequestForObject{}, builder.WithPredicates(ignoreDeletionPredicate())).
+		Named(RemoteStorageNodeSetKind).
+		Watches(source.NewKindWithCache(remoteStorageNodeSet, cluster.GetCache()), &handler.EnqueueRequestForObject{}, builder.WithPredicates(ignoreDeletionPredicate())).
 		Watches(&source.Kind{Type: &api.StorageNodeSet{}}, handler.EnqueueRequestsFromMapFunc(annotationFilter)).
 		Complete(r)
 }

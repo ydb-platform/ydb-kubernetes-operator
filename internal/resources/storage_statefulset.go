@@ -181,7 +181,7 @@ func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.To
 }
 
 func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
-	configMapName := b.Name
+	configMapName := b.Storage.Name
 
 	volumes := []corev1.Volume{
 		{

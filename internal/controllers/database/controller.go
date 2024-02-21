@@ -13,7 +13,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -54,8 +53,8 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
-	resource := &ydbv1alpha1.Database{}
-	err := r.Get(ctx, req.NamespacedName, resource)
+	database := &ydbv1alpha1.Database{}
+	err := r.Get(ctx, req.NamespacedName, database)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			r.Log.Info("Database resource not found")
@@ -64,7 +63,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Log.Error(err, "unexpected Get error")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
-	result, err := r.Sync(ctx, resource)
+	result, err := r.Sync(ctx, database)
 	if err != nil {
 		r.Log.Error(err, "unexpected Sync error")
 	}
@@ -90,15 +89,9 @@ func ignoreDeletionPredicate() predicate.Predicate {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	resource := &ydbv1alpha1.Database{}
-	resourceGVK, err := apiutil.GVKForObject(resource, r.Scheme)
-	if err != nil {
-		r.Log.Error(err, "does not recognize GVK for resource")
-		return err
-	}
+	r.Recorder = mgr.GetEventRecorderFor(DatabaseKind)
 
-	r.Recorder = mgr.GetEventRecorderFor(resourceGVK.Kind)
-	controller := ctrl.NewControllerManagedBy(mgr).For(resource)
+	controller := ctrl.NewControllerManagedBy(mgr)
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&ydbv1alpha1.RemoteDatabaseNodeSet{},
@@ -111,7 +104,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Database...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resourceGVK.Kind {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != DatabaseKind {
 				return nil
 			}
 
@@ -132,7 +125,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Database...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resourceGVK.Kind {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != DatabaseKind {
 				return nil
 			}
 
@@ -143,6 +136,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.
+		For(&ydbv1alpha1.Database{}).
 		Owns(&ydbv1alpha1.RemoteDatabaseNodeSet{}).
 		Owns(&ydbv1alpha1.DatabaseNodeSet{}).
 		Owns(&corev1.Service{}).

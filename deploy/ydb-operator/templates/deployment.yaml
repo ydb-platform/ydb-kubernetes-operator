@@ -30,6 +30,10 @@ spec:
             {{- if .Values.metrics.enabled }}
             - --with-service-monitors=true
             {{- end }}
+            {{- if and .Values.mgmt-cluster.enabled }}
+            - --mgmt-cluster-name={{- .Values.mgmt-cluster.name }}
+            - --mgmt-cluster-kubeconfig=/mgmt-cluster/kubeconfig
+            {{- end }}
           command:
             - /manager
           image: {{ default "cr.yandex/yc/ydb-kubernetes-operator" .Values.image.repository }}:
@@ -60,17 +64,24 @@ spec:
             {{- toYaml .Values.resources | nindent 12  }}
           securityContext:
             allowPrivilegeEscalation: false
+          {{- if or .Values.webhook.enabled .Values.mgmt-cluster.enabled }}
           {{- if .Values.webhook.enabled }}
           volumeMounts:
             - mountPath: /tmp/k8s-webhook-server/serving-certs
               name: webhook-tls
           {{- end }}
+          {{- if .Values.mgmt-cluster.enabled }}
+            - mountPath: /mgmt-cluster
+              name: mgmt-cluster-kubeconfig
+          {{- end }}
+          {{- end }}
       securityContext:
         runAsNonRoot: true
       serviceAccountName: {{ include "ydb.fullname" . }}
       terminationGracePeriodSeconds: 10
-      {{- if .Values.webhook.enabled }}
+      {{- if or .Values.webhook.enabled .Values.mgmt-cluster.enabled }}
       volumes:
+        {{- if .Values.webhook.enabled }}
         - name: webhook-tls
           secret:
             secretName: {{ include "ydb.fullname" . }}-webhook
@@ -83,6 +94,12 @@ spec:
               - key: key
                 path: tls.key
             {{- end }}
+        {{- end }}
+        {{- if .Values.mgmt-cluster.enabled }}
+        - name: mgmt-cluster-kubeconfig
+          secret:
+            secretName: {{ .Values.mgmt-cluster.kubeconfig }}
+        {{- end }}
       {{- end }}
       {{- if .Values.imagePullSecrets }}
       {{- with .Values.imagePullSecrets }}

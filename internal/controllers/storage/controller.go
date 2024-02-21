@@ -7,14 +7,13 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -38,6 +37,9 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=ydb.tech,resources=storages,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ydb.tech,resources=storages/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ydb.tech,resources=storages/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ydb.tech,resources=remotestoragenodesets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ydb.tech,resources=remotestoragenodesets/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ydb.tech,resources=remotestoragenodesets/finalizers,verbs=update
 //+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ydb.tech,resources=storagenodesets/finalizers,verbs=update
@@ -59,17 +61,17 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
-	resource := &ydbv1alpha1.Storage{}
-	err := r.Get(ctx, req.NamespacedName, resource)
+	storage := &ydbv1alpha1.Storage{}
+	err := r.Get(ctx, req.NamespacedName, storage)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			r.Log.Info("Storage resource not found")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		r.Log.Error(err, "unexpected Get error")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
-	result, err := r.Sync(ctx, resource)
+	result, err := r.Sync(ctx, storage)
 	if err != nil {
 		r.Log.Error(err, "unexpected Sync error")
 	}
@@ -95,15 +97,10 @@ func ignoreDeletionPredicate() predicate.Predicate {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	resource := &ydbv1alpha1.Storage{}
-	resourceGVK, err := apiutil.GVKForObject(resource, r.Scheme)
-	if err != nil {
-		r.Log.Error(err, "does not recognize GVK for resource")
-		return err
-	}
+	storage := &ydbv1alpha1.Storage{}
 
-	r.Recorder = mgr.GetEventRecorderFor(resourceGVK.Kind)
-	controller := ctrl.NewControllerManagedBy(mgr).For(resource)
+	r.Recorder = mgr.GetEventRecorderFor(StorageKind)
+	controller := ctrl.NewControllerManagedBy(mgr)
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&ydbv1alpha1.RemoteStorageNodeSet{},
@@ -116,7 +113,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resourceGVK.Kind {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != StorageKind {
 				return nil
 			}
 
@@ -137,7 +134,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != resourceGVK.Kind {
+			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != StorageKind {
 				return nil
 			}
 
@@ -153,6 +150,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.
+		For(storage).
 		Owns(&ydbv1alpha1.RemoteStorageNodeSet{}).
 		Owns(&ydbv1alpha1.StorageNodeSet{}).
 		Owns(&corev1.Service{}).

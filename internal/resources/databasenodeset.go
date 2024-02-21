@@ -53,24 +53,13 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	database := b.recastDatabaseNodeSet()
-
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseStatefulSetBuilder{
-			Database:   database.DeepCopy(),
+			Database:   api.RecastDatabaseNodeSet(b.DatabaseNodeSet),
 			RestConfig: restConfig,
 
 			Name:   b.Name,
-			Labels: b.Labels,
-		},
-		&ConfigMapBuilder{
-			Object: b,
-
-			Name: b.Name,
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
-			},
 			Labels: b.Labels,
 		},
 	)
@@ -104,18 +93,4 @@ func (b *DatabaseNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.Result
 
 func (b *DatabaseNodeSetResource) Unwrap() *api.DatabaseNodeSet {
 	return b.DeepCopy()
-}
-
-func (b *DatabaseNodeSetResource) recastDatabaseNodeSet() *api.Database {
-	return &api.Database{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.DatabaseNodeSet.Spec.DatabaseRef.Name,
-			Namespace: b.DatabaseNodeSet.Spec.DatabaseRef.Namespace,
-			Labels:    b.DatabaseNodeSet.Labels,
-		},
-		Spec: api.DatabaseSpec{
-			DatabaseClusterSpec: b.Spec.DatabaseClusterSpec,
-			DatabaseNodeSpec:    b.Spec.DatabaseNodeSpec,
-		},
-	}
 }

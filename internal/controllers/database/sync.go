@@ -130,7 +130,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForDatabaseNodeSetToReady for Database")
+	r.Log.Info("running step waitForDatabaseNodeSetToReady")
 
 	if database.Status.State == DatabasePreparing {
 		r.Recorder.Event(
@@ -144,19 +144,29 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	}
 
 	for _, nodeSetSpec := range database.Spec.NodeSets {
-		foundDatabaseNodeSet := v1alpha1.DatabaseNodeSet{}
-		databaseNodeSetName := database.Name + "-" + nodeSetSpec.Name
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      databaseNodeSetName,
+		var nodeSetObject client.Object
+		var nodeSetKind string
+		var nodeSetStatus ClusterState
+
+		if nodeSetSpec.Remote != nil {
+			nodeSetObject = &v1alpha1.RemoteDatabaseNodeSet{}
+			nodeSetKind = RemoteDatabaseNodeSetKind
+		} else {
+			nodeSetObject = &v1alpha1.DatabaseNodeSet{}
+			nodeSetKind = DatabaseNodeSetKind
+		}
+
+		nodeSetName := database.Name + "-" + nodeSetSpec.Name
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      nodeSetName,
 			Namespace: database.Namespace,
-		}, &foundDatabaseNodeSet)
-		if err != nil {
+		}, nodeSetObject); err != nil {
 			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					database,
 					corev1.EventTypeWarning,
 					"ProvisioningFailed",
-					fmt.Sprintf("DatabaseNodeSet with name %s was not found: %s", databaseNodeSetName, err),
+					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
@@ -164,16 +174,23 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 				database,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				fmt.Sprintf("Failed to get DatabaseNodeSet: %s", err),
+				fmt.Sprintf("Failed to get %s with name %s: %s", nodeSetKind, nodeSetName, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		if foundDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
-			eventMessage := fmt.Sprintf("Waiting %s state for DatabaseNodeSet object %s, current: %s",
-				string(DatabaseReady),
-				foundDatabaseNodeSet.Name,
-				foundDatabaseNodeSet.Status.State,
+		if nodeSetSpec.Remote != nil {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.RemoteDatabaseNodeSet).Status.State
+		} else {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.DatabaseNodeSet).Status.State
+		}
+
+		if nodeSetStatus != DatabaseNodeSetReady {
+			eventMessage := fmt.Sprintf(
+				"Waiting %s with name %s for Ready state , current: %s",
+				nodeSetKind,
+				nodeSetName,
+				nodeSetStatus,
 			)
 			r.Recorder.Event(
 				database,
@@ -192,7 +209,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for Database")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if database.Status.State == DatabasePreparing {
 		r.Recorder.Event(
@@ -469,14 +486,13 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step syncNodeSetSpecInline")
-	matchingFields := client.MatchingFields{
-		OwnerControllerKey: database.Name,
-	}
 
 	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 	if err := r.List(ctx, databaseNodeSets,
 		client.InNamespace(database.Namespace),
-		matchingFields,
+		client.MatchingFields{
+			OwnerControllerKey: database.Name,
+		},
 	); err != nil {
 		r.Recorder.Event(
 			database,
@@ -524,7 +540,9 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	remoteDatabaseNodeSets := &v1alpha1.RemoteDatabaseNodeSetList{}
 	if err := r.List(ctx, remoteDatabaseNodeSets,
 		client.InNamespace(database.Namespace),
-		matchingFields,
+		client.MatchingFields{
+			OwnerControllerKey: database.Name,
+		},
 	); err != nil {
 		r.Recorder.Event(
 			database,
@@ -578,7 +596,7 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Database")
+	r.Log.Info("running step handlePauseResume")
 	if database.Status.State == DatabaseReady && database.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Database to state `Paused`")
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
@@ -627,14 +645,18 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	_, result, err = r.handleTenantCreation(ctx, database, auth)
-	return result, err
+	stop, result, err = r.handleTenantCreation(ctx, database, auth)
+	if stop {
+		return result, err
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) checkDatabaseFrozen(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for Database")
+	r.Log.Info("running step checkStorageFrozen")
 	if !database.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}
