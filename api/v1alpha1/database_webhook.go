@@ -68,7 +68,11 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		}
 	}
 
-	if database.Spec.Image == nil && database.Spec.Image.Name == "" {
+	if database.Spec.Image == nil {
+		database.Spec.Image = &PodImage{}
+	}
+
+	if database.Spec.Image.Name == "" {
 		if database.Spec.YDBVersion == "" {
 			database.Spec.Image.Name = fmt.Sprintf(ImagePathFormat, RegistryPath, DefaultTag)
 		} else {

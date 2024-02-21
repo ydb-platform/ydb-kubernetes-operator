@@ -53,8 +53,8 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
-	database := &ydbv1alpha1.Database{}
-	err := r.Get(ctx, req.NamespacedName, database)
+	resource := &ydbv1alpha1.Database{}
+	err := r.Get(ctx, req.NamespacedName, resource)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			r.Log.Info("Database resource not found")
@@ -63,7 +63,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Log.Error(err, "unexpected Get error")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
-	result, err := r.Sync(ctx, database)
+	result, err := r.Sync(ctx, resource)
 	if err != nil {
 		r.Log.Error(err, "unexpected Sync error")
 	}
