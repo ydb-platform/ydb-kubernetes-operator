@@ -151,6 +151,7 @@ func (r *Reconciler) syncRemoteObjects(
 			Name:      remoteObj.GetName(),
 			Namespace: remoteObj.GetNamespace(),
 		}, localObj)
+		//nolint:nestif
 		if err != nil {
 			if !apierrors.IsNotFound(err) {
 				r.Recorder.Event(

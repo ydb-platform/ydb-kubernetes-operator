@@ -629,6 +629,7 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, obj))).Should(Succeed())
 
+		//nolint:nestif
 		if ns, ok := obj.(*corev1.Namespace); ok {
 			// Normally the kube-controller-manager would handle finalization
 			// and garbage collection of namespaces, but with envtest, we aren't
