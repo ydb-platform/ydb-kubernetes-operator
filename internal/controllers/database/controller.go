@@ -154,9 +154,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return controller.
 		For(&v1alpha1.Database{}).
-		Owns(&appsv1.StatefulSet{}).
 		Owns(&v1alpha1.RemoteDatabaseNodeSet{}).
 		Owns(&v1alpha1.DatabaseNodeSet{}).
+		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Watches(

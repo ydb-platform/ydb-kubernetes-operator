@@ -47,11 +47,12 @@ metrics:
   ##
   enabled: false
 
-remote:
-  ## Create ServiceMonitor resources
+mgmt-cluster:
+  ## Watch resources from mgmt-cluster
   ##
   enabled: false
-  cluster: ""
+  name: ""
+  ## Define existing kubeconfig Secret name in current namespace
   kubeconfig: "remote-kubeconfig"
 
 webhook:

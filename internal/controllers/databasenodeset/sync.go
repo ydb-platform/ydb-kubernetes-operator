@@ -281,7 +281,6 @@ func (r *Reconciler) handlePauseResume(
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume")
-
 	if databaseNodeSet.Status.State == DatabaseReady && databaseNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving DatabaseNodeSet to state `Paused`")
 		meta.RemoveStatusCondition(&databaseNodeSet.Status.Conditions, DatabaseNodeSetReadyCondition)

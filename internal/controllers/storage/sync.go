@@ -210,7 +210,8 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 		}
 
 		if nodeSetStatus != StorageNodeSetReady {
-			eventMessage := fmt.Sprintf("Waiting %s with name %s for Ready state , current: %s",
+			eventMessage := fmt.Sprintf(
+				"Waiting %s with name %s for Ready state , current: %s",
 				nodeSetKind,
 				nodeSetName,
 				nodeSetStatus,

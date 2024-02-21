@@ -130,7 +130,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForDatabaseNodeSetToReadye")
+	r.Log.Info("running step waitForDatabaseNodeSetToReady")
 
 	if database.Status.State == DatabasePreparing {
 		r.Recorder.Event(
@@ -185,7 +185,8 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 		}
 
 		if nodeSetStatus != DatabaseNodeSetReady {
-			eventMessage := fmt.Sprintf("Waiting %s with name %s for Ready state , current: %s",
+			eventMessage := fmt.Sprintf(
+				"Waiting %s with name %s for Ready state , current: %s",
 				nodeSetKind,
 				nodeSetName,
 				nodeSetStatus,
@@ -599,7 +600,6 @@ func (r *Reconciler) handlePauseResume(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume")
-
 	if database.Status.State == DatabaseReady && database.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Database to state `Paused`")
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{

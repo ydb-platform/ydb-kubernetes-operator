@@ -44,8 +44,8 @@ func main() {
 	var disableWebhooks bool
 	var enableServiceMonitors bool
 	var probeAddr string
-	var remoteKubeconfig string
-	var remoteCluster string
+	var mgmtClusterKubeconfig string
+	var mgmtClusterName string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -53,8 +53,8 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&disableWebhooks, "disable-webhooks", false, "Disable webhooks registration on start.")
 	flag.BoolVar(&enableServiceMonitors, "with-service-monitors", false, "Enables service monitoring")
-	flag.StringVar(&remoteKubeconfig, "remote-kubeconfig", "/remote/kubeconfig", "Path to kubeconfig for remote k8s cluster. Only required if using Remote objects")
-	flag.StringVar(&remoteCluster, "remote-cluster", "", "The name of remote cluster to sync k8s resources. Only required if using Remote objects")
+	flag.StringVar(&mgmtClusterKubeconfig, "mgmt-cluster-kubeconfig", "/remote-kubeconfig", "Path to kubeconfig for mgmt remote k8s cluster. Only required if using Remote objects")
+	flag.StringVar(&mgmtClusterName, "mgmt-cluster-name", "", "The name of mgmt remote cluster to sync k8s resources. Only required if using Remote objects")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -154,20 +154,20 @@ func main() {
 	}
 
 	//nolint:nestif
-	if remoteKubeconfig != "" && remoteCluster != "" {
-		remoteConfig, err := clientcmd.BuildConfigFromFlags("", remoteKubeconfig)
+	if mgmtClusterKubeconfig != "" && mgmtClusterName != "" {
+		remoteConfig, err := clientcmd.BuildConfigFromFlags("", mgmtClusterKubeconfig)
 		if err != nil {
 			setupLog.Error(err, "unable to read remote kubeconfig")
 			os.Exit(1)
 		}
 
-		storageSelector, err := remotestoragenodeset.BuildRemoteSelector(remoteCluster)
+		storageSelector, err := remotestoragenodeset.BuildRemoteSelector(mgmtClusterName)
 		if err != nil {
 			setupLog.Error(err, "unable to create label selector", "selector", "RemoteStorageNodeSet")
 			os.Exit(1)
 		}
 
-		databaseSelector, err := remotedatabasenodeset.BuildRemoteSelector(remoteCluster)
+		databaseSelector, err := remotedatabasenodeset.BuildRemoteSelector(mgmtClusterName)
 		if err != nil {
 			setupLog.Error(err, "unable to create label selector", "selector", "RemoteDatabaseNodeSet")
 			os.Exit(1)

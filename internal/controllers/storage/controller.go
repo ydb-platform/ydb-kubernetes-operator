@@ -160,9 +160,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return controller.
 		For(&v1alpha1.Storage{}).
-		Owns(&appsv1.StatefulSet{}).
 		Owns(&v1alpha1.RemoteStorageNodeSet{}).
 		Owns(&v1alpha1.StorageNodeSet{}).
+		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Watches(
