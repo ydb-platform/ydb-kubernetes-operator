@@ -169,17 +169,23 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 		return r.updateStatus(ctx, storage)
 	}
 
+	var nodeSetObject client.Object
+	var nodeSetKind string
+	var nodeSetStatus ClusterState
 	for _, nodeSetSpec := range storage.Spec.NodeSets {
-		var nodeSetKind string
-
-		nodeSetKind = StorageNodeSetKind
 		if nodeSetSpec.Remote != nil {
+			nodeSetObject = &v1alpha1.RemoteStorageNodeSet{}
 			nodeSetKind = RemoteStorageNodeSetKind
+		} else {
+			nodeSetObject = &v1alpha1.StorageNodeSet{}
+			nodeSetKind = StorageNodeSetKind
 		}
 
 		nodeSetName := storage.Name + "-" + nodeSetSpec.Name
-		nodeSetStatus, err := r.getNodeSetStatus(ctx, storage, nodeSetName, nodeSetKind)
-		if err != nil {
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      nodeSetName,
+			Namespace: storage.Namespace,
+		}, nodeSetObject); err != nil {
 			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					storage,
@@ -195,6 +201,12 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 				fmt.Sprintf("Failed to get %s with name %s: %s", nodeSetKind, nodeSetName, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		if nodeSetSpec.Remote != nil {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.RemoteStorageNodeSet).Status.State
+		} else {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.StorageNodeSet).Status.State
 		}
 
 		if nodeSetStatus != StorageNodeSetReady {
@@ -628,31 +640,4 @@ func (r *Reconciler) checkStorageFrozen(
 	}
 
 	return Continue, ctrl.Result{}
-}
-
-func (r *Reconciler) getNodeSetStatus(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-	nodeSetName string,
-	nodeSetKind string,
-) (ClusterState, error) {
-	var nodeSetObject client.Object
-
-	nodeSetObject = &v1alpha1.StorageNodeSet{}
-	if nodeSetKind == RemoteStorageNodeSetKind {
-		nodeSetObject = &v1alpha1.RemoteStorageNodeSet{}
-	}
-
-	if err := r.Get(ctx, types.NamespacedName{
-		Name:      nodeSetName,
-		Namespace: storage.Namespace,
-	}, nodeSetObject); err != nil {
-		return "", err
-	}
-
-	if nodeSetKind == RemoteStorageNodeSetKind {
-		return nodeSetObject.(*v1alpha1.RemoteStorageNodeSet).Status.State, nil
-	}
-
-	return nodeSetObject.(*v1alpha1.StorageNodeSet).Status.State, nil
 }

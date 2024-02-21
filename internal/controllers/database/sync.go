@@ -144,16 +144,23 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	}
 
 	for _, nodeSetSpec := range database.Spec.NodeSets {
+		var nodeSetObject client.Object
 		var nodeSetKind string
+		var nodeSetStatus ClusterState
 
-		nodeSetKind = DatabaseNodeSetKind
 		if nodeSetSpec.Remote != nil {
+			nodeSetObject = &v1alpha1.RemoteDatabaseNodeSet{}
 			nodeSetKind = RemoteDatabaseNodeSetKind
+		} else {
+			nodeSetObject = &v1alpha1.DatabaseNodeSet{}
+			nodeSetKind = DatabaseNodeSetKind
 		}
 
 		nodeSetName := database.Name + "-" + nodeSetSpec.Name
-		nodeSetStatus, err := r.getNodeSetStatus(ctx, database, nodeSetName, nodeSetKind)
-		if err != nil {
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      nodeSetName,
+			Namespace: database.Namespace,
+		}, nodeSetObject); err != nil {
 			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					database,
@@ -169,6 +176,12 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 				fmt.Sprintf("Failed to get %s with name %s: %s", nodeSetKind, nodeSetName, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		if nodeSetSpec.Remote != nil {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.RemoteDatabaseNodeSet).Status.State
+		} else {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.DatabaseNodeSet).Status.State
 		}
 
 		if nodeSetStatus != DatabaseNodeSetReady {
@@ -654,31 +667,4 @@ func (r *Reconciler) checkDatabaseFrozen(
 	}
 
 	return Continue, ctrl.Result{}
-}
-
-func (r *Reconciler) getNodeSetStatus(
-	ctx context.Context,
-	database *resources.DatabaseBuilder,
-	nodeSetName string,
-	nodeSetKind string,
-) (ClusterState, error) {
-	var nodeSetObject client.Object
-
-	nodeSetObject = &v1alpha1.DatabaseNodeSet{}
-	if nodeSetKind == RemoteDatabaseNodeSetKind {
-		nodeSetObject = &v1alpha1.RemoteDatabaseNodeSet{}
-	}
-
-	if err := r.Get(ctx, types.NamespacedName{
-		Name:      nodeSetName,
-		Namespace: database.Namespace,
-	}, nodeSetObject); err != nil {
-		return "", err
-	}
-
-	if nodeSetKind == RemoteDatabaseNodeSetKind {
-		return nodeSetObject.(*v1alpha1.RemoteDatabaseNodeSet).Status.State, nil
-	}
-
-	return nodeSetObject.(*v1alpha1.DatabaseNodeSet).Status.State, nil
 }
