@@ -161,7 +161,6 @@ var _ = BeforeSuite(func() {
 		defer GinkgoRecover()
 		err = remoteManager.Start(ctx)
 		Expect(err).ShouldNot(HaveOccurred())
-
 	}()
 
 	localClient = localManager.GetClient()

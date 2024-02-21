@@ -149,7 +149,7 @@ func (b *RemoteDatabaseNodeSetResource) SetPrimaryResourceAnnotations(obj client
 
 func (b *RemoteDatabaseNodeSetResource) SetRemoteResourceStatus(remoteResource client.Object, remoteResourceGVK schema.GroupVersionKind) {
 	for idx, syncedResource := range b.Status.RemoteResources {
-		if CompareRemoteResourceWithObject(&syncedResource, b.Namespace, remoteResource, remoteResourceGVK) {
+		if equal := CompareRemoteResourceWithObject(&syncedResource, b.Namespace, remoteResource, remoteResourceGVK); equal {
 			meta.SetStatusCondition(&b.Status.RemoteResources[idx].Conditions,
 				metav1.Condition{
 					Type:    RemoteResourceSyncedCondition,
@@ -165,7 +165,7 @@ func (b *RemoteDatabaseNodeSetResource) SetRemoteResourceStatus(remoteResource c
 func (b *RemoteDatabaseNodeSetResource) RemoveRemoteResourceStatus(remoteResource client.Object, remoteResourceGVK schema.GroupVersionKind) {
 	syncedResources := append([]api.RemoteResource{}, b.Status.RemoteResources...)
 	for idx, syncedResource := range syncedResources {
-		if CompareRemoteResourceWithObject(&syncedResource, b.Namespace, remoteResource, remoteResourceGVK) {
+		if equal := CompareRemoteResourceWithObject(&syncedResource, b.Namespace, remoteResource, remoteResourceGVK); equal {
 			b.Status.RemoteResources = append(
 				b.Status.RemoteResources[:idx],
 				b.Status.RemoteResources[idx+1:]...,

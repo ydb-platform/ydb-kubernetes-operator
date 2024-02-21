@@ -1,8 +1,9 @@
 package v1alpha1
 
 import (
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 //+kubebuilder:object:root=true

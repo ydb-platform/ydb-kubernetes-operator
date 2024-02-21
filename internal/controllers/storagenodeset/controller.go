@@ -61,9 +61,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.Recorder = mgr.GetEventRecorderFor(StorageNodeSetKind)
 	controller := ctrl.NewControllerManagedBy(mgr)
-
-	r.Recorder = mgr.GetEventRecorderFor("StorageNodeSet")
 
 	return controller.
 		For(&v1alpha1.StorageNodeSet{}).

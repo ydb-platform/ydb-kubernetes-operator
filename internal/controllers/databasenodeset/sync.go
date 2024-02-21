@@ -7,7 +7,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -141,7 +141,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		Namespace: databaseNodeSet.Namespace,
 	}, found)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
 				databaseNodeSet,
 				corev1.EventTypeWarning,
@@ -203,8 +203,6 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Message: "Scaled DatabaseNodeSet to 0 successfully",
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetPaused
-
-		return r.updateStatus(ctx, databaseNodeSet)
 	} else {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 			Type:    DatabaseNodeSetReadyCondition,
@@ -241,8 +239,8 @@ func (r *Reconciler) updateStatus(
 
 	oldStatus := crDatabaseNodeSet.Status.State
 	if oldStatus != databaseNodeSet.Status.State {
-		databaseNodeSet.Status.State = databaseNodeSet.Status.State
-		databaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
+		crDatabaseNodeSet.Status.State = databaseNodeSet.Status.State
+		crDatabaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
 		if err = r.Status().Update(ctx, crDatabaseNodeSet); err != nil {
 			r.Recorder.Event(
 				databaseNodeSet,

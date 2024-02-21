@@ -144,82 +144,46 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	}
 
 	for _, nodeSetSpec := range database.Spec.NodeSets {
-		nodeSetName := database.Name + "-" + nodeSetSpec.Name
-		if nodeSetSpec.Remote != nil {
-			foundRemoteDatabaseNodeSet := v1alpha1.RemoteDatabaseNodeSet{}
-			if err := r.Get(ctx, types.NamespacedName{
-				Name:      nodeSetName,
-				Namespace: database.Namespace,
-			}, &foundRemoteDatabaseNodeSet); err != nil {
-				if apierrors.IsNotFound(err) {
-					r.Recorder.Event(
-						database,
-						corev1.EventTypeWarning,
-						"ProvisioningFailed",
-						fmt.Sprintf("RemoteDatabaseNodeSet with name %s was not found: %s", nodeSetName, err),
-					)
-					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-				}
-				r.Recorder.Event(
-					database,
-					corev1.EventTypeWarning,
-					"ProvisioningFailed",
-					fmt.Sprintf("Failed to get RemoteDatabaseNodeSet with name %s: %s", nodeSetName, err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			if foundRemoteDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
-				eventMessage := fmt.Sprintf("Waiting %s state for RemoteDatabaseNodeSet with name %s, current: %s",
-					string(DatabaseNodeSetReady),
-					foundRemoteDatabaseNodeSet.Name,
-					foundRemoteDatabaseNodeSet.Status.State,
-				)
-				r.Recorder.Event(
-					database,
-					corev1.EventTypeNormal,
-					string(DatabaseProvisioning),
-					eventMessage,
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-			}
-		} else {
-			foundDatabaseNodeSet := v1alpha1.DatabaseNodeSet{}
-			if err := r.Get(ctx, types.NamespacedName{
-				Name:      nodeSetName,
-				Namespace: database.Namespace,
-			}, &foundDatabaseNodeSet); err != nil {
-				if apierrors.IsNotFound(err) {
-					r.Recorder.Event(
-						database,
-						corev1.EventTypeWarning,
-						"ProvisioningFailed",
-						fmt.Sprintf("DatabaseNodeSet with name %s was not found: %s", nodeSetName, err),
-					)
-					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-				}
-				r.Recorder.Event(
-					database,
-					corev1.EventTypeWarning,
-					"ProvisioningFailed",
-					fmt.Sprintf("Failed to get DatabaseNodeSet with name %s: %s", nodeSetName, err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
+		var nodeSetKind string
 
-			if foundDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
-				eventMessage := fmt.Sprintf("Waiting %s state for DatabaseNodeSet with name %s, current: %s",
-					string(DatabaseNodeSetReady),
-					foundDatabaseNodeSet.Name,
-					foundDatabaseNodeSet.Status.State,
-				)
+		nodeSetKind = StorageNodeSetKind
+		if nodeSetSpec.Remote != nil {
+			nodeSetKind = RemoteStorageNodeSetKind
+		}
+
+		nodeSetName := database.Name + "-" + nodeSetSpec.Name
+		nodeSetStatus, err := r.getNodeSetStatus(ctx, database, nodeSetName, nodeSetKind)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					database,
-					corev1.EventTypeNormal,
-					string(DatabaseProvisioning),
-					eventMessage,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
+				fmt.Sprintf("Failed to get %s with name %s: %s", nodeSetKind, nodeSetName, err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		if nodeSetStatus != DatabaseNodeSetReady {
+			eventMessage := fmt.Sprintf("Waiting %s with name %s for Ready state , current: %s",
+				nodeSetKind,
+				nodeSetName,
+				nodeSetStatus,
+			)
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeNormal,
+				string(StorageProvisioning),
+				eventMessage,
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 	}
 
@@ -690,4 +654,31 @@ func (r *Reconciler) checkDatabaseFrozen(
 	}
 
 	return Continue, ctrl.Result{}
+}
+
+func (r *Reconciler) getNodeSetStatus(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+	nodeSetName string,
+	nodeSetKind string,
+) (ClusterState, error) {
+	var nodeSetObject client.Object
+
+	nodeSetObject = &v1alpha1.StorageNodeSet{}
+	if nodeSetKind == RemoteStorageNodeSetKind {
+		nodeSetObject = &v1alpha1.RemoteStorageNodeSet{}
+	}
+
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      nodeSetName,
+		Namespace: database.Namespace,
+	}, nodeSetObject); err != nil {
+		return "", err
+	}
+
+	if nodeSetKind == RemoteStorageNodeSetKind {
+		return nodeSetObject.(*v1alpha1.RemoteStorageNodeSet).Status.State, nil
+	}
+
+	return nodeSetObject.(*v1alpha1.StorageNodeSet).Status.State, nil
 }

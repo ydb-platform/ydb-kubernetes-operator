@@ -2,10 +2,19 @@ package constants
 
 import "time"
 
-type ClusterState string
-type RemoteResourceState string
+type (
+	ClusterState        string
+	RemoteResourceState string
+)
 
 const (
+	StorageKind               = "Storage"
+	StorageNodeSetKind        = "StorageNodeSet"
+	RemoteStorageNodeSetKind  = "RemoteStorageNodeSet"
+	DatabaseKind              = "Database"
+	DatabaseNodeSetKind       = "DatabaseNodeSet"
+	RemoteDatabaseNodeSetKind = "RemoteDatabaseNodeSet"
+
 	StoragePausedCondition             = "StoragePaused"
 	StorageInitializedCondition        = "StorageReady"
 	StorageNodeSetReadyCondition       = "StorageNodeSetReady"

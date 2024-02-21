@@ -7,7 +7,7 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,7 +16,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -69,7 +68,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	resource := &v1alpha1.Storage{}
 	err := r.Get(ctx, req.NamespacedName, resource)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			r.Log.Info("Storage resource not found")
 			return ctrl.Result{Requeue: false}, nil
 		}
@@ -84,7 +83,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
-func createFieldIndexers(mgr ctrl.Manager, resourceKind string) error {
+func createFieldIndexers(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&v1alpha1.RemoteStorageNodeSet{},
@@ -97,7 +96,7 @@ func createFieldIndexers(mgr ctrl.Manager, resourceKind string) error {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != resourceKind {
+			if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != StorageKind {
 				return nil
 			}
 
@@ -119,7 +118,7 @@ func createFieldIndexers(mgr ctrl.Manager, resourceKind string) error {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != resourceKind {
+			if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != StorageKind {
 				return nil
 			}
 
@@ -129,7 +128,7 @@ func createFieldIndexers(mgr ctrl.Manager, resourceKind string) error {
 		return err
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(
+	return mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&v1alpha1.Storage{},
 		SecretField,
@@ -141,25 +140,15 @@ func createFieldIndexers(mgr ctrl.Manager, resourceKind string) error {
 			}
 
 			return secrets
-		}); err != nil {
-		return err
-	}
-
-	return nil
+		})
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	resource := &v1alpha1.Storage{}
-	resourceGVK, err := apiutil.GVKForObject(resource, r.Scheme)
-	if err != nil {
-		r.Log.Error(err, "does not recognize GVK for resource")
-		return err
-	}
-
-	r.Recorder = mgr.GetEventRecorderFor(resourceGVK.Kind)
+	r.Recorder = mgr.GetEventRecorderFor(StorageKind)
 	controller := ctrl.NewControllerManagedBy(mgr)
-	if err := createFieldIndexers(mgr, resourceGVK.Kind); err != nil {
+
+	if err := createFieldIndexers(mgr); err != nil {
 		r.Log.Error(err, "unexpected FieldIndexer error")
 		return err
 	}
@@ -170,7 +159,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.
-		For(resource).
+		For(&v1alpha1.Storage{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&v1alpha1.RemoteStorageNodeSet{}).
 		Owns(&v1alpha1.StorageNodeSet{}).
@@ -185,7 +174,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.GenerationChangedPredicate{},
 			resources.IgnoreDeletetionPredicate(),
 			resources.LastAppliedAnnotationPredicate(),
-			resources.ResourcesPredicate()),
+			resources.SpecificPredicate()),
 		).
 		Complete(r)
 }

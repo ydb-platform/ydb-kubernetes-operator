@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/banzaicloud/k8s-objectmatcher/patch"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,7 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/banzaicloud/k8s-objectmatcher/patch"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 )
@@ -93,7 +93,7 @@ func tryProcessNonExistingObject(
 		return true, ctrlutil.OperationResultNone, nil
 	}
 
-	if !errors.IsNotFound(err) {
+	if !apierrors.IsNotFound(err) {
 		return false, ctrlutil.OperationResultNone, err
 	}
 
@@ -298,7 +298,7 @@ func IgnoreDeletetionPredicate() predicate.Predicate {
 	}
 }
 
-func ResourcesPredicate() predicate.Predicate {
+func SpecificPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			_, isService := e.ObjectOld.(*corev1.Service)

@@ -9,7 +9,6 @@ import (
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,7 +87,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		Namespace: storage.Namespace,
 	}, found)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
@@ -171,83 +170,46 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 	}
 
 	for _, nodeSetSpec := range storage.Spec.NodeSets {
-		nodeSetName := storage.Name + "-" + nodeSetSpec.Name
-		if nodeSetSpec.Remote != nil {
-			foundRemoteStorageNodeSet := v1alpha1.RemoteStorageNodeSet{}
-			if err := r.Get(ctx, types.NamespacedName{
-				Name:      nodeSetName,
-				Namespace: storage.Namespace,
-			}, &foundRemoteStorageNodeSet); err != nil {
-				if apierrors.IsNotFound(err) {
-					r.Recorder.Event(
-						storage,
-						corev1.EventTypeWarning,
-						"ProvisioningFailed",
-						fmt.Sprintf("RemoteStorageNodeSet with name %s was not found: %s", nodeSetName, err),
-					)
-					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-				}
-				r.Recorder.Event(
-					storage,
-					corev1.EventTypeWarning,
-					"ProvisioningFailed",
-					fmt.Sprintf("Failed to get RemoteStorageNodeSet with name %s: %s", nodeSetName, err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			if foundRemoteStorageNodeSet.Status.State != StorageNodeSetReady {
-				eventMessage := fmt.Sprintf("Waiting %s state for RemoteStorageNodeSet with name %s, current: %s",
-					string(StorageNodeSetReady),
-					foundRemoteStorageNodeSet.Name,
-					foundRemoteStorageNodeSet.Status.State,
-				)
-				r.Recorder.Event(
-					storage,
-					corev1.EventTypeNormal,
-					string(StorageProvisioning),
-					eventMessage,
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-			}
-		} else {
-			foundStorageNodeSet := v1alpha1.StorageNodeSet{}
-			err := r.Get(ctx, types.NamespacedName{
-				Name:      nodeSetName,
-				Namespace: storage.Namespace,
-			}, &foundStorageNodeSet)
-			if err != nil {
-				if errors.IsNotFound(err) {
-					r.Recorder.Event(
-						storage,
-						corev1.EventTypeWarning,
-						"ProvisioningFailed",
-						fmt.Sprintf("StorageNodeSet with name %s was not found: %s", nodeSetName, err),
-					)
-					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-				}
-				r.Recorder.Event(
-					storage,
-					corev1.EventTypeWarning,
-					"ProvisioningFailed",
-					fmt.Sprintf("Failed to get StorageNodeSet: %s", err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
+		var nodeSetKind string
 
-			if foundStorageNodeSet.Status.State != StorageNodeSetReady {
-				eventMessage := fmt.Sprintf("Waiting %s state for StorageNodeSet object %s, current: %s",
-					string(StorageReady),
-					foundStorageNodeSet.Name,
-					foundStorageNodeSet.Status.State,
-				)
+		nodeSetKind = StorageNodeSetKind
+		if nodeSetSpec.Remote != nil {
+			nodeSetKind = RemoteStorageNodeSetKind
+		}
+
+		nodeSetName := storage.Name + "-" + nodeSetSpec.Name
+		nodeSetStatus, err := r.getNodeSetStatus(ctx, storage, nodeSetName, nodeSetKind)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					storage,
-					corev1.EventTypeNormal,
-					string(StorageProvisioning),
-					eventMessage,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
+				fmt.Sprintf("Failed to get %s with name %s: %s", nodeSetKind, nodeSetName, err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		if nodeSetStatus != StorageNodeSetReady {
+			eventMessage := fmt.Sprintf("Waiting %s with name %s for Ready state , current: %s",
+				nodeSetKind,
+				nodeSetName,
+				nodeSetStatus,
+			)
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeNormal,
+				string(StorageProvisioning),
+				eventMessage,
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 	}
 
@@ -670,4 +632,31 @@ func (r *Reconciler) checkStorageFrozen(
 	}
 
 	return Continue, ctrl.Result{}
+}
+
+func (r *Reconciler) getNodeSetStatus(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+	nodeSetName string,
+	nodeSetKind string,
+) (ClusterState, error) {
+	var nodeSetObject client.Object
+
+	nodeSetObject = &v1alpha1.StorageNodeSet{}
+	if nodeSetKind == RemoteStorageNodeSetKind {
+		nodeSetObject = &v1alpha1.RemoteStorageNodeSet{}
+	}
+
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      nodeSetName,
+		Namespace: storage.Namespace,
+	}, nodeSetObject); err != nil {
+		return "", err
+	}
+
+	if nodeSetKind == RemoteStorageNodeSetKind {
+		return nodeSetObject.(*v1alpha1.RemoteStorageNodeSet).Status.State, nil
+	}
+
+	return nodeSetObject.(*v1alpha1.StorageNodeSet).Status.State, nil
 }
