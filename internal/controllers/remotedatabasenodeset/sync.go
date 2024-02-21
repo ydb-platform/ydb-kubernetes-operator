@@ -22,14 +22,14 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteDatabaseNodeSet *v1alpha1
 	var err error
 
 	remoteDatabaseNodeSet := resources.NewRemoteDatabaseNodeSet(crRemoteDatabaseNodeSet)
-	remoteResources := remoteDatabaseNodeSet.GetRemoteResources()
+	remoteObjects := remoteDatabaseNodeSet.GetRemoteObjects()
 
-	stop, result, err = r.initRemoteResourcesStatus(ctx, &remoteDatabaseNodeSet, remoteResources)
+	stop, result, err = r.initRemoteResourcesStatus(ctx, &remoteDatabaseNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.syncRemoteResources(ctx, &remoteDatabaseNodeSet, remoteResources)
+	stop, result, err = r.syncRemoteObjects(ctx, &remoteDatabaseNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}
@@ -39,7 +39,7 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteDatabaseNodeSet *v1alpha1
 		return result, err
 	}
 
-	stop, result, err = r.removeUnusedRemoteResources(ctx, &remoteDatabaseNodeSet, remoteResources)
+	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteDatabaseNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}
@@ -51,7 +51,7 @@ func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handleResourcesSync for RemoteDatabaseNodeSet")
+	r.Log.Info("running step handleResourcesSync")
 
 	for _, builder := range remoteDatabaseNodeSet.GetResourceBuilders() {
 		newResource := builder.Placeholder(remoteDatabaseNodeSet)
@@ -105,7 +105,7 @@ func (r *Reconciler) updateRemoteStatus(
 	ctx context.Context,
 	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step updateRemoteStatus for RemoteDatabaseNodeSet")
+	r.Log.Info("running step updateRemoteStatus")
 
 	crDatabaseNodeSet := &v1alpha1.DatabaseNodeSet{}
 	if err := r.Client.Get(ctx, types.NamespacedName{
@@ -173,10 +173,10 @@ func (r *Reconciler) updateRemoteStatus(
 			"RemoteDatabaseNodeSet status updated",
 		)
 
-		r.Log.Info("step updateRemoteStatus for RemoteDatabaseNodeSet requeue reconcile")
+		r.Log.Info("step updateRemoteStatus requeue reconcile")
 		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	r.Log.Info("step updateRemoteStatus for RemoteDatabaseNodeSet completed")
+	r.Log.Info("step updateRemoteStatus completed")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }

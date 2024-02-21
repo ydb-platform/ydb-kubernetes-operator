@@ -224,7 +224,7 @@ func (r *Reconciler) deleteExternalResources(
 	}
 
 	remoteStorageNodeSet := resources.NewRemoteStorageNodeSet(crRemoteStorageNodeSet)
-	if _, _, err := r.removeUnusedRemoteResources(ctx, &remoteStorageNodeSet, []client.Object{}); err != nil {
+	if _, _, err := r.removeUnusedRemoteObjects(ctx, &remoteStorageNodeSet, []client.Object{}); err != nil {
 		logger.Error(err, "unable to delete unused remote resources")
 		return err
 	}

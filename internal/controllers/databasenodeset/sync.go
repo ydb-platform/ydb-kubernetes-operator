@@ -59,7 +59,7 @@ func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handleResourcesSync for DatabaseNodeSet")
+	r.Log.Info("running step handleResourcesSync")
 
 	for _, builder := range databaseNodeSet.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(databaseNodeSet)
@@ -122,7 +122,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for DatabaseNodeSet")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if databaseNodeSet.Status.State == DatabaseNodeSetPending {
 		r.Recorder.Event(
@@ -220,7 +220,7 @@ func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step updateStatus for DatabaseNodeSet")
+	r.Log.Info("running step updateStatus")
 
 	crDatabaseNodeSet := &v1alpha1.DatabaseNodeSet{}
 	err := r.Get(ctx, types.NamespacedName{
@@ -257,11 +257,11 @@ func (r *Reconciler) updateStatus(
 			fmt.Sprintf("DatabaseNodeSet moved from %s to %s", oldStatus, databaseNodeSet.Status.State),
 		)
 
-		r.Log.Info("step updateStatus for DatabaseNodeSet requeue reconcile")
+		r.Log.Info("step updateStatus requeue reconcile")
 		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	r.Log.Info("step updateStatus for DatabaseNodeSet completed")
+	r.Log.Info("step updateStatus completed")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -280,7 +280,7 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for DatabaseNodeSet")
+	r.Log.Info("running step handlePauseResume")
 
 	if databaseNodeSet.Status.State == DatabaseReady && databaseNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving DatabaseNodeSet to state `Paused`")
@@ -316,7 +316,7 @@ func (r *Reconciler) handlePauseResume(
 func (r *Reconciler) checkDatabaseFrozen(
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result) {
-	r.Log.Info("running step checkDatabaseFrozen for DatabaseNodeSet")
+	r.Log.Info("running step checkDatabaseFrozen")
 
 	if !databaseNodeSet.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")

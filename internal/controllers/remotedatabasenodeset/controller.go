@@ -224,7 +224,7 @@ func (r *Reconciler) deleteExternalResources(
 	}
 
 	remoteDatabaseNodeSet := resources.NewRemoteDatabaseNodeSet(crRemoteDatabaseNodeSet)
-	if _, _, err := r.removeUnusedRemoteResources(ctx, &remoteDatabaseNodeSet, []client.Object{}); err != nil {
+	if _, _, err := r.removeUnusedRemoteObjects(ctx, &remoteDatabaseNodeSet, []client.Object{}); err != nil {
 		logger.Error(err, "unable to delete unused remote resources")
 		return err
 	}

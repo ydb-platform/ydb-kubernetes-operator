@@ -122,7 +122,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for StorageNodeSet")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if storageNodeSet.Status.State == StorageNodeSetPending {
 		r.Recorder.Event(
@@ -220,7 +220,7 @@ func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step updateStatus for StorageNodeSet")
+	r.Log.Info("running step updateStatus")
 
 	crStorageNodeSet := &v1alpha1.StorageNodeSet{}
 	err := r.Get(ctx, types.NamespacedName{
@@ -257,10 +257,11 @@ func (r *Reconciler) updateStatus(
 			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, storageNodeSet.Status.State),
 		)
 
-		r.Log.Info("step updateStatus for StorageNodeSet requeue reconcile")
+		r.Log.Info("step updateStatus requeue reconcile")
 		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
+	r.Log.Info("step updateStatus completed")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -279,7 +280,8 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Storage")
+	r.Log.Info("running step handlePauseResume")
+
 	if storageNodeSet.Status.State == StorageReady && storageNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
 		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, StorageNodeSetReadyCondition)
@@ -310,7 +312,7 @@ func (r *Reconciler) handlePauseResume(
 }
 
 func (r *Reconciler) checkStorageFrozen(storageNodeSet *resources.StorageNodeSetResource) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for StorageNodeSet parent object")
+	r.Log.Info("running step checkStorageFrozen")
 	if !storageNodeSet.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

@@ -77,7 +77,7 @@ func NewRemoteDatabaseNodeSet(remoteDatabaseNodeSet *api.RemoteDatabaseNodeSet) 
 	return RemoteDatabaseNodeSetResource{RemoteDatabaseNodeSet: crRemoteDatabaseNodeSet}
 }
 
-func (b *RemoteDatabaseNodeSetResource) GetRemoteResources() []client.Object {
+func (b *RemoteDatabaseNodeSetResource) GetRemoteObjects() []client.Object {
 	objects := []client.Object{}
 
 	// sync Secrets
@@ -147,25 +147,27 @@ func (b *RemoteDatabaseNodeSetResource) SetPrimaryResourceAnnotations(obj client
 	obj.SetAnnotations(annotations)
 }
 
-func (b *RemoteDatabaseNodeSetResource) SetRemoteResourceStatus(remoteResource client.Object, remoteResourceGVK schema.GroupVersionKind) {
-	for idx, syncedResource := range b.Status.RemoteResources {
-		if equal := CompareRemoteResourceWithObject(&syncedResource, b.Namespace, remoteResource, remoteResourceGVK); equal {
+func (b *RemoteDatabaseNodeSetResource) SetRemoteResourceStatus(remoteObj client.Object, remoteObjGVK schema.GroupVersionKind) {
+	for idx := range b.Status.RemoteResources {
+		remoteResource := b.Status.RemoteResources[idx]
+		if EqualRemoteResourceWithObject(&remoteResource, b.Namespace, remoteObj, remoteObjGVK) {
 			meta.SetStatusCondition(&b.Status.RemoteResources[idx].Conditions,
 				metav1.Condition{
 					Type:    RemoteResourceSyncedCondition,
 					Status:  "True",
 					Reason:  ReasonCompleted,
-					Message: fmt.Sprintf("Resource updated with resourceVersion %s", remoteResource.GetResourceVersion()),
+					Message: fmt.Sprintf("Resource updated with resourceVersion %s", remoteObj.GetResourceVersion()),
 				})
 			b.Status.RemoteResources[idx].State = ResourceSyncSuccess
 		}
 	}
 }
 
-func (b *RemoteDatabaseNodeSetResource) RemoveRemoteResourceStatus(remoteResource client.Object, remoteResourceGVK schema.GroupVersionKind) {
+func (b *RemoteDatabaseNodeSetResource) RemoveRemoteResourceStatus(remoteObj client.Object, remoteObjGVK schema.GroupVersionKind) {
 	syncedResources := append([]api.RemoteResource{}, b.Status.RemoteResources...)
-	for idx, syncedResource := range syncedResources {
-		if equal := CompareRemoteResourceWithObject(&syncedResource, b.Namespace, remoteResource, remoteResourceGVK); equal {
+	for idx := range syncedResources {
+		remoteResource := syncedResources[idx]
+		if EqualRemoteResourceWithObject(&remoteResource, b.Namespace, remoteObj, remoteObjGVK) {
 			b.Status.RemoteResources = append(
 				b.Status.RemoteResources[:idx],
 				b.Status.RemoteResources[idx+1:]...,

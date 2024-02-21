@@ -43,7 +43,7 @@ func (r *Reconciler) setInitialStatus(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step setInitialStatus for Database")
+	r.Log.Info("running step setInitialStatus")
 
 	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
 		if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil ||
@@ -65,7 +65,6 @@ func (r *Reconciler) setInitialStatus(
 		return r.updateStatus(ctx, database)
 	}
 
-	r.Log.Info("step setInitialStatus for Database completed")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 

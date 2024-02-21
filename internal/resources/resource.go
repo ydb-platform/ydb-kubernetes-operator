@@ -262,7 +262,7 @@ func ConvertRemoteResourceToObject(remoteResource api.RemoteResource, namespace 
 	return runtimeObj.(client.Object), nil
 }
 
-func CompareRemoteResourceWithObject(
+func EqualRemoteResourceWithObject(
 	remoteResource *api.RemoteResource,
 	namespace string,
 	remoteObj client.Object,

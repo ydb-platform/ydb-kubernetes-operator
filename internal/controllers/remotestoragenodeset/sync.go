@@ -22,14 +22,14 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *v1alpha1.
 	var err error
 
 	remoteStorageNodeSet := resources.NewRemoteStorageNodeSet(crRemoteStorageNodeSet)
-	remoteResources := remoteStorageNodeSet.GetRemoteResources()
+	remoteObjects := remoteStorageNodeSet.GetRemoteObjects()
 
-	stop, result, err = r.initRemoteResourcesStatus(ctx, &remoteStorageNodeSet, remoteResources)
+	stop, result, err = r.initRemoteResourcesStatus(ctx, &remoteStorageNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.syncRemoteResources(ctx, &remoteStorageNodeSet, remoteResources)
+	stop, result, err = r.syncRemoteObjects(ctx, &remoteStorageNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}
@@ -39,7 +39,7 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *v1alpha1.
 		return result, err
 	}
 
-	stop, result, err = r.removeUnusedRemoteResources(ctx, &remoteStorageNodeSet, remoteResources)
+	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteStorageNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}
@@ -172,10 +172,10 @@ func (r *Reconciler) updateRemoteStatus(
 			"StatusChanged",
 			"RemoteStorageNodeSet status updated",
 		)
-		r.Log.Info("step updateRemoteStatus for RemoteStorageNodeSet requeue reconcile")
+		r.Log.Info("step updateRemoteStatus requeue reconcile")
 		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	r.Log.Info("step updateRemoteStatus for RemoteStorageNodeSet completed")
+	r.Log.Info("step updateRemoteStatus completed")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }

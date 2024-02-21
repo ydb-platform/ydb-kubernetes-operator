@@ -68,7 +68,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for Storage")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if storage.Status.State == StoragePreparing {
 		r.Recorder.Event(
@@ -156,7 +156,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStorageNodeSetToReady for Storage")
+	r.Log.Info("running step waitForStorageNodeSetToReady")
 
 	if storage.Status.State == StoragePreparing {
 		r.Recorder.Event(
@@ -409,7 +409,6 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -454,7 +453,7 @@ func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step updateStatus for Storage")
+	r.Log.Info("running step updateStatus")
 
 	storageCr := &v1alpha1.Storage{}
 	err := r.Get(ctx, types.NamespacedName{
@@ -491,11 +490,11 @@ func (r *Reconciler) updateStatus(
 			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storageCr.Status.State),
 		)
 
-		r.Log.Info("step updateStatus for Storage requeue reconcile")
+		r.Log.Info("step updateStatus requeue reconcile")
 		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	r.Log.Info("step updateStatus for Storage completed")
+	r.Log.Info("step updateStatus completed")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -568,7 +567,7 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Storage")
+	r.Log.Info("running step handlePauseResume")
 	if storage.Status.State == StorageReady && storage.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Storage to state `Paused`")
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
@@ -617,12 +616,12 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
+	stop, result, err = r.initializeStorage(ctx, storage, auth)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.initializeStorage(ctx, storage, auth)
+	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
 	if stop {
 		return result, err
 	}
@@ -633,7 +632,7 @@ func (r *Reconciler) handleFirstStart(
 func (r *Reconciler) checkStorageFrozen(
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for Storage")
+	r.Log.Info("running step checkStorageFrozen")
 	if !storage.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

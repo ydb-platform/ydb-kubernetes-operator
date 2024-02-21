@@ -130,7 +130,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForDatabaseNodeSetToReady for Database")
+	r.Log.Info("running step waitForDatabaseNodeSetToReadye")
 
 	if database.Status.State == DatabasePreparing {
 		r.Recorder.Event(
@@ -207,7 +207,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for Database")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if database.Status.State == DatabasePreparing {
 		r.Recorder.Event(
@@ -310,7 +310,7 @@ func (r *Reconciler) handleResourcesSync(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handleResourcesSync for Database")
+	r.Log.Info("running step handleResourcesSync")
 
 	for _, builder := range database.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(database)
@@ -374,7 +374,7 @@ func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step updateStatus for Database")
+	r.Log.Info("running step updateStatus")
 
 	databaseCr := &v1alpha1.Database{}
 	err := r.Get(ctx, types.NamespacedName{
@@ -412,11 +412,11 @@ func (r *Reconciler) updateStatus(
 			fmt.Sprintf("Database moved from %s to %s", oldStatus, databaseCr.Status.State),
 		)
 
-		r.Log.Info("step updateStatus for DatabaseNodeSet requeue reconcile")
+		r.Log.Info("step updateStatus requeue reconcile")
 		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	r.Log.Info("step updateStatus for DatabaseNodeSet completed")
+	r.Log.Info("step updateStatus completed")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -488,7 +488,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step syncNodeSetSpecInline for Database")
+	r.Log.Info("running step syncNodeSetSpecInline")
 
 	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 	if err := r.List(ctx, databaseNodeSets,
@@ -598,7 +598,7 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Database")
+	r.Log.Info("running step handlePauseResume")
 
 	if database.Status.State == DatabaseReady && database.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Database to state `Paused`")

@@ -31,34 +31,37 @@ var (
 func (r *Reconciler) initRemoteResourcesStatus(
 	ctx context.Context,
 	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
-	remoteResources []client.Object,
+	remoteObjects []client.Object,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step initRemoteResourcesStatus for RemoteDatabaseNodeSet")
+	r.Log.Info("running step initRemoteResourcesStatus")
+
 	syncedResources := []v1alpha1.RemoteResource{}
 	// copy actual slice to local variable
 	if remoteDatabaseNodeSet.Status.RemoteResources != nil {
 		syncedResources = append(syncedResources, remoteDatabaseNodeSet.Status.RemoteResources...)
 	}
 
-	for _, remoteResource := range remoteResources {
-		remoteResourceGVK, err := apiutil.GVKForObject(remoteResource, r.Scheme)
+	for idx := range remoteObjects {
+		remoteObj := remoteObjects[idx]
+		remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
 		if err != nil {
 			r.Recorder.Event(
 				remoteDatabaseNodeSet,
 				corev1.EventTypeWarning,
 				"ControllerError",
-				fmt.Sprintf("Failed to recognize GVK for remote object %s with name %s: %s", remoteResourceGVK.Kind, remoteResource.GetName(), err),
+				fmt.Sprintf("Failed to recognize GVK for remote object %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
 		existInStatus := false
-		for _, syncedResource := range syncedResources {
-			if resources.CompareRemoteResourceWithObject(
+		for i := range syncedResources {
+			syncedResource := syncedResources[i]
+			if resources.EqualRemoteResourceWithObject(
 				&syncedResource,
 				remoteDatabaseNodeSet.Namespace,
-				remoteResource,
-				remoteResourceGVK,
+				remoteObj,
+				remoteObjGVK,
 			) {
 				existInStatus = true
 				break
@@ -69,10 +72,10 @@ func (r *Reconciler) initRemoteResourcesStatus(
 			remoteDatabaseNodeSet.Status.RemoteResources = append(
 				remoteDatabaseNodeSet.Status.RemoteResources,
 				v1alpha1.RemoteResource{
-					Group:      remoteResourceGVK.Group,
-					Version:    remoteResourceGVK.Version,
-					Kind:       remoteResourceGVK.Kind,
-					Name:       remoteResource.GetName(),
+					Group:      remoteObjGVK.Group,
+					Version:    remoteObjGVK.Version,
+					Kind:       remoteObjGVK.Kind,
+					Name:       remoteObj.GetName(),
 					State:      ResourceSyncPending,
 					Conditions: []metav1.Condition{},
 				},
@@ -83,14 +86,14 @@ func (r *Reconciler) initRemoteResourcesStatus(
 	return r.updateRemoteResourcesStatus(ctx, remoteDatabaseNodeSet)
 }
 
-func (r *Reconciler) syncRemoteResources(
+func (r *Reconciler) syncRemoteObjects(
 	ctx context.Context,
 	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
-	remoteResources []client.Object,
+	remoteObjects []client.Object,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step syncRemoteResources for RemoteDatabaseNodeSet")
+	r.Log.Info("running step syncRemoteObjects")
 
-	for _, remoteObj := range remoteResources {
+	for _, remoteObj := range remoteObjects {
 		// Determine actual GVK for generic client.Object
 		remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
 		if err != nil {
@@ -230,37 +233,39 @@ func (r *Reconciler) syncRemoteResources(
 	return r.updateRemoteResourcesStatus(ctx, remoteDatabaseNodeSet)
 }
 
-func (r *Reconciler) removeUnusedRemoteResources(
+func (r *Reconciler) removeUnusedRemoteObjects(
 	ctx context.Context,
 	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
-	remoteResources []client.Object,
+	remoteObjects []client.Object,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step removeUnusedRemoteResources for RemoteDatabaseNodeSet")
+	r.Log.Info("running step removeUnusedRemoteObjects")
 	// We should check every remote resource to need existence in cluster
 	// Get processed remote resources from object Status
 	candidatesToDelete := []v1alpha1.RemoteResource{}
 
 	// Remove remote resource from candidates to delete if it declared
 	// to using in current RemoteDatabaseNodeSet spec
-	for _, syncedResource := range remoteDatabaseNodeSet.Status.RemoteResources {
+	for idx := range remoteDatabaseNodeSet.Status.RemoteResources {
+		remoteResource := remoteDatabaseNodeSet.Status.RemoteResources[idx]
 		existInSpec := false
-		for _, declaredResource := range remoteResources {
-			declaredResourceGVK, err := apiutil.GVKForObject(declaredResource, r.Scheme)
+		for i := range remoteObjects {
+			declaredObj := remoteObjects[i]
+			declaredObjGVK, err := apiutil.GVKForObject(declaredObj, r.Scheme)
 			if err != nil {
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
-			if resources.CompareRemoteResourceWithObject(
-				&syncedResource,
+			if resources.EqualRemoteResourceWithObject(
+				&remoteResource,
 				remoteDatabaseNodeSet.Namespace,
-				declaredResource,
-				declaredResourceGVK,
+				declaredObj,
+				declaredObjGVK,
 			) {
 				existInSpec = true
 				break
 			}
 		}
 		if !existInSpec {
-			candidatesToDelete = append(candidatesToDelete, syncedResource)
+			candidatesToDelete = append(candidatesToDelete, remoteResource)
 		}
 	}
 
@@ -268,7 +273,7 @@ func (r *Reconciler) removeUnusedRemoteResources(
 	// only if we have candidates to Delete
 	resourcesToDelete := []v1alpha1.RemoteResource{}
 	if len(candidatesToDelete) > 0 {
-		resourcesUsedInAnotherObject, err := r.getRemoteResourcesUsedInAnotherObject(ctx, remoteDatabaseNodeSet, remoteResources)
+		resourcesUsedInAnotherObject, err := r.getRemoteObjectsUsedInNamespace(ctx, remoteDatabaseNodeSet, remoteObjects)
 		if err != nil {
 			r.Recorder.Event(
 				remoteDatabaseNodeSet,
@@ -278,26 +283,28 @@ func (r *Reconciler) removeUnusedRemoteResources(
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
-		for _, candidateToDelete := range candidatesToDelete {
+		for idx := range candidatesToDelete {
+			remoteResource := candidatesToDelete[idx]
 			isCandidateExistInANotherObject := false
 			// Remove resource from cadidates to Delete if another object using it now
-			for _, usedResource := range resourcesUsedInAnotherObject {
-				usedResourceGVK, err := apiutil.GVKForObject(usedResource, r.Scheme)
+			for i := range resourcesUsedInAnotherObject {
+				usedObj := resourcesUsedInAnotherObject[i]
+				usedObjGVK, err := apiutil.GVKForObject(usedObj, r.Scheme)
 				if err != nil {
 					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 				}
-				if resources.CompareRemoteResourceWithObject(
-					&candidateToDelete,
+				if resources.EqualRemoteResourceWithObject(
+					&remoteResource,
 					remoteDatabaseNodeSet.Namespace,
-					usedResource,
-					usedResourceGVK,
+					usedObj,
+					usedObjGVK,
 				) {
 					isCandidateExistInANotherObject = true
 					break
 				}
 			}
 			if !isCandidateExistInANotherObject {
-				resourcesToDelete = append(resourcesToDelete, candidateToDelete)
+				resourcesToDelete = append(resourcesToDelete, remoteResource)
 			}
 		}
 	}
@@ -374,12 +381,12 @@ func (r *Reconciler) removeUnusedRemoteResources(
 	return r.updateRemoteResourcesStatus(ctx, remoteDatabaseNodeSet)
 }
 
-func (r *Reconciler) getRemoteResourcesUsedInAnotherObject(
+func (r *Reconciler) getRemoteObjectsUsedInNamespace(
 	ctx context.Context,
 	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
 	remoteObjs []client.Object,
 ) ([]client.Object, error) {
-	resourcesUsedInAnotherObject := []client.Object{}
+	remoteObjectsUsedInNamespace := []client.Object{}
 
 	// Create label requirement that label `ydb.tech/database-nodeset` which not equal
 	// to current DatabaseNodeSet object for exclude current nodeSet from List result
@@ -419,8 +426,8 @@ func (r *Reconciler) getRemoteResourcesUsedInAnotherObject(
 				for _, databaseNodeSet := range databaseNodeSets.Items {
 					for _, secret := range databaseNodeSet.Spec.Secrets {
 						if obj.GetName() == secret.Name {
-							resourcesUsedInAnotherObject = append(
-								resourcesUsedInAnotherObject,
+							remoteObjectsUsedInNamespace = append(
+								remoteObjectsUsedInNamespace,
 								obj,
 							)
 						}
@@ -429,15 +436,15 @@ func (r *Reconciler) getRemoteResourcesUsedInAnotherObject(
 			// Else client.Object typed by ConfigMap or Service
 			// which always used in another DatabaseNodeSet
 			default:
-				resourcesUsedInAnotherObject = append(
-					resourcesUsedInAnotherObject,
+				remoteObjectsUsedInNamespace = append(
+					remoteObjectsUsedInNamespace,
 					obj,
 				)
 			}
 		}
 	}
 
-	return resourcesUsedInAnotherObject, nil
+	return remoteObjectsUsedInNamespace, nil
 }
 
 func (r *Reconciler) updateRemoteResourcesStatus(

@@ -484,15 +484,16 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
 				Expect(err).ShouldNot(HaveOccurred())
 
-				for _, syncedResource := range foundRemoteStorageNodeSet.Status.RemoteResources {
-					if resources.CompareRemoteResourceWithObject(
-						&syncedResource,
+				for idx := range foundRemoteStorageNodeSet.Status.RemoteResources {
+					remoteResource := foundRemoteStorageNodeSet.Status.RemoteResources[idx]
+					if resources.EqualRemoteResourceWithObject(
+						&remoteResource,
 						testobjects.YdbNamespace,
 						foundConfigMap.DeepCopy(),
 						gvk,
 					) {
 						if meta.IsStatusConditionPresentAndEqual(
-							syncedResource.Conditions,
+							remoteResource.Conditions,
 							RemoteResourceSyncedCondition,
 							metav1.ConditionTrue,
 						) {
@@ -520,15 +521,16 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
 				Expect(err).ShouldNot(HaveOccurred())
 
-				for _, syncedResource := range foundRemoteStorageNodeSet.Status.RemoteResources {
-					if resources.CompareRemoteResourceWithObject(
-						&syncedResource,
+				for idx := range foundRemoteStorageNodeSet.Status.RemoteResources {
+					remoteResource := foundRemoteStorageNodeSet.Status.RemoteResources[idx]
+					if resources.EqualRemoteResourceWithObject(
+						&remoteResource,
 						testobjects.YdbNamespace,
 						foundConfigMap.DeepCopy(),
 						gvk,
 					) {
 						if meta.IsStatusConditionPresentAndEqual(
-							syncedResource.Conditions,
+							remoteResource.Conditions,
 							RemoteResourceSyncedCondition,
 							metav1.ConditionTrue,
 						) {
