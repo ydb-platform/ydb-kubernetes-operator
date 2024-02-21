@@ -146,9 +146,9 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	for _, nodeSetSpec := range database.Spec.NodeSets {
 		var nodeSetKind string
 
-		nodeSetKind = StorageNodeSetKind
+		nodeSetKind = DatabaseNodeSetKind
 		if nodeSetSpec.Remote != nil {
-			nodeSetKind = RemoteStorageNodeSetKind
+			nodeSetKind = RemoteDatabaseNodeSetKind
 		}
 
 		nodeSetName := database.Name + "-" + nodeSetSpec.Name
@@ -180,7 +180,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeNormal,
-				string(StorageProvisioning),
+				string(DatabaseProvisioning),
 				eventMessage,
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
@@ -664,9 +664,9 @@ func (r *Reconciler) getNodeSetStatus(
 ) (ClusterState, error) {
 	var nodeSetObject client.Object
 
-	nodeSetObject = &v1alpha1.StorageNodeSet{}
-	if nodeSetKind == RemoteStorageNodeSetKind {
-		nodeSetObject = &v1alpha1.RemoteStorageNodeSet{}
+	nodeSetObject = &v1alpha1.DatabaseNodeSet{}
+	if nodeSetKind == RemoteDatabaseNodeSetKind {
+		nodeSetObject = &v1alpha1.RemoteDatabaseNodeSet{}
 	}
 
 	if err := r.Get(ctx, types.NamespacedName{
@@ -676,9 +676,9 @@ func (r *Reconciler) getNodeSetStatus(
 		return "", err
 	}
 
-	if nodeSetKind == RemoteStorageNodeSetKind {
-		return nodeSetObject.(*v1alpha1.RemoteStorageNodeSet).Status.State, nil
+	if nodeSetKind == RemoteDatabaseNodeSetKind {
+		return nodeSetObject.(*v1alpha1.RemoteDatabaseNodeSet).Status.State, nil
 	}
 
-	return nodeSetObject.(*v1alpha1.StorageNodeSet).Status.State, nil
+	return nodeSetObject.(*v1alpha1.DatabaseNodeSet).Status.State, nil
 }

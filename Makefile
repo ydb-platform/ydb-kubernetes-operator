@@ -77,14 +77,13 @@ kind-load:
 	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
 	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
 
-unit-test: envtest ## Run unit tests
+.PHONY: unit-test
+unit-test: manifests generate fmt vet envtest ## Run unit tests
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/... -ginkgo.v -coverprofile cover.out
 
-e2e-test: docker-build kind-init kind-load ## Run e2e tests
+.PHONY: e2e-test
+e2e-test: manifests generate fmt vet docker-build kind-init kind-load ## Run e2e tests
 	go test -v -timeout 1800s -p 1 ./e2e/... -args -ginkgo.v
-
-%-test: manifests generate fmt vet
-	:
 
 .PHONY: test
 test: unit-test e2e-test ## Run all tests

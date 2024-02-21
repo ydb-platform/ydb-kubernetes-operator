@@ -615,10 +615,6 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	stop, result, err = r.initializeStorage(ctx, storage, auth)
-	if stop {
-		return result, err
-	}
 	return result, err
 }
 
