@@ -52,10 +52,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		return []ResourceBuilder{}
 	}
 
-	selectorLabels := labels.DatabaseLabels(b.Unwrap())
-
-	databaseLabels := selectorLabels.Copy()
-	databaseLabels.Merge(b.Spec.AdditionalLabels)
+	databaseLabels := labels.DatabaseLabels(b.Unwrap())
 
 	grpcServiceLabels := databaseLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -127,7 +124,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
-			SelectorLabels: selectorLabels,
+			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
@@ -140,7 +137,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
-			SelectorLabels: selectorLabels,
+			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			Ports: []corev1.ServicePort{{
@@ -154,7 +151,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
-			SelectorLabels: selectorLabels,
+			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
@@ -172,7 +169,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				Object:         b,
 				NameFormat:     DatastreamsServiceNameFormat,
 				Labels:         datastreamsServiceLabels,
-				SelectorLabels: selectorLabels,
+				SelectorLabels: databaseLabels,
 				Annotations:    b.Spec.Service.Datastreams.AdditionalAnnotations,
 				Ports: []corev1.ServicePort{{
 					Name: api.DatastreamsServicePortName,
@@ -192,7 +189,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				RestConfig: restConfig,
 
 				Name:   b.Name,
-				Labels: databaseLabels.Merge(b.Spec.AdditionalAnnotations),
+				Labels: databaseLabels,
 			},
 		)
 	} else {
@@ -207,8 +204,8 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
 		nodeSetLabels := databaseLabels.Copy()
-		nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
-		nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+		nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+		nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
 
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {
@@ -249,7 +246,7 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 
 	nodeSetSpec.DatabaseRef = api.NamespacedRef{
 		Name:      b.Name,
-		Namespace: b.Namespace,
+		Namespace: b.GetNamespace(),
 	}
 
 	nodeSetSpec.DatabaseClusterSpec = b.Spec.DatabaseClusterSpec
