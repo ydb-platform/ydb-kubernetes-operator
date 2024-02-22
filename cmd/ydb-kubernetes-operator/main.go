@@ -53,7 +53,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&disableWebhooks, "disable-webhooks", false, "Disable webhooks registration on start.")
 	flag.BoolVar(&enableServiceMonitors, "with-service-monitors", false, "Enables service monitoring")
-	flag.StringVar(&mgmtClusterKubeconfig, "mgmt-cluster-kubeconfig", "/remote-kubeconfig", "Path to kubeconfig for mgmt remote k8s cluster. Only required if using Remote objects")
+	flag.StringVar(&mgmtClusterKubeconfig, "mgmt-cluster-kubeconfig", "/mgmt-cluster/kubeconfig", "Path to kubeconfig for mgmt remote k8s cluster. Only required if using Remote objects")
 	flag.StringVar(&mgmtClusterName, "mgmt-cluster-name", "", "The name of mgmt remote cluster to sync k8s resources. Only required if using Remote objects")
 	opts := zap.Options{
 		Development: true,

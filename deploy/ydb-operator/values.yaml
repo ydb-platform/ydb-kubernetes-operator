@@ -47,8 +47,8 @@ metrics:
   ##
   enabled: false
 
-mgmt-cluster:
-  ## Watch resources from mgmt-cluster
+mgmtCluster:
+  ## Watch resources from mgmtCluster
   ##
   enabled: false
   name: ""
