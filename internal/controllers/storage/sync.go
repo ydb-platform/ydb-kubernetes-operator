@@ -19,7 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
@@ -27,7 +26,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -315,7 +314,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		OwnerControllerKey: storage.Name,
 	}
 
-	storageNodeSets := &ydbv1alpha1.StorageNodeSetList{}
+	storageNodeSets := &v1alpha1.StorageNodeSetList{}
 	if err := r.List(ctx, storageNodeSets,
 		client.InNamespace(storage.Namespace),
 		matchingFields,
@@ -364,7 +363,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	remoteStorageNodeSets := &ydbv1alpha1.RemoteStorageNodeSetList{}
+	remoteStorageNodeSets := &v1alpha1.RemoteStorageNodeSetList{}
 	if err := r.List(ctx, remoteStorageNodeSets,
 		client.InNamespace(storage.Namespace),
 		matchingFields,
@@ -458,7 +457,7 @@ func (r *Reconciler) setState(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	storageCr := &ydbv1alpha1.Storage{}
+	storageCr := &v1alpha1.Storage{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: storage.Namespace,
 		Name:      storage.Name,
@@ -518,7 +517,7 @@ func (r *Reconciler) getYDBCredentials(
 			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
 		case auth.StaticCredentials != nil:
 			username := auth.StaticCredentials.Username
-			password := ydbv1alpha1.DefaultRootPassword
+			password := v1alpha1.DefaultRootPassword
 			if auth.StaticCredentials.Password != nil {
 				var err error
 				password, err = r.getSecretKey(

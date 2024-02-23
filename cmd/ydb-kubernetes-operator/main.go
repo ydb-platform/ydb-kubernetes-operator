@@ -153,42 +153,15 @@ func main() {
 		}
 	}
 
-	//nolint:nestif
-	if mgmtClusterKubeconfig != "" && mgmtClusterName != "" {
-		remoteConfig, err := clientcmd.BuildConfigFromFlags("", mgmtClusterKubeconfig)
+	if mgmtClusterName != "" && mgmtClusterKubeconfig != "" {
+		remoteCluster, err := createRemoteCluster(mgmtClusterName, mgmtClusterKubeconfig)
 		if err != nil {
-			setupLog.Error(err, "unable to read remote kubeconfig")
-			os.Exit(1)
-		}
-
-		storageSelector, err := remotestoragenodeset.BuildRemoteSelector(mgmtClusterName)
-		if err != nil {
-			setupLog.Error(err, "unable to create label selector", "selector", "RemoteStorageNodeSet")
-			os.Exit(1)
-		}
-
-		databaseSelector, err := remotedatabasenodeset.BuildRemoteSelector(mgmtClusterName)
-		if err != nil {
-			setupLog.Error(err, "unable to create label selector", "selector", "RemoteDatabaseNodeSet")
-			os.Exit(1)
-		}
-
-		remoteCluster, err := cluster.New(remoteConfig, func(o *cluster.Options) {
-			o.Scheme = scheme
-			o.NewCache = cache.BuilderWithOptions(cache.Options{
-				SelectorsByObject: cache.SelectorsByObject{
-					&ydbv1alpha1.RemoteStorageNodeSet{}:  {Label: storageSelector},
-					&ydbv1alpha1.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
-				},
-			})
-		})
-		if err != nil {
-			setupLog.Error(err, "unable to create remote client")
+			setupLog.Error(err, "unable to create mgmt cluster client")
 			os.Exit(1)
 		}
 
 		if err = mgr.Add(remoteCluster); err != nil {
-			setupLog.Error(err, "unable to add remote client to controller manager")
+			setupLog.Error(err, "unable to add mgmt cluster client to controller manager")
 			os.Exit(1)
 		}
 
@@ -225,4 +198,34 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func createRemoteCluster(mgmtClusterName, mgmtClusterKubeconfig string) (cluster.Cluster, error) {
+	remoteConfig, err := clientcmd.BuildConfigFromFlags("", mgmtClusterKubeconfig)
+	if err != nil {
+		setupLog.Error(err, "unable to read mgmt cluster kubeconfig")
+		return nil, err
+	}
+
+	storageSelector, err := remotestoragenodeset.BuildRemoteSelector(mgmtClusterName)
+	if err != nil {
+		setupLog.Error(err, "unable to create label selector", "selector", "RemoteStorageNodeSet")
+		return nil, err
+	}
+
+	databaseSelector, err := remotedatabasenodeset.BuildRemoteSelector(mgmtClusterName)
+	if err != nil {
+		setupLog.Error(err, "unable to create label selector", "selector", "RemoteDatabaseNodeSet")
+		return nil, err
+	}
+
+	return cluster.New(remoteConfig, func(o *cluster.Options) {
+		o.Scheme = scheme
+		o.NewCache = cache.BuilderWithOptions(cache.Options{
+			SelectorsByObject: cache.SelectorsByObject{
+				&ydbv1alpha1.RemoteStorageNodeSet{}:  {Label: storageSelector},
+				&ydbv1alpha1.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
+			},
+		})
+	})
 }
