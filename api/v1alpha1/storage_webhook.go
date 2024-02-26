@@ -304,27 +304,34 @@ func (r *Storage) AreAnyCertificatesAddedToStore() bool {
 		r.Spec.Service.Interconnect.TLSConfiguration.Enabled
 }
 
-func (r *Storage) BuildBlobStorageInitCommand(authEnabled bool) []string {
-	endpoint := r.GetStorageEndpointWithProto()
-
-	cmd := []string{
+func (r *Storage) BuildBlobStorageInitCommandArgs(authEnabled bool) ([]string, []string) {
+	command := []string{
 		fmt.Sprintf("%s/%s", BinariesDir, DaemonBinaryName),
-		"-s",
-		endpoint,
-		"admin", "blobstorage", "config", "init",
-		"--yaml-file",
-		fmt.Sprintf("%s/%s", ConfigDir, ConfigFileName),
 	}
 
+	args := []string{}
+	endpoint := r.GetStorageEndpointWithProto()
+	args = append(
+		args,
+		"--endpoint",
+		endpoint,
+	)
+
 	if authEnabled {
-		cmd = append(
-			cmd,
+		args = append(
+			args,
 			"--token-file",
 			OperatorTokenFilePath,
 		)
 	}
 
-	return cmd
+	args = append(
+		args,
+		"admin", "blobstorage", "config", "init", "--yaml-file",
+		fmt.Sprintf("%s/%s", ConfigDir, ConfigFileName),
+	)
+
+	return command, args
 }
 
 func (r *Storage) BuildCAStorePatchingCommandArgs() ([]string, []string) {

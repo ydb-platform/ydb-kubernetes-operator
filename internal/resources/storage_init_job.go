@@ -56,13 +56,11 @@ func (b *StorageInitJobBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
-	storageLabels := labels.StorageLabels(storage)
-
 	return &StorageInitJobBuilder{
 		Storage: storage,
 
 		Name:   fmt.Sprintf(InitJobNameFormat, storage.Name),
-		Labels: storageLabels,
+		Labels: labels.Common(storage.Name, make(map[string]string)),
 	}
 }
 
@@ -160,11 +158,14 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 		authEnabled = true
 	}
 
+	command, args := b.BuildBlobStorageInitCommandArgs(authEnabled)
+
 	container := corev1.Container{
 		Name:            "ydb-init-blobstorage",
 		Image:           b.Spec.Image.Name,
 		ImagePullPolicy: imagePullPolicy,
-		Command:         b.BuildBlobStorageInitCommand(authEnabled),
+		Command:         command,
+		Args:            args,
 
 		VolumeMounts: b.buildJobVolumeMounts(),
 		Resources:    containerResources,
