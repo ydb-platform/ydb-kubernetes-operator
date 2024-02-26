@@ -77,19 +77,26 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - ""
+  - batch
   resources:
-  - pods
+  - jobs
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
   resources:
-  - pods/exec
+  - pods
+  - pods/log
   verbs:
-  - create
+  - get
+  - list
+  - watch
 - apiGroups:
   - apps
   resources:
