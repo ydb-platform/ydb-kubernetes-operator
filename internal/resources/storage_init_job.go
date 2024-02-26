@@ -73,8 +73,9 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
 		},
 		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{b.buildInitJobContainer()},
-			Volumes:    b.buildInitJobVolumes(),
+			Containers:    []corev1.Container{b.buildInitJobContainer()},
+			Volumes:       b.buildInitJobVolumes(),
+			RestartPolicy: corev1.RestartPolicyOnFailure,
 		},
 	}
 
