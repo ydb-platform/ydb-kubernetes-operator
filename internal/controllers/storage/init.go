@@ -279,12 +279,10 @@ func (r *Reconciler) getSucceededJobLogs(
 	return "", errors.New("failed to get succeeded Pod for Job")
 }
 
-func shouldIgnoreJobChange() resources.IgnoreChangesFunction {
+func shouldIgnoreJobUpdate() resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
 		if _, ok := oldObj.(*batchv1.Job); ok {
-			if oldObj.(*batchv1.Job).Spec.Suspend == ptr.Bool(true) {
-				return true
-			}
+			return true
 		}
 		return false
 	}
@@ -309,7 +307,7 @@ func (r *Reconciler) createOrUpdateInitBlobstorageJob(
 		}
 
 		return nil
-	}, shouldIgnoreJobChange())
+	}, shouldIgnoreJobUpdate())
 }
 
 func (r *Reconciler) createOrUpdateOperatorTokenSecret(

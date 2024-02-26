@@ -332,20 +332,20 @@ func (r *Storage) BuildBlobStorageInitCommandArgs(authEnabled bool) ([]string, [
 	}
 
 	args := []string{}
-	endpoint := r.GetStorageEndpointWithProto()
-	args = append(
-		args,
-		"--endpoint",
-		endpoint,
-	)
-
 	if authEnabled {
 		args = append(
 			args,
-			"--token-file",
+			"-f",
 			OperatorTokenFilePath,
 		)
 	}
+
+	endpoint := r.GetStorageEndpointWithProto()
+	args = append(
+		args,
+		"-s",
+		endpoint,
+	)
 
 	args = append(
 		args,
