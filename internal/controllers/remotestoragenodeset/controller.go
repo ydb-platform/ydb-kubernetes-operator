@@ -22,8 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
@@ -55,7 +55,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	remoteStorageNodeSet := &api.RemoteStorageNodeSet{}
+	remoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 	if err := r.RemoteClient.Get(ctx, req.NamespacedName, remoteStorageNodeSet); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Info("RemoteStorageNodeSet resource not found")
@@ -71,15 +71,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then lets add the finalizer and update the object. This is equivalent
 		// to registering our finalizer.
-		if !controllerutil.ContainsFinalizer(remoteStorageNodeSet, RemoteFinalizerKey) {
-			controllerutil.AddFinalizer(remoteStorageNodeSet, RemoteFinalizerKey)
+		if !controllerutil.ContainsFinalizer(remoteStorageNodeSet, ydbannotations.RemoteFinalizerKey) {
+			controllerutil.AddFinalizer(remoteStorageNodeSet, ydbannotations.RemoteFinalizerKey)
 			if err := r.RemoteClient.Update(ctx, remoteStorageNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 		}
 	} else {
 		// The object is being deleted
-		if controllerutil.ContainsFinalizer(remoteStorageNodeSet, RemoteFinalizerKey) {
+		if controllerutil.ContainsFinalizer(remoteStorageNodeSet, ydbannotations.RemoteFinalizerKey) {
 			// our finalizer is present, so lets handle any external dependency
 			if err := r.deleteExternalResources(ctx, remoteStorageNodeSet); err != nil {
 				// if fail to delete the external dependency here, return with error
@@ -88,7 +88,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(remoteStorageNodeSet, RemoteFinalizerKey)
+			controllerutil.RemoveFinalizer(remoteStorageNodeSet, ydbannotations.RemoteFinalizerKey)
 			if err := r.RemoteClient.Update(ctx, remoteStorageNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
@@ -106,10 +106,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
-func (r *Reconciler) deleteExternalResources(ctx context.Context, remoteStorageNodeSet *api.RemoteStorageNodeSet) error {
+func (r *Reconciler) deleteExternalResources(ctx context.Context, remoteStorageNodeSet *v1alpha1.RemoteStorageNodeSet) error {
 	logger := log.FromContext(ctx)
 
-	storageNodeSet := &api.StorageNodeSet{}
+	storageNodeSet := &v1alpha1.StorageNodeSet{}
 	if err := r.Client.Get(ctx, types.NamespacedName{
 		Name:      remoteStorageNodeSet.Name,
 		Namespace: remoteStorageNodeSet.Namespace,
@@ -134,7 +134,7 @@ func ignoreDeletionPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
-			annotationsChanged := !annotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
+			annotationsChanged := !ydbannotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
 
 			return generationChanged || annotationsChanged
 		},
@@ -148,7 +148,7 @@ func ignoreDeletionPredicate() predicate.Predicate {
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.Cluster) error {
 	cluster := *remoteCluster
-	remoteStorageNodeSet := &api.RemoteStorageNodeSet{}
+	remoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 
 	r.Recorder = mgr.GetEventRecorderFor(RemoteStorageNodeSetKind)
 	r.RemoteRecorder = cluster.GetEventRecorderFor(RemoteStorageNodeSetKind)
@@ -158,24 +158,53 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 		requests := make([]reconcile.Request, 0)
 
 		annotations := mapObj.GetAnnotations()
-		primaryResourceName := annotations[PrimaryResourceNameAnnotation]
-		primaryResourceNamespace := annotations[PrimaryResourceNamespaceAnnotation]
-
-		if primaryResourceName != "" && primaryResourceNamespace != "" {
-			requests = append(requests, reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: primaryResourceNamespace,
-					Name:      primaryResourceName,
+		primaryResourceName, exist := annotations[ydbannotations.PrimaryResourceStorageAnnotation]
+		if exist {
+			storageNodeSets := &v1alpha1.StorageNodeSetList{}
+			if err := r.Client.List(
+				context.Background(),
+				storageNodeSets,
+				client.InNamespace(mapObj.GetNamespace()),
+				client.MatchingFields{
+					StorageRefField: primaryResourceName,
 				},
-			})
+			); err != nil {
+				return requests
+			}
+			for _, storageNodeSet := range storageNodeSets.Items {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: storageNodeSet.GetNamespace(),
+						Name:      storageNodeSet.GetName(),
+					},
+				})
+			}
 		}
 		return requests
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.StorageNodeSet{},
+		StorageRefField,
+		func(obj client.Object) []string {
+			storageNodeSet := obj.(*v1alpha1.StorageNodeSet)
+			return []string{storageNodeSet.Spec.StorageRef.Name}
+		}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(RemoteStorageNodeSetKind).
-		Watches(source.NewKindWithCache(remoteStorageNodeSet, cluster.GetCache()), &handler.EnqueueRequestForObject{}, builder.WithPredicates(ignoreDeletionPredicate())).
-		Watches(&source.Kind{Type: &api.StorageNodeSet{}}, handler.EnqueueRequestsFromMapFunc(annotationFilter)).
+		Watches(
+			source.NewKindWithCache(remoteStorageNodeSet, cluster.GetCache()),
+			&handler.EnqueueRequestForObject{},
+			builder.WithPredicates(ignoreDeletionPredicate()),
+		).
+		Watches(
+			&source.Kind{Type: &v1alpha1.StorageNodeSet{}},
+			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+		).
 		Complete(r)
 }
 
