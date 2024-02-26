@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
@@ -490,9 +491,9 @@ func (r *Reconciler) getYDBCredentials(
 	if auth := storage.Spec.OperatorConnection; auth != nil {
 		switch {
 		case auth.AccessToken != nil:
-			token, err := r.getSecretKey(
-				ctx,
-				storage.Storage.Namespace,
+			token, err := resources.GetSecretKey(
+				storage.Namespace,
+				r.Config,
 				auth.AccessToken.SecretKeyRef,
 			)
 			if err != nil {
@@ -501,13 +502,13 @@ func (r *Reconciler) getYDBCredentials(
 			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
 		case auth.StaticCredentials != nil:
 			username := auth.StaticCredentials.Username
-			password := ydbv1alpha1.DefaultRootPassword
+			password := v1alpha1.DefaultRootPassword
 			if auth.StaticCredentials.Password != nil {
 				var err error
-				password, err = r.getSecretKey(
-					ctx,
-					storage.Storage.Namespace,
-					auth.StaticCredentials.Password.SecretKeyRef,
+				password, err = resources.GetSecretKey(
+					storage.Namespace,
+					r.Config,
+					auth.AccessToken.SecretKeyRef,
 				)
 				if err != nil {
 					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -519,31 +520,6 @@ func (r *Reconciler) getYDBCredentials(
 		}
 	}
 	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
-}
-
-func (r *Reconciler) getSecretKey(
-	ctx context.Context,
-	namespace string,
-	secretKeyRef *corev1.SecretKeySelector,
-) (string, error) {
-	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      secretKeyRef.Name,
-		Namespace: namespace,
-	}, secret)
-	if err != nil {
-		return "", err
-	}
-	secretVal, exist := secret.Data[secretKeyRef.Key]
-	if !exist {
-		return "", fmt.Errorf(
-			"key %s does not exist in secretData %s",
-			secretKeyRef.Key,
-			secretKeyRef.Name,
-		)
-	}
-
-	return string(secretVal), nil
 }
 
 func (r *Reconciler) handlePauseResume(

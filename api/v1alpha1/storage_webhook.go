@@ -297,3 +297,58 @@ func (r *Storage) ValidateDelete() error {
 	}
 	return nil
 }
+
+func (r *Storage) AreAnyCertificatesAddedToStore() bool {
+	return len(r.Spec.CABundle) > 0 ||
+		r.Spec.Service.GRPC.TLSConfiguration.Enabled ||
+		r.Spec.Service.Interconnect.TLSConfiguration.Enabled
+}
+
+func (r *Storage) BuildBlobStorageInitCommand(authEnabled bool) []string {
+	endpoint := r.GetStorageEndpointWithProto()
+
+	cmd := []string{
+		fmt.Sprintf("%s/%s", BinariesDir, DaemonBinaryName),
+		"-s",
+		endpoint,
+		"admin", "blobstorage", "config", "init",
+		"--yaml-file",
+		fmt.Sprintf("%s/%s", ConfigDir, ConfigFileName),
+	}
+
+	if authEnabled {
+		cmd = append(
+			cmd,
+			"--token-file",
+			OperatorTokenFilePath,
+		)
+	}
+
+	return cmd
+}
+
+func (r *Storage) BuildCAStorePatchingCommandArgs() ([]string, []string) {
+	command := []string{"/bin/bash", "-c"}
+
+	arg := ""
+
+	if len(r.Spec.CABundle) > 0 {
+		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", CABundleEnvName, LocalCertsDir, CABundleFileName)
+	}
+
+	if r.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/%s/ca.crt %s/grpcRoot.crt && ", CustomCertsDir, GRPCCertsDirName, LocalCertsDir)
+	}
+
+	if r.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/%s/ca.crt %s/interconnectRoot.crt && ", CustomCertsDir, InterconnectCertsDirName, LocalCertsDir)
+	}
+
+	if arg != "" {
+		arg += updateCACertificatesBin
+	}
+
+	args := []string{arg}
+
+	return command, args
+}

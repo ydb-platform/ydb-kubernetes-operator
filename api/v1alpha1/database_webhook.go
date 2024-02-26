@@ -231,3 +231,29 @@ func (r *Database) ValidateDelete() error {
 	}
 	return nil
 }
+
+func (r *Database) BuildCAStorePatchingCommandArgs() ([]string, []string) {
+	command := []string{"/bin/bash", "-c"}
+
+	arg := ""
+
+	if len(r.Spec.CABundle) > 0 {
+		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", CABundleEnvName, LocalCertsDir, CABundleFileName)
+	}
+
+	if r.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/%s/ca.crt %s/grpcRoot.crt && ", CustomCertsDir, GRPCCertsDirName, LocalCertsDir)
+	}
+
+	if r.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/%s/ca.crt %s/interconnectRoot.crt && ", CustomCertsDir, InterconnectCertsDirName, LocalCertsDir)
+	}
+
+	if arg != "" {
+		arg += updateCACertificatesBin
+	}
+
+	args := []string{arg}
+
+	return command, args
+}

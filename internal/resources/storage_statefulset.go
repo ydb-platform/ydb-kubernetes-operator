@@ -125,7 +125,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AreAnyCertificatesAddedToStore() {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -217,7 +217,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, *volume)
 	}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AreAnyCertificatesAddedToStore() {
 		volumes = append(volumes, corev1.Volume{
 			Name: systemCertsVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -237,7 +237,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 }
 
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
-	command, args := b.buildCaStorePatchingInitContainerArgs()
+	command, args := b.BuildCAStorePatchingCommandArgs()
 	containerResources := corev1.ResourceRequirements{}
 	if b.Spec.Resources != nil {
 		containerResources = *b.Spec.Resources
@@ -263,7 +263,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{
 			{
-				Name:  caBundleEnvName,
+				Name:  v1alpha1.CABundleEnvName,
 				Value: b.Spec.CABundle,
 			},
 		}
@@ -271,24 +271,18 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 	return container
 }
 
-func (b *StorageStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
-	return len(b.Spec.CABundle) > 0 ||
-		b.Spec.Service.GRPC.TLSConfiguration.Enabled ||
-		b.Spec.Service.Interconnect.TLSConfiguration.Enabled
-}
-
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AreAnyCertificatesAddedToStore() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: localCertsDir,
+			MountPath: v1alpha1.LocalCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: systemCertsDir,
+			MountPath: v1alpha1.LocalCertsDir,
 		})
 	}
 
@@ -410,15 +404,15 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AreAnyCertificatesAddedToStore() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: localCertsDir,
+			MountPath: v1alpha1.LocalCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: systemCertsDir,
+			MountPath: v1alpha1.SystemCertsDir,
 		})
 	}
 
@@ -437,32 +431,6 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	}
 
 	return volumeMounts
-}
-
-func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]string, []string) {
-	command := []string{"/bin/bash", "-c"}
-
-	arg := ""
-
-	if len(b.Spec.CABundle) > 0 {
-		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
-	}
-
-	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt && ", localCertsDir) // fixme const
-	}
-
-	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt && ", localCertsDir) // fixme const
-	}
-
-	if arg != "" {
-		arg += updateCACertificatesBin
-	}
-
-	args := []string{arg}
-
-	return command, args
 }
 
 func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
@@ -486,16 +454,19 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	)
 
 	for _, secret := range b.Spec.Secrets {
-		exists, err := checkSecretHasField(
+		_, err := GetSecretKey(
 			b.GetNamespace(),
-			secret.Name,
-			v1alpha1.YdbAuthToken,
 			b.RestConfig,
+			&corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secret.Name,
+				},
+				Key: v1alpha1.YdbAuthToken,
+			},
 		)
-
 		if err != nil {
 			log.Default().Printf("Failed to inspect a secret %s: %s\n", secret.Name, err.Error())
-		} else if exists {
+		} else {
 			args = append(args,
 				"--auth-token-file",
 				fmt.Sprintf(

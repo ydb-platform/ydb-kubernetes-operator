@@ -33,8 +33,23 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
+	OperatorTokenFilePath = "/opt/ydb/.token"
+	OperatorTokenFileName = ".token"
+
+	CustomCertsDir           = "/opt/ydb/tls"
+	GRPCCertsDirName         = "grpc"
+	InterconnectCertsDirName = "interconnect"
+
 	DefaultRootUsername = "root"
 	DefaultRootPassword = ""
+
+	LocalCertsDir  = "/usr/local/share/ca-certificates"
+	SystemCertsDir = "/etc/ssl/certs"
+
+	CABundleEnvName  = "CA_BUNDLE"
+	CABundleFileName = "userCABundle.crt"
+
+	updateCACertificatesBin = "update-ca-certificates"
 
 	AnnotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
 	AnnotationUpdateDNSPolicy        = "ydb.tech/update-dns-policy"

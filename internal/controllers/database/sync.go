@@ -17,6 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
@@ -401,9 +402,9 @@ func (r *Reconciler) getYDBCredentials(
 	if auth := database.Storage.Spec.OperatorConnection; auth != nil {
 		switch {
 		case auth.AccessToken != nil:
-			token, err := r.getSecretKey(
-				ctx,
+			token, err := resources.GetSecretKey(
 				database.Storage.Namespace,
+				r.Config,
 				auth.AccessToken.SecretKeyRef,
 			)
 			if err != nil {
@@ -415,10 +416,10 @@ func (r *Reconciler) getYDBCredentials(
 			password := v1alpha1.DefaultRootPassword
 			if auth.StaticCredentials.Password != nil {
 				var err error
-				password, err = r.getSecretKey(
-					ctx,
+				password, err = resources.GetSecretKey(
 					database.Storage.Namespace,
-					auth.StaticCredentials.Password.SecretKeyRef,
+					r.Config,
+					auth.AccessToken.SecretKeyRef,
 				)
 				if err != nil {
 					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -430,30 +431,6 @@ func (r *Reconciler) getYDBCredentials(
 		}
 	}
 	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
-}
-
-func (r *Reconciler) getSecretKey(
-	ctx context.Context,
-	namespace string,
-	secretKeyRef *corev1.SecretKeySelector,
-) (string, error) {
-	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      secretKeyRef.Name,
-		Namespace: namespace,
-	}, secret)
-	if err != nil {
-		return "", err
-	}
-	secretVal, exist := secret.Data[secretKeyRef.Key]
-	if !exist {
-		return "", fmt.Errorf(
-			"key %s does not exist in secretData %s",
-			secretKeyRef.Key,
-			secretKeyRef.Name,
-		)
-	}
-	return string(secretVal), nil
 }
 
 func (r *Reconciler) syncNodeSetSpecInline(
@@ -619,8 +596,12 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	_, result, err = r.handleTenantCreation(ctx, database, auth)
-	return result, err
+	stop, result, err = r.handleTenantCreation(ctx, database, auth)
+	if stop {
+		return result, err
+	}
+
+	return reconcile.Result{}, nil
 }
 
 func (r *Reconciler) checkDatabaseFrozen(

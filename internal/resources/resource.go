@@ -23,25 +23,21 @@ const (
 	interconnectTLSVolumeName = "interconnect-tls-volume"
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
-	systemCertsVolumeName = "init-main-shared-certs-volume"
-	localCertsVolumeName  = "init-main-shared-source-dir-volume"
+	InitJobNameFormat             = "%s-blobstorage-init"
+	OperatorTokenSecretNameFromat = "%s-operator-token"
+
+	systemCertsVolumeName   = "init-main-shared-certs-volume"
+	localCertsVolumeName    = "init-main-shared-source-dir-volume"
+	operatorTokenVolumeName = "operator-token-volume"
 
 	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
 	wellKnownDirForAdditionalVolumes = "/opt/ydb/volumes"
-
-	caBundleEnvName  = "CA_BUNDLE"
-	caBundleFileName = "userCABundle.crt"
-
-	localCertsDir  = "/usr/local/share/ca-certificates"
-	systemCertsDir = "/etc/ssl/certs"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
 	encryptionVolumeName                      = "encryption"
 	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
 	defaultEncryptionSecretKey                = "key"
 	defaultPin                                = "EmptyPin"
-
-	updateCACertificatesBin = "update-ca-certificates"
 )
 
 type ResourceBuilder interface {
