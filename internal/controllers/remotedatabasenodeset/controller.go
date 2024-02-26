@@ -164,6 +164,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 		Watches(
 			source.NewKindWithCache(remoteDatabaseNodeSet, cluster.GetCache()),
 			&handler.EnqueueRequestForObject{},
+			builder.WithPredicates(ignoreDeletionPredicate()),
 		).
 		Watches(
 			&source.Kind{Type: &v1alpha1.DatabaseNodeSet{}},
@@ -172,7 +173,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 				resources.LabelExistsPredicate(isNodeSetFromMgmt),
 			),
 		).
-		WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
 }
 
