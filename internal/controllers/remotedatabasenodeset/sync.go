@@ -55,13 +55,8 @@ func (r *Reconciler) handleResourcesSync(
 				)
 				return err
 			}
+			remoteDatabaseNodeSet.SetPrimaryResourceAnnotations(newResource)
 
-			// Set primary resource annotation
-			newResource.SetAnnotations(map[string]string{
-				PrimaryResourceNameAnnotation:      remoteDatabaseNodeSet.GetName(),
-				PrimaryResourceNamespaceAnnotation: remoteDatabaseNodeSet.GetNamespace(),
-				PrimaryResourceTypeAnnotation:      remoteDatabaseNodeSet.GetObjectKind().GroupVersionKind().Kind,
-			})
 			return nil
 		}, func(oldObj, newObj runtime.Object) bool {
 			return false

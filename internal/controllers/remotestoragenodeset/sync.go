@@ -55,13 +55,8 @@ func (r *Reconciler) handleResourcesSync(
 				)
 				return err
 			}
+			remoteStorageNodeSet.SetPrimaryResourceAnnotations(newResource)
 
-			// Set primary resource annotation
-			newResource.SetAnnotations(map[string]string{
-				PrimaryResourceNameAnnotation:      remoteStorageNodeSet.GetName(),
-				PrimaryResourceNamespaceAnnotation: remoteStorageNodeSet.GetNamespace(),
-				PrimaryResourceTypeAnnotation:      remoteStorageNodeSet.GetObjectKind().GroupVersionKind().Kind,
-			})
 			return nil
 		}, func(oldObj, newObj runtime.Object) bool {
 			return false
