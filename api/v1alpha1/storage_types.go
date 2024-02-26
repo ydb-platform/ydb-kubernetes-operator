@@ -13,6 +13,8 @@ type StorageSpec struct {
 
 	StorageNodeSpec `json:",inline"`
 
+	InitJob *StorageInitJobSpec `json:"initJob,omitempty"`
+
 	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
 	// Default: (not specified)
 	// +optional
@@ -152,6 +154,36 @@ type StorageNodeSpec struct {
 	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
 	// +optional
 	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
+
+	// (Optional) Additional custom resource labels that are added to all resources
+	// +optional
+	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
+
+	// (Optional) Additional custom resource annotations that are added to all resources
+	// +optional
+	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
+}
+
+type StorageInitJobSpec struct {
+	// (Optional) Container resource limits. Any container limits
+	// can be specified.
+	// Default: (not specified)
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// (Optional) If specified, the pod's scheduling constraints
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// (Optional) If specified, the pod's tolerations.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional

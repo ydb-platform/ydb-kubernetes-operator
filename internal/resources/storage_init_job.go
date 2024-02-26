@@ -10,6 +10,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -17,8 +18,10 @@ import (
 type StorageInitJobBuilder struct {
 	*api.Storage
 
-	Name   string
-	Labels map[string]string
+	Name string
+
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 func (b *StorageInitJobBuilder) Build(obj client.Object) error {
@@ -31,7 +34,8 @@ func (b *StorageInitJobBuilder) Build(obj client.Object) error {
 		job.ObjectMeta.Name = b.Name
 	}
 	job.ObjectMeta.Namespace = b.GetNamespace()
-	job.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
+	job.ObjectMeta.Labels = b.Labels
+	job.ObjectMeta.Annotations = b.Annotations
 
 	job.Spec = batchv1.JobSpec{
 		Parallelism:             ptr.Int32(1),
@@ -56,11 +60,23 @@ func (b *StorageInitJobBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
+	jobName := fmt.Sprintf(InitJobNameFormat, storage.Name)
+
+	jobLabels := labels.Common(jobName, make(map[string]string))
+	jobAnnotations := make(map[string]string)
+
+	if storage.Spec.InitJob != nil {
+		jobLabels.Merge(storage.Spec.InitJob.AdditionalLabels)
+		jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
+	}
+
 	return &StorageInitJobBuilder{
 		Storage: storage,
 
-		Name:   fmt.Sprintf(InitJobNameFormat, storage.Name),
-		Labels: labels.Common(storage.Name, make(map[string]string)),
+		Name: jobName,
+
+		Labels:      jobLabels,
+		Annotations: jobAnnotations,
 	}
 }
 
@@ -68,13 +84,27 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
-			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
+			Annotations: b.Annotations,
 		},
 		Spec: corev1.PodSpec{
 			Containers:    []corev1.Container{b.buildInitJobContainer()},
 			Volumes:       b.buildInitJobVolumes(),
 			RestartPolicy: corev1.RestartPolicyOnFailure,
 		},
+	}
+
+	if b.Spec.InitJob != nil {
+		if b.Spec.InitJob.NodeSelector != nil {
+			podTemplate.Spec.NodeSelector = b.Spec.InitJob.NodeSelector
+		}
+
+		if b.Spec.InitJob.Affinity != nil {
+			podTemplate.Spec.Affinity = b.Spec.InitJob.Affinity
+		}
+
+		if b.Spec.InitJob.Tolerations != nil {
+			podTemplate.Spec.Tolerations = b.Spec.InitJob.Tolerations
+		}
 	}
 
 	// InitContainer only needed for CaBundle manipulation for now,
@@ -144,10 +174,19 @@ func (b *StorageInitJobBuilder) buildInitJobVolumes() []corev1.Volume {
 }
 
 func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // todo add init container for sparse files?
-	containerResources := corev1.ResourceRequirements{}
-	// if b.Spec.Resources != nil {
-	// 	containerResources = *b.Spec.Resources
-	// }
+	cpuResource := resource.MustParse("500m")     // 500 milliCPU
+	memoryResource := resource.MustParse("500Mi") // 500 Megabytes
+	containerResources := corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    cpuResource,
+			corev1.ResourceMemory: memoryResource,
+		},
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    cpuResource,
+			corev1.ResourceMemory: memoryResource,
+		},
+	}
+
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {
 		imagePullPolicy = *b.Spec.Image.PullPolicyName
@@ -169,6 +208,10 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 
 		VolumeMounts: b.buildJobVolumeMounts(),
 		Resources:    containerResources,
+	}
+
+	if b.Spec.InitJob.Resources != nil {
+		container.Resources = *b.Spec.InitJob.Resources
 	}
 
 	return container
