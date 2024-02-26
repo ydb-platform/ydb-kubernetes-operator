@@ -281,8 +281,8 @@ func (r *Reconciler) getSucceededJobLogs(
 
 func shouldIgnoreJobChange() resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
-		if updatedJob, ok := newObj.(*batchv1.Job); ok {
-			if !*updatedJob.Spec.Suspend && *oldObj.(*batchv1.Job).Spec.Suspend {
+		if _, ok := oldObj.(*batchv1.Job); ok {
+			if oldObj.(*batchv1.Job).Spec.Suspend == ptr.Bool(true) {
 				return true
 			}
 		}
