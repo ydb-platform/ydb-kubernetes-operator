@@ -19,13 +19,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 // Reconciler reconciles a RemoteDatabaseNodeSet object
@@ -154,43 +154,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 	r.RemoteRecorder = cluster.GetEventRecorderFor(RemoteDatabaseNodeSetKind)
 	r.RemoteClient = cluster.GetClient()
 
-	annotationFilter := func(mapObj client.Object) []reconcile.Request {
-		requests := make([]reconcile.Request, 0)
-
-		annotations := mapObj.GetAnnotations()
-		primaryResourceName, exist := annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
-		if exist {
-			databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
-			if err := r.Client.List(
-				context.Background(),
-				databaseNodeSets,
-				client.InNamespace(mapObj.GetNamespace()),
-				client.MatchingFields{
-					DatabaseRefField: primaryResourceName,
-				},
-			); err != nil {
-				return requests
-			}
-			for _, databaseNodeSet := range databaseNodeSets.Items {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Namespace: databaseNodeSet.GetNamespace(),
-						Name:      databaseNodeSet.GetName(),
-					},
-				})
-			}
-		}
-		return requests
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&v1alpha1.DatabaseNodeSet{},
-		DatabaseRefField,
-		func(obj client.Object) []string {
-			databaseNodeSet := obj.(*v1alpha1.DatabaseNodeSet)
-			return []string{databaseNodeSet.Spec.DatabaseRef.Name}
-		}); err != nil {
+	isNodeSetFromMgmt, err := buildLocalSelector()
+	if err != nil {
 		return err
 	}
 
@@ -199,13 +164,30 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 		Watches(
 			source.NewKindWithCache(remoteDatabaseNodeSet, cluster.GetCache()),
 			&handler.EnqueueRequestForObject{},
-			builder.WithPredicates(ignoreDeletionPredicate()),
 		).
 		Watches(
 			&source.Kind{Type: &v1alpha1.DatabaseNodeSet{}},
-			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+			&handler.EnqueueRequestForObject{},
+			builder.WithPredicates(
+				resources.LabelExistsPredicate(isNodeSetFromMgmt),
+			),
 		).
+		WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
+}
+
+func buildLocalSelector() (labels.Selector, error) {
+	labelRequirements := []labels.Requirement{}
+	localClusterRequirement, err := labels.NewRequirement(
+		ydblabels.RemoteClusterKey,
+		selection.Exists,
+		[]string{},
+	)
+	if err != nil {
+		return nil, err
+	}
+	labelRequirements = append(labelRequirements, *localClusterRequirement)
+	return labels.NewSelector().Add(labelRequirements...), nil
 }
 
 func BuildRemoteSelector(remoteCluster string) (labels.Selector, error) {
