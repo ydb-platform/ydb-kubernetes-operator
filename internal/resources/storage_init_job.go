@@ -10,7 +10,6 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -38,13 +37,12 @@ func (b *StorageInitJobBuilder) Build(obj client.Object) error {
 	job.ObjectMeta.Annotations = b.Annotations
 
 	job.Spec = batchv1.JobSpec{
-		Parallelism:             ptr.Int32(1),
-		Completions:             ptr.Int32(1),
-		ActiveDeadlineSeconds:   ptr.Int64(300),
-		BackoffLimit:            ptr.Int32(10),
-		TTLSecondsAfterFinished: ptr.Int32(3600),
-		Suspend:                 ptr.Bool(true),
-		Template:                b.buildInitJobPodTemplateSpec(),
+		Parallelism:           ptr.Int32(1),
+		Completions:           ptr.Int32(1),
+		ActiveDeadlineSeconds: ptr.Int64(300),
+		BackoffLimit:          ptr.Int32(10),
+		Suspend:               ptr.Bool(true),
+		Template:              b.buildInitJobPodTemplateSpec(),
 	}
 
 	return nil
@@ -174,19 +172,6 @@ func (b *StorageInitJobBuilder) buildInitJobVolumes() []corev1.Volume {
 }
 
 func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // todo add init container for sparse files?
-	cpuResource := resource.MustParse("500m")     // 500 milliCPU
-	memoryResource := resource.MustParse("500Mi") // 500 Megabytes
-	containerResources := corev1.ResourceRequirements{
-		Limits: corev1.ResourceList{
-			corev1.ResourceCPU:    cpuResource,
-			corev1.ResourceMemory: memoryResource,
-		},
-		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    cpuResource,
-			corev1.ResourceMemory: memoryResource,
-		},
-	}
-
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {
 		imagePullPolicy = *b.Spec.Image.PullPolicyName
@@ -207,11 +192,7 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 		Args:            args,
 
 		VolumeMounts: b.buildJobVolumeMounts(),
-		Resources:    containerResources,
-	}
-
-	if b.Spec.InitJob.Resources != nil {
-		container.Resources = *b.Spec.InitJob.Resources
+		Resources:    *b.Spec.InitJob.Resources,
 	}
 
 	return container

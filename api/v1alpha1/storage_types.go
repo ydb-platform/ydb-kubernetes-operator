@@ -13,6 +13,14 @@ type StorageSpec struct {
 
 	StorageNodeSpec `json:",inline"`
 
+	// (Optional) Operator connection settings
+	// Default: (not specified)
+	// +optional
+	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
+
+	// (Optional) Blobstorage init job settings
+	// Default: (not specified)
+	// +optional
 	InitJob *StorageInitJobSpec `json:"initJob,omitempty"`
 
 	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
@@ -29,11 +37,6 @@ type StorageClusterSpec struct {
 	// +kubebuilder:default:="Root"
 	// +optional
 	Domain string `json:"domain"`
-
-	// (Optional) Operator connection settings
-	// Default: (not specified)
-	// +optional
-	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
 
 	// Data storage topology mode
 	// For details, see https://ydb.tech/docs/en/cluster/topology

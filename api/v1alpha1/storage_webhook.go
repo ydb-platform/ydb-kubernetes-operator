@@ -7,7 +7,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -16,6 +17,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
+)
+
+const (
+	DefaultInitJobCPU = "500m" // 500 milliCPU
+	DefaultInitJobMem = "1Gi"  // 1 Gigabytes
 )
 
 // log is for logging in this package.
@@ -88,12 +94,12 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 	}
 
 	if storage.Spec.Image.PullPolicyName == nil {
-		policy := v1.PullIfNotPresent
+		policy := corev1.PullIfNotPresent
 		storage.Spec.Image.PullPolicyName = &policy
 	}
 
 	if storage.Spec.Resources == nil {
-		storage.Spec.Resources = &v1.ResourceRequirements{}
+		storage.Spec.Resources = &corev1.ResourceRequirements{}
 	}
 
 	if storage.Spec.Service == nil {
@@ -127,6 +133,22 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 		return err
 	}
 	storage.Spec.Configuration = configuration
+
+	if storage.Spec.InitJob == nil {
+		storage.Spec.InitJob = &StorageInitJobSpec{}
+		if storage.Spec.InitJob.Resources == nil {
+			storage.Spec.InitJob.Resources = &corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse(DefaultInitJobCPU),
+					corev1.ResourceMemory: resource.MustParse(DefaultInitJobMem),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse(DefaultInitJobCPU),
+					corev1.ResourceMemory: resource.MustParse(DefaultInitJobMem),
+				},
+			}
+		}
+	}
 
 	return nil
 }

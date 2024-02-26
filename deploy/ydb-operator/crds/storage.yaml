@@ -2365,6 +2365,8 @@ spec:
                   type: object
                 type: array
               initJob:
+                description: '(Optional) Blobstorage init job settings Default: (not
+                  specified)'
                 properties:
                   additionalAnnotations:
                     additionalProperties:
