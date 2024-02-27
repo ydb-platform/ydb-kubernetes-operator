@@ -9,7 +9,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -19,11 +18,6 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
-)
-
-const (
-	DefaultInitJobCPU = "500m" // 500 milliCPU
-	DefaultInitJobMem = "1Gi"  // 1 Gigabytes
 )
 
 // log is for logging in this package.
@@ -51,7 +45,7 @@ func (r *Storage) GetStorageProto() string {
 
 func (r *Storage) GetStorageEndpoint() string {
 	endpoint := r.GetGRPCServiceEndpoint()
-	if r.IsRemoteStorageNodeSetOnly() {
+	if r.IsRemoteNodeSetsOnly() {
 		endpoint = r.GetHostFromConfigEndpoint()
 	}
 
@@ -92,7 +86,7 @@ func (r *Storage) IsStorageEndpointSecure() bool {
 	return false
 }
 
-func (r *Storage) IsRemoteStorageNodeSetOnly() bool {
+func (r *Storage) IsRemoteNodeSetsOnly() bool {
 	if r.Spec.NodeSets == nil {
 		return false
 	}
@@ -180,22 +174,6 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 		return err
 	}
 	storage.Spec.Configuration = configuration
-
-	if storage.Spec.InitJob == nil {
-		storage.Spec.InitJob = &StorageInitJobSpec{}
-		if storage.Spec.InitJob.Resources == nil {
-			storage.Spec.InitJob.Resources = &corev1.ResourceRequirements{
-				Limits: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse(DefaultInitJobCPU),
-					corev1.ResourceMemory: resource.MustParse(DefaultInitJobMem),
-				},
-				Requests: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse(DefaultInitJobCPU),
-					corev1.ResourceMemory: resource.MustParse(DefaultInitJobMem),
-				},
-			}
-		}
-	}
 
 	return nil
 }

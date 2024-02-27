@@ -193,7 +193,12 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 		Args:            args,
 
 		VolumeMounts: b.buildJobVolumeMounts(),
-		Resources:    *b.Spec.InitJob.Resources,
+	}
+
+	if b.Spec.InitJob != nil {
+		if b.Spec.InitJob.Resources != nil {
+			container.Resources = *b.Spec.InitJob.Resources
+		}
 	}
 
 	return container

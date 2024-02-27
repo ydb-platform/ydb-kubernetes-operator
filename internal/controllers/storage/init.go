@@ -118,23 +118,23 @@ func (r *Reconciler) initializeStorage(
 		return r.setState(ctx, storage)
 	}
 
-	result, err := r.createOrUpdateInitBlobstorageJob(ctx, storage)
+	result, err := r.createInitBlobstorageJob(ctx, storage)
 	if err != nil {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
 			"ProvisioningFailed",
-			fmt.Sprintf("Failed to create/update init blobstorage Job, error: %s", err),
+			fmt.Sprintf("Failed to create init blobstorage Job, error: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
+	if result == controllerutil.OperationResultCreated {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
 			"Provisioning",
-			fmt.Sprintf("Init bobstorage Job was %s successfully", result),
+			"Init bobstorage Job was created successfully",
 		)
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
@@ -152,8 +152,7 @@ func (r *Reconciler) initializeStorage(
 		)
 	}
 
-	initJobSuspend := *initJob.Spec.Suspend
-	if initJobSuspend {
+	if initJob.Spec.Suspend == ptr.Bool(true) {
 		if storage.Spec.OperatorConnection != nil {
 			if _, err := r.createOrUpdateOperatorTokenSecret(ctx, storage, creds); err != nil {
 				r.Recorder.Event(
@@ -300,7 +299,7 @@ func shouldIgnoreJobUpdate() resources.IgnoreChangesFunction {
 	}
 }
 
-func (r *Reconciler) createOrUpdateInitBlobstorageJob(
+func (r *Reconciler) createInitBlobstorageJob(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (controllerutil.OperationResult, error) {

@@ -18,7 +18,7 @@ type StorageSpec struct {
 	// +optional
 	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
 
-	// (Optional) Blobstorage init job settings
+	// (Optional) Init blobstorage Job settings
 	// Default: (not specified)
 	// +optional
 	InitJob *StorageInitJobSpec `json:"initJob,omitempty"`
