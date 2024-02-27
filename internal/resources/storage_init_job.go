@@ -59,8 +59,7 @@ func (b *StorageInitJobBuilder) Placeholder(cr client.Object) client.Object {
 
 func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 	jobName := fmt.Sprintf(InitJobNameFormat, storage.Name)
-
-	jobLabels := labels.Common(jobName, make(map[string]string))
+	jobLabels := labels.Common(storage.Name, make(map[string]string))
 	jobAnnotations := make(map[string]string)
 
 	if storage.Spec.InitJob != nil {
@@ -71,8 +70,7 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 	return &StorageInitJobBuilder{
 		Storage: storage,
 
-		Name: jobName,
-
+		Name:        jobName,
 		Labels:      jobLabels,
 		Annotations: jobAnnotations,
 	}
@@ -217,7 +215,7 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/%s", api.CustomCertsDir, api.GRPCCertsDirName),
+			MountPath: fmt.Sprintf("%s/grpc", api.CustomCertsDir),
 		})
 	}
 
@@ -295,7 +293,7 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainerVolumeMounts() 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/%s", api.CustomCertsDir, api.GRPCCertsDirName),
+			MountPath: fmt.Sprintf("%s/grpc", api.CustomCertsDir),
 		})
 	}
 

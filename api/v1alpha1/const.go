@@ -33,9 +33,7 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	CustomCertsDir           = "/opt/ydb/tls"
-	GRPCCertsDirName         = "grpc"
-	InterconnectCertsDirName = "interconnect"
+	CustomCertsDir = "/opt/ydb/tls"
 
 	DefaultRootUsername = "root"
 	DefaultRootPassword = ""

@@ -290,7 +290,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/grpc", // fixme const
+			MountPath: fmt.Sprintf("%s/grpc", v1alpha1.CustomCertsDir),
 		})
 	}
 
@@ -298,7 +298,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/interconnect", // fixme const
+			MountPath: fmt.Sprintf("%s/interconnect", v1alpha1.CustomCertsDir),
 		})
 	}
 	return volumeMounts

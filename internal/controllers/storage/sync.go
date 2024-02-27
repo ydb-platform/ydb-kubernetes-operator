@@ -506,7 +506,7 @@ func (r *Reconciler) getYDBCredentials(
 				password, err = resources.GetSecretKey(
 					storage.Namespace,
 					r.Config,
-					auth.AccessToken.SecretKeyRef,
+					auth.StaticCredentials.Password.SecretKeyRef,
 				)
 				if err != nil {
 					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err

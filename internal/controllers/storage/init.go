@@ -117,18 +117,15 @@ func (r *Reconciler) initializeStorage(
 		return r.setState(ctx, storage)
 	}
 
-	result, err := r.createInitBlobstorageJob(ctx, storage)
-	if err != nil {
+	if result, err := r.createInitBlobstorageJob(ctx, storage); err != nil {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
 			"ProvisioningFailed",
 			fmt.Sprintf("Failed to create init blobstorage Job, error: %s", err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-	}
-
-	if result == controllerutil.OperationResultCreated {
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	} else if result == controllerutil.OperationResultCreated {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
@@ -151,7 +148,7 @@ func (r *Reconciler) initializeStorage(
 		)
 	}
 
-	if initJob.Spec.Suspend == ptr.Bool(true) {
+	if initJob.Spec.Suspend != nil && *initJob.Spec.Suspend {
 		if storage.Spec.OperatorConnection != nil {
 			if _, err := r.createOrUpdateOperatorTokenSecret(ctx, storage, creds); err != nil {
 				r.Recorder.Event(
@@ -192,6 +189,7 @@ func (r *Reconciler) initializeStorage(
 		}
 
 		if mismatchItemConfigGenerationRegexp.MatchString(podLogs) {
+			r.Log.Info("Storage is already initialized, continuing...")
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeNormal,
@@ -249,7 +247,7 @@ func (r *Reconciler) getSucceededJobLogs(
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
-			"Syncing",
+			"ControllerError",
 			fmt.Sprintf("Failed to list pods for Job: %s", err),
 		)
 		return "", err

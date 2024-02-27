@@ -242,11 +242,11 @@ func (r *Database) BuildCAStorePatchingCommandArgs() ([]string, []string) {
 	}
 
 	if r.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp %s/%s/ca.crt %s/grpcRoot.crt && ", CustomCertsDir, GRPCCertsDirName, LocalCertsDir)
+		arg += fmt.Sprintf("cp %s/grpc/ca.crt %s/grpcRoot.crt && ", CustomCertsDir, LocalCertsDir)
 	}
 
 	if r.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp %s/%s/ca.crt %s/interconnectRoot.crt && ", CustomCertsDir, InterconnectCertsDirName, LocalCertsDir)
+		arg += fmt.Sprintf("cp %s/interconnect/ca.crt %s/interconnectRoot.crt && ", CustomCertsDir, LocalCertsDir)
 	}
 
 	if arg != "" {
