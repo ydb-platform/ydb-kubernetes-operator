@@ -63,20 +63,20 @@ func (r *Storage) GetStorageEndpoint() string {
 	return fmt.Sprintf("%s:%d", host, GRPCPort)
 }
 
-func (r *Storage) GetRandomHostEndpoint() string {
-	randNum := rand.Int31n(r.Spec.Nodes)
-	host := fmt.Sprintf("%s-%d", r.Name, randNum)
+// +k8s:deepcopy-gen=false
+type PartialHostsConfig struct {
+	Hosts []schema.Host `yaml:"hosts,flow"`
+}
 
-	config := make(map[string]interface{})
-	if err := yaml.Unmarshal([]byte(r.Spec.Configuration), &config); err != nil {
-		storagelog.Info("failed to parse config", "error", err)
-	} else {
-		schemaHosts, ok := config["hosts"].([]schema.Host)
-		if !ok {
-			storagelog.Info("failed to conversion []interface{} to []schema.Host")
-		}
-		host = schemaHosts[randNum].Host
+func (r *Storage) GetRandomHostEndpoint() string {
+	yamlConfig := PartialHostsConfig{}
+	if err := yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig); err != nil {
+		storagelog.Info("failed to parse spec.configuration", "error", err)
+		return ""
 	}
+
+	randNum := rand.Int31n(r.Spec.Nodes)
+	host := yamlConfig.Hosts[randNum].Host
 
 	return fmt.Sprintf("%s:%d", host, GRPCPort)
 }
@@ -89,7 +89,7 @@ func (r *Storage) IsStorageEndpointSecure() bool {
 }
 
 // +k8s:deepcopy-gen=false
-type PartialYamlConfig struct {
+type PartialDomainsConfig struct {
 	DomainsConfig struct {
 		SecurityConfig struct {
 			EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
@@ -206,7 +206,7 @@ func (r *Storage) ValidateCreate() error {
 		nodesNumber = int32(len(hosts))
 	}
 
-	yamlConfig := PartialYamlConfig{}
+	yamlConfig := PartialDomainsConfig{}
 	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
 	if err != nil {
 		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`")
@@ -309,7 +309,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		}
 	}
 
-	yamlConfig := PartialYamlConfig{}
+	yamlConfig := PartialDomainsConfig{}
 	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
 	if err != nil {
 		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`")
