@@ -65,7 +65,9 @@ func (r *Storage) GetStorageEndpoint() string {
 
 func (r *Storage) GetRandomHostEndpoint() string {
 	randNum := rand.Int31n(r.Spec.Nodes)
-	host := fmt.Sprintf("%s-%d", r.Name, randNum)
+
+	serviceFQDN := fmt.Sprintf(InterconnectServiceFQDNFormat, r.Name, r.Namespace)
+	host := fmt.Sprintf("%s-%d.%s", r.Name, randNum, serviceFQDN)
 
 	config := make(map[string]interface{})
 	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &config)
