@@ -71,12 +71,11 @@ func (r *Storage) GetRandomHostEndpoint() string {
 	if err := yaml.Unmarshal([]byte(r.Spec.Configuration), &config); err != nil {
 		storagelog.Info("failed to parse config", "error", err)
 	} else {
-		schemaHosts := []schema.Host{}
-		if err := yaml.Unmarshal([]byte(config["hosts"].(string)), &schemaHosts); err != nil {
-			storagelog.Info("failed to parse config ", "section", "hosts", "error", err)
-		} else {
-			host = schemaHosts[randNum].Host
+		schemaHosts, ok := config["hosts"].([]schema.Host)
+		if !ok {
+			storagelog.Info("failed to conversion []interface{} to []schema.Host")
 		}
+		host = schemaHosts[randNum].Host
 	}
 
 	return fmt.Sprintf("%s:%d", host, GRPCPort)
