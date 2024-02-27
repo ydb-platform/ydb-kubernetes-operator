@@ -312,7 +312,7 @@ func (b *StorageInitJobBuilder) buildBlobStorageInitCommandArgs() ([]string, []s
 		)
 	}
 
-	endpoint := b.Storage.GetRandomHostEndpointWithProto()
+	endpoint := b.Storage.GetStorageEndpointWithProto()
 	args = append(
 		args,
 		"-s",

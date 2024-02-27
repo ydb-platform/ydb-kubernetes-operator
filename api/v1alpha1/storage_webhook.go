@@ -37,24 +37,28 @@ func (r *Storage) SetupWebhookWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *Storage) GetStorageEndpointWithProto() string {
-	proto := GRPCProto
-	if r.IsStorageEndpointSecure() {
-		proto = GRPCSProto
-	}
-
-	return fmt.Sprintf("%s%s", proto, r.GetStorageEndpoint())
+	return fmt.Sprintf("%s%s", r.GetStorageProto(), r.GetStorageEndpoint())
 }
 
-func (r *Storage) GetRandomHostEndpointWithProto() string {
+func (r *Storage) GetStorageProto() string {
 	proto := GRPCProto
 	if r.IsStorageEndpointSecure() {
 		proto = GRPCSProto
 	}
 
-	return fmt.Sprintf("%s%s", proto, r.GetRandomHostEndpoint())
+	return proto
 }
 
 func (r *Storage) GetStorageEndpoint() string {
+	endpoint := r.GetGRPCServiceEndpoint()
+	if r.IsRemoteStorageNodeSetOnly() {
+		endpoint = r.GetHostFromConfigEndpoint()
+	}
+
+	return endpoint
+}
+
+func (r *Storage) GetGRPCServiceEndpoint() string {
 	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace)
 	if r.Spec.Service.GRPC.ExternalHost != "" {
 		host = r.Spec.Service.GRPC.ExternalHost
@@ -68,7 +72,7 @@ type PartialHostsConfig struct {
 	Hosts []schema.Host `yaml:"hosts,flow"`
 }
 
-func (r *Storage) GetRandomHostEndpoint() string {
+func (r *Storage) GetHostFromConfigEndpoint() string {
 	yamlConfig := PartialHostsConfig{}
 	if err := yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig); err != nil {
 		storagelog.Info("failed to parse spec.configuration", "error", err)
@@ -86,6 +90,20 @@ func (r *Storage) IsStorageEndpointSecure() bool {
 		return r.Spec.Service.GRPC.TLSConfiguration.Enabled
 	}
 	return false
+}
+
+func (r *Storage) IsRemoteStorageNodeSetOnly() bool {
+	if r.Spec.NodeSets == nil {
+		return false
+	}
+
+	for _, nodeSet := range r.Spec.NodeSets {
+		if nodeSet.Remote == nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 // +k8s:deepcopy-gen=false
