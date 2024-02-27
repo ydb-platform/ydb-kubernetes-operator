@@ -65,16 +65,17 @@ func (r *Storage) GetStorageEndpoint() string {
 
 func (r *Storage) GetRandomHostEndpoint() string {
 	randNum := rand.Int31n(r.Spec.Nodes)
-
-	serviceFQDN := fmt.Sprintf(InterconnectServiceFQDNFormat, r.Name, r.Namespace)
-	host := fmt.Sprintf("%s-%d.%s", r.Name, randNum, serviceFQDN)
+	host := fmt.Sprintf("%s-%d", r.Name, randNum)
 
 	config := make(map[string]interface{})
-	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &config)
-	if err == nil {
-		hosts, ok := config["hosts"].([]schema.Host)
-		if ok {
-			host = hosts[randNum].Host
+	if err := yaml.Unmarshal([]byte(r.Spec.Configuration), &config); err != nil {
+		storagelog.Info("failed to parse config", "error", err)
+	} else {
+		schemaHosts := []schema.Host{}
+		if err := yaml.Unmarshal([]byte(config["hosts"].(string)), &schemaHosts); err != nil {
+			storagelog.Info("failed to parse config ", "section", "hosts", "error", err)
+		} else {
+			host = schemaHosts[randNum].Host
 		}
 	}
 

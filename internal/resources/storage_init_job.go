@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
@@ -78,6 +79,9 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 }
 
 func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplateSpec {
+	dnsConfigSearches := []string{
+		fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
@@ -87,6 +91,9 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 			Containers:    []corev1.Container{b.buildInitJobContainer()},
 			Volumes:       b.buildInitJobVolumes(),
 			RestartPolicy: corev1.RestartPolicyOnFailure,
+			DNSConfig: &corev1.PodDNSConfig{
+				Searches: dnsConfigSearches,
+			},
 		},
 	}
 
