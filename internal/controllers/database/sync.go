@@ -394,7 +394,6 @@ func (r *Reconciler) setState(
 }
 
 func (r *Reconciler) getYDBCredentials(
-	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (ydbCredentials.Credentials, ctrl.Result, error) {
 	r.Log.Info("running step getYDBCredentials")
@@ -591,7 +590,7 @@ func (r *Reconciler) handleFirstStart(
 		}
 	}
 
-	auth, result, err := r.getYDBCredentials(ctx, database)
+	auth, result, err := r.getYDBCredentials(database)
 	if auth == nil {
 		return result, err
 	}

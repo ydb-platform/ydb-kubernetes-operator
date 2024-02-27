@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"google.golang.org/grpc/metadata"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
@@ -258,7 +257,7 @@ func (r *Reconciler) getSucceededJobLogs(
 
 	// Assuming there is only one succeeded pod, you can adjust the logic if needed
 	for _, pod := range podList.Items {
-		if pod.Status.Phase == v1.PodSucceeded {
+		if pod.Status.Phase == corev1.PodSucceeded {
 			clientset, err := kubernetes.NewForConfig(r.Config)
 			if err != nil {
 				return "", err
@@ -266,7 +265,7 @@ func (r *Reconciler) getSucceededJobLogs(
 
 			podLogs, err := clientset.CoreV1().
 				Pods(storage.Namespace).
-				GetLogs(pod.Name, &v1.PodLogOptions{}).
+				GetLogs(pod.Name, &corev1.PodLogOptions{}).
 				Stream(context.TODO())
 			if err != nil {
 				return "", err

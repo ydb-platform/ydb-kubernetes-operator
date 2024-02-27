@@ -19,7 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
@@ -27,7 +26,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -171,7 +170,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 	}
 
 	for _, nodeSetSpec := range storage.Spec.NodeSets {
-		foundStorageNodeSet := ydbv1alpha1.StorageNodeSet{}
+		foundStorageNodeSet := v1alpha1.StorageNodeSet{}
 		storageNodeSetName := storage.Name + "-" + nodeSetSpec.Name
 		err := r.Get(ctx, types.NamespacedName{
 			Name:      storageNodeSetName,
@@ -299,7 +298,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		OwnerControllerKey: storage.Name,
 	}
 
-	storageNodeSets := &ydbv1alpha1.StorageNodeSetList{}
+	storageNodeSets := &v1alpha1.StorageNodeSetList{}
 	if err := r.List(ctx, storageNodeSets,
 		client.InNamespace(storage.Namespace),
 		matchingFields,
@@ -348,7 +347,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	remoteStorageNodeSets := &ydbv1alpha1.RemoteStorageNodeSetList{}
+	remoteStorageNodeSets := &v1alpha1.RemoteStorageNodeSetList{}
 	if err := r.List(ctx, remoteStorageNodeSets,
 		client.InNamespace(storage.Namespace),
 		matchingFields,
@@ -442,7 +441,7 @@ func (r *Reconciler) setState(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	storageCr := &ydbv1alpha1.Storage{}
+	storageCr := &v1alpha1.Storage{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: storage.Namespace,
 		Name:      storage.Name,
@@ -483,7 +482,6 @@ func (r *Reconciler) setState(
 }
 
 func (r *Reconciler) getYDBCredentials(
-	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (ydbCredentials.Credentials, ctrl.Result, error) {
 	r.Log.Info("running step getYDBCredentials")
@@ -570,7 +568,7 @@ func (r *Reconciler) handleFirstStart(
 		}
 	}
 
-	auth, result, err := r.getYDBCredentials(ctx, storage)
+	auth, result, err := r.getYDBCredentials(storage)
 	if auth == nil {
 		return result, err
 	}

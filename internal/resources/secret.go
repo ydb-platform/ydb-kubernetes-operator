@@ -7,7 +7,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,7 +23,7 @@ func GetSecretKey(
 	}
 
 	secret, err := clientset.CoreV1().Secrets(namespace).
-		Get(context.Background(), secretKeyRef.Name, v1.GetOptions{})
+		Get(context.Background(), secretKeyRef.Name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}

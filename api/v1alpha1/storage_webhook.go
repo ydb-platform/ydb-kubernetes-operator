@@ -73,7 +73,7 @@ func (r *Storage) GetHostFromConfigEndpoint() string {
 		return ""
 	}
 
-	randNum := rand.Int31n(r.Spec.Nodes)
+	randNum := rand.Int31n(r.Spec.Nodes) // #nosec G404
 	host := yamlConfig.Hosts[randNum].Host
 
 	return fmt.Sprintf("%s:%d", host, GRPCPort)

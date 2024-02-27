@@ -4,14 +4,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
 type StorageInitJobBuilder struct {
@@ -80,7 +80,7 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 
 func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplateSpec {
 	dnsConfigSearches := []string{
-		fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
 	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
