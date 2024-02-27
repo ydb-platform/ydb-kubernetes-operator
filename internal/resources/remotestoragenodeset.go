@@ -8,7 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -75,14 +74,6 @@ func NewRemoteStorageNodeSet(remoteStorageNodeSet *api.RemoteStorageNodeSet) Rem
 	crRemoteStorageNodeSet := remoteStorageNodeSet.DeepCopy()
 
 	return RemoteStorageNodeSetResource{crRemoteStorageNodeSet}
-}
-
-func (b *RemoteStorageNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
-	if b.Status.Conditions == nil {
-		b.Status.Conditions = []metav1.Condition{}
-	}
-
-	return Continue, ctrl.Result{}, nil
 }
 
 func (b *RemoteStorageNodeSetResource) GetRemoteObjects() []client.Object {

@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -143,6 +144,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 		return requests
 	}
 
+	isNodeSetFromMgmt, err := buildLocalSelector()
+	if err != nil {
+		return err
+	}
+
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
 		&v1alpha1.DatabaseNodeSet{},
@@ -159,10 +165,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 		Watches(
 			source.NewKindWithCache(&v1alpha1.RemoteDatabaseNodeSet{}, cluster.GetCache()),
 			&handler.EnqueueRequestForObject{},
+			builder.WithPredicates(predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				resources.LastAppliedAnnotationPredicate(),
+			)),
 		).
 		Watches(
 			&source.Kind{Type: &v1alpha1.DatabaseNodeSet{}},
-			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+			&handler.EnqueueRequestForObject{},
+			builder.WithPredicates(
+				resources.LabelExistsPredicate(isNodeSetFromMgmt),
+			),
 		).
 		Watches(
 			&source.Kind{Type: &corev1.Service{}},
@@ -176,13 +189,22 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 			&source.Kind{Type: &corev1.ConfigMap{}},
 			handler.EnqueueRequestsFromMapFunc(annotationFilter),
 		).
-		WithEventFilter(predicate.Or(
-			predicate.GenerationChangedPredicate{},
-			resources.IgnoreDeletetionPredicate(),
-			resources.LastAppliedAnnotationPredicate(),
-			resources.SpecificPredicate()),
-		).
+		WithEventFilter(resources.IgnoreDeletetionPredicate()).
 		Complete(r)
+}
+
+func buildLocalSelector() (labels.Selector, error) {
+	labelRequirements := []labels.Requirement{}
+	localClusterRequirement, err := labels.NewRequirement(
+		ydblabels.RemoteClusterKey,
+		selection.Exists,
+		[]string{},
+	)
+	if err != nil {
+		return nil, err
+	}
+	labelRequirements = append(labelRequirements, *localClusterRequirement)
+	return labels.NewSelector().Add(labelRequirements...), nil
 }
 
 func BuildRemoteSelector(remoteCluster string) (labels.Selector, error) {

@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -168,14 +167,14 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
 			handler.EnqueueRequestsFromMapFunc(r.findStoragesForSecret),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		WithEventFilter(predicate.Or(
 			predicate.GenerationChangedPredicate{},
 			resources.IgnoreDeletetionPredicate(),
 			resources.LastAppliedAnnotationPredicate(),
-			resources.SpecificPredicate()),
-		).
+			resources.IsServicePredicate(),
+			resources.IsSecretPredicate(),
+		)).
 		Complete(r)
 }
 

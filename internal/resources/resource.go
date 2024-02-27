@@ -10,6 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kubectl/pkg/scheme"
@@ -298,12 +299,26 @@ func IgnoreDeletetionPredicate() predicate.Predicate {
 	}
 }
 
-func SpecificPredicate() predicate.Predicate {
+func IsServicePredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			_, isService := e.ObjectOld.(*corev1.Service)
-			_, isSecret := e.ObjectOld.(*corev1.Secret)
-			return isSecret || isService
+			return isService
 		},
 	}
+}
+
+func IsSecretPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			_, isSecret := e.ObjectOld.(*corev1.Secret)
+			return isSecret
+		},
+	}
+}
+
+func LabelExistsPredicate(selector labels.Selector) predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(o client.Object) bool {
+		return selector.Matches(labels.Set(o.GetLabels()))
+	})
 }
