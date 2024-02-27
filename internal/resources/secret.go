@@ -60,7 +60,7 @@ func (b *OperatorTokenSecretBuilder) Build(obj client.Object) error {
 	secret.ObjectMeta.Namespace = b.GetNamespace()
 
 	secret.Data = map[string][]byte{
-		"token": []byte(b.Token),
+		wellKnownNameForOperatorToken: []byte(b.Token),
 	}
 
 	return nil
@@ -79,7 +79,7 @@ func GetOperatorTokenSecretBuilder(obj client.Object, operatorToken string) Reso
 	return &OperatorTokenSecretBuilder{
 		Object: obj,
 
-		Name:  fmt.Sprintf(OperatorTokenSecretNameFromat, obj.GetName()),
+		Name:  fmt.Sprintf(OperatorTokenSecretNameFormat, obj.GetName()),
 		Token: operatorToken,
 	}
 }

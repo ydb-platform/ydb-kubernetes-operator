@@ -33,9 +33,6 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	OperatorTokenFilePath = "/opt/ydb/.token"
-	OperatorTokenFileName = ".token"
-
 	CustomCertsDir           = "/opt/ydb/tls"
 	GRPCCertsDirName         = "grpc"
 	InterconnectCertsDirName = "interconnect"

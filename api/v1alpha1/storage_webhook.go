@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"math/rand"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -16,6 +17,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
@@ -43,10 +45,35 @@ func (r *Storage) GetStorageEndpointWithProto() string {
 	return fmt.Sprintf("%s%s", proto, r.GetStorageEndpoint())
 }
 
+func (r *Storage) GetRandomHostEndpointWithProto() string {
+	proto := GRPCProto
+	if r.IsStorageEndpointSecure() {
+		proto = GRPCSProto
+	}
+
+	return fmt.Sprintf("%s%s", proto, r.GetRandomHostEndpoint())
+}
+
 func (r *Storage) GetStorageEndpoint() string {
 	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace)
 	if r.Spec.Service.GRPC.ExternalHost != "" {
 		host = r.Spec.Service.GRPC.ExternalHost
+	}
+
+	return fmt.Sprintf("%s:%d", host, GRPCPort)
+}
+
+func (r *Storage) GetRandomHostEndpoint() string {
+	randNum := rand.Int31n(r.Spec.Nodes)
+	host := fmt.Sprintf("%s-%d", r.Name, randNum)
+
+	config := make(map[string]interface{})
+	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &config)
+	if err == nil {
+		hosts, ok := config["hosts"].([]schema.Host)
+		if ok {
+			host = hosts[randNum].Host
+		}
 	}
 
 	return fmt.Sprintf("%s:%d", host, GRPCPort)
@@ -324,36 +351,6 @@ func (r *Storage) AreAnyCertificatesAddedToStore() bool {
 	return len(r.Spec.CABundle) > 0 ||
 		r.Spec.Service.GRPC.TLSConfiguration.Enabled ||
 		r.Spec.Service.Interconnect.TLSConfiguration.Enabled
-}
-
-func (r *Storage) BuildBlobStorageInitCommandArgs(authEnabled bool) ([]string, []string) {
-	command := []string{
-		fmt.Sprintf("%s/%s", BinariesDir, DaemonBinaryName),
-	}
-
-	args := []string{}
-	if authEnabled {
-		args = append(
-			args,
-			"-f",
-			OperatorTokenFilePath,
-		)
-	}
-
-	endpoint := r.GetStorageEndpointWithProto()
-	args = append(
-		args,
-		"-s",
-		endpoint,
-	)
-
-	args = append(
-		args,
-		"admin", "blobstorage", "config", "init", "--yaml-file",
-		fmt.Sprintf("%s/%s", ConfigDir, ConfigFileName),
-	)
-
-	return command, args
 }
 
 func (r *Storage) BuildCAStorePatchingCommandArgs() ([]string, []string) {

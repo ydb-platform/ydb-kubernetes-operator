@@ -24,7 +24,7 @@ const (
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
 	InitJobNameFormat             = "%s-blobstorage-init"
-	OperatorTokenSecretNameFromat = "%s-operator-token"
+	OperatorTokenSecretNameFormat = "%s-operator-token"
 
 	systemCertsVolumeName   = "init-main-shared-certs-volume"
 	localCertsVolumeName    = "init-main-shared-source-dir-volume"
@@ -32,6 +32,7 @@ const (
 
 	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
 	wellKnownDirForAdditionalVolumes = "/opt/ydb/volumes"
+	wellKnownNameForOperatorToken    = "token-file"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
 	encryptionVolumeName                      = "encryption"

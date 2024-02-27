@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
@@ -140,13 +139,13 @@ func (b *StorageInitJobBuilder) buildInitJobVolumes() []corev1.Volume {
 	}
 
 	if b.Spec.OperatorConnection != nil {
-		authTokenSecretName := fmt.Sprintf(OperatorTokenSecretNameFromat, b.Storage.Name)
+		secretName := fmt.Sprintf(OperatorTokenSecretNameFormat, b.Storage.Name)
 		volumes = append(volumes,
 			corev1.Volume{
 				Name: operatorTokenVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName: authTokenSecretName,
+						SecretName: secretName,
 					},
 				},
 			})
@@ -177,12 +176,7 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 		imagePullPolicy = *b.Spec.Image.PullPolicyName
 	}
 
-	var authEnabled bool
-	if b.Spec.OperatorConnection != nil {
-		authEnabled = true
-	}
-
-	command, args := b.BuildBlobStorageInitCommandArgs(authEnabled)
+	command, args := b.buildBlobStorageInitCommandArgs()
 
 	container := corev1.Container{
 		Name:            "ydb-init-blobstorage",
@@ -203,7 +197,7 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 		{
 			Name:      configVolumeName,
 			ReadOnly:  true,
-			MountPath: v1alpha1.ConfigDir,
+			MountPath: api.ConfigDir,
 		},
 	}
 
@@ -211,28 +205,28 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/%s", v1alpha1.CustomCertsDir, v1alpha1.GRPCCertsDirName),
+			MountPath: fmt.Sprintf("%s/%s", api.CustomCertsDir, api.GRPCCertsDirName),
 		})
 	}
 
 	if b.Spec.OperatorConnection != nil {
+		secretName := fmt.Sprintf(OperatorTokenSecretNameFormat, b.Storage.Name)
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      operatorTokenVolumeName,
 			ReadOnly:  true,
-			MountPath: v1alpha1.OperatorTokenFilePath,
-			SubPath:   v1alpha1.OperatorTokenFileName,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, secretName),
 		})
 	}
 
 	if b.AreAnyCertificatesAddedToStore() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: v1alpha1.LocalCertsDir,
+			MountPath: api.LocalCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: v1alpha1.SystemCertsDir,
+			MountPath: api.SystemCertsDir,
 		})
 	}
 
@@ -262,7 +256,7 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainer() corev1.Conta
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{
 			{
-				Name:  v1alpha1.CABundleEnvName,
+				Name:  api.CABundleEnvName,
 				Value: b.Spec.CABundle,
 			},
 		}
@@ -276,12 +270,12 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainerVolumeMounts() 
 	if b.AreAnyCertificatesAddedToStore() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: v1alpha1.LocalCertsDir,
+			MountPath: api.LocalCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: v1alpha1.SystemCertsDir,
+			MountPath: api.SystemCertsDir,
 		})
 	}
 
@@ -289,9 +283,40 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainerVolumeMounts() 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/%s", v1alpha1.CustomCertsDir, v1alpha1.GRPCCertsDirName),
+			MountPath: fmt.Sprintf("%s/%s", api.CustomCertsDir, api.GRPCCertsDirName),
 		})
 	}
 
 	return volumeMounts
+}
+
+func (b *StorageInitJobBuilder) buildBlobStorageInitCommandArgs() ([]string, []string) {
+	command := []string{
+		fmt.Sprintf("%s/%s", api.BinariesDir, api.DaemonBinaryName),
+	}
+
+	args := []string{}
+	if b.Storage.Spec.OperatorConnection != nil {
+		secretName := fmt.Sprintf(OperatorTokenSecretNameFormat, b.Storage.Name)
+		args = append(
+			args,
+			"-f",
+			fmt.Sprintf("%s/%s/%s", wellKnownDirForAdditionalSecrets, secretName, wellKnownNameForOperatorToken),
+		)
+	}
+
+	endpoint := b.Storage.GetRandomHostEndpointWithProto()
+	args = append(
+		args,
+		"-s",
+		endpoint,
+	)
+
+	args = append(
+		args,
+		"admin", "blobstorage", "config", "init", "--yaml-file",
+		fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
+	)
+
+	return command, args
 }
