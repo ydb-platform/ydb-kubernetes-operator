@@ -230,12 +230,12 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: LocalCertsDir,
+			MountPath: localCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: SystemCertsDir,
+			MountPath: systemCertsDir,
 		})
 	}
 
@@ -283,12 +283,12 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainerVolumeMounts() 
 	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: LocalCertsDir,
+			MountPath: localCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: SystemCertsDir,
+			MountPath: systemCertsDir,
 		})
 	}
 

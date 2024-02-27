@@ -107,7 +107,6 @@ func (r *Reconciler) setInitStorageCompleted(
 func (r *Reconciler) initializeStorage(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step initializeStorage")
 
@@ -124,11 +123,21 @@ func (r *Reconciler) initializeStorage(
 
 	if apierrors.IsNotFound(err) {
 		if storage.Spec.OperatorConnection != nil {
+			creds, err := resources.GetYDBCredentials(storage.Unwrap(), r.Config)
+			if err != nil {
+				r.Recorder.Event(
+					storage,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed to get YDB credentials: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
 			if err := r.createOrUpdateOperatorTokenSecret(ctx, storage, creds); err != nil {
 				r.Recorder.Event(
 					storage,
 					corev1.EventTypeWarning,
-					"ProvisioningFailed",
+					"InitializingStorage",
 					fmt.Sprintf("Failed to create operator token Secret, error: %s", err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -138,7 +147,7 @@ func (r *Reconciler) initializeStorage(
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
-				"ProvisioningFailed",
+				"InitializingStorage",
 				fmt.Sprintf("Failed to create init blobstorage Job, error: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err

@@ -5,14 +5,17 @@ import (
 	"fmt"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 )
 
 const (
@@ -36,8 +39,8 @@ const (
 	wellKnownDirForAdditionalVolumes = "/opt/ydb/volumes"
 	wellKnownNameForOperatorToken    = "token-file"
 
-	LocalCertsDir  = "/usr/local/share/ca-certificates"
-	SystemCertsDir = "/etc/ssl/certs"
+	localCertsDir  = "/usr/local/share/ca-certificates"
+	systemCertsDir = "/etc/ssl/certs"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
 	encryptionVolumeName                      = "encryption"
@@ -169,6 +172,44 @@ func CopyDict(src map[string]string) map[string]string {
 	return dst
 }
 
+func GetYDBCredentials(
+	storage *api.Storage,
+	restConfig *rest.Config,
+) (ydbCredentials.Credentials, error) {
+	if auth := storage.Spec.OperatorConnection; auth != nil {
+		switch {
+		case auth.AccessToken != nil:
+			token, err := GetSecretKey(
+				storage.Namespace,
+				restConfig,
+				auth.AccessToken.SecretKeyRef,
+			)
+			if err != nil {
+				return nil, err
+			}
+			return ydbCredentials.NewAccessTokenCredentials(token), nil
+		case auth.StaticCredentials != nil:
+			username := auth.StaticCredentials.Username
+			password := api.DefaultRootPassword
+			if auth.StaticCredentials.Password != nil {
+				var err error
+				password, err = GetSecretKey(
+					storage.Namespace,
+					restConfig,
+					auth.StaticCredentials.Password.SecretKeyRef,
+				)
+				if err != nil {
+					return nil, err
+				}
+			}
+			endpoint := storage.GetStorageEndpoint()
+			secure := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure())
+			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), nil
+		}
+	}
+	return ydbCredentials.NewAnonymousCredentials(), nil
+}
+
 func buildCAStorePatchingCommandArgs(
 	caBundle string,
 	grpcService api.GRPCService,
@@ -179,15 +220,15 @@ func buildCAStorePatchingCommandArgs(
 	arg := ""
 
 	if len(caBundle) > 0 {
-		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", api.CABundleEnvName, LocalCertsDir, api.CABundleFileName)
+		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", api.CABundleEnvName, localCertsDir, api.CABundleFileName)
 	}
 
 	if grpcService.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp %s/grpc/ca.crt %s/grpcRoot.crt && ", api.CustomCertsDir, LocalCertsDir)
+		arg += fmt.Sprintf("cp %s/grpc/ca.crt %s/grpcRoot.crt && ", api.CustomCertsDir, localCertsDir)
 	}
 
 	if interconnectService.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp %s/interconnect/ca.crt %s/interconnectRoot.crt && ", api.CustomCertsDir, LocalCertsDir)
+		arg += fmt.Sprintf("cp %s/interconnect/ca.crt %s/interconnectRoot.crt && ", api.CustomCertsDir, localCertsDir)
 	}
 
 	if arg != "" {

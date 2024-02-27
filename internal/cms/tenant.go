@@ -27,7 +27,11 @@ type Tenant struct {
 	SharedDatabasePath string
 }
 
-func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder, creds ydbCredentials.Credentials) error {
+func (t *Tenant) Create(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+	creds ydbCredentials.Credentials,
+) error {
 	logger := log.FromContext(ctx)
 	createDatabaseURL := fmt.Sprintf(
 		"%s/%s",

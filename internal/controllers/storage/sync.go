@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -19,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
@@ -403,10 +401,20 @@ func (r *Reconciler) syncNodeSetSpecInline(
 func (r *Reconciler) runSelfCheck(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-	creds ydbCredentials.Credentials,
 	waitForGoodResultWithoutIssues bool,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runSelfCheck")
+
+	creds, err := resources.GetYDBCredentials(storage.Unwrap(), r.Config)
+	if err != nil {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get YDB credentials: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
 
 	result, err := healthcheck.GetSelfCheckResult(ctx, storage, creds)
 	if err != nil {
@@ -481,45 +489,6 @@ func (r *Reconciler) setState(
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
 
-func (r *Reconciler) getYDBCredentials(
-	storage *resources.StorageClusterBuilder,
-) (ydbCredentials.Credentials, ctrl.Result, error) {
-	r.Log.Info("running step getYDBCredentials")
-
-	if auth := storage.Spec.OperatorConnection; auth != nil {
-		switch {
-		case auth.AccessToken != nil:
-			token, err := resources.GetSecretKey(
-				storage.Namespace,
-				r.Config,
-				auth.AccessToken.SecretKeyRef,
-			)
-			if err != nil {
-				return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
-		case auth.StaticCredentials != nil:
-			username := auth.StaticCredentials.Username
-			password := v1alpha1.DefaultRootPassword
-			if auth.StaticCredentials.Password != nil {
-				var err error
-				password, err = resources.GetSecretKey(
-					storage.Namespace,
-					r.Config,
-					auth.StaticCredentials.Password.SecretKeyRef,
-				)
-				if err != nil {
-					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-				}
-			}
-			endpoint := storage.GetStorageEndpoint()
-			secure := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure())
-			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
-		}
-	}
-	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
-}
-
 func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
@@ -568,17 +537,12 @@ func (r *Reconciler) handleFirstStart(
 		}
 	}
 
-	auth, result, err := r.getYDBCredentials(storage)
-	if auth == nil {
-		return result, err
-	}
-
-	stop, result, err = r.initializeStorage(ctx, storage, auth)
+	stop, result, err = r.initializeStorage(ctx, storage)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
+	stop, result, err = r.runSelfCheck(ctx, storage, false)
 	if stop {
 		return result, err
 	}
