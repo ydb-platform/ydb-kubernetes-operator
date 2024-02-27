@@ -108,7 +108,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -182,7 +182,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		})
 	}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumes = append(volumes, corev1.Volume{
 			Name: systemCertsVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -202,7 +202,11 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
-	command, args := b.BuildCAStorePatchingCommandArgs()
+	command, args := buildCAStorePatchingCommandArgs(
+		b.Spec.CABundle,
+		b.Spec.Service.GRPC,
+		b.Spec.Service.Interconnect,
+	)
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {
 		imagePullPolicy = *b.Spec.Image.PullPolicyName
@@ -237,26 +241,18 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 	}
 	return container
 }
-
-func (b *DatabaseStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
-	return len(b.Spec.CABundle) > 0 ||
-		b.Spec.Service.GRPC.TLSConfiguration.Enabled ||
-		b.Spec.Service.Interconnect.TLSConfiguration.Enabled ||
-		b.Spec.Service.Datastreams.TLSConfiguration.Enabled
-}
-
 func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: v1alpha1.LocalCertsDir,
+			MountPath: LocalCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: v1alpha1.SystemCertsDir,
+			MountPath: SystemCertsDir,
 		})
 	}
 
@@ -468,15 +464,15 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: v1alpha1.LocalCertsDir,
+			MountPath: LocalCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: v1alpha1.SystemCertsDir,
+			MountPath: SystemCertsDir,
 		})
 	}
 

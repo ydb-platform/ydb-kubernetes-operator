@@ -146,6 +146,7 @@ func (r *Reconciler) initializeStorage(
 			"ControllerError",
 			fmt.Sprintf("Failed to get Job: %s", err),
 		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	if initJob.Spec.Suspend != nil && *initJob.Spec.Suspend {
@@ -157,7 +158,7 @@ func (r *Reconciler) initializeStorage(
 					"ProvisioningFailed",
 					fmt.Sprintf("Failed to create/update operator token Secret, error: %s", err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 		}
 

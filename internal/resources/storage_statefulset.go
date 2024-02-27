@@ -125,7 +125,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.AreAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -217,7 +217,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, *volume)
 	}
 
-	if b.AreAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumes = append(volumes, corev1.Volume{
 			Name: systemCertsVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -237,7 +237,11 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 }
 
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
-	command, args := b.BuildCAStorePatchingCommandArgs()
+	command, args := buildCAStorePatchingCommandArgs(
+		b.Spec.CABundle,
+		b.Spec.Service.GRPC,
+		b.Spec.Service.Interconnect,
+	)
 	containerResources := corev1.ResourceRequirements{}
 	if b.Spec.Resources != nil {
 		containerResources = *b.Spec.Resources
@@ -274,15 +278,15 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
-	if b.AreAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: v1alpha1.LocalCertsDir,
+			MountPath: LocalCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: v1alpha1.LocalCertsDir,
+			MountPath: SystemCertsDir,
 		})
 	}
 
@@ -404,15 +408,15 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.AreAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
-			MountPath: v1alpha1.LocalCertsDir,
+			MountPath: LocalCertsDir,
 		})
 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      systemCertsVolumeName,
-			MountPath: v1alpha1.SystemCertsDir,
+			MountPath: SystemCertsDir,
 		})
 	}
 

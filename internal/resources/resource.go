@@ -11,6 +11,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 const (
@@ -33,6 +35,9 @@ const (
 	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
 	wellKnownDirForAdditionalVolumes = "/opt/ydb/volumes"
 	wellKnownNameForOperatorToken    = "token-file"
+
+	LocalCertsDir  = "/usr/local/share/ca-certificates"
+	SystemCertsDir = "/etc/ssl/certs"
 
 	lastAppliedAnnotation                     = "ydb.tech/last-applied"
 	encryptionVolumeName                      = "encryption"
@@ -162,4 +167,34 @@ func CopyDict(src map[string]string) map[string]string {
 		dst[k] = v
 	}
 	return dst
+}
+
+func buildCAStorePatchingCommandArgs(
+	caBundle string,
+	grpcService api.GRPCService,
+	interconnectService api.InterconnectService,
+) ([]string, []string) {
+	command := []string{"/bin/bash", "-c"}
+
+	arg := ""
+
+	if len(caBundle) > 0 {
+		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", api.CABundleEnvName, LocalCertsDir, api.CABundleFileName)
+	}
+
+	if grpcService.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/grpc/ca.crt %s/grpcRoot.crt && ", api.CustomCertsDir, LocalCertsDir)
+	}
+
+	if interconnectService.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/interconnect/ca.crt %s/interconnectRoot.crt && ", api.CustomCertsDir, LocalCertsDir)
+	}
+
+	if arg != "" {
+		arg += api.UpdateCACertificatesBin
+	}
+
+	args := []string{arg}
+
+	return command, args
 }

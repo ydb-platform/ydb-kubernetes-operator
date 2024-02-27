@@ -238,3 +238,9 @@ type StorageServices struct {
 func init() {
 	SchemeBuilder.Register(&Storage{}, &StorageList{})
 }
+
+func (r *Storage) AnyCertificatesAdded() bool {
+	return len(r.Spec.CABundle) > 0 ||
+		r.Spec.Service.GRPC.TLSConfiguration.Enabled ||
+		r.Spec.Service.Interconnect.TLSConfiguration.Enabled
+}

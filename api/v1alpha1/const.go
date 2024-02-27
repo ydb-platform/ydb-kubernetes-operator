@@ -33,18 +33,14 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	CustomCertsDir = "/opt/ydb/tls"
-
-	DefaultRootUsername = "root"
-	DefaultRootPassword = ""
-
-	LocalCertsDir  = "/usr/local/share/ca-certificates"
-	SystemCertsDir = "/etc/ssl/certs"
+	CustomCertsDir          = "/opt/ydb/tls"
+	UpdateCACertificatesBin = "update-ca-certificates"
 
 	CABundleEnvName  = "CA_BUNDLE"
 	CABundleFileName = "userCABundle.crt"
 
-	updateCACertificatesBin = "update-ca-certificates"
+	DefaultRootUsername = "root"
+	DefaultRootPassword = ""
 
 	AnnotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
 	AnnotationUpdateDNSPolicy        = "ydb.tech/update-dns-policy"
