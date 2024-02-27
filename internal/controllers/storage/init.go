@@ -111,7 +111,7 @@ func (r *Reconciler) initializeStorage(
 	storage *resources.StorageClusterBuilder,
 	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step runInitScripts")
+	r.Log.Info("running step initializeStorage")
 
 	if storage.Status.State == StorageProvisioning {
 		storage.Status.State = StorageInitializing
@@ -130,15 +130,12 @@ func (r *Reconciler) initializeStorage(
 	}
 
 	if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
-		if _, err := r.createOrUpdateOperatorTokenSecret(ctx, storage, creds); err != nil {
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeWarning,
-				"ProvisioningFailed",
-				fmt.Sprintf("Failed to create/update operator token Secret, error: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-		}
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			"Provisioning",
+			fmt.Sprintf("Init bobstorage Job was %s successfully", result),
+		)
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
@@ -155,9 +152,21 @@ func (r *Reconciler) initializeStorage(
 		)
 	}
 
-	falsePtr := ptr.Bool(false)
-	if initJob.Spec.Suspend != falsePtr {
-		initJob.Spec.Suspend = falsePtr
+	initJobSuspend := *initJob.Spec.Suspend
+	if initJobSuspend {
+		if storage.Spec.OperatorConnection != nil {
+			if _, err := r.createOrUpdateOperatorTokenSecret(ctx, storage, creds); err != nil {
+				r.Recorder.Event(
+					storage,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to create/update operator token Secret, error: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			}
+		}
+
+		initJob.Spec.Suspend = ptr.Bool(false)
 		if err := r.Update(ctx, initJob); err != nil {
 			r.Recorder.Event(
 				storage,
@@ -167,10 +176,12 @@ func (r *Reconciler) initializeStorage(
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
+
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
 	if initJob.Status.Succeeded > 0 {
+		r.Log.Info("Init Job status succeeded")
 		podLogs, err := r.getSucceededJobLogs(ctx, storage, initJob)
 		if err != nil {
 			r.Recorder.Event(
@@ -179,7 +190,7 @@ func (r *Reconciler) initializeStorage(
 				"ControllerError",
 				fmt.Sprintf("Failed to get succeeded Pod for Job: %s", err),
 			)
-			return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
 		if mismatchItemConfigGenerationRegexp.MatchString(podLogs) {
@@ -202,6 +213,7 @@ func (r *Reconciler) initializeStorage(
 	}
 
 	if initJob.Status.Failed > 0 {
+		r.Log.Info("Init Job status failed")
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,

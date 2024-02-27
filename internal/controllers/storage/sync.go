@@ -575,13 +575,17 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
+	stop, result, err = r.initializeStorage(ctx, storage, auth)
+	if stop {
+		return result, err
+	}
+
 	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
 	if stop {
 		return result, err
 	}
 
-	_, result, err = r.initializeStorage(ctx, storage, auth)
-	return result, err
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) checkStorageFrozen(
