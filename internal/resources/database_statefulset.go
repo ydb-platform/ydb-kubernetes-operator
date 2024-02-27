@@ -241,6 +241,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 	}
 	return container
 }
+
 func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
