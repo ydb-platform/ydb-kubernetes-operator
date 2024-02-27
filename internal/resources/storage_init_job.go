@@ -41,7 +41,6 @@ func (b *StorageInitJobBuilder) Build(obj client.Object) error {
 		Completions:           ptr.Int32(1),
 		ActiveDeadlineSeconds: ptr.Int64(300),
 		BackoffLimit:          ptr.Int32(10),
-		Suspend:               ptr.Bool(true),
 		Template:              b.buildInitJobPodTemplateSpec(),
 	}
 

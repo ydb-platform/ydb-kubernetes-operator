@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,11 +20,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -117,29 +116,35 @@ func (r *Reconciler) initializeStorage(
 		return r.setState(ctx, storage)
 	}
 
-	if result, err := r.createInitBlobstorageJob(ctx, storage); err != nil {
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			"ProvisioningFailed",
-			fmt.Sprintf("Failed to create init blobstorage Job, error: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if result == controllerutil.OperationResultCreated {
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeNormal,
-			"Provisioning",
-			"Init bobstorage Job was created successfully",
-		)
-		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
-	}
-
 	initJob := &batchv1.Job{}
-	if err := r.Get(ctx, types.NamespacedName{
+	err := r.Get(ctx, types.NamespacedName{
 		Name:      fmt.Sprintf(resources.InitJobNameFormat, storage.Name),
 		Namespace: storage.Namespace,
-	}, initJob); err != nil {
+	}, initJob)
+
+	if apierrors.IsNotFound(err) {
+		if storage.Spec.OperatorConnection != nil {
+			if err := r.createOrUpdateOperatorTokenSecret(ctx, storage, creds); err != nil {
+				r.Recorder.Event(
+					storage,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to create operator token Secret, error: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+		}
+		if err := r.createInitBlobstorageJob(ctx, storage); err != nil {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
+				fmt.Sprintf("Failed to create init blobstorage Job, error: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
+	} else if err != nil {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
@@ -147,33 +152,6 @@ func (r *Reconciler) initializeStorage(
 			fmt.Sprintf("Failed to get Job: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	if initJob.Spec.Suspend != nil && *initJob.Spec.Suspend {
-		if storage.Spec.OperatorConnection != nil {
-			if _, err := r.createOrUpdateOperatorTokenSecret(ctx, storage, creds); err != nil {
-				r.Recorder.Event(
-					storage,
-					corev1.EventTypeWarning,
-					"ProvisioningFailed",
-					fmt.Sprintf("Failed to create/update operator token Secret, error: %s", err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-		}
-
-		initJob.Spec.Suspend = ptr.Bool(false)
-		if err := r.Update(ctx, initJob); err != nil {
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to update Job: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-
-		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
 	if initJob.Status.Succeeded > 0 {
@@ -226,7 +204,6 @@ func (r *Reconciler) initializeStorage(
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
-		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
@@ -300,10 +277,10 @@ func shouldIgnoreJobUpdate() resources.IgnoreChangesFunction {
 func (r *Reconciler) createInitBlobstorageJob(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-) (controllerutil.OperationResult, error) {
+) error {
 	builder := resources.GetInitJobBuilder(storage.DeepCopy())
 	newResource := builder.Placeholder(storage)
-	return resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
+	_, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 		var err error
 
 		err = builder.Build(newResource)
@@ -317,25 +294,27 @@ func (r *Reconciler) createInitBlobstorageJob(
 
 		return nil
 	}, shouldIgnoreJobUpdate())
+
+	return err
 }
 
 func (r *Reconciler) createOrUpdateOperatorTokenSecret(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 	creds ydbCredentials.Credentials,
-) (controllerutil.OperationResult, error) {
+) error {
 	ydbCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	token, err := creds.Token(
 		metadata.AppendToOutgoingContext(ydbCtx, "x-ydb-database", storage.Spec.Domain),
 	)
 	if err != nil {
-		return controllerutil.OperationResultNone, err
+		return err
 	}
 
 	builder := resources.GetOperatorTokenSecretBuilder(storage, token)
 	newResource := builder.Placeholder(storage)
-	return resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
+	_, err = resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 		var err error
 
 		err = builder.Build(newResource)
@@ -351,4 +330,6 @@ func (r *Reconciler) createOrUpdateOperatorTokenSecret(
 	}, func(oldObj, newObj runtime.Object) bool {
 		return false
 	})
+
+	return err
 }
