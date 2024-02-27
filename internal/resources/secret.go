@@ -44,9 +44,7 @@ func GetSecretKey(
 type OperatorTokenSecretBuilder struct {
 	client.Object
 
-	Name   string
-	Labels map[string]string
-
+	Name  string
 	Token string
 }
 
@@ -81,9 +79,7 @@ func GetOperatorTokenSecretBuilder(obj client.Object, operatorToken string) Reso
 	return &OperatorTokenSecretBuilder{
 		Object: obj,
 
-		Name:   fmt.Sprintf(InitJobNameFormat, obj.GetName()),
-		Labels: CopyDict(obj.GetLabels()),
-
+		Name:  fmt.Sprintf(OperatorTokenSecretNameFromat, obj.GetName()),
 		Token: operatorToken,
 	}
 }
