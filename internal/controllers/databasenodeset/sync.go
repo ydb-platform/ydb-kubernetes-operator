@@ -195,15 +195,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	if databaseNodeSet.Spec.Pause {
-		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    DatabasePausedCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: "Scaled DatabaseNodeSet to 0 successfully",
-		})
-		databaseNodeSet.Status.State = DatabaseNodeSetPaused
-	} else {
+	if databaseNodeSet.Status.State == DatabaseNodeSetProvisioning {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 			Type:    DatabaseNodeSetReadyCondition,
 			Status:  "True",
@@ -211,9 +203,10 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Message: fmt.Sprintf("Scaled DatabaseNodeSet to %d successfully", databaseNodeSet.Spec.Nodes),
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetReady
+		return r.updateStatus(ctx, databaseNodeSet)
 	}
 
-	return r.updateStatus(ctx, databaseNodeSet)
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) updateStatus(
@@ -256,13 +249,9 @@ func (r *Reconciler) updateStatus(
 			"StatusChanged",
 			fmt.Sprintf("DatabaseNodeSet moved from %s to %s", oldStatus, databaseNodeSet.Status.State),
 		)
-
-		r.Log.Info("step updateStatus requeue reconcile")
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	r.Log.Info("step updateStatus completed")
-	return Continue, ctrl.Result{Requeue: false}, nil
+	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
 
 func shouldIgnoreDatabaseNodeSetChange(databaseNodeSet *resources.DatabaseNodeSetResource) resources.IgnoreChangesFunction {
@@ -283,7 +272,6 @@ func (r *Reconciler) handlePauseResume(
 	r.Log.Info("running step handlePauseResume")
 	if databaseNodeSet.Status.State == DatabaseReady && databaseNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving DatabaseNodeSet to state `Paused`")
-		meta.RemoveStatusCondition(&databaseNodeSet.Status.Conditions, DatabaseNodeSetReadyCondition)
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 			Type:    DatabasePausedCondition,
 			Status:  "False",
@@ -291,21 +279,13 @@ func (r *Reconciler) handlePauseResume(
 			Message: "Transitioning DatabaseNodeSet to Paused state",
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetPaused
-
 		return r.updateStatus(ctx, databaseNodeSet)
 	}
 
 	if databaseNodeSet.Status.State == DatabaseNodeSetPaused && !databaseNodeSet.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving DatabaseNodeSet to state `Ready`")
 		meta.RemoveStatusCondition(&databaseNodeSet.Status.Conditions, DatabasePausedCondition)
-		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    DatabaseNodeSetReadyCondition,
-			Status:  "False",
-			Reason:  ReasonInProgress,
-			Message: "Recovering DatabaseNodeSet from Paused state",
-		})
 		databaseNodeSet.Status.State = DatabaseNodeSetReady
-
 		return r.updateStatus(ctx, databaseNodeSet)
 	}
 

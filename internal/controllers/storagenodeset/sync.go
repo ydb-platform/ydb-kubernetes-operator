@@ -195,15 +195,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	if storageNodeSet.Spec.Pause {
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    StoragePausedCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: "Scaled StorageNodeSet to 0 successfully",
-		})
-		storageNodeSet.Status.State = StorageNodeSetPaused
-	} else {
+	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    StorageNodeSetReadyCondition,
 			Status:  "True",
@@ -211,9 +203,10 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
 		})
 		storageNodeSet.Status.State = StorageNodeSetReady
+		return r.updateStatus(ctx, storageNodeSet)
 	}
 
-	return r.updateStatus(ctx, storageNodeSet)
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) updateStatus(
@@ -256,13 +249,9 @@ func (r *Reconciler) updateStatus(
 			"StatusChanged",
 			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, storageNodeSet.Status.State),
 		)
-
-		r.Log.Info("step updateStatus requeue reconcile")
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	r.Log.Info("step updateStatus completed")
-	return Continue, ctrl.Result{Requeue: false}, nil
+	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
 
 func shouldIgnoreStorageNodeSetChange(storageNodeSet *resources.StorageNodeSetResource) resources.IgnoreChangesFunction {
@@ -284,12 +273,11 @@ func (r *Reconciler) handlePauseResume(
 
 	if storageNodeSet.Status.State == StorageReady && storageNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
-		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, StorageNodeSetReadyCondition)
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    StoragePausedCondition,
-			Status:  "False",
-			Reason:  ReasonInProgress,
-			Message: "Transitioning StorageNodeSet to Paused state",
+			Status:  "True",
+			Reason:  ReasonCompleted,
+			Message: "State StorageNodeSet set to Paused",
 		})
 		storageNodeSet.Status.State = StorageNodeSetPaused
 		return r.updateStatus(ctx, storageNodeSet)
@@ -298,12 +286,6 @@ func (r *Reconciler) handlePauseResume(
 	if storageNodeSet.Status.State == StoragePaused && !storageNodeSet.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving Storage to state `Ready`")
 		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, StoragePausedCondition)
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    StorageNodeSetReadyCondition,
-			Status:  "False",
-			Reason:  ReasonInProgress,
-			Message: "Recovering StorageNodeSet from Paused state",
-		})
 		storageNodeSet.Status.State = StorageNodeSetReady
 		return r.updateStatus(ctx, storageNodeSet)
 	}

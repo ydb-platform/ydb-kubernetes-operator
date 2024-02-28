@@ -490,13 +490,9 @@ func (r *Reconciler) updateStatus(
 			"StatusChanged",
 			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storageCr.Status.State),
 		)
-
-		r.Log.Info("step updateStatus requeue reconcile")
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 	}
 
-	r.Log.Info("step updateStatus completed")
-	return Continue, ctrl.Result{Requeue: false}, nil
+	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
 
 func (r *Reconciler) getYDBCredentials(
