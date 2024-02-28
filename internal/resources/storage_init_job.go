@@ -214,7 +214,7 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/grpc", api.CustomCertsDir),
+			MountPath: grpcTLSVolumeMountPath,
 		})
 	}
 
@@ -269,7 +269,7 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainer() corev1.Conta
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{
 			{
-				Name:  api.CABundleEnvName,
+				Name:  caBundleEnvName,
 				Value: b.Spec.CABundle,
 			},
 		}
@@ -296,7 +296,7 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainerVolumeMounts() 
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/grpc", api.CustomCertsDir),
+			MountPath: grpcTLSVolumeMountPath,
 		})
 	}
 

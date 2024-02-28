@@ -28,6 +28,10 @@ const (
 	interconnectTLSVolumeName = "interconnect-tls-volume"
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
+	grpcTLSVolumeMountPath         = "/tls/grpc"
+	interconnectTLSVolumeMountPath = "/tls/interconnect"
+	datastreamsTLSVolumeMountPath  = "/tls/datastreams"
+
 	InitJobNameFormat             = "%s-blobstorage-init"
 	OperatorTokenSecretNameFormat = "%s-operator-token"
 
@@ -38,6 +42,10 @@ const (
 	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
 	wellKnownDirForAdditionalVolumes = "/opt/ydb/volumes"
 	wellKnownNameForOperatorToken    = "token-file"
+
+	caBundleEnvName         = "CA_BUNDLE"
+	caBundleFileName        = "userCABundle.crt"
+	updateCACertificatesBin = "update-ca-certificates"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
@@ -220,19 +228,19 @@ func buildCAStorePatchingCommandArgs(
 	arg := ""
 
 	if len(caBundle) > 0 {
-		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", api.CABundleEnvName, localCertsDir, api.CABundleFileName)
+		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
 	}
 
 	if grpcService.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp %s/grpc/ca.crt %s/grpcRoot.crt && ", api.CustomCertsDir, localCertsDir)
+		arg += fmt.Sprintf("cp %s/ca.crt %s/grpcRoot.crt && ", grpcTLSVolumeMountPath, localCertsDir)
 	}
 
 	if interconnectService.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp %s/interconnect/ca.crt %s/interconnectRoot.crt && ", api.CustomCertsDir, localCertsDir)
+		arg += fmt.Sprintf("cp %s/ca.crt %s/interconnectRoot.crt && ", interconnectTLSVolumeMountPath, localCertsDir)
 	}
 
 	if arg != "" {
-		arg += api.UpdateCACertificatesBin
+		arg += updateCACertificatesBin
 	}
 
 	args := []string{arg}

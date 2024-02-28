@@ -234,7 +234,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{
 			{
-				Name:  v1alpha1.CABundleEnvName,
+				Name:  caBundleEnvName,
 				Value: b.Spec.CABundle,
 			},
 		}
@@ -261,7 +261,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMoun
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/grpc", // fixme const
+			MountPath: grpcTLSVolumeMountPath,
 		})
 	}
 
@@ -269,7 +269,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMoun
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/interconnect", // fixme const
+			MountPath: interconnectTLSVolumeMountPath,
 		})
 	}
 
@@ -277,7 +277,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMoun
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      datastreamsTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/datastreams", // fixme const
+			MountPath: datastreamsTLSVolumeMountPath,
 		})
 	}
 	return volumeMounts

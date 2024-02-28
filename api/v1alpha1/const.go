@@ -33,12 +33,6 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	CustomCertsDir          = "/opt/ydb/tls"
-	UpdateCACertificatesBin = "update-ca-certificates"
-
-	CABundleEnvName  = "CA_BUNDLE"
-	CABundleFileName = "userCABundle.crt"
-
 	DefaultRootUsername = "root"
 	DefaultRootPassword = ""
 

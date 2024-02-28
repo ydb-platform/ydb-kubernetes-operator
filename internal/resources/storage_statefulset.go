@@ -267,7 +267,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{
 			{
-				Name:  v1alpha1.CABundleEnvName,
+				Name:  caBundleEnvName,
 				Value: b.Spec.CABundle,
 			},
 		}
@@ -294,7 +294,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/grpc", v1alpha1.CustomCertsDir),
+			MountPath: grpcTLSVolumeMountPath,
 		})
 	}
 
@@ -302,7 +302,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/interconnect", v1alpha1.CustomCertsDir),
+			MountPath: interconnectTLSVolumeMountPath,
 		})
 	}
 	return volumeMounts
