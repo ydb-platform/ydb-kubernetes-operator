@@ -62,8 +62,12 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 	jobAnnotations := make(map[string]string)
 
 	if storage.Spec.InitJob != nil {
-		jobLabels.Merge(storage.Spec.InitJob.AdditionalLabels)
-		jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
+		if storage.Spec.InitJob.AdditionalLabels != nil {
+			jobLabels.Merge(storage.Spec.InitJob.AdditionalLabels)
+		}
+		if storage.Spec.InitJob.AdditionalAnnotations != nil {
+			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
+		}
 	}
 
 	return &StorageInitJobBuilder{
@@ -190,6 +194,7 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 		Args:            args,
 
 		VolumeMounts: b.buildJobVolumeMounts(),
+		Resources:    corev1.ResourceRequirements{},
 	}
 
 	if b.Spec.InitJob != nil {

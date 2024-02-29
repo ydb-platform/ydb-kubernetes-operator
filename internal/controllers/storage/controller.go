@@ -160,7 +160,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.ConfigMap{}).
-		Owns(&corev1.Secret{}).
 		WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
 }

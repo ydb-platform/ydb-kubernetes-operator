@@ -121,6 +121,7 @@ func (r *Reconciler) initializeStorage(
 		Namespace: storage.Namespace,
 	}, initJob)
 
+	//nolint:nestif
 	if apierrors.IsNotFound(err) {
 		if storage.Spec.OperatorConnection != nil {
 			creds, err := resources.GetYDBCredentials(storage.Unwrap(), r.Config)
