@@ -17,6 +17,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/exec"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -113,7 +114,8 @@ func (r *Reconciler) initializeStorage(
 	// List Pods by label Selector
 	podList := &corev1.PodList{}
 	matchingLabels := client.MatchingLabels{}
-	for k, v := range storage.Labels {
+	storageLabels := labels.StorageLabels(storage.Unwrap())
+	for k, v := range storageLabels {
 		matchingLabels[k] = v
 	}
 	opts := []client.ListOption{
