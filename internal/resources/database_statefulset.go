@@ -522,12 +522,10 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 				Key: v1alpha1.YdbAuthToken,
 			},
 		)
-
 		if err != nil {
 			log.Default().Printf("Failed to inspect a secret %s: %s\n", secret.Name, err.Error())
 			continue
 		}
-
 		if exist {
 			args = append(args,
 				"--auth-token-file",
