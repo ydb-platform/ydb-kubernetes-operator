@@ -2,12 +2,13 @@ package resources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -82,6 +83,12 @@ func mutate(f ctrlutil.MutateFn, key client.ObjectKey, obj client.Object) error 
 
 type IgnoreChangesFunction func(oldObj, newObj runtime.Object) bool
 
+func DoNotIgnoreChanges() IgnoreChangesFunction {
+	return func(oldObj, newObj runtime.Object) bool {
+		return false
+	}
+}
+
 func tryProcessNonExistingObject(
 	ctx context.Context,
 	c client.Client,
@@ -97,7 +104,7 @@ func tryProcessNonExistingObject(
 		return true, ctrlutil.OperationResultNone, nil
 	}
 
-	if !errors.IsNotFound(err) {
+	if !apierrors.IsNotFound(err) {
 		return false, ctrlutil.OperationResultNone, err
 	}
 
@@ -181,41 +188,58 @@ func CopyDict(src map[string]string) map[string]string {
 }
 
 func GetYDBCredentials(
+	ctx context.Context,
 	storage *api.Storage,
 	restConfig *rest.Config,
 ) (ydbCredentials.Credentials, error) {
-	if auth := storage.Spec.OperatorConnection; auth != nil {
-		switch {
-		case auth.AccessToken != nil:
-			token, err := GetSecretKey(
+	auth := storage.Spec.OperatorConnection
+	if auth == nil {
+		return ydbCredentials.NewAnonymousCredentials(), nil
+	}
+
+	if auth.AccessToken != nil {
+		token, err := GetSecretKey(
+			ctx,
+			storage.Namespace,
+			restConfig,
+			auth.AccessToken.SecretKeyRef,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to get token for AccessToken from secret: %s, key: %s, error: %w",
+				auth.AccessToken.SecretKeyRef.Name,
+				auth.AccessToken.SecretKeyRef.Key,
+				err)
+		}
+
+		return ydbCredentials.NewAccessTokenCredentials(token), nil
+	}
+
+	if auth.StaticCredentials != nil {
+		username := auth.StaticCredentials.Username
+		password := api.DefaultRootPassword
+		if auth.StaticCredentials.Password != nil {
+			var err error
+			password, err = GetSecretKey(
+				ctx,
 				storage.Namespace,
 				restConfig,
-				auth.AccessToken.SecretKeyRef,
+				auth.StaticCredentials.Password.SecretKeyRef,
 			)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf(
+					"failed to get password for StaticCredentials from secret: %s, key: %s, error: %w",
+					auth.StaticCredentials.Password.SecretKeyRef.Name,
+					auth.StaticCredentials.Password.SecretKeyRef.Key,
+					err)
 			}
-			return ydbCredentials.NewAccessTokenCredentials(token), nil
-		case auth.StaticCredentials != nil:
-			username := auth.StaticCredentials.Username
-			password := api.DefaultRootPassword
-			if auth.StaticCredentials.Password != nil {
-				var err error
-				password, err = GetSecretKey(
-					storage.Namespace,
-					restConfig,
-					auth.StaticCredentials.Password.SecretKeyRef,
-				)
-				if err != nil {
-					return nil, err
-				}
-			}
-			endpoint := storage.GetStorageEndpoint()
-			secure := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure())
-			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), nil
 		}
+		endpoint := storage.GetStorageEndpoint()
+		secure := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure())
+		return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), nil
 	}
-	return ydbCredentials.NewAnonymousCredentials(), nil
+
+	return nil, errors.New("unsupported auth type for GetYDBCredentials")
 }
 
 func buildCAStorePatchingCommandArgs(

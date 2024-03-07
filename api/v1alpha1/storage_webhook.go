@@ -67,15 +67,12 @@ type PartialHostsConfig struct {
 }
 
 func (r *Storage) GetHostFromConfigEndpoint() string {
-	yamlConfig := PartialHostsConfig{}
-	if err := yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig); err != nil {
-		storagelog.Info("failed to parse spec.configuration", "error", err)
-		return ""
-	}
+	// skip handle error because we already checked in webhook
+	hostsConfig := PartialHostsConfig{}
+	_ = yaml.Unmarshal([]byte(r.Spec.Configuration), &hostsConfig)
 
 	randNum := rand.Int31n(r.Spec.Nodes) // #nosec G404
-	host := yamlConfig.Hosts[randNum].Host
-
+	host := hostsConfig.Hosts[randNum].Host
 	return fmt.Sprintf("%s:%d", host, GRPCPort)
 }
 
@@ -87,7 +84,7 @@ func (r *Storage) IsStorageEndpointSecure() bool {
 }
 
 func (r *Storage) IsRemoteNodeSetsOnly() bool {
-	if r.Spec.NodeSets == nil {
+	if len(r.Spec.NodeSets) == 0 {
 		return false
 	}
 
@@ -189,32 +186,20 @@ func (r *Storage) ValidateCreate() error {
 	configuration := make(map[string]interface{})
 	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
 	if err != nil {
-		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
+		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
 	}
+
+	hostsConfig := PartialHostsConfig{}
+	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &hostsConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse YAML to determine `hosts`, error: %w", err)
+	}
+
 	var nodesNumber int32
-	if configuration["hosts"] == nil {
+	if len(hostsConfig.Hosts) == 0 {
 		nodesNumber = r.Spec.Nodes
 	} else {
-		hosts, ok := configuration["hosts"].([]interface{})
-		if !ok {
-			return fmt.Errorf("failed to parse Storage.spec.configuration, error: invalid hosts section")
-		}
-		nodesNumber = int32(len(hosts))
-	}
-
-	yamlConfig := PartialDomainsConfig{}
-	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
-	if err != nil {
-		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`")
-	}
-
-	var authEnabled bool
-	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		authEnabled = true
-	}
-
-	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
-		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+		nodesNumber = int32(len(hostsConfig.Hosts))
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
@@ -224,6 +209,21 @@ func (r *Storage) ValidateCreate() error {
 	}
 	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
+	}
+
+	yamlConfig := PartialDomainsConfig{}
+	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`, error: %w", err)
+	}
+
+	var authEnabled bool
+	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+		authEnabled = true
+	}
+
+	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
 	if r.Spec.NodeSets != nil {
@@ -284,7 +284,29 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	configuration := make(map[string]interface{})
 	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
 	if err != nil {
-		return fmt.Errorf("failed to parse Storage.spec.configuration, error: %w", err)
+		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
+	}
+
+	hostsConfig := PartialHostsConfig{}
+	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &hostsConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse YAML to determine `hosts`, error: %w", err)
+	}
+
+	var nodesNumber int32
+	if len(hostsConfig.Hosts) == 0 {
+		nodesNumber = r.Spec.Nodes
+	} else {
+		nodesNumber = int32(len(hostsConfig.Hosts))
+	}
+
+	minNodesPerErasure := map[ErasureType]int32{
+		ErasureMirror3DC: 9,
+		ErasureBlock42:   8,
+		None:             1,
+	}
+	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
+		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
 	if !r.Spec.OperatorSync {
@@ -308,7 +330,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	yamlConfig := PartialDomainsConfig{}
 	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
 	if err != nil {
-		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`")
+		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`, error: %w", err)
 	}
 
 	var authEnabled bool

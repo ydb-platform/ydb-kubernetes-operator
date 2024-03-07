@@ -124,7 +124,7 @@ func (r *Reconciler) initializeStorage(
 	//nolint:nestif
 	if apierrors.IsNotFound(err) {
 		if storage.Spec.OperatorConnection != nil {
-			creds, err := resources.GetYDBCredentials(storage.Unwrap(), r.Config)
+			creds, err := resources.GetYDBCredentials(ctx, storage.Unwrap(), r.Config)
 			if err != nil {
 				r.Recorder.Event(
 					storage,
@@ -242,7 +242,7 @@ func (r *Reconciler) getSucceededJobLogs(
 			"ControllerError",
 			fmt.Sprintf("Failed to list pods for Job: %s", err),
 		)
-		return "", err
+		return "", fmt.Errorf("failed to list pods for getSucceededJobLogs, error: %w", err)
 	}
 
 	// Assuming there is only one succeeded pod, you can adjust the logic if needed
@@ -250,7 +250,7 @@ func (r *Reconciler) getSucceededJobLogs(
 		if pod.Status.Phase == corev1.PodSucceeded {
 			clientset, err := kubernetes.NewForConfig(r.Config)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("failed to initialize clientset for getSucceededJobLogs, error: %w", err)
 			}
 
 			podLogs, err := clientset.CoreV1().
@@ -258,7 +258,7 @@ func (r *Reconciler) getSucceededJobLogs(
 				GetLogs(pod.Name, &corev1.PodLogOptions{}).
 				Stream(context.TODO())
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("failed to stream logs from pod for getSucceededJobLogs, error: %w", err)
 			}
 			defer podLogs.Close()
 
@@ -276,7 +276,7 @@ func (r *Reconciler) getSucceededJobLogs(
 		}
 	}
 
-	return "", errors.New("failed to get succeeded Pod for Job")
+	return "", errors.New("failed to get succeeded Pod for getSucceededJobLogs")
 }
 
 func shouldIgnoreJobUpdate() resources.IgnoreChangesFunction {
@@ -323,7 +323,7 @@ func (r *Reconciler) createOrUpdateOperatorTokenSecret(
 		metadata.AppendToOutgoingContext(ydbCtx, "x-ydb-database", storage.Spec.Domain),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get token from ydb credentials for createOrUpdateOperatorTokenSecret, error: %w", err)
 	}
 
 	builder := resources.GetOperatorTokenSecretBuilder(storage, token)
@@ -341,9 +341,7 @@ func (r *Reconciler) createOrUpdateOperatorTokenSecret(
 		}
 
 		return nil
-	}, func(oldObj, newObj runtime.Object) bool {
-		return false
-	})
+	}, resources.DoNotIgnoreChanges())
 
 	return err
 }

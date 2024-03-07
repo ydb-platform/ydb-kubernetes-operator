@@ -405,7 +405,7 @@ func (r *Reconciler) runSelfCheck(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runSelfCheck")
 
-	creds, err := resources.GetYDBCredentials(storage.Unwrap(), r.Config)
+	creds, err := resources.GetYDBCredentials(ctx, storage.Unwrap(), r.Config)
 	if err != nil {
 		r.Recorder.Event(
 			storage,

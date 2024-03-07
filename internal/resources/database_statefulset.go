@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -510,7 +511,8 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	for _, secret := range b.Spec.Secrets {
-		_, err := GetSecretKey(
+		exist, err := CheckSecretKey(
+			context.Background(),
 			b.GetNamespace(),
 			b.RestConfig,
 			&corev1.SecretKeySelector{
@@ -523,7 +525,10 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 		if err != nil {
 			log.Default().Printf("Failed to inspect a secret %s: %s\n", secret.Name, err.Error())
-		} else {
+			continue
+		}
+
+		if exist {
 			args = append(args,
 				"--auth-token-file",
 				fmt.Sprintf(

@@ -173,7 +173,7 @@ func (r *Reconciler) handleTenantCreation(
 		SharedDatabasePath: sharedDatabasePath,
 	}
 
-	creds, err := resources.GetYDBCredentials(database.Storage, r.Config)
+	creds, err := resources.GetYDBCredentials(ctx, database.Storage, r.Config)
 	if err != nil {
 		r.Recorder.Event(
 			database,
