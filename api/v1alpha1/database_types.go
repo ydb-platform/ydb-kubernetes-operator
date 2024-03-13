@@ -264,3 +264,9 @@ type DatabaseServices struct {
 func init() {
 	SchemeBuilder.Register(&Database{}, &DatabaseList{})
 }
+
+func (r *Database) AnyCertificatesAdded() bool {
+	return len(r.Spec.CABundle) > 0 ||
+		r.Spec.Service.GRPC.TLSConfiguration.Enabled ||
+		r.Spec.Service.Interconnect.TLSConfiguration.Enabled
+}

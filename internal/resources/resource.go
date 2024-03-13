@@ -2,17 +2,23 @@ package resources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
+	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 )
 
 const (
@@ -25,14 +31,24 @@ const (
 	interconnectTLSVolumeName = "interconnect-tls-volume"
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 
-	systemCertsVolumeName = "init-main-shared-certs-volume"
-	localCertsVolumeName  = "init-main-shared-source-dir-volume"
+	grpcTLSVolumeMountPath         = "/tls/grpc"
+	interconnectTLSVolumeMountPath = "/tls/interconnect"
+	datastreamsTLSVolumeMountPath  = "/tls/datastreams"
+
+	InitJobNameFormat             = "%s-blobstorage-init"
+	OperatorTokenSecretNameFormat = "%s-operator-token"
+
+	systemCertsVolumeName   = "init-main-shared-certs-volume"
+	localCertsVolumeName    = "init-main-shared-source-dir-volume"
+	operatorTokenVolumeName = "operator-token-volume"
 
 	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
 	wellKnownDirForAdditionalVolumes = "/opt/ydb/volumes"
+	wellKnownNameForOperatorToken    = "token-file"
 
-	caBundleEnvName  = "CA_BUNDLE"
-	caBundleFileName = "userCABundle.crt"
+	caBundleEnvName         = "CA_BUNDLE"
+	caBundleFileName        = "userCABundle.crt"
+	updateCACertificatesBin = "update-ca-certificates"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
@@ -42,8 +58,6 @@ const (
 	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
 	defaultEncryptionSecretKey                = "key"
 	defaultPin                                = "EmptyPin"
-
-	updateCACertificatesBin = "update-ca-certificates"
 )
 
 type ResourceBuilder interface {
@@ -71,6 +85,12 @@ func mutate(f ctrlutil.MutateFn, key client.ObjectKey, obj client.Object) error 
 
 type IgnoreChangesFunction func(oldObj, newObj runtime.Object) bool
 
+func DoNotIgnoreChanges() IgnoreChangesFunction {
+	return func(oldObj, newObj runtime.Object) bool {
+		return false
+	}
+}
+
 func tryProcessNonExistingObject(
 	ctx context.Context,
 	c client.Client,
@@ -86,7 +106,7 @@ func tryProcessNonExistingObject(
 		return true, ctrlutil.OperationResultNone, nil
 	}
 
-	if !errors.IsNotFound(err) {
+	if !apierrors.IsNotFound(err) {
 		return false, ctrlutil.OperationResultNone, err
 	}
 
@@ -173,4 +193,89 @@ func LabelExistsPredicate(selector labels.Selector) predicate.Predicate {
 	return predicate.NewPredicateFuncs(func(o client.Object) bool {
 		return selector.Matches(labels.Set(o.GetLabels()))
 	})
+}
+
+func GetYDBCredentials(
+	ctx context.Context,
+	storage *api.Storage,
+	restConfig *rest.Config,
+) (ydbCredentials.Credentials, error) {
+	auth := storage.Spec.OperatorConnection
+	if auth == nil {
+		return ydbCredentials.NewAnonymousCredentials(), nil
+	}
+
+	if auth.AccessToken != nil {
+		token, err := GetSecretKey(
+			ctx,
+			storage.Namespace,
+			restConfig,
+			auth.AccessToken.SecretKeyRef,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to get token for AccessToken from secret: %s, key: %s, error: %w",
+				auth.AccessToken.SecretKeyRef.Name,
+				auth.AccessToken.SecretKeyRef.Key,
+				err)
+		}
+
+		return ydbCredentials.NewAccessTokenCredentials(token), nil
+	}
+
+	if auth.StaticCredentials != nil {
+		username := auth.StaticCredentials.Username
+		password := api.DefaultRootPassword
+		if auth.StaticCredentials.Password != nil {
+			var err error
+			password, err = GetSecretKey(
+				ctx,
+				storage.Namespace,
+				restConfig,
+				auth.StaticCredentials.Password.SecretKeyRef,
+			)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"failed to get password for StaticCredentials from secret: %s, key: %s, error: %w",
+					auth.StaticCredentials.Password.SecretKeyRef.Name,
+					auth.StaticCredentials.Password.SecretKeyRef.Key,
+					err)
+			}
+		}
+		endpoint := storage.GetStorageEndpoint()
+		secure := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure())
+		return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), nil
+	}
+
+	return nil, errors.New("unsupported auth type for GetYDBCredentials")
+}
+
+func buildCAStorePatchingCommandArgs(
+	caBundle string,
+	grpcService api.GRPCService,
+	interconnectService api.InterconnectService,
+) ([]string, []string) {
+	command := []string{"/bin/bash", "-c"}
+
+	arg := ""
+
+	if len(caBundle) > 0 {
+		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
+	}
+
+	if grpcService.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/ca.crt %s/grpcRoot.crt && ", grpcTLSVolumeMountPath, localCertsDir)
+	}
+
+	if interconnectService.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/ca.crt %s/interconnectRoot.crt && ", interconnectTLSVolumeMountPath, localCertsDir)
+	}
+
+	if arg != "" {
+		arg += updateCACertificatesBin
+	}
+
+	args := []string{arg}
+
+	return command, args
 }

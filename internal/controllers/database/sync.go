@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -417,70 +415,6 @@ func (r *Reconciler) setState(
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
 }
 
-func (r *Reconciler) getYDBCredentials(
-	ctx context.Context,
-	database *resources.DatabaseBuilder,
-) (ydbCredentials.Credentials, ctrl.Result, error) {
-	r.Log.Info("running step getYDBCredentials")
-
-	if auth := database.Storage.Spec.OperatorConnection; auth != nil {
-		switch {
-		case auth.AccessToken != nil:
-			token, err := r.getSecretKey(
-				ctx,
-				database.Storage.Namespace,
-				auth.AccessToken.SecretKeyRef,
-			)
-			if err != nil {
-				return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
-		case auth.StaticCredentials != nil:
-			username := auth.StaticCredentials.Username
-			password := v1alpha1.DefaultRootPassword
-			if auth.StaticCredentials.Password != nil {
-				var err error
-				password, err = r.getSecretKey(
-					ctx,
-					database.Storage.Namespace,
-					auth.StaticCredentials.Password.SecretKeyRef,
-				)
-				if err != nil {
-					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-				}
-			}
-			endpoint := database.Storage.GetStorageEndpoint()
-			secure := connection.LoadTLSCredentials(database.Storage.IsStorageEndpointSecure())
-			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
-		}
-	}
-	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
-}
-
-func (r *Reconciler) getSecretKey(
-	ctx context.Context,
-	namespace string,
-	secretKeyRef *corev1.SecretKeySelector,
-) (string, error) {
-	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      secretKeyRef.Name,
-		Namespace: namespace,
-	}, secret)
-	if err != nil {
-		return "", err
-	}
-	secretVal, exist := secret.Data[secretKeyRef.Key]
-	if !exist {
-		return "", fmt.Errorf(
-			"key %s does not exist in secretData %s",
-			secretKeyRef.Key,
-			secretKeyRef.Name,
-		)
-	}
-	return string(secretVal), nil
-}
-
 func (r *Reconciler) syncNodeSetSpecInline(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
@@ -640,12 +574,7 @@ func (r *Reconciler) handleFirstStart(
 		}
 	}
 
-	auth, result, err := r.getYDBCredentials(ctx, database)
-	if auth == nil {
-		return result, err
-	}
-
-	stop, result, err = r.handleTenantCreation(ctx, database, auth)
+	stop, result, err = r.handleTenantCreation(ctx, database)
 	if stop {
 		return result, err
 	}
