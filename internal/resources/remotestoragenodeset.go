@@ -166,3 +166,16 @@ func (b *RemoteStorageNodeSetResource) RemoveRemoteResourceStatus(remoteObj clie
 		}
 	}
 }
+
+func (b *RemoteStorageNodeSetResource) SetPrimaryResourceAnnotations(obj client.Object) {
+	annotations := make(map[string]string)
+	for key, value := range obj.GetAnnotations() {
+		annotations[key] = value
+	}
+
+	if _, exist := annotations[ydbannotations.PrimaryResourceStorageAnnotation]; !exist {
+		annotations[ydbannotations.PrimaryResourceStorageAnnotation] = b.Spec.StorageRef.Name
+	}
+
+	obj.SetAnnotations(annotations)
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -87,7 +86,6 @@ func (r *Reconciler) setInitDatabaseCompleted(
 func (r *Reconciler) handleTenantCreation(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
-	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleTenantCreation")
 
@@ -170,7 +168,18 @@ func (r *Reconciler) handleTenantCreation(
 		SharedDatabasePath: sharedDatabasePath,
 	}
 
-	err := tenant.Create(ctx, database, creds)
+	creds, err := resources.GetYDBCredentials(ctx, database.Storage, r.Config)
+	if err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get YDB credentials: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	err = tenant.Create(ctx, database, creds)
 	if err != nil {
 		r.Recorder.Event(
 			database,

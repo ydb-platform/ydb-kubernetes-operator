@@ -13,6 +13,16 @@ type StorageSpec struct {
 
 	StorageNodeSpec `json:",inline"`
 
+	// (Optional) Operator connection settings
+	// Default: (not specified)
+	// +optional
+	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
+
+	// (Optional) Init blobstorage Job settings
+	// Default: (not specified)
+	// +optional
+	InitJob *StorageInitJobSpec `json:"initJob,omitempty"`
+
 	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
 	// Default: (not specified)
 	// +optional
@@ -27,11 +37,6 @@ type StorageClusterSpec struct {
 	// +kubebuilder:default:="Root"
 	// +optional
 	Domain string `json:"domain"`
-
-	// (Optional) Operator connection settings
-	// Default: (not specified)
-	// +optional
-	OperatorConnection *ConnectionOptions `json:"operatorConnection,omitempty"`
 
 	// Data storage topology mode
 	// For details, see https://ydb.tech/docs/en/cluster/topology
@@ -162,6 +167,36 @@ type StorageNodeSpec struct {
 	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
 }
 
+type StorageInitJobSpec struct {
+	// (Optional) Container resource limits. Any container limits
+	// can be specified.
+	// Default: (not specified)
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// (Optional) NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// (Optional) If specified, the pod's scheduling constraints
+	// +optional
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// (Optional) If specified, the pod's tolerations.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+
+	// (Optional) Additional custom resource labels that are added to all resources
+	// +optional
+	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
+
+	// (Optional) Additional custom resource annotations that are added to all resources
+	// +optional
+	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
+}
+
 // StorageStatus defines the observed state of Storage
 type StorageStatus struct {
 	State      constants.ClusterState `json:"state"`
@@ -202,4 +237,10 @@ type StorageServices struct {
 
 func init() {
 	SchemeBuilder.Register(&Storage{}, &StorageList{})
+}
+
+func (r *Storage) AnyCertificatesAdded() bool {
+	return len(r.Spec.CABundle) > 0 ||
+		r.Spec.Service.GRPC.TLSConfiguration.Enabled ||
+		r.Spec.Service.Interconnect.TLSConfiguration.Enabled
 }

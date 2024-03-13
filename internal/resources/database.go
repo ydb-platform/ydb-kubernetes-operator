@@ -246,7 +246,7 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 
 	nodeSetSpec.DatabaseRef = api.NamespacedRef{
 		Name:      b.Name,
-		Namespace: b.GetNamespace(),
+		Namespace: b.Namespace,
 	}
 
 	nodeSetSpec.DatabaseClusterSpec = b.Spec.DatabaseClusterSpec
