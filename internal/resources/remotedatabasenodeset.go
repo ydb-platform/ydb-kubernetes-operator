@@ -7,6 +7,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 )
 
 type RemoteDatabaseNodeSetBuilder struct {
@@ -40,7 +41,7 @@ func (b *RemoteDatabaseNodeSetBuilder) Build(obj client.Object) error {
 }
 
 func (b *RemoteDatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
-	return &api.DatabaseNodeSet{
+	return &api.RemoteDatabaseNodeSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      b.Name,
 			Namespace: cr.GetNamespace(),
@@ -67,4 +68,17 @@ func NewRemoteDatabaseNodeSet(remoteDatabaseNodeSet *api.RemoteDatabaseNodeSet) 
 	crRemoteDatabaseNodeSet := remoteDatabaseNodeSet.DeepCopy()
 
 	return RemoteDatabaseNodeSetResource{RemoteDatabaseNodeSet: crRemoteDatabaseNodeSet}
+}
+
+func (b *RemoteDatabaseNodeSetResource) SetPrimaryResourceAnnotations(obj client.Object) {
+	annotations := make(map[string]string)
+	for key, value := range obj.GetAnnotations() {
+		annotations[key] = value
+	}
+
+	if _, exist := annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]; !exist {
+		annotations[ydbannotations.PrimaryResourceDatabaseAnnotation] = b.Spec.DatabaseRef.Name
+	}
+
+	obj.SetAnnotations(annotations)
 }

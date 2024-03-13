@@ -8,7 +8,7 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -66,7 +66,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for Storage")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if storage.Status.State == StoragePreparing {
 		r.Recorder.Event(
@@ -85,7 +85,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		Namespace: storage.Namespace,
 	}, found)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
@@ -154,7 +154,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStorageNodeSetToReady for Storage")
+	r.Log.Info("running step waitForStorageNodeSetToReady")
 
 	if storage.Status.State == StoragePreparing {
 		r.Recorder.Event(
@@ -167,20 +167,29 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 		return r.setState(ctx, storage)
 	}
 
+	var nodeSetObject client.Object
+	var nodeSetKind string
+	var nodeSetStatus ClusterState
 	for _, nodeSetSpec := range storage.Spec.NodeSets {
-		foundStorageNodeSet := v1alpha1.StorageNodeSet{}
-		storageNodeSetName := storage.Name + "-" + nodeSetSpec.Name
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      storageNodeSetName,
+		if nodeSetSpec.Remote != nil {
+			nodeSetObject = &v1alpha1.RemoteStorageNodeSet{}
+			nodeSetKind = RemoteStorageNodeSetKind
+		} else {
+			nodeSetObject = &v1alpha1.StorageNodeSet{}
+			nodeSetKind = StorageNodeSetKind
+		}
+
+		nodeSetName := storage.Name + "-" + nodeSetSpec.Name
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      nodeSetName,
 			Namespace: storage.Namespace,
-		}, &foundStorageNodeSet)
-		if err != nil {
-			if errors.IsNotFound(err) {
+		}, nodeSetObject); err != nil {
+			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					storage,
 					corev1.EventTypeWarning,
 					"ProvisioningFailed",
-					fmt.Sprintf("StorageNodeSet with name %s was not found: %s", storageNodeSetName, err),
+					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
@@ -188,16 +197,23 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 				storage,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				fmt.Sprintf("Failed to get StorageNodeSet: %s", err),
+				fmt.Sprintf("Failed to get %s with name %s: %s", nodeSetKind, nodeSetName, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		if foundStorageNodeSet.Status.State != StorageNodeSetReady {
-			eventMessage := fmt.Sprintf("Waiting %s state for StorageNodeSet object %s, current: %s",
-				string(StorageReady),
-				foundStorageNodeSet.Name,
-				foundStorageNodeSet.Status.State,
+		if nodeSetSpec.Remote != nil {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.RemoteStorageNodeSet).Status.State
+		} else {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.StorageNodeSet).Status.State
+		}
+
+		if nodeSetStatus != StorageNodeSetReady {
+			eventMessage := fmt.Sprintf(
+				"Waiting %s with name %s for Ready state , current: %s",
+				nodeSetKind,
+				nodeSetName,
+				nodeSetStatus,
 			)
 			r.Recorder.Event(
 				storage,
@@ -477,12 +493,12 @@ func (r *Reconciler) setState(
 			fmt.Sprintf("Failed setting status: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != storage.Status.State {
+	} else if oldStatus != storageCr.Status.State {
 		r.Recorder.Event(
 			storageCr,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storage.Status.State),
+			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storageCr.Status.State),
 		)
 	}
 
@@ -493,7 +509,7 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Storage")
+	r.Log.Info("running step handlePauseResume")
 	if storage.Status.State == StorageReady && storage.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Storage to state `Paused`")
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
@@ -553,7 +569,7 @@ func (r *Reconciler) handleFirstStart(
 func (r *Reconciler) checkStorageFrozen(
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for Storage")
+	r.Log.Info("running step checkStorageFrozen")
 	if !storage.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

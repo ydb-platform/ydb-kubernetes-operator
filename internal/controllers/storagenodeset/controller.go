@@ -5,8 +5,7 @@ import (
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
@@ -36,8 +35,6 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets/finalizers,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=configmaps/status,verbs=get;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -47,7 +44,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	crStorageNodeSet := &api.StorageNodeSet{}
 	err := r.Get(ctx, req.NamespacedName, crStorageNodeSet)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			logger.Info("StorageNodeSet has been deleted")
 			return ctrl.Result{Requeue: false}, nil
 		}
@@ -80,13 +77,12 @@ func ignoreDeletionPredicate() predicate.Predicate {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	controller := ctrl.NewControllerManagedBy(mgr).For(&api.StorageNodeSet{})
-
-	r.Recorder = mgr.GetEventRecorderFor("StorageNodeSet")
+	r.Recorder = mgr.GetEventRecorderFor(StorageNodeSetKind)
+	controller := ctrl.NewControllerManagedBy(mgr)
 
 	return controller.
+		For(&api.StorageNodeSet{}).
 		Owns(&appsv1.StatefulSet{}).
-		Owns(&corev1.ConfigMap{}).
 		WithEventFilter(ignoreDeletionPredicate()).
 		Complete(r)
 }

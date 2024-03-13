@@ -136,7 +136,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 }
 
 func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
-	configMapName := b.Name
+	configMapName := b.Database.Name
 
 	volumes := []corev1.Volume{
 		{

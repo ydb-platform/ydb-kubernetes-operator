@@ -70,16 +70,21 @@ kind-init:
 	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator; \
 	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0; \
 	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --name kind-ydb-operator; \
-	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44; \
-	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44 --name kind-ydb-operator
+	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17; \
+	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17 --name kind-ydb-operator
 
 kind-load:
 	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
 	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
 
+unit-test: manifests generate fmt vet envtest ## Run unit tests
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/... -ginkgo.vv -coverprofile cover.out
+
+e2e-test: docker-build kind-init kind-load ## Run e2e tests
+	go test -v -timeout 1800s -p 1 ./e2e/... -args -ginkgo.vv
+
 .PHONY: test
-test: manifests generate fmt vet docker-build kind-init kind-load envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -timeout 1800s -p 1 ./... -ginkgo.v -coverprofile cover.out
+test: unit-test test ## Run all tests
 
 .PHONY: clean
 clean:

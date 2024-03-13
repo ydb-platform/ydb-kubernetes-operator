@@ -193,6 +193,13 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 		Command:         command,
 		Args:            args,
 
+		SecurityContext: &corev1.SecurityContext{
+			Privileged: ptr.Bool(false),
+			Capabilities: &corev1.Capabilities{
+				Add: []corev1.Capability{"SYS_RAWIO"},
+			},
+		},
+
 		VolumeMounts: b.buildJobVolumeMounts(),
 		Resources:    corev1.ResourceRequirements{},
 	}

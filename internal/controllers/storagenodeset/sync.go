@@ -114,7 +114,7 @@ func (r *Reconciler) handleResourcesSync(
 			)
 		}
 	}
-	r.Log.Info("resource sync complete")
+
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -122,7 +122,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for StorageNodeSet")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if storageNodeSet.Status.State == StorageNodeSetPending {
 		r.Recorder.Event(
@@ -275,7 +275,7 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Storage")
+	r.Log.Info("running step handlePauseResume")
 	if storageNodeSet.Status.State == StorageReady && storageNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
 		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, StorageNodeSetReadyCondition)
@@ -306,7 +306,7 @@ func (r *Reconciler) handlePauseResume(
 }
 
 func (r *Reconciler) checkStorageFrozen(storageNodeSet *resources.StorageNodeSetResource) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for StorageNodeSet parent object")
+	r.Log.Info("running step checkStorageFrozen")
 	if !storageNodeSet.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

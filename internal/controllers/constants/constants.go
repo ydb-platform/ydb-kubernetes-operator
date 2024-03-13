@@ -5,6 +5,13 @@ import "time"
 type ClusterState string
 
 const (
+	StorageKind               = "Storage"
+	StorageNodeSetKind        = "StorageNodeSet"
+	RemoteStorageNodeSetKind  = "RemoteStorageNodeSet"
+	DatabaseKind              = "Database"
+	DatabaseNodeSetKind       = "DatabaseNodeSet"
+	RemoteDatabaseNodeSetKind = "RemoteDatabaseNodeSet"
+
 	StoragePausedCondition             = "StoragePaused"
 	StorageInitializedCondition        = "StorageReady"
 	StorageNodeSetReadyCondition       = "StorageNodeSetReady"
@@ -25,6 +32,7 @@ const (
 	StorageInitializationRequeueDelay = 5 * time.Second
 
 	DatabasePending      ClusterState = "Pending"
+	DatabasePreparing    ClusterState = "Preparing"
 	DatabaseProvisioning ClusterState = "Provisioning"
 	DatabaseInitializing ClusterState = "Initializing"
 	DatabaseReady        ClusterState = "Ready"
@@ -52,4 +60,6 @@ const (
 	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
 
 	OwnerControllerKey = ".metadata.controller"
+	DatabaseRefField   = ".spec.databaseRef.name"
+	StorageRefField    = ".spec.storageRef.name"
 )

@@ -9,11 +9,13 @@ import (
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
@@ -185,6 +187,12 @@ func CopyDict(src map[string]string) map[string]string {
 		dst[k] = v
 	}
 	return dst
+}
+
+func LabelExistsPredicate(selector labels.Selector) predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(o client.Object) bool {
+		return selector.Matches(labels.Set(o.GetLabels()))
+	})
 }
 
 func GetYDBCredentials(
