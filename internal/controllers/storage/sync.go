@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -18,15 +17,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) Sync(ctx context.Context, cr *ydbv1alpha1.Storage) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -170,7 +168,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 	}
 
 	for _, nodeSetSpec := range storage.Spec.NodeSets {
-		foundStorageNodeSet := ydbv1alpha1.StorageNodeSet{}
+		foundStorageNodeSet := v1alpha1.StorageNodeSet{}
 		storageNodeSetName := storage.Name + "-" + nodeSetSpec.Name
 		err := r.Get(ctx, types.NamespacedName{
 			Name:      storageNodeSetName,
@@ -298,7 +296,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		OwnerControllerKey: storage.Name,
 	}
 
-	storageNodeSets := &ydbv1alpha1.StorageNodeSetList{}
+	storageNodeSets := &v1alpha1.StorageNodeSetList{}
 	if err := r.List(ctx, storageNodeSets,
 		client.InNamespace(storage.Namespace),
 		matchingFields,
@@ -347,7 +345,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	remoteStorageNodeSets := &ydbv1alpha1.RemoteStorageNodeSetList{}
+	remoteStorageNodeSets := &v1alpha1.RemoteStorageNodeSetList{}
 	if err := r.List(ctx, remoteStorageNodeSets,
 		client.InNamespace(storage.Namespace),
 		matchingFields,
@@ -403,10 +401,20 @@ func (r *Reconciler) syncNodeSetSpecInline(
 func (r *Reconciler) runSelfCheck(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-	creds ydbCredentials.Credentials,
 	waitForGoodResultWithoutIssues bool,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step runSelfCheck")
+
+	creds, err := resources.GetYDBCredentials(ctx, storage.Unwrap(), r.Config)
+	if err != nil {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get YDB credentials: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
 
 	result, err := healthcheck.GetSelfCheckResult(ctx, storage, creds)
 	if err != nil {
@@ -441,7 +449,7 @@ func (r *Reconciler) setState(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	storageCr := &ydbv1alpha1.Storage{}
+	storageCr := &v1alpha1.Storage{}
 	err := r.Get(ctx, client.ObjectKey{
 		Namespace: storage.Namespace,
 		Name:      storage.Name,
@@ -479,71 +487,6 @@ func (r *Reconciler) setState(
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
-}
-
-func (r *Reconciler) getYDBCredentials(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-) (ydbCredentials.Credentials, ctrl.Result, error) {
-	r.Log.Info("running step getYDBCredentials")
-
-	if auth := storage.Spec.OperatorConnection; auth != nil {
-		switch {
-		case auth.AccessToken != nil:
-			token, err := r.getSecretKey(
-				ctx,
-				storage.Storage.Namespace,
-				auth.AccessToken.SecretKeyRef,
-			)
-			if err != nil {
-				return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
-		case auth.StaticCredentials != nil:
-			username := auth.StaticCredentials.Username
-			password := ydbv1alpha1.DefaultRootPassword
-			if auth.StaticCredentials.Password != nil {
-				var err error
-				password, err = r.getSecretKey(
-					ctx,
-					storage.Storage.Namespace,
-					auth.StaticCredentials.Password.SecretKeyRef,
-				)
-				if err != nil {
-					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-				}
-			}
-			endpoint := storage.GetStorageEndpoint()
-			secure := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure())
-			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
-		}
-	}
-	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
-}
-
-func (r *Reconciler) getSecretKey(
-	ctx context.Context,
-	namespace string,
-	secretKeyRef *corev1.SecretKeySelector,
-) (string, error) {
-	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      secretKeyRef.Name,
-		Namespace: namespace,
-	}, secret)
-	if err != nil {
-		return "", err
-	}
-	secretVal, exist := secret.Data[secretKeyRef.Key]
-	if !exist {
-		return "", fmt.Errorf(
-			"key %s does not exist in secretData %s",
-			secretKeyRef.Key,
-			secretKeyRef.Name,
-		)
-	}
-
-	return string(secretVal), nil
 }
 
 func (r *Reconciler) handlePauseResume(
@@ -594,18 +537,17 @@ func (r *Reconciler) handleFirstStart(
 		}
 	}
 
-	auth, result, err := r.getYDBCredentials(ctx, storage)
-	if auth == nil {
-		return result, err
-	}
-
-	stop, result, err = r.runSelfCheck(ctx, storage, auth, false)
+	stop, result, err = r.initializeStorage(ctx, storage)
 	if stop {
 		return result, err
 	}
 
-	_, result, err = r.initializeStorage(ctx, storage, auth)
-	return result, err
+	stop, result, err = r.runSelfCheck(ctx, storage, false)
+	if stop {
+		return result, err
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) checkStorageFrozen(

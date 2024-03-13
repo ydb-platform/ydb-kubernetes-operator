@@ -1,12 +1,12 @@
 package schema
 
 type Host struct {
-	Address       string        `yaml:"address"`
+	Address       string        `yaml:"address,omitempty"`
 	Host          string        `yaml:"host"`
 	HostConfigID  int           `yaml:"host_config_id"`
 	NodeID        int           `yaml:"node_id"`
-	Port          int           `yaml:"port"`
-	WalleLocation WalleLocation `yaml:"walle_location"`
+	Port          int           `yaml:"port,omitempty"`
+	WalleLocation WalleLocation `yaml:"walle_location,omitempty"`
 }
 
 type WalleLocation struct {
