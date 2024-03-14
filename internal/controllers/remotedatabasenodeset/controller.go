@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,10 +16,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -56,9 +57,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger := log.FromContext(ctx)
 
 	remoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
-	// we'll ignore not-found errors, since they can't be fixed by an immediate
-	// requeue (we'll need to wait for a new notification), and we can get them
-	// on deleted requests.
 	if err := r.RemoteClient.Get(ctx, req.NamespacedName, remoteDatabaseNodeSet); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Info("RemoteDatabaseNodeSet resource not found on remote cluster")
@@ -84,7 +82,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey) {
 			// our finalizer is present, so lets handle any external dependency
-			if err := r.deleteExternalResources(ctx, req.NamespacedName); err != nil {
+			if err := r.deleteExternalResources(ctx, remoteDatabaseNodeSet); err != nil {
 				// if fail to delete the external dependency here, return with error
 				// so that it can be retried.
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -109,62 +107,68 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
-func (r *Reconciler) deleteExternalResources(ctx context.Context, key types.NamespacedName) error {
-	logger := log.FromContext(ctx)
-
-	databaseNodeSet := &v1alpha1.DatabaseNodeSet{}
-	if err := r.Client.Get(ctx, key, databaseNodeSet); err != nil {
-		if apierrors.IsNotFound(err) {
-			logger.Info("DatabaseNodeSet not found")
-			return nil
-		}
-		logger.Error(err, "unable to get DatabaseNodeSet")
-		return err
-	}
-
-	if err := r.Client.Delete(ctx, databaseNodeSet); err != nil {
-		logger.Error(err, "unable to delete DatabaseNodeSet")
-		return err
-	}
-
-	return nil
-}
-
-func ignoreDeletionPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
-			annotationsChanged := !ydbannotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
-
-			return generationChanged || annotationsChanged
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Evaluates to false if the object has been confirmed deleted.
-			return !e.DeleteStateUnknown
-		},
-	}
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.Cluster) error {
 	cluster := *remoteCluster
-	remoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
 
 	r.Recorder = mgr.GetEventRecorderFor(RemoteDatabaseNodeSetKind)
 	r.RemoteRecorder = cluster.GetEventRecorderFor(RemoteDatabaseNodeSetKind)
 	r.RemoteClient = cluster.GetClient()
+
+	annotationFilter := func(mapObj client.Object) []reconcile.Request {
+		requests := make([]reconcile.Request, 0)
+
+		annotations := mapObj.GetAnnotations()
+		primaryResourceName, exist := annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+		if exist {
+			databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
+			if err := r.Client.List(
+				context.Background(),
+				databaseNodeSets,
+				client.InNamespace(mapObj.GetNamespace()),
+				client.MatchingFields{
+					DatabaseRefField: primaryResourceName,
+				},
+			); err != nil {
+				return requests
+			}
+			for _, databaseNodeSet := range databaseNodeSets.Items {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: databaseNodeSet.GetNamespace(),
+						Name:      databaseNodeSet.GetName(),
+					},
+				})
+			}
+		}
+		return requests
+	}
 
 	isNodeSetFromMgmt, err := buildLocalSelector()
 	if err != nil {
 		return err
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.DatabaseNodeSet{},
+		DatabaseRefField,
+		func(obj client.Object) []string {
+			databaseNodeSet := obj.(*v1alpha1.DatabaseNodeSet)
+			return []string{databaseNodeSet.Spec.DatabaseRef.Name}
+		}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(RemoteDatabaseNodeSetKind).
 		Watches(
-			source.NewKindWithCache(remoteDatabaseNodeSet, cluster.GetCache()),
+			source.NewKindWithCache(&v1alpha1.RemoteDatabaseNodeSet{}, cluster.GetCache()),
 			&handler.EnqueueRequestForObject{},
-			builder.WithPredicates(ignoreDeletionPredicate()),
+			builder.WithPredicates(predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				resources.LastAppliedAnnotationPredicate(),
+			)),
 		).
 		Watches(
 			&source.Kind{Type: &v1alpha1.DatabaseNodeSet{}},
@@ -173,6 +177,19 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 				resources.LabelExistsPredicate(isNodeSetFromMgmt),
 			),
 		).
+		Watches(
+			&source.Kind{Type: &corev1.Service{}},
+			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+		).
+		Watches(
+			&source.Kind{Type: &corev1.Secret{}},
+			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+		).
+		Watches(
+			&source.Kind{Type: &corev1.ConfigMap{}},
+			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+		).
+		WithEventFilter(resources.IgnoreDeletetionPredicate()).
 		Complete(r)
 }
 
@@ -202,4 +219,37 @@ func BuildRemoteSelector(remoteCluster string) (labels.Selector, error) {
 	}
 	labelRequirements = append(labelRequirements, *remoteClusterRequirement)
 	return labels.NewSelector().Add(labelRequirements...), nil
+}
+
+func (r *Reconciler) deleteExternalResources(
+	ctx context.Context,
+	crRemoteDatabaseNodeSet *v1alpha1.RemoteDatabaseNodeSet,
+) error {
+	logger := log.FromContext(ctx)
+
+	databaseNodeSet := &v1alpha1.DatabaseNodeSet{}
+	if err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      crRemoteDatabaseNodeSet.Name,
+		Namespace: crRemoteDatabaseNodeSet.Namespace,
+	}, databaseNodeSet); err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.Info("DatabaseNodeSet not found")
+		} else {
+			logger.Error(err, "unable to get DatabaseNodeSet")
+			return err
+		}
+	} else {
+		if err := r.Client.Delete(ctx, databaseNodeSet); err != nil {
+			logger.Error(err, "unable to delete DatabaseNodeSet")
+			return err
+		}
+	}
+
+	remoteDatabaseNodeSet := resources.NewRemoteDatabaseNodeSet(crRemoteDatabaseNodeSet)
+	if _, _, err := r.removeUnusedRemoteObjects(ctx, &remoteDatabaseNodeSet, []client.Object{}); err != nil {
+		logger.Error(err, "unable to delete unused remote resources")
+		return err
+	}
+
+	return nil
 }

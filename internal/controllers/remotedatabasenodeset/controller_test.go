@@ -22,24 +22,28 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/databasenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/remotedatabasenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
 
 const (
 	testRemoteCluster = "remote-cluster"
 	testNodeSetName   = "nodeset"
+	testSecretName    = "remote-secret"
 )
 
 var (
@@ -77,7 +81,7 @@ var _ = BeforeSuite(func() {
 		ErrorIfCRDPathMissing: true,
 	}
 
-	err := api.AddToScheme(scheme.Scheme)
+	err := v1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	localCfg, err := localEnv.Start()
@@ -111,7 +115,7 @@ var _ = BeforeSuite(func() {
 		o.Scheme = scheme.Scheme
 		o.NewCache = cache.BuilderWithOptions(cache.Options{
 			SelectorsByObject: cache.SelectorsByObject{
-				&api.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
+				&v1alpha1.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
 			},
 		})
 	})
@@ -124,6 +128,7 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
+		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -131,6 +136,7 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
+		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -138,6 +144,7 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
+		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -145,12 +152,14 @@ var _ = BeforeSuite(func() {
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
 		Config: remoteManager.GetConfig(),
+		Log:    logf.Log,
 	}).SetupWithManager(remoteManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotedatabasenodeset.Reconciler{
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
+		Log:    logf.Log,
 	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -184,24 +193,33 @@ var _ = AfterSuite(func() {
 var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 	var localNamespace corev1.Namespace
 	var remoteNamespace corev1.Namespace
-	var storageSample *api.Storage
-	var databaseSample *api.Database
+	var storageSample *v1alpha1.Storage
+	var databaseSample *v1alpha1.Database
 
 	BeforeEach(func() {
 		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
 		databaseSample = testobjects.DefaultDatabase()
-		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, api.DatabaseNodeSetSpecInline{
+		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 			Name: testNodeSetName + "-local",
-			DatabaseNodeSpec: api.DatabaseNodeSpec{
+			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
 				Nodes: 4,
 			},
 		})
-		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, api.DatabaseNodeSetSpecInline{
+		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 			Name: testNodeSetName + "-remote",
-			Remote: &api.RemoteSpec{
+			Remote: &v1alpha1.RemoteSpec{
 				Cluster: testRemoteCluster,
 			},
-			DatabaseNodeSpec: api.DatabaseNodeSpec{
+			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+				Nodes: 4,
+			},
+		})
+		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
+			Name: testNodeSetName + "-remote-dedicated",
+			Remote: &v1alpha1.RemoteSpec{
+				Cluster: testRemoteCluster,
+			},
+			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
 				Nodes: 4,
 			},
 		})
@@ -223,7 +241,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 		By("issuing create Storage commands...")
 		Expect(localClient.Create(ctx, storageSample)).Should(Succeed())
 		By("checking that Storage created on local cluster...")
-		foundStorage := api.Storage{}
+		foundStorage := v1alpha1.Storage{}
 		Eventually(func() bool {
 			Expect(localClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
@@ -235,16 +253,85 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 		foundStorage.Status.State = StorageReady
 		Expect(localClient.Status().Update(ctx, &foundStorage)).Should(Succeed())
 
+		By("set status Ready to Storage...")
+		Eventually(func() error {
+			foundStorage := v1alpha1.Storage{}
+			Expect(localClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage))
+			return localClient.Status().Update(ctx, &foundStorage)
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
 		By("issuing create Database commands...")
 		Expect(localClient.Create(ctx, databaseSample)).Should(Succeed())
 		By("checking that Database created on local cluster...")
-		foundDatabase := api.Database{}
+		foundDatabase := v1alpha1.Database{}
 		Eventually(func() bool {
 			Expect(localClient.Get(ctx, types.NamespacedName{
 				Name:      databaseSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundDatabase))
 			return foundDatabase.Status.State == DatabaseProvisioning
+		}, test.Timeout, test.Interval).Should(BeTrue())
+
+		By("checking that DatabaseNodeSet created on local cluster...")
+		Eventually(func() error {
+			foundDatabaseNodeSet := &v1alpha1.DatabaseNodeSet{}
+			return localClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name + "-" + testNodeSetName + "-local",
+				Namespace: testobjects.YdbNamespace,
+			}, foundDatabaseNodeSet)
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		By("checking that RemoteDatabaseNodeSet created on local cluster...")
+		Eventually(func() error {
+			foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+			return localClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
+				Namespace: testobjects.YdbNamespace,
+			}, foundRemoteDatabaseNodeSet)
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		By("checking that dedicated RemoteDatabaseNodeSet created on local cluster...")
+		Eventually(func() error {
+			foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+			return localClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
+				Namespace: testobjects.YdbNamespace,
+			}, foundRemoteDatabaseNodeSet)
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		By("checking that DatabaseNodeSet created on remote cluster...")
+		Eventually(func() bool {
+			foundDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSetList{}
+
+			Expect(remoteClient.List(ctx, &foundDatabaseNodeSetOnRemote, client.InNamespace(
+				testobjects.YdbNamespace,
+			))).Should(Succeed())
+
+			for _, nodeset := range foundDatabaseNodeSetOnRemote.Items {
+				if nodeset.Name == databaseSample.Name+"-"+testNodeSetName+"-remote" {
+					return true
+				}
+			}
+			return false
+		}, test.Timeout, test.Interval).Should(BeTrue())
+
+		By("checking that dedicated DatabaseNodeSet created on remote cluster...")
+		Eventually(func() bool {
+			foundDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSetList{}
+
+			Expect(remoteClient.List(ctx, &foundDatabaseNodeSetOnRemote, client.InNamespace(
+				testobjects.YdbNamespace,
+			))).Should(Succeed())
+
+			for _, nodeset := range foundDatabaseNodeSetOnRemote.Items {
+				if nodeset.Name == databaseSample.Name+"-"+testNodeSetName+"-remote-dedicated" {
+					return true
+				}
+			}
+			return false
 		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 
@@ -253,58 +340,30 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 		deleteAll(remoteEnv, remoteClient, &localNamespace)
 	})
 
-	When("Create Database with RemoteDatabaseNodeSet in k8s-mgmt-cluster", func() {
-		It("Should create DatabaseNodeSet and sync resources in k8s-data-cluster", func() {
-			By("checking that DatabaseNodeSet created on local cluster...")
-			Eventually(func() bool {
-				foundDatabaseNodeSet := api.DatabaseNodeSetList{}
+	When("Created RemoteDatabaseNodeSet in k8s-mgmt-cluster", func() {
+		It("Should receive status from k8s-data-cluster", func() {
+			By("set dedicated DatabaseNodeSet status to Ready on remote cluster...")
+			foundDedicatedDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSet{}
+			Expect(remoteClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
+				Namespace: testobjects.YdbNamespace,
+			}, &foundDedicatedDatabaseNodeSetOnRemote)).Should(Succeed())
 
-				Expect(localClient.List(ctx, &foundDatabaseNodeSet, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
-
-				for _, nodeset := range foundDatabaseNodeSet.Items {
-					if nodeset.Name == databaseSample.Name+"-"+testNodeSetName+"-local" {
-						return true
-					}
-				}
-				return false
-			}, test.Timeout, test.Interval).Should(BeTrue())
-
-			By("checking that RemoteDatabaseNodeSet created on local cluster...")
-			Eventually(func() bool {
-				foundRemoteDatabaseNodeSet := api.RemoteDatabaseNodeSetList{}
-
-				Expect(localClient.List(ctx, &foundRemoteDatabaseNodeSet, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
-
-				for _, nodeset := range foundRemoteDatabaseNodeSet.Items {
-					if nodeset.Name == databaseSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
-					}
-				}
-				return false
-			}, test.Timeout, test.Interval).Should(BeTrue())
-
-			By("checking that DatabaseNodeSet created on remote cluster...")
-			Eventually(func() bool {
-				foundDatabaseNodeSetOnRemote := api.DatabaseNodeSetList{}
-
-				Expect(remoteClient.List(ctx, &foundDatabaseNodeSetOnRemote, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
-
-				for _, nodeset := range foundDatabaseNodeSetOnRemote.Items {
-					if nodeset.Name == databaseSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
-					}
-				}
-				return false
-			}, test.Timeout, test.Interval).Should(BeTrue())
+			foundDedicatedDatabaseNodeSetOnRemote.Status.State = DatabaseNodeSetReady
+			foundDedicatedDatabaseNodeSetOnRemote.Status.Conditions = append(
+				foundDedicatedDatabaseNodeSetOnRemote.Status.Conditions,
+				metav1.Condition{
+					Type:               DatabaseNodeSetReadyCondition,
+					Status:             "True",
+					Reason:             ReasonCompleted,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+					Message:            fmt.Sprintf("Scaled databaseNodeSet to %d successfully", foundDedicatedDatabaseNodeSetOnRemote.Spec.Nodes),
+				},
+			)
+			Expect(remoteClient.Status().Update(ctx, &foundDedicatedDatabaseNodeSetOnRemote)).Should(Succeed())
 
 			By("set DatabaseNodeSet status to Ready on remote cluster...")
-			foundDatabaseNodeSetOnRemote := api.DatabaseNodeSet{}
+			foundDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSet{}
 			Expect(remoteClient.Get(ctx, types.NamespacedName{
 				Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
 				Namespace: testobjects.YdbNamespace,
@@ -323,9 +382,24 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 			)
 			Expect(remoteClient.Status().Update(ctx, &foundDatabaseNodeSetOnRemote)).Should(Succeed())
 
+			By("checking that dedicated RemoteDatabaseNodeSet status updated on local cluster...")
+			Eventually(func() bool {
+				foundRemoteDatabaseNodeSetOnRemote := v1alpha1.RemoteDatabaseNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
+					Namespace: testobjects.YdbNamespace,
+				}, &foundRemoteDatabaseNodeSetOnRemote)).Should(Succeed())
+
+				return meta.IsStatusConditionPresentAndEqual(
+					foundRemoteDatabaseNodeSetOnRemote.Status.Conditions,
+					DatabaseNodeSetReadyCondition,
+					metav1.ConditionTrue,
+				) && foundRemoteDatabaseNodeSetOnRemote.Status.State == DatabaseNodeSetReady
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
 			By("checking that RemoteDatabaseNodeSet status updated on local cluster...")
 			Eventually(func() bool {
-				foundRemoteDatabaseNodeSetOnRemote := api.RemoteDatabaseNodeSet{}
+				foundRemoteDatabaseNodeSetOnRemote := v1alpha1.RemoteDatabaseNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
 					Namespace: testobjects.YdbNamespace,
@@ -339,51 +413,213 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
-	When("Delete database with RemoteDatabaseNodeSet in k8s-mgmt-cluster", func() {
-		It("Should delete all resources in k8s-data-cluster", func() {
-			By("checking that RemoteDatabaseNodeSet created on local cluster...")
-			Eventually(func() bool {
-				foundRemoteDatabaseNodeSet := api.RemoteDatabaseNodeSetList{}
 
-				Expect(localClient.List(ctx, &foundRemoteDatabaseNodeSet, client.InNamespace(
+	When("Created RemoteDatabaseNodeSet with Secrets in k8s-mgmt-cluster", func() {
+		It("Should sync Secrets into k8s-data-cluster", func() {
+			By("create simple Secret in Database namespace")
+			simpleSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSecretName,
+					Namespace: testobjects.YdbNamespace,
+				},
+				StringData: map[string]string{
+					"message": "Hello from k8s-mgmt-cluster",
+				},
+			}
+			Expect(localClient.Create(ctx, simpleSecret))
+
+			By("checking that Database updated on local cluster...")
+			Eventually(func() error {
+				foundDatabase := &v1alpha1.Database{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, foundDatabase))
+
+				foundDatabase.Spec.Secrets = append(
+					foundDatabase.Spec.Secrets,
+					&corev1.LocalObjectReference{
+						Name: testSecretName,
+					},
+				)
+				return localClient.Update(ctx, foundDatabase)
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("checking that Secrets are synced...")
+			Eventually(func() error {
+				foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteDatabaseNodeSet)).Should(Succeed())
+
+				localSecret := &corev1.Secret{}
+				err := localClient.Get(ctx, types.NamespacedName{
+					Name:      testSecretName,
+					Namespace: testobjects.YdbNamespace,
+				}, localSecret)
+				if err != nil {
+					return err
+				}
+
+				remoteSecret := &corev1.Secret{}
+				err = remoteClient.Get(ctx, types.NamespacedName{
+					Name:      testSecretName,
+					Namespace: testobjects.YdbNamespace,
+				}, remoteSecret)
+				if err != nil {
+					return err
+				}
+
+				primaryResourceName, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+				if !exist {
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceDatabaseAnnotation, remoteSecret.Name)
+				}
+				if primaryResourceName != foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name {
+					return fmt.Errorf("primaryResourceName %s does not equal databaseRef name %s", primaryResourceName, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
+				}
+
+				remoteRV, exist := remoteSecret.Annotations[ydbannotations.RemoteResourceVersionAnnotation]
+				if !exist {
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.RemoteResourceVersionAnnotation, remoteSecret.Name)
+				}
+				if localSecret.GetResourceVersion() != remoteRV {
+					return fmt.Errorf("localRV %s does not equal remoteRV %s", localSecret.GetResourceVersion(), remoteRV)
+				}
+
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+		})
+	})
+
+	When("Created RemoteDatabaseNodeSet with Services in k8s-mgmt-cluster", func() {
+		It("Should sync Services into k8s-data-cluster", func() {
+			By("checking that Services are synced...")
+			Eventually(func() error {
+				foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteDatabaseNodeSet)).Should(Succeed())
+
+				foundServices := corev1.ServiceList{}
+				Expect(localClient.List(ctx, &foundServices, client.InNamespace(
 					testobjects.YdbNamespace,
 				))).Should(Succeed())
+				for _, localService := range foundServices.Items {
+					if !strings.HasPrefix(localService.Name, databaseSample.Name) {
+						continue
+					}
+					remoteService := &corev1.Service{}
+					err := remoteClient.Get(ctx, types.NamespacedName{
+						Name:      localService.Name,
+						Namespace: localService.Namespace,
+					}, remoteService)
+					if err != nil {
+						return err
+					}
+				}
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
-				for _, nodeset := range foundRemoteDatabaseNodeSet.Items {
-					if nodeset.Name == databaseSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
+			By("checking that dedicated RemoteDatabaseNodeSet RemoteStatus are updated...")
+			Eventually(func() bool {
+				foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteDatabaseNodeSet)).Should(Succeed())
+
+				foundConfigMap := corev1.ConfigMap{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundConfigMap)).Should(Succeed())
+
+				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				for idx := range foundRemoteDatabaseNodeSet.Status.RemoteResources {
+					remoteResource := foundRemoteDatabaseNodeSet.Status.RemoteResources[idx]
+					if resources.EqualRemoteResourceWithObject(
+						&remoteResource,
+						testobjects.YdbNamespace,
+						foundConfigMap.DeepCopy(),
+						gvk,
+					) {
+						if meta.IsStatusConditionPresentAndEqual(
+							remoteResource.Conditions,
+							RemoteResourceSyncedCondition,
+							metav1.ConditionTrue,
+						) {
+							return true
+						}
 					}
 				}
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
 
-			By("checking that DatabaseNodeSet created on remote cluster...")
+			By("checking that RemoteDatabaseNodeSet RemoteStatus are updated...")
 			Eventually(func() bool {
-				foundDatabaseNodeSet := api.DatabaseNodeSetList{}
+				foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteDatabaseNodeSet)).Should(Succeed())
 
-				Expect(remoteClient.List(ctx, &foundDatabaseNodeSet, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
+				foundConfigMap := corev1.ConfigMap{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundConfigMap)).Should(Succeed())
 
-				for _, nodeset := range foundDatabaseNodeSet.Items {
-					if nodeset.Name == databaseSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
+				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				for idx := range foundRemoteDatabaseNodeSet.Status.RemoteResources {
+					remoteResource := foundRemoteDatabaseNodeSet.Status.RemoteResources[idx]
+					if resources.EqualRemoteResourceWithObject(
+						&remoteResource,
+						testobjects.YdbNamespace,
+						foundConfigMap.DeepCopy(),
+						gvk,
+					) {
+						if meta.IsStatusConditionPresentAndEqual(
+							remoteResource.Conditions,
+							RemoteResourceSyncedCondition,
+							metav1.ConditionTrue,
+						) {
+							return true
+						}
 					}
 				}
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
+		})
+	})
 
+	When("Delete RemoteDatabaseNodeSet in k8s-mgmt-cluster", func() {
+		It("Should delete resources in k8s-data-cluster", func() {
 			By("delete RemoteDatabaseNodeSet on local cluster...")
 			Eventually(func() error {
-				foundDatabase := api.Database{}
+				foundDatabase := v1alpha1.Database{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      databaseSample.Name,
 					Namespace: testobjects.YdbNamespace,
 				}, &foundDatabase)).Should(Succeed())
-				foundDatabase.Spec.NodeSets = []api.DatabaseNodeSetSpecInline{
+				foundDatabase.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
 					{
 						Name: testNodeSetName + "-local",
-						DatabaseNodeSpec: api.DatabaseNodeSpec{
+						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+							Nodes: 4,
+						},
+					},
+					{
+						Name: testNodeSetName + "-remote-dedicated",
+						Remote: &v1alpha1.RemoteSpec{
+							Cluster: testRemoteCluster,
+						},
+						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
 							Nodes: 4,
 						},
 					},
@@ -393,7 +629,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 			By("checking that DatabaseNodeSet deleted from remote cluster...")
 			Eventually(func() bool {
-				foundDatabaseNodeSetOnRemote := api.DatabaseNodeSet{}
+				foundDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSet{}
 
 				err := remoteClient.Get(ctx, types.NamespacedName{
 					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
@@ -405,7 +641,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 			By("checking that RemoteDatabaseNodeSet deleted from local cluster...")
 			Eventually(func() bool {
-				foundRemoteDatabaseNodeSet := api.RemoteDatabaseNodeSet{}
+				foundRemoteDatabaseNodeSet := v1alpha1.RemoteDatabaseNodeSet{}
 
 				err := localClient.Get(ctx, types.NamespacedName{
 					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
@@ -414,6 +650,33 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return apierrors.IsNotFound(err)
 			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that Services for dedicated DatabaseNodeSet exisiting in remote cluster...")
+			Eventually(func() error {
+				foundDedicatedDatabaseNodeSetOnRemote := &v1alpha1.DatabaseNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
+					Namespace: testobjects.YdbNamespace,
+				}, foundDedicatedDatabaseNodeSetOnRemote)).Should(Succeed())
+
+				databaseServices := corev1.ServiceList{}
+				Expect(localClient.List(ctx, &databaseServices,
+					client.InNamespace(testobjects.YdbNamespace),
+				)).Should(Succeed())
+				for _, databaseService := range databaseServices.Items {
+					remoteService := &corev1.Service{}
+					if !strings.HasPrefix(databaseService.GetName(), databaseSample.Name) {
+						continue
+					}
+					if err := remoteClient.Get(ctx, types.NamespacedName{
+						Name:      databaseService.GetName(),
+						Namespace: databaseService.GetNamespace(),
+					}, remoteService); err != nil {
+						return err
+					}
+				}
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 		})
 	})
 })

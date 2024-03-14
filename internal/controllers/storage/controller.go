@@ -10,17 +10,20 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 // Reconciler reconciles a Storage object
@@ -63,7 +66,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
-	resource := &ydbv1alpha1.Storage{}
+	resource := &v1alpha1.Storage{}
 	err := r.Get(ctx, req.NamespacedName, resource)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -81,41 +84,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
-func ignoreDeletionPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
-			annotationsChanged := !annotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
-			_, isService := e.ObjectOld.(*corev1.Service)
-
-			return generationChanged || annotationsChanged || isService
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Evaluates to false if the object has been confirmed deleted.
-			return !e.DeleteStateUnknown
-		},
-	}
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	storage := &ydbv1alpha1.Storage{}
-
-	r.Recorder = mgr.GetEventRecorderFor(StorageKind)
-	controller := ctrl.NewControllerManagedBy(mgr)
+func createFieldIndexers(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
-		&ydbv1alpha1.RemoteStorageNodeSet{},
-		OwnerControllerKey,
+		&v1alpha1.RemoteStorageNodeSet{},
+		OwnerControllerField,
 		func(obj client.Object) []string {
 			// grab the RemoteStorageNodeSet object, extract the owner...
-			remoteStorageNodeSet := obj.(*ydbv1alpha1.RemoteStorageNodeSet)
+			remoteStorageNodeSet := obj.(*v1alpha1.RemoteStorageNodeSet)
 			owner := metav1.GetControllerOf(remoteStorageNodeSet)
 			if owner == nil {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != StorageKind {
+			if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != StorageKind {
 				return nil
 			}
 
@@ -124,25 +106,51 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}); err != nil {
 		return err
 	}
+
 	if err := mgr.GetFieldIndexer().IndexField(
 		context.Background(),
-		&ydbv1alpha1.StorageNodeSet{},
-		OwnerControllerKey,
+		&v1alpha1.StorageNodeSet{},
+		OwnerControllerField,
 		func(obj client.Object) []string {
 			// grab the StorageNodeSet object, extract the owner...
-			storageNodeSet := obj.(*ydbv1alpha1.StorageNodeSet)
+			storageNodeSet := obj.(*v1alpha1.StorageNodeSet)
 			owner := metav1.GetControllerOf(storageNodeSet)
 			if owner == nil {
 				return nil
 			}
 			// ...make sure it's a Storage...
-			if owner.APIVersion != ydbv1alpha1.GroupVersion.String() || owner.Kind != StorageKind {
+			if owner.APIVersion != v1alpha1.GroupVersion.String() || owner.Kind != StorageKind {
 				return nil
 			}
 
 			// ...and if so, return it
 			return []string{owner.Name}
 		}); err != nil {
+		return err
+	}
+
+	return mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.Storage{},
+		SecretField,
+		func(obj client.Object) []string {
+			secrets := []string{}
+			storage := obj.(*v1alpha1.Storage)
+			for _, secret := range storage.Spec.Secrets {
+				secrets = append(secrets, secret.Name)
+			}
+
+			return secrets
+		})
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.Recorder = mgr.GetEventRecorderFor(StorageKind)
+	controller := ctrl.NewControllerManagedBy(mgr)
+
+	if err := createFieldIndexers(mgr); err != nil {
+		r.Log.Error(err, "unexpected FieldIndexer error")
 		return err
 	}
 
@@ -152,12 +160,46 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.
-		For(storage).
-		Owns(&ydbv1alpha1.RemoteStorageNodeSet{}).
-		Owns(&ydbv1alpha1.StorageNodeSet{}).
-		Owns(&corev1.Service{}).
+		For(&v1alpha1.Storage{}).
+		Owns(&v1alpha1.RemoteStorageNodeSet{}).
+		Owns(&v1alpha1.StorageNodeSet{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.ConfigMap{}).
-		WithEventFilter(ignoreDeletionPredicate()).
+		Owns(&corev1.Service{}).
+		Watches(
+			&source.Kind{Type: &corev1.Secret{}},
+			handler.EnqueueRequestsFromMapFunc(r.findStoragesForSecret),
+		).
+		WithEventFilter(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			resources.IgnoreDeletetionPredicate(),
+			resources.LastAppliedAnnotationPredicate(),
+			resources.IsServicePredicate(),
+			resources.IsSecretPredicate(),
+		)).
 		Complete(r)
+}
+
+func (r *Reconciler) findStoragesForSecret(secret client.Object) []reconcile.Request {
+	attachedStorages := &v1alpha1.StorageList{}
+	err := r.List(
+		context.Background(),
+		attachedStorages,
+		client.InNamespace(secret.GetNamespace()),
+		client.MatchingFields{SecretField: secret.GetName()},
+	)
+	if err != nil {
+		return []reconcile.Request{}
+	}
+
+	requests := make([]reconcile.Request, len(attachedStorages.Items))
+	for i, item := range attachedStorages.Items {
+		requests[i] = reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      item.GetName(),
+				Namespace: item.GetNamespace(),
+			},
+		}
+	}
+	return requests
 }

@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -23,7 +23,7 @@ const (
 )
 
 type StorageStatefulSetBuilder struct {
-	*v1alpha1.Storage
+	*api.Storage
 	RestConfig *rest.Config
 
 	Name   string
@@ -40,11 +40,11 @@ func StringRJust(str, pad string, length int) string {
 }
 
 func (b *StorageStatefulSetBuilder) GeneratePVCName(index int) string {
-	return b.Name + "-" + StringRJust(strconv.Itoa(index), "0", v1alpha1.DiskNumberMaxDigits)
+	return b.Name + "-" + StringRJust(strconv.Itoa(index), "0", api.DiskNumberMaxDigits)
 }
 
 func (b *StorageStatefulSetBuilder) GenerateDeviceName(index int) string {
-	return v1alpha1.DiskPathPrefix + "_" + StringRJust(strconv.Itoa(index), "0", v1alpha1.DiskNumberMaxDigits)
+	return api.DiskPathPrefix + "_" + StringRJust(strconv.Itoa(index), "0", api.DiskNumberMaxDigits)
 }
 
 func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
@@ -71,11 +71,11 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Storage.Name),
+		ServiceName:          fmt.Sprintf(InterconnectServiceNameFormat, b.Storage.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete]; ok && value == v1alpha1.AnnotationValueTrue {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok && value == api.AnnotationValueTrue {
 		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
 			Type: "OnDelete",
 		}
@@ -100,7 +100,7 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
 	dnsConfigSearches := []string{
-		fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
 	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
@@ -143,7 +143,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateDNSPolicy]; ok {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateDNSPolicy]; ok {
 		switch value {
 		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
 			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
@@ -161,7 +161,7 @@ func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.To
 		return b.Spec.TopologySpreadConstraints
 	}
 
-	if b.Spec.Erasure != v1alpha1.ErasureMirror3DC {
+	if b.Spec.Erasure != api.ErasureMirror3DC {
 		return []corev1.TopologySpreadConstraint{}
 	}
 
@@ -335,22 +335,22 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		},
 
 		Ports: []corev1.ContainerPort{{
-			Name: "grpc", ContainerPort: v1alpha1.GRPCPort,
+			Name: "grpc", ContainerPort: api.GRPCPort,
 		}, {
-			Name: "interconnect", ContainerPort: v1alpha1.InterconnectPort,
+			Name: "interconnect", ContainerPort: api.InterconnectPort,
 		}, {
-			Name: "status", ContainerPort: v1alpha1.StatusPort,
+			Name: "status", ContainerPort: api.StatusPort,
 		}},
 
 		VolumeMounts: b.buildVolumeMounts(),
 		Resources:    containerResources,
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != v1alpha1.AnnotationValueTrue {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; !ok || value != api.AnnotationValueTrue {
 		container.LivenessProbe = &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(v1alpha1.GRPCPort),
+					Port: intstr.FromInt(api.GRPCPort),
 				},
 			},
 		}
@@ -364,7 +364,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 				volumeMountList,
 				corev1.VolumeMount{
 					Name:      b.GeneratePVCName(i),
-					MountPath: v1alpha1.DiskFilePath,
+					MountPath: api.DiskFilePath,
 				},
 			)
 		}
@@ -389,7 +389,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		{
 			Name:      configVolumeName,
 			ReadOnly:  true,
-			MountPath: v1alpha1.ConfigDir,
+			MountPath: api.ConfigDir,
 		},
 	}
 
@@ -439,20 +439,20 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 }
 
 func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
-	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
+	command := []string{fmt.Sprintf("%s/%s", api.BinariesDir, api.DaemonBinaryName)}
 	var args []string
 
 	args = append(args,
 		"server",
 
 		"--mon-port",
-		fmt.Sprintf("%d", v1alpha1.StatusPort),
+		fmt.Sprintf("%d", api.StatusPort),
 
 		"--ic-port",
-		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
+		fmt.Sprintf("%d", api.InterconnectPort),
 
 		"--yaml-config",
-		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
+		fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
 
 		"--node",
 		"static",
@@ -467,7 +467,7 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secret.Name,
 				},
-				Key: v1alpha1.YdbAuthToken,
+				Key: api.YdbAuthToken,
 			},
 		)
 		if err != nil {
@@ -481,7 +481,7 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 					"%s/%s/%s",
 					wellKnownDirForAdditionalSecrets,
 					secret.Name,
-					v1alpha1.YdbAuthToken,
+					api.YdbAuthToken,
 				),
 			)
 		}

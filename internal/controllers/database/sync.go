@@ -138,7 +138,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 			fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSets)),
 		)
 		database.Status.State = DatabaseProvisioning
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	for _, nodeSetSpec := range database.Spec.NodeSets {
@@ -166,7 +166,6 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 					"ProvisioningFailed",
 					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
 			r.Recorder.Event(
 				database,
@@ -217,7 +216,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Starting to track number of running database pods, expected: %d", database.Spec.Nodes),
 		)
 		database.Status.State = DatabaseProvisioning
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	if database.Spec.ServerlessResources != nil {
@@ -367,22 +366,23 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
-	r.Log.Info("resource sync complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) setState(
+func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
+	r.Log.Info("running step updateStatus")
+
 	databaseCr := &v1alpha1.Database{}
-	err := r.Get(ctx, client.ObjectKey{
+	err := r.Get(ctx, types.NamespacedName{
 		Namespace: database.Namespace,
 		Name:      database.Name,
 	}, databaseCr)
 	if err != nil {
 		r.Recorder.Event(
-			databaseCr,
+			database,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching CR before status update",
@@ -391,21 +391,21 @@ func (r *Reconciler) setState(
 	}
 
 	oldStatus := databaseCr.Status.State
-	databaseCr.Status.State = database.Status.State
-	databaseCr.Status.Conditions = database.Status.Conditions
-
-	err = r.Status().Update(ctx, databaseCr)
-	if err != nil {
+	if oldStatus != database.Status.State {
+		databaseCr.Status.State = database.Status.State
+		databaseCr.Status.Conditions = database.Status.Conditions
+		err = r.Status().Update(ctx, databaseCr)
+		if err != nil {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("failed setting status: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
 		r.Recorder.Event(
-			databaseCr,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("failed setting status: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != databaseCr.Status.State {
-		r.Recorder.Event(
-			databaseCr,
+			database,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("Database moved from %s to %s", oldStatus, databaseCr.Status.State),
@@ -425,7 +425,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	if err := r.List(ctx, databaseNodeSets,
 		client.InNamespace(database.Namespace),
 		client.MatchingFields{
-			OwnerControllerKey: database.Name,
+			OwnerControllerField: database.Name,
 		},
 	); err != nil {
 		r.Recorder.Event(
@@ -475,7 +475,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	if err := r.List(ctx, remoteDatabaseNodeSets,
 		client.InNamespace(database.Namespace),
 		client.MatchingFields{
-			OwnerControllerKey: database.Name,
+			OwnerControllerField: database.Name,
 		},
 	); err != nil {
 		r.Recorder.Event(
@@ -522,7 +522,6 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -540,14 +539,14 @@ func (r *Reconciler) handlePauseResume(
 			Message: "State Database set to Paused",
 		})
 		database.Status.State = DatabasePaused
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	if database.Status.State == DatabasePaused && !database.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving Database to state `Ready`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 		database.Status.State = DatabaseReady
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	return Continue, ctrl.Result{}, nil
@@ -585,7 +584,8 @@ func (r *Reconciler) handleFirstStart(
 func (r *Reconciler) checkDatabaseFrozen(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen")
+	r.Log.Info("running step checkDatabaseFrozen")
+
 	if !database.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

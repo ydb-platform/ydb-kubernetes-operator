@@ -49,20 +49,6 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	storageLabels := labels.StorageLabels(b.Unwrap())
 
-	var optionalBuilders []ResourceBuilder
-
-	optionalBuilders = append(
-		optionalBuilders,
-		&ConfigMapBuilder{
-			Object: b,
-			Name:   b.Storage.GetName(),
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
-			},
-			Labels: storageLabels,
-		},
-	)
-
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
 	grpcServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.GRPCComponent})
@@ -74,6 +60,19 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	statusServiceLabels := storageLabels.Copy()
 	statusServiceLabels.Merge(b.Spec.Service.Status.AdditionalLabels)
 	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
+
+	var optionalBuilders []ResourceBuilder
+	optionalBuilders = append(
+		optionalBuilders,
+		&ConfigMapBuilder{
+			Object: b,
+			Name:   b.Storage.GetName(),
+			Data: map[string]string{
+				api.ConfigFileName: b.Spec.Configuration,
+			},
+			Labels: storageLabels,
+		},
+	)
 
 	if b.Spec.Monitoring.Enabled {
 		optionalBuilders = append(optionalBuilders,
@@ -109,7 +108,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     grpcServiceNameFormat,
+			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
@@ -122,7 +121,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 		},
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     interconnectServiceNameFormat,
+			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
@@ -136,7 +135,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 		},
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     statusServiceNameFormat,
+			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
@@ -155,8 +154,8 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
 		nodeSetLabels := storageLabels.Copy()
-		nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
-		nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+		nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+		nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
 
 		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {

@@ -11,13 +11,12 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 // Reconciler reconciles a Storage object
@@ -41,11 +40,11 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	crStorageNodeSet := &api.StorageNodeSet{}
+	crStorageNodeSet := &v1alpha1.StorageNodeSet{}
 	err := r.Get(ctx, req.NamespacedName, crStorageNodeSet)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("StorageNodeSet has been deleted")
+			logger.Info("StorageNodeSet resource not found")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		logger.Error(err, "unable to get StorageNodeSet")
@@ -60,29 +59,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
-func ignoreDeletionPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
-			annotationsChanged := !annotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
-
-			return generationChanged || annotationsChanged
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Evaluates to false if the object has been confirmed deleted.
-			return !e.DeleteStateUnknown
-		},
-	}
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorderFor(StorageNodeSetKind)
 	controller := ctrl.NewControllerManagedBy(mgr)
 
 	return controller.
-		For(&api.StorageNodeSet{}).
+		For(&v1alpha1.StorageNodeSet{}).
 		Owns(&appsv1.StatefulSet{}).
-		WithEventFilter(ignoreDeletionPredicate()).
+		WithEventFilter(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			resources.IgnoreDeletetionPredicate(),
+			resources.LastAppliedAnnotationPredicate()),
+		).
 		Complete(r)
 }

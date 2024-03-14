@@ -15,12 +15,12 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
 type DatabaseStatefulSetBuilder struct {
-	*v1alpha1.Database
+	*api.Database
 	RestConfig *rest.Config
 
 	Name   string
@@ -53,11 +53,11 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Database.Name),
+		ServiceName:          fmt.Sprintf(InterconnectServiceNameFormat, b.Database.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete]; ok && value == v1alpha1.AnnotationValueTrue {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok && value == api.AnnotationValueTrue {
 		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
 			Type: "OnDelete",
 		}
@@ -101,7 +101,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: []string{
-					fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace),
+					fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace),
 				},
 			},
 		},
@@ -122,7 +122,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateDNSPolicy]; ok {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateDNSPolicy]; ok {
 		switch value {
 		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
 			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
@@ -284,7 +284,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMoun
 	return volumeMounts
 }
 
-func buildTLSVolume(name string, configuration *v1alpha1.TLSConfiguration) corev1.Volume { // fixme move somewhere?
+func buildTLSVolume(name string, configuration *api.TLSConfiguration) corev1.Volume { // fixme move somewhere?
 	volume := corev1.Volume{
 		Name: name,
 		VolumeSource: corev1.VolumeSource{
@@ -329,7 +329,7 @@ func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
 				Items: []corev1.KeyToPath{
 					{
 						Key:  secretKey,
-						Path: v1alpha1.DatabaseEncryptionKeyFile,
+						Path: api.DatabaseEncryptionKeyFile,
 					},
 				},
 			},
@@ -346,7 +346,7 @@ func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume(
 				Items: []corev1.KeyToPath{
 					{
 						Key:  b.Spec.Datastreams.IAMServiceAccountKey.Key,
-						Path: v1alpha1.DatastreamsIAMServiceAccountKeyFile,
+						Path: api.DatastreamsIAMServiceAccountKeyFile,
 					},
 				},
 			},
@@ -377,27 +377,27 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		},
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != v1alpha1.AnnotationValueTrue {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; !ok || value != api.AnnotationValueTrue {
 		container.LivenessProbe = &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(v1alpha1.GRPCPort),
+					Port: intstr.FromInt(api.GRPCPort),
 				},
 			},
 		}
 	}
 
 	ports := []corev1.ContainerPort{{
-		Name: "grpc", ContainerPort: v1alpha1.GRPCPort,
+		Name: "grpc", ContainerPort: api.GRPCPort,
 	}, {
-		Name: "interconnect", ContainerPort: v1alpha1.InterconnectPort,
+		Name: "interconnect", ContainerPort: api.InterconnectPort,
 	}, {
-		Name: "status", ContainerPort: v1alpha1.StatusPort,
+		Name: "status", ContainerPort: api.StatusPort,
 	}}
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
 		ports = append(ports, corev1.ContainerPort{
-			Name: "datastreams", ContainerPort: v1alpha1.DatastreamsPort,
+			Name: "datastreams", ContainerPort: api.DatastreamsPort,
 		})
 	}
 
@@ -417,7 +417,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      configVolumeName,
 		ReadOnly:  true,
-		MountPath: v1alpha1.ConfigDir,
+		MountPath: api.ConfigDir,
 	})
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
@@ -440,7 +440,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      encryptionVolumeName,
 			ReadOnly:  true,
-			MountPath: v1alpha1.DatabaseEncryptionKeyPath,
+			MountPath: api.DatabaseEncryptionKeyPath,
 		})
 	}
 
@@ -448,7 +448,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      datastreamsIAMServiceAccountKeyVolumeName,
 			ReadOnly:  true,
-			MountPath: v1alpha1.DatastreamsIAMServiceAccountKeyPath,
+			MountPath: api.DatastreamsIAMServiceAccountKeyPath,
 		})
 		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
@@ -489,19 +489,19 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
-	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
+	command := []string{fmt.Sprintf("%s/%s", api.BinariesDir, api.DaemonBinaryName)}
 
 	args := []string{
 		"server",
 
 		"--mon-port",
-		fmt.Sprintf("%d", v1alpha1.StatusPort),
+		fmt.Sprintf("%d", api.StatusPort),
 
 		"--ic-port",
-		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
+		fmt.Sprintf("%d", api.InterconnectPort),
 
 		"--yaml-config",
-		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
+		fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
 
 		"--tenant",
 		b.GetDatabasePath(),
@@ -519,7 +519,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secret.Name,
 				},
-				Key: v1alpha1.YdbAuthToken,
+				Key: api.YdbAuthToken,
 			},
 		)
 		if err != nil {
@@ -533,19 +533,19 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 					"%s/%s/%s",
 					wellKnownDirForAdditionalSecrets,
 					secret.Name,
-					v1alpha1.YdbAuthToken,
+					api.YdbAuthToken,
 				),
 			)
 		}
 	}
 
 	publicHostOption := "--grpc-public-host"
-	publicHost := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace()) // FIXME .svc.cluster.local
+	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace()) // FIXME .svc.cluster.local
 	if b.Spec.Service.GRPC.ExternalHost != "" {
 		publicHost = b.Spec.Service.GRPC.ExternalHost
 	}
 	publicPortOption := "--grpc-public-port"
-	publicPort := v1alpha1.GRPCPort
+	publicPort := api.GRPCPort
 
 	args = append(
 		args,
@@ -557,7 +557,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		strconv.Itoa(publicPort),
 	)
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDataCenter]; ok {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDataCenter]; ok {
 		if annotationDataCenterPattern.MatchString(value) {
 			args = append(args,
 				"--data-center",
@@ -566,14 +566,14 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		}
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationNodeHost]; ok {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationNodeHost]; ok {
 		args = append(args,
 			"--node-host",
 			value,
 		)
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationNodeDomain]; ok {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationNodeDomain]; ok {
 		args = append(args,
 			"--node-domain",
 			value,

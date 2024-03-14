@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,13 +16,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
@@ -58,7 +59,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	remoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 	if err := r.RemoteClient.Get(ctx, req.NamespacedName, remoteStorageNodeSet); err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("RemoteStorageNodeSet resource not found")
+			logger.Info("RemoteStorageNodeSet resource not found on remote cluster")
 			return ctrl.Result{Requeue: false}, nil
 		}
 		logger.Error(err, "unable to get RemoteStorageNodeSet on remote cluster")
@@ -106,65 +107,68 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
-func (r *Reconciler) deleteExternalResources(ctx context.Context, remoteStorageNodeSet *v1alpha1.RemoteStorageNodeSet) error {
-	logger := log.FromContext(ctx)
-
-	storageNodeSet := &v1alpha1.StorageNodeSet{}
-	if err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      remoteStorageNodeSet.Name,
-		Namespace: remoteStorageNodeSet.Namespace,
-	}, storageNodeSet); err != nil {
-		if apierrors.IsNotFound(err) {
-			logger.Info("StorageNodeSet not found")
-			return nil
-		}
-		logger.Error(err, "unable to get StorageNodeSet")
-		return err
-	}
-
-	if err := r.Client.Delete(ctx, storageNodeSet); err != nil {
-		logger.Error(err, "unable to delete StorageNodeSet")
-		return err
-	}
-
-	return nil
-}
-
-func ignoreDeletionPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
-			annotationsChanged := !ydbannotations.CompareYdbTechAnnotations(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations())
-
-			return generationChanged || annotationsChanged
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Evaluates to false if the object has been confirmed deleted.
-			return !e.DeleteStateUnknown
-		},
-	}
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.Cluster) error {
 	cluster := *remoteCluster
-	remoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 
 	r.Recorder = mgr.GetEventRecorderFor(RemoteStorageNodeSetKind)
 	r.RemoteRecorder = cluster.GetEventRecorderFor(RemoteStorageNodeSetKind)
 	r.RemoteClient = cluster.GetClient()
+
+	annotationFilter := func(mapObj client.Object) []reconcile.Request {
+		requests := make([]reconcile.Request, 0)
+
+		annotations := mapObj.GetAnnotations()
+		primaryResourceName, exist := annotations[ydbannotations.PrimaryResourceStorageAnnotation]
+		if exist {
+			storageNodeSets := &v1alpha1.StorageNodeSetList{}
+			if err := r.Client.List(
+				context.Background(),
+				storageNodeSets,
+				client.InNamespace(mapObj.GetNamespace()),
+				client.MatchingFields{
+					StorageRefField: primaryResourceName,
+				},
+			); err != nil {
+				return requests
+			}
+			for _, storageNodeSet := range storageNodeSets.Items {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: storageNodeSet.GetNamespace(),
+						Name:      storageNodeSet.GetName(),
+					},
+				})
+			}
+		}
+		return requests
+	}
 
 	isNodeSetFromMgmt, err := buildLocalSelector()
 	if err != nil {
 		return err
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.StorageNodeSet{},
+		StorageRefField,
+		func(obj client.Object) []string {
+			storageNodeSet := obj.(*v1alpha1.StorageNodeSet)
+			return []string{storageNodeSet.Spec.StorageRef.Name}
+		}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(RemoteStorageNodeSetKind).
 		Watches(
-			source.NewKindWithCache(remoteStorageNodeSet, cluster.GetCache()),
+			source.NewKindWithCache(&v1alpha1.RemoteStorageNodeSet{}, cluster.GetCache()),
 			&handler.EnqueueRequestForObject{},
-			builder.WithPredicates(ignoreDeletionPredicate()),
+			builder.WithPredicates(predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				resources.LastAppliedAnnotationPredicate(),
+			)),
 		).
 		Watches(
 			&source.Kind{Type: &v1alpha1.StorageNodeSet{}},
@@ -173,6 +177,19 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 				resources.LabelExistsPredicate(isNodeSetFromMgmt),
 			),
 		).
+		Watches(
+			&source.Kind{Type: &corev1.Service{}},
+			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+		).
+		Watches(
+			&source.Kind{Type: &corev1.Secret{}},
+			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+		).
+		Watches(
+			&source.Kind{Type: &corev1.ConfigMap{}},
+			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+		).
+		WithEventFilter(resources.IgnoreDeletetionPredicate()).
 		Complete(r)
 }
 
@@ -202,4 +219,37 @@ func BuildRemoteSelector(remoteCluster string) (labels.Selector, error) {
 	}
 	labelRequirements = append(labelRequirements, *remoteClusterRequirement)
 	return labels.NewSelector().Add(labelRequirements...), nil
+}
+
+func (r *Reconciler) deleteExternalResources(
+	ctx context.Context,
+	crRemoteStorageNodeSet *v1alpha1.RemoteStorageNodeSet,
+) error {
+	logger := log.FromContext(ctx)
+
+	storageNodeSet := &v1alpha1.StorageNodeSet{}
+	if err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      crRemoteStorageNodeSet.Name,
+		Namespace: crRemoteStorageNodeSet.Namespace,
+	}, storageNodeSet); err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.Info("StorageNodeSet not found")
+		} else {
+			logger.Error(err, "unable to get StorageNodeSet")
+			return err
+		}
+	} else {
+		if err := r.Client.Delete(ctx, storageNodeSet); err != nil {
+			logger.Error(err, "unable to delete StorageNodeSet")
+			return err
+		}
+	}
+
+	remoteStorageNodeSet := resources.NewRemoteStorageNodeSet(crRemoteStorageNodeSet)
+	if _, _, err := r.removeUnusedRemoteObjects(ctx, &remoteStorageNodeSet, []client.Object{}); err != nil {
+		logger.Error(err, "unable to delete unused remote resources")
+		return err
+	}
+
+	return nil
 }

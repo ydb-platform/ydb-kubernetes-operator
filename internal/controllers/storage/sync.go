@@ -76,7 +76,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Starting to track number of running storage pods, expected: %d", storage.Spec.Nodes),
 		)
 		storage.Status.State = StorageProvisioning
-		return r.setState(ctx, storage)
+		return r.updateStatus(ctx, storage)
 	}
 
 	found := &appsv1.StatefulSet{}
@@ -92,7 +92,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 				"ProvisioningFailed",
 				fmt.Sprintf("StatefulSet with name %s was not found: %s", storage.Name, err),
 			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 		r.Recorder.Event(
 			storage,
@@ -164,7 +164,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 			fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", storage.Spec.Nodes),
 		)
 		storage.Status.State = StorageProvisioning
-		return r.setState(ctx, storage)
+		return r.updateStatus(ctx, storage)
 	}
 
 	var nodeSetObject client.Object
@@ -191,7 +191,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 					"ProvisioningFailed",
 					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 			r.Recorder.Event(
 				storage,
@@ -299,7 +299,6 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
-	r.Log.Info("resource sync complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -309,7 +308,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step syncNodeSetSpecInline")
 	matchingFields := client.MatchingFields{
-		OwnerControllerKey: storage.Name,
+		OwnerControllerField: storage.Name,
 	}
 
 	storageNodeSets := &v1alpha1.StorageNodeSetList{}
@@ -410,7 +409,6 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -461,18 +459,20 @@ func (r *Reconciler) runSelfCheck(
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) setState(
+func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
+	r.Log.Info("running step updateStatus")
+
 	storageCr := &v1alpha1.Storage{}
-	err := r.Get(ctx, client.ObjectKey{
+	err := r.Get(ctx, types.NamespacedName{
 		Namespace: storage.Namespace,
 		Name:      storage.Name,
 	}, storageCr)
 	if err != nil {
 		r.Recorder.Event(
-			storageCr,
+			storage,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching CR before status update",
@@ -481,21 +481,20 @@ func (r *Reconciler) setState(
 	}
 
 	oldStatus := storageCr.Status.State
-	storageCr.Status.State = storage.Status.State
-	storageCr.Status.Conditions = storage.Status.Conditions
-
-	err = r.Status().Update(ctx, storageCr)
-	if err != nil {
+	if oldStatus != storage.Status.State {
+		storageCr.Status.State = storage.Status.State
+		storageCr.Status.Conditions = storage.Status.Conditions
+		if err = r.Status().Update(ctx, storageCr); err != nil {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed setting status: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
 		r.Recorder.Event(
-			storageCr,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed setting status: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != storageCr.Status.State {
-		r.Recorder.Event(
-			storageCr,
+			storage,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("Storage moved from %s to %s", oldStatus, storageCr.Status.State),
@@ -519,14 +518,14 @@ func (r *Reconciler) handlePauseResume(
 			Message: "State Storage set to Paused",
 		})
 		storage.Status.State = StoragePaused
-		return r.setState(ctx, storage)
+		return r.updateStatus(ctx, storage)
 	}
 
 	if storage.Status.State == StoragePaused && !storage.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving Storage to state `Ready`")
 		meta.RemoveStatusCondition(&storage.Status.Conditions, StoragePausedCondition)
 		storage.Status.State = StorageReady
-		return r.setState(ctx, storage)
+		return r.updateStatus(ctx, storage)
 	}
 
 	return Continue, ctrl.Result{}, nil

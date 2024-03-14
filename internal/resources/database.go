@@ -76,7 +76,8 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
-			Name:   b.GetName(),
+
+			Name: b.GetName(),
 			Data: map[string]string{
 				api.ConfigFileName: b.Spec.Configuration,
 			},
@@ -110,8 +111,9 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			optionalBuilders,
 			&EncryptionSecretBuilder{
 				Object: b,
-				Labels: databaseLabels,
+
 				Pin:    pin,
+				Labels: databaseLabels,
 			},
 		)
 	}
@@ -120,7 +122,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     grpcServiceNameFormat,
+			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
@@ -133,7 +135,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		},
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     interconnectServiceNameFormat,
+			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
@@ -147,7 +149,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		},
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     statusServiceNameFormat,
+			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
@@ -165,7 +167,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			optionalBuilders,
 			&ServiceBuilder{
 				Object:         b,
-				NameFormat:     datastreamsServiceNameFormat,
+				NameFormat:     DatastreamsServiceNameFormat,
 				Labels:         datastreamsServiceLabels,
 				SelectorLabels: databaseLabels,
 				Annotations:    b.Spec.Service.Datastreams.AdditionalAnnotations,
@@ -202,8 +204,8 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
 		nodeSetLabels := databaseLabels.Copy()
-		nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
-		nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+		nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+		nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
 
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {

@@ -2,6 +2,8 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 )
 
 //+kubebuilder:object:root=true
@@ -18,7 +20,14 @@ type RemoteStorageNodeSet struct {
 	Spec StorageNodeSetSpec `json:"spec,omitempty"`
 	// +optional
 	// +kubebuilder:default:={state: "Pending"}
-	Status StorageNodeSetStatus `json:"status,omitempty"`
+	Status RemoteStorageNodeSetStatus `json:"status,omitempty"`
+}
+
+// DatabaseNodeSetStatus defines the observed state
+type RemoteStorageNodeSetStatus struct {
+	State           constants.ClusterState `json:"state"`
+	Conditions      []metav1.Condition     `json:"conditions,omitempty"`
+	RemoteResources []RemoteResource       `json:"remoteResources,omitempty"`
 }
 
 //+kubebuilder:object:root=true

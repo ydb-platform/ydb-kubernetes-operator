@@ -11,28 +11,40 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) Sync(ctx context.Context, crRemoteDatabaseNodeSet *ydbv1alpha1.RemoteDatabaseNodeSet) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, crRemoteDatabaseNodeSet *v1alpha1.RemoteDatabaseNodeSet) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
 
 	remoteDatabaseNodeSet := resources.NewRemoteDatabaseNodeSet(crRemoteDatabaseNodeSet)
+	remoteObjects := remoteDatabaseNodeSet.GetRemoteObjects()
+
+	stop, result, err = r.initRemoteResourcesStatus(ctx, &remoteDatabaseNodeSet, remoteObjects)
+	if stop {
+		return result, err
+	}
+
+	stop, result, err = r.syncRemoteObjects(ctx, &remoteDatabaseNodeSet, remoteObjects)
+	if stop {
+		return result, err
+	}
+
 	stop, result, err = r.handleResourcesSync(ctx, &remoteDatabaseNodeSet)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.updateStatus(ctx, crRemoteDatabaseNodeSet)
+	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteDatabaseNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}
 
-	return result, err
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) handleResourcesSync(
@@ -85,24 +97,23 @@ func (r *Reconciler) handleResourcesSync(
 			)
 		}
 	}
-	r.Log.Info("resource sync complete")
-	return Continue, ctrl.Result{Requeue: false}, nil
+
+	return r.updateRemoteStatus(ctx, remoteDatabaseNodeSet)
 }
 
-func (r *Reconciler) updateStatus(
+func (r *Reconciler) updateRemoteStatus(
 	ctx context.Context,
-	crRemoteDatabaseNodeSet *ydbv1alpha1.RemoteDatabaseNodeSet,
+	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step updateStatus")
+	r.Log.Info("running step updateRemoteStatus")
 
-	databaseNodeSet := &ydbv1alpha1.DatabaseNodeSet{}
-	err := r.Client.Get(ctx, types.NamespacedName{
-		Name:      crRemoteDatabaseNodeSet.Name,
-		Namespace: crRemoteDatabaseNodeSet.Namespace,
-	}, databaseNodeSet)
-	if err != nil {
+	crDatabaseNodeSet := &v1alpha1.DatabaseNodeSet{}
+	if err := r.Client.Get(ctx, types.NamespacedName{
+		Name:      remoteDatabaseNodeSet.Name,
+		Namespace: remoteDatabaseNodeSet.Namespace,
+	}, crDatabaseNodeSet); err != nil {
 		r.Recorder.Event(
-			crRemoteDatabaseNodeSet,
+			remoteDatabaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching DatabaseNodeSet before status update",
@@ -110,39 +121,62 @@ func (r *Reconciler) updateStatus(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	oldStatus := crRemoteDatabaseNodeSet.Status.State
-	crRemoteDatabaseNodeSet.Status.State = databaseNodeSet.Status.State
-	crRemoteDatabaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
-
-	err = r.RemoteClient.Status().Update(ctx, crRemoteDatabaseNodeSet)
-	if err != nil {
+	crRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+	if err := r.RemoteClient.Get(ctx, types.NamespacedName{
+		Name:      remoteDatabaseNodeSet.Name,
+		Namespace: remoteDatabaseNodeSet.Namespace,
+	}, crRemoteDatabaseNodeSet); err != nil {
 		r.Recorder.Event(
-			crRemoteDatabaseNodeSet,
+			remoteDatabaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			fmt.Sprintf("Failed setting status on remote cluster: %s", err),
+			"Failed fetching RemoteDatabaseNodeSet on remote cluster before status update",
 		)
 		r.RemoteRecorder.Event(
-			crRemoteDatabaseNodeSet,
+			remoteDatabaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			fmt.Sprintf("Failed setting status: %s", err),
+			"Failed fetching RemoteDatabaseNodeSet before status update",
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != crRemoteDatabaseNodeSet.Status.State {
-		r.Recorder.Event(
-			crRemoteDatabaseNodeSet,
-			corev1.EventTypeNormal,
-			"StatusChanged",
-			fmt.Sprintf("DatabaseNodeSet moved from %s to %s on remote cluster", oldStatus, crRemoteDatabaseNodeSet.Status.State),
-		)
-		r.RemoteRecorder.Event(
-			crRemoteDatabaseNodeSet,
-			corev1.EventTypeNormal,
-			"StatusChanged",
-			fmt.Sprintf("DatabaseNodeSet moved from %s to %s", oldStatus, crRemoteDatabaseNodeSet.Status.State),
-		)
 	}
 
+	oldStatus := crRemoteDatabaseNodeSet.Status.State
+	if oldStatus != crDatabaseNodeSet.Status.State {
+		crRemoteDatabaseNodeSet.Status.State = crDatabaseNodeSet.Status.State
+		crRemoteDatabaseNodeSet.Status.Conditions = crDatabaseNodeSet.Status.Conditions
+		if err := r.RemoteClient.Status().Update(ctx, crRemoteDatabaseNodeSet); err != nil {
+			r.Recorder.Event(
+				remoteDatabaseNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to update status on remote cluster: %s", err),
+			)
+			r.RemoteRecorder.Event(
+				remoteDatabaseNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to update status: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+		r.Recorder.Event(
+			remoteDatabaseNodeSet,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			"DatabaseNodeSet status updated on remote cluster",
+		)
+		r.RemoteRecorder.Event(
+			remoteDatabaseNodeSet,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			"RemoteDatabaseNodeSet status updated",
+		)
+
+		r.Log.Info("step updateRemoteStatus requeue reconcile")
+		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+	}
+
+	r.Log.Info("step updateRemoteStatus completed")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
