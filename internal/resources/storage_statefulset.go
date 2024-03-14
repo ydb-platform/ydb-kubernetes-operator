@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
@@ -468,7 +467,7 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secret.Name,
 				},
-				Key: v1alpha1.YdbAuthToken,
+				Key: api.YdbAuthToken,
 			},
 		)
 		if err != nil {
