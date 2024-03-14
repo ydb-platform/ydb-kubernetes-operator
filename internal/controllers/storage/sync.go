@@ -92,7 +92,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 				"ProvisioningFailed",
 				fmt.Sprintf("StatefulSet with name %s was not found: %s", storage.Name, err),
 			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 		r.Recorder.Event(
 			storage,
@@ -191,6 +191,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 					"ProvisioningFailed",
 					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
 				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 			r.Recorder.Event(
 				storage,

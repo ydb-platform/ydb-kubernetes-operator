@@ -73,7 +73,7 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 func NewRemoteStorageNodeSet(remoteStorageNodeSet *api.RemoteStorageNodeSet) RemoteStorageNodeSetResource {
 	crRemoteStorageNodeSet := remoteStorageNodeSet.DeepCopy()
 
-	return RemoteStorageNodeSetResource{crRemoteStorageNodeSet}
+	return RemoteStorageNodeSetResource{RemoteStorageNodeSet: crRemoteStorageNodeSet}
 }
 
 func (b *RemoteStorageNodeSetResource) GetRemoteObjects() []client.Object {
@@ -139,8 +139,7 @@ func (b *RemoteStorageNodeSetResource) SetPrimaryResourceAnnotations(obj client.
 
 func (b *RemoteStorageNodeSetResource) SetRemoteResourceStatus(remoteObj client.Object, remoteObjGVK schema.GroupVersionKind) {
 	for idx := range b.Status.RemoteResources {
-		remoteResource := b.Status.RemoteResources[idx]
-		if EqualRemoteResourceWithObject(&remoteResource, b.Namespace, remoteObj, remoteObjGVK) {
+		if EqualRemoteResourceWithObject(&b.Status.RemoteResources[idx], b.Namespace, remoteObj, remoteObjGVK) {
 			meta.SetStatusCondition(&b.Status.RemoteResources[idx].Conditions,
 				metav1.Condition{
 					Type:    RemoteResourceSyncedCondition,
@@ -156,8 +155,7 @@ func (b *RemoteStorageNodeSetResource) SetRemoteResourceStatus(remoteObj client.
 func (b *RemoteStorageNodeSetResource) RemoveRemoteResourceStatus(remoteObj client.Object, remoteObjGVK schema.GroupVersionKind) {
 	syncedResources := append([]api.RemoteResource{}, b.Status.RemoteResources...)
 	for idx := range syncedResources {
-		remoteResource := syncedResources[idx]
-		if EqualRemoteResourceWithObject(&remoteResource, b.Namespace, remoteObj, remoteObjGVK) {
+		if EqualRemoteResourceWithObject(&syncedResources[idx], b.Namespace, remoteObj, remoteObjGVK) {
 			b.Status.RemoteResources = append(
 				b.Status.RemoteResources[:idx],
 				b.Status.RemoteResources[idx+1:]...,
