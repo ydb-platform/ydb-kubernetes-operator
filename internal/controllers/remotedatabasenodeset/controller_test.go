@@ -559,17 +559,38 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
 
-			By("checking that DatabaseNodeSet created on remote cluster...")
+			By("checking that RemoteDatabaseNodeSet RemoteStatus are updated...")
 			Eventually(func() bool {
-				foundDatabaseNodeSet := api.DatabaseNodeSetList{}
+				foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteDatabaseNodeSet)).Should(Succeed())
 
-				Expect(remoteClient.List(ctx, &foundDatabaseNodeSet, client.InNamespace(
-					testobjects.YdbNamespace,
-				))).Should(Succeed())
+				foundConfigMap := corev1.ConfigMap{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundConfigMap)).Should(Succeed())
 
-				for _, nodeset := range foundDatabaseNodeSet.Items {
-					if nodeset.Name == databaseSample.Name+"-"+testNodeSetName+"-remote" {
-						return true
+				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				for idx := range foundRemoteDatabaseNodeSet.Status.RemoteResources {
+					remoteResource := foundRemoteDatabaseNodeSet.Status.RemoteResources[idx]
+					if resources.EqualRemoteResourceWithObject(
+						&remoteResource,
+						testobjects.YdbNamespace,
+						foundConfigMap.DeepCopy(),
+						gvk,
+					) {
+						if meta.IsStatusConditionPresentAndEqual(
+							remoteResource.Conditions,
+							RemoteResourceSyncedCondition,
+							metav1.ConditionTrue,
+						) {
+							return true
+						}
 					}
 				}
 				return false
