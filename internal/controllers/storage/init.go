@@ -195,7 +195,14 @@ func (r *Reconciler) initializeStorage(
 		return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
 	}
 
-	if initJob.Status.Failed > 0 {
+	var conditionFailed bool
+	for _, condition := range initJob.Status.Conditions {
+		if condition.Type == batchv1.JobFailed {
+			conditionFailed = true
+			break
+		}
+	}
+	if initJob.Status.Failed == *initJob.Spec.BackoffLimit || conditionFailed {
 		r.Log.Info("Init Job status failed")
 		r.Recorder.Event(
 			storage,

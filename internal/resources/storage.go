@@ -212,10 +212,6 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 		nodeSetSpec.Resources = nodeSetSpecInline.Resources
 	}
 
-	if nodeSetSpecInline.HostNetwork != nodeSetSpec.HostNetwork {
-		nodeSetSpec.HostNetwork = nodeSetSpecInline.HostNetwork
-	}
-
 	nodeSetSpec.NodeSelector = CopyDict(b.Spec.NodeSelector)
 	if nodeSetSpecInline.NodeSelector != nil {
 		for k, v := range nodeSetSpecInline.NodeSelector {
@@ -233,10 +229,6 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 
 	if nodeSetSpecInline.TopologySpreadConstraints != nil {
 		nodeSetSpec.TopologySpreadConstraints = append(nodeSetSpec.TopologySpreadConstraints, nodeSetSpecInline.TopologySpreadConstraints...)
-	}
-
-	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
-		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
 	nodeSetSpec.AdditionalLabels = CopyDict(b.Spec.AdditionalLabels)
