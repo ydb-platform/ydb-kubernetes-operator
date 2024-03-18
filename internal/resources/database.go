@@ -281,10 +281,6 @@ func (b *DatabaseBuilder) recastDatabaseNodeSetSpecInline(nodeSetSpecInline *api
 		nodeSetSpec.Tolerations = append(nodeSetSpec.Tolerations, nodeSetSpecInline.Tolerations...)
 	}
 
-	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
-		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
-	}
-
 	nodeSetSpec.AdditionalLabels = CopyDict(b.Spec.AdditionalLabels)
 	if nodeSetSpecInline.AdditionalLabels != nil {
 		for k, v := range nodeSetSpecInline.AdditionalLabels {
