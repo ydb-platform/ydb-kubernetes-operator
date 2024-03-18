@@ -202,8 +202,7 @@ func (r *Reconciler) initializeStorage(
 			break
 		}
 	}
-
-	if initJob.Status.Failed > 0 || conditionFailed {
+	if initJob.Status.Failed == *initJob.Spec.BackoffLimit || conditionFailed {
 		r.Log.Info("Init Job status failed")
 		r.Recorder.Event(
 			storage,

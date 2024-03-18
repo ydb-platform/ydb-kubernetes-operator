@@ -40,7 +40,7 @@ func (b *StorageInitJobBuilder) Build(obj client.Object) error {
 		Parallelism:           ptr.Int32(1),
 		Completions:           ptr.Int32(1),
 		ActiveDeadlineSeconds: ptr.Int64(300),
-		BackoffLimit:          ptr.Int32(10),
+		BackoffLimit:          ptr.Int32(3),
 		Template:              b.buildInitJobPodTemplateSpec(),
 	}
 
@@ -91,7 +91,7 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 		Spec: corev1.PodSpec{
 			Containers:    []corev1.Container{b.buildInitJobContainer()},
 			Volumes:       b.buildInitJobVolumes(),
-			RestartPolicy: corev1.RestartPolicyOnFailure,
+			RestartPolicy: corev1.RestartPolicyNever,
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},

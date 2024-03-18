@@ -63,7 +63,6 @@ jobs:
         uses: golangci/golangci-lint-action@v2
         with:
           version: v1.48.0
-          args: --out-format=colored-line-number
   code-format-check:
     concurrency:
       group: lint-autoformat-${{ github.ref }}
