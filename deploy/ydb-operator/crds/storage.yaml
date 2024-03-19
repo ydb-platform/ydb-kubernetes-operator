@@ -4289,6 +4289,11 @@ spec:
                               type: array
                           type: object
                       type: object
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: Annotations for StorageNodeSet object
+                      type: object
                     dataStore:
                       description: (Optional) Where cluster data should be kept
                       items:
@@ -4507,8 +4512,13 @@ spec:
                       description: '(Optional) Whether host network should be enabled.
                         Default: false'
                       type: boolean
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels for StorageNodeSet object
+                      type: object
                     name:
-                      description: Name of child *NodeSet object
+                      description: Name of StorageNodeSet object
                       type: string
                     nodeSelector:
                       additionalProperties:
@@ -4526,7 +4536,7 @@ spec:
                       description: (Optional) If specified, the pod's priorityClassName.
                       type: string
                     remote:
-                      description: (Optional) Object should be reference to remote
+                      description: (Optional) Object should be reference to RemoteStorageNodeSet
                         object
                       properties:
                         cluster:

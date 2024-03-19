@@ -204,8 +204,15 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
 		nodeSetLabels := databaseLabels.Copy()
-		nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
 		nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+
+		nodeSetAnnotations := CopyDict(b.Annotations)
+		if nodeSetSpecInline.Annotations != nil {
+			for k, v := range nodeSetSpecInline.Annotations {
+				nodeSetAnnotations[k] = v
+			}
+		}
 
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {
@@ -217,8 +224,9 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 				&RemoteDatabaseNodeSetBuilder{
 					Object: b,
 
-					Name:   b.Name + "-" + nodeSetSpecInline.Name,
-					Labels: nodeSetLabels,
+					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Labels:      nodeSetLabels,
+					Annotations: nodeSetAnnotations,
 
 					DatabaseNodeSetSpec: databaseNodeSetSpec,
 				},
@@ -229,8 +237,9 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 				&DatabaseNodeSetBuilder{
 					Object: b,
 
-					Name:   b.Name + "-" + nodeSetSpecInline.Name,
-					Labels: nodeSetLabels,
+					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Labels:      nodeSetLabels,
+					Annotations: nodeSetAnnotations,
 
 					DatabaseNodeSetSpec: databaseNodeSetSpec,
 				},

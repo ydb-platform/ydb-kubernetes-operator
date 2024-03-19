@@ -18,8 +18,9 @@ import (
 type RemoteStorageNodeSetBuilder struct {
 	client.Object
 
-	Name   string
-	Labels map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
 
 	StorageNodeSetSpec api.StorageNodeSetSpec
 }
@@ -40,6 +41,8 @@ func (b *RemoteStorageNodeSetBuilder) Build(obj client.Object) error {
 	dns.ObjectMeta.Namespace = b.GetNamespace()
 
 	dns.ObjectMeta.Labels = b.Labels
+	dns.ObjectMeta.Annotations = b.Annotations
+
 	dns.Spec = b.StorageNodeSetSpec
 
 	return nil
