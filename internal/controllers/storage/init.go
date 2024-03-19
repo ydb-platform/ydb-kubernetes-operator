@@ -172,15 +172,16 @@ func (r *Reconciler) initializeStorage(
 		return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
 	}
 
-	if initJob.Status.Failed > 0 {
-		var conditionFailed bool
-		for _, condition := range initJob.Status.Conditions {
-			if condition.Type == batchv1.JobFailed {
-				conditionFailed = true
-				break
-			}
+	var conditionFailed bool
+	for _, condition := range initJob.Status.Conditions {
+		if condition.Type == batchv1.JobFailed {
+			conditionFailed = true
+			break
 		}
+	}
 
+	//nolint:nestif
+	if initJob.Status.Failed > 0 {
 		initialized, err := r.checkFailedJob(ctx, storage, initJob)
 		if err != nil {
 			r.Recorder.Event(
