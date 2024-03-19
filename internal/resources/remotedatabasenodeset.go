@@ -64,8 +64,9 @@ func (b *RemoteDatabaseNodeSetResource) GetResourceBuilders() []ResourceBuilder 
 		&DatabaseNodeSetBuilder{
 			Object: b,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        b.Name,
+			Labels:      b.Labels,
+			Annotations: b.Annotations,
 
 			DatabaseNodeSetSpec: b.Spec,
 		},

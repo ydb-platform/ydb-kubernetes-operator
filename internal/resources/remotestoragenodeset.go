@@ -64,8 +64,9 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 		&StorageNodeSetBuilder{
 			Object: b,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        b.Name,
+			Labels:      b.Labels,
+			Annotations: b.Annotations,
 
 			StorageNodeSetSpec: b.Spec,
 		},

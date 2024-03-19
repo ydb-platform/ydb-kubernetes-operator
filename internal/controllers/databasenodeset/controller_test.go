@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	testNodeSetName  = "nodeset"
-	testNodeSetLabel = "nodeset-label"
+	testDatabaseLabel = "database-label"
+	testNodeSetName   = "nodeset"
+	testNodeSetLabel  = "nodeset-label"
 )
 
 var (
@@ -121,7 +122,6 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 				Namespace: testobjects.YdbNamespace,
 			}, foundDatabaseNodeSet)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
-
 	})
 
 	AfterEach(func() {
@@ -141,6 +141,14 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 				Namespace: testobjects.YdbNamespace,
 			}, foundDatabase))
 
+			foundDatabase.Labels = map[string]string{
+				testDatabaseLabel: "true",
+			}
+
+			foundDatabase.Annotations = map[string]string{
+				v1alpha1.AnnotationUpdateStrategyOnDelete: "true",
+			}
+
 			foundDatabase.Spec.NodeSets = append(foundDatabase.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 				Name: testNodeSetName + "-labeled",
 				Labels: map[string]string{
@@ -154,8 +162,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 			foundDatabase.Spec.NodeSets = append(foundDatabase.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 				Name: testNodeSetName + "-annotated",
 				Annotations: map[string]string{
-					v1alpha1.AnnotationUpdateStrategyOnDelete: "true",
-					v1alpha1.AnnotationDataCenter:             "test",
+					v1alpha1.AnnotationDataCenter: "envtest",
 				},
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
 					Nodes: 2,
@@ -227,7 +234,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &annotatedDatabaseNodeSet)).Should(Succeed())
 		Expect(annotatedDatabaseNodeSet.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete]).Should(Equal("true"))
-		Expect(annotatedDatabaseNodeSet.Annotations[v1alpha1.AnnotationDataCenter]).Should(Equal("test"))
+		Expect(annotatedDatabaseNodeSet.Annotations[v1alpha1.AnnotationDataCenter]).Should(Equal("envtest"))
 
 		annotatedDatabaseStatefulSet := appsv1.StatefulSet{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
