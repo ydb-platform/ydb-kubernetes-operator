@@ -40,7 +40,7 @@ func (b *StorageInitJobBuilder) Build(obj client.Object) error {
 		Parallelism:           ptr.Int32(1),
 		Completions:           ptr.Int32(1),
 		ActiveDeadlineSeconds: ptr.Int64(300),
-		BackoffLimit:          ptr.Int32(3),
+		BackoffLimit:          ptr.Int32(6),
 		Template:              b.buildInitJobPodTemplateSpec(),
 	}
 
@@ -121,8 +121,22 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 		)
 	}
 
+	if b.Spec.HostNetwork {
+		podTemplate.Spec.HostNetwork = true
+	}
+
 	if b.Spec.Image.PullSecret != nil {
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateDNSPolicy]; ok {
+		switch value {
+		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
+			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
+		case "":
+			podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirst
+		default:
+		}
 	}
 
 	return podTemplate
