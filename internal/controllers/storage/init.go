@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -164,28 +163,6 @@ func (r *Reconciler) initializeStorage(
 
 	if initJob.Status.Succeeded > 0 {
 		r.Log.Info("Init Job status succeeded")
-		podLogs, err := r.getSucceededJobLogs(ctx, storage, initJob)
-		if err != nil {
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to get succeeded Pod for Job: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-
-		if mismatchItemConfigGenerationRegexp.MatchString(podLogs) {
-			r.Log.Info("Storage is already initialized, continuing...")
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeNormal,
-				"InitializingStorage",
-				"Storage initialization attempted and skipped, storage already initialized",
-			)
-			return r.setInitStorageCompleted(ctx, storage, "Storage already initialized")
-		}
-
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
@@ -202,33 +179,68 @@ func (r *Reconciler) initializeStorage(
 			break
 		}
 	}
-	if initJob.Status.Failed == *initJob.Spec.BackoffLimit || conditionFailed {
-		r.Log.Info("Init Job status failed")
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			"InitializingStorage",
-			"Failed to initializing Storage",
-		)
-		if err := r.Delete(ctx, initJob); err != nil {
+
+	//nolint:nestif
+	if initJob.Status.Failed > 0 {
+		initialized, err := r.checkFailedJob(ctx, storage, initJob)
+		if err != nil {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
 				"ControllerError",
-				fmt.Sprintf("Failed to delete Job: %s", err),
+				fmt.Sprintf("Failed to check logs from failed Pod for Job: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		if initialized {
+			r.Log.Info("Storage is already initialized, continuing...")
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeNormal,
+				"InitializingStorage",
+				"Storage initialization attempted and skipped, storage already initialized",
+			)
+			if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+				r.Recorder.Event(
+					storage,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed to delete Job: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+			return r.setInitStorageCompleted(ctx, storage, "Storage already initialized")
+		}
+
+		if initJob.Status.Failed == *initJob.Spec.BackoffLimit || conditionFailed {
+			r.Log.Info("Init Job status failed")
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"InitializingStorage",
+				"Failed to initializing Storage",
+			)
+			if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+				r.Recorder.Event(
+					storage,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed to delete Job: %s", err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
 		}
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 }
 
-func (r *Reconciler) getSucceededJobLogs(
+func (r *Reconciler) checkFailedJob(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 	job *batchv1.Job,
-) (string, error) {
+) (bool, error) {
 	podList := &corev1.PodList{}
 	opts := []client.ListOption{
 		client.InNamespace(storage.Namespace),
@@ -243,41 +255,53 @@ func (r *Reconciler) getSucceededJobLogs(
 			"ControllerError",
 			fmt.Sprintf("Failed to list pods for Job: %s", err),
 		)
-		return "", fmt.Errorf("failed to list pods for getSucceededJobLogs, error: %w", err)
+		return false, fmt.Errorf("failed to list pods for checkFailedJob, error: %w", err)
 	}
 
-	// Assuming there is only one succeeded pod, you can adjust the logic if needed
 	for _, pod := range podList.Items {
-		if pod.Status.Phase == corev1.PodSucceeded {
+		if pod.Status.Phase == corev1.PodFailed {
 			clientset, err := kubernetes.NewForConfig(r.Config)
 			if err != nil {
-				return "", fmt.Errorf("failed to initialize clientset for getSucceededJobLogs, error: %w", err)
+				return false, fmt.Errorf("failed to initialize clientset for checkFailedJob, error: %w", err)
 			}
 
-			podLogs, err := clientset.CoreV1().
-				Pods(storage.Namespace).
-				GetLogs(pod.Name, &corev1.PodLogOptions{}).
-				Stream(context.TODO())
+			podLogs, err := getPodLogs(ctx, clientset, storage.Namespace, pod.Name)
 			if err != nil {
-				return "", fmt.Errorf("failed to stream logs from pod for getSucceededJobLogs, error: %w", err)
-			}
-			defer podLogs.Close()
-
-			var logsBuilder strings.Builder
-			buf := make([]byte, 4096)
-			for {
-				numBytes, err := podLogs.Read(buf)
-				if numBytes == 0 && err != nil {
-					break
-				}
-				logsBuilder.Write(buf[:numBytes])
+				return false, fmt.Errorf("failed to get pod logs for checkFailedJob, error: %w", err)
 			}
 
-			return logsBuilder.String(), nil
+			if mismatchItemConfigGenerationRegexp.MatchString(podLogs) {
+				return true, nil
+			}
 		}
 	}
+	return false, nil
+}
 
-	return "", errors.New("failed to get succeeded Pod for getSucceededJobLogs")
+func getPodLogs(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (string, error) {
+	var logsBuilder strings.Builder
+
+	streamCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	podLogs, err := clientset.CoreV1().
+		Pods(namespace).
+		GetLogs(name, &corev1.PodLogOptions{}).
+		Stream(streamCtx)
+	if err != nil {
+		return "", fmt.Errorf("failed to stream GetLogs from pod %s/%s, error: %w", namespace, name, err)
+	}
+	defer podLogs.Close()
+
+	buf := make([]byte, 4096)
+	for {
+		numBytes, err := podLogs.Read(buf)
+		if numBytes == 0 && err != nil {
+			break
+		}
+		logsBuilder.Write(buf[:numBytes])
+	}
+
+	return logsBuilder.String(), nil
 }
 
 func shouldIgnoreJobUpdate() resources.IgnoreChangesFunction {
