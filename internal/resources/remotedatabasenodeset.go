@@ -60,13 +60,16 @@ func (b *RemoteDatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Obje
 func (b *RemoteDatabaseNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
+	nodeSetAnnotations := CopyDict(b.Annotations)
+	delete(nodeSetAnnotations, ydbannotations.LastAppliedAnnotation)
+
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseNodeSetBuilder{
 			Object: b,
 
 			Name:        b.Name,
 			Labels:      b.Labels,
-			Annotations: b.Annotations,
+			Annotations: nodeSetAnnotations,
 
 			DatabaseNodeSetSpec: b.Spec,
 		},

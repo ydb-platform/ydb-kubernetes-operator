@@ -60,17 +60,21 @@ func (b *RemoteStorageNodeSetBuilder) Placeholder(cr client.Object) client.Objec
 func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
+	nodeSetAnnotations := CopyDict(b.Annotations)
+	delete(nodeSetAnnotations, ydbannotations.LastAppliedAnnotation)
+
 	resourceBuilders = append(resourceBuilders,
 		&StorageNodeSetBuilder{
 			Object: b,
 
 			Name:        b.Name,
 			Labels:      b.Labels,
-			Annotations: b.Annotations,
+			Annotations: nodeSetAnnotations,
 
 			StorageNodeSetSpec: b.Spec,
 		},
 	)
+
 	return resourceBuilders
 }
 
