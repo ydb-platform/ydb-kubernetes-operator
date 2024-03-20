@@ -18,8 +18,9 @@ import (
 type RemoteStorageNodeSetBuilder struct {
 	client.Object
 
-	Name   string
-	Labels map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
 
 	StorageNodeSetSpec api.StorageNodeSetSpec
 }
@@ -40,6 +41,8 @@ func (b *RemoteStorageNodeSetBuilder) Build(obj client.Object) error {
 	dns.ObjectMeta.Namespace = b.GetNamespace()
 
 	dns.ObjectMeta.Labels = b.Labels
+	dns.ObjectMeta.Annotations = b.Annotations
+
 	dns.Spec = b.StorageNodeSetSpec
 
 	return nil
@@ -57,16 +60,21 @@ func (b *RemoteStorageNodeSetBuilder) Placeholder(cr client.Object) client.Objec
 func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
+	nodeSetAnnotations := CopyDict(b.Annotations)
+	delete(nodeSetAnnotations, ydbannotations.LastAppliedAnnotation)
+
 	resourceBuilders = append(resourceBuilders,
 		&StorageNodeSetBuilder{
 			Object: b,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        b.Name,
+			Labels:      b.Labels,
+			Annotations: nodeSetAnnotations,
 
 			StorageNodeSetSpec: b.Spec,
 		},
 	)
+
 	return resourceBuilders
 }
 

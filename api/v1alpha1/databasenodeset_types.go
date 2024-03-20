@@ -29,7 +29,15 @@ type DatabaseNodeSetSpecInline struct {
 	// +required
 	Name string `json:"name,omitempty"`
 
-	// (Optional) Object should be reference to remote object
+	// Labels for DatabaseNodeSet object
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Annotations for DatabaseNodeSet object
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// (Optional) Object should be reference to RemoteDatabaseNodeSet object
 	// +optional
 	Remote *RemoteSpec `json:"remote,omitempty"`
 
@@ -69,9 +77,10 @@ func init() {
 func RecastDatabaseNodeSet(databaseNodeSet *DatabaseNodeSet) *Database {
 	return &Database{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      databaseNodeSet.Spec.DatabaseRef.Name,
-			Namespace: databaseNodeSet.Spec.DatabaseRef.Namespace,
-			Labels:    databaseNodeSet.Labels,
+			Name:        databaseNodeSet.Spec.DatabaseRef.Name,
+			Namespace:   databaseNodeSet.Spec.DatabaseRef.Namespace,
+			Labels:      databaseNodeSet.Labels,
+			Annotations: databaseNodeSet.Annotations,
 		},
 		Spec: DatabaseSpec{
 			DatabaseClusterSpec: databaseNodeSet.Spec.DatabaseClusterSpec,

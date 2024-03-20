@@ -3154,6 +3154,16 @@ spec:
                               type: array
                           type: object
                       type: object
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: Annotations for DatabaseNodeSet object
+                      type: object
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Labels for DatabaseNodeSet object
+                      type: object
                     name:
                       description: Name of DatabaseNodeSet object
                       type: string
@@ -3173,7 +3183,7 @@ spec:
                       description: (Optional) If specified, the pod's priorityClassName.
                       type: string
                     remote:
-                      description: (Optional) Object should be reference to remote
+                      description: (Optional) Object should be reference to RemoteDatabaseNodeSet
                         object
                       properties:
                         cluster:

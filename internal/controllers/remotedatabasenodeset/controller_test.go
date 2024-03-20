@@ -249,9 +249,6 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 			}, &foundStorage))
 			return foundStorage.Status.State == StorageProvisioning
 		}, test.Timeout, test.Interval).Should(BeTrue())
-		By("set status Ready to Storage...")
-		foundStorage.Status.State = StorageReady
-		Expect(localClient.Status().Update(ctx, &foundStorage)).Should(Succeed())
 
 		By("set status Ready to Storage...")
 		Eventually(func() error {
@@ -260,6 +257,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 				Name:      storageSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage))
+			foundStorage.Status.State = StorageReady
 			return localClient.Status().Update(ctx, &foundStorage)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 

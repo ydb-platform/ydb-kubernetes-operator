@@ -16,8 +16,9 @@ import (
 type DatabaseNodeSetBuilder struct {
 	client.Object
 
-	Name   string
-	Labels map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
 
 	DatabaseNodeSetSpec api.DatabaseNodeSetSpec
 }
@@ -38,6 +39,8 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 	dns.ObjectMeta.Namespace = b.GetNamespace()
 
 	dns.ObjectMeta.Labels = b.Labels
+	dns.ObjectMeta.Annotations = b.Annotations
+
 	dns.Spec = b.DatabaseNodeSetSpec
 
 	return nil

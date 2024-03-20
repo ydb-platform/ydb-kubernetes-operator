@@ -154,8 +154,15 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
 		nodeSetLabels := storageLabels.Copy()
-		nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
+		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
 		nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+
+		nodeSetAnnotations := CopyDict(b.Annotations)
+		if nodeSetSpecInline.Annotations != nil {
+			for k, v := range nodeSetSpecInline.Annotations {
+				nodeSetAnnotations[k] = v
+			}
+		}
 
 		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {
@@ -167,8 +174,9 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 				&RemoteStorageNodeSetBuilder{
 					Object: b,
 
-					Name:   b.Name + "-" + nodeSetSpecInline.Name,
-					Labels: nodeSetLabels,
+					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Labels:      nodeSetLabels,
+					Annotations: nodeSetAnnotations,
 
 					StorageNodeSetSpec: storageNodeSetSpec,
 				},
@@ -179,8 +187,9 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 				&StorageNodeSetBuilder{
 					Object: b,
 
-					Name:   b.Name + "-" + nodeSetSpecInline.Name,
-					Labels: nodeSetLabels,
+					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Labels:      nodeSetLabels,
+					Annotations: nodeSetAnnotations,
 
 					StorageNodeSetSpec: storageNodeSetSpec,
 				},

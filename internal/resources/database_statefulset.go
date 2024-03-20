@@ -544,6 +544,9 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	if b.Spec.Service.GRPC.ExternalHost != "" {
 		publicHost = b.Spec.Service.GRPC.ExternalHost
 	}
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
+		publicHost = value
+	}
 	publicPortOption := "--grpc-public-port"
 	publicPort := api.GRPCPort
 

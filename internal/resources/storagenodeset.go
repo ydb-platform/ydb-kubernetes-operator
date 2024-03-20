@@ -16,8 +16,10 @@ import (
 type StorageNodeSetBuilder struct {
 	client.Object
 
-	Name               string
-	Labels             map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
+
 	StorageNodeSetSpec api.StorageNodeSetSpec
 }
 
@@ -37,6 +39,8 @@ func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 	sns.ObjectMeta.Namespace = b.GetNamespace()
 
 	sns.ObjectMeta.Labels = b.Labels
+	sns.ObjectMeta.Annotations = b.Annotations
+
 	sns.Spec = b.StorageNodeSetSpec
 
 	return nil

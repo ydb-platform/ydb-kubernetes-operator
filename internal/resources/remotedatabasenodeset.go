@@ -18,8 +18,9 @@ import (
 type RemoteDatabaseNodeSetBuilder struct {
 	client.Object
 
-	Name   string
-	Labels map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
 
 	DatabaseNodeSetSpec api.DatabaseNodeSetSpec
 }
@@ -40,6 +41,8 @@ func (b *RemoteDatabaseNodeSetBuilder) Build(obj client.Object) error {
 	dns.ObjectMeta.Namespace = b.GetNamespace()
 
 	dns.ObjectMeta.Labels = b.Labels
+	dns.ObjectMeta.Annotations = b.Annotations
+
 	dns.Spec = b.DatabaseNodeSetSpec
 
 	return nil
@@ -57,12 +60,16 @@ func (b *RemoteDatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Obje
 func (b *RemoteDatabaseNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
+	nodeSetAnnotations := CopyDict(b.Annotations)
+	delete(nodeSetAnnotations, ydbannotations.LastAppliedAnnotation)
+
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseNodeSetBuilder{
 			Object: b,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        b.Name,
+			Labels:      b.Labels,
+			Annotations: nodeSetAnnotations,
 
 			DatabaseNodeSetSpec: b.Spec,
 		},
