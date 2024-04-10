@@ -232,7 +232,8 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 		{
 			Name:      configVolumeName,
 			ReadOnly:  true,
-			MountPath: api.ConfigDir,
+			MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
+			SubPath:   api.ConfigFileName,
 		},
 	}
 

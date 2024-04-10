@@ -417,7 +417,8 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	volumeMounts = append(volumeMounts, corev1.VolumeMount{
 		Name:      configVolumeName,
 		ReadOnly:  true,
-		MountPath: api.ConfigDir,
+		MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
+		SubPath:   api.ConfigFileName,
 	})
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
