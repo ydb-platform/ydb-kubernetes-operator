@@ -31,6 +31,7 @@ func (t *Tenant) Create(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 	creds ydbCredentials.Credentials,
+	opts ...ydb.Option,
 ) error {
 	logger := log.FromContext(ctx)
 	createDatabaseURL := fmt.Sprintf(
@@ -42,6 +43,7 @@ func (t *Tenant) Create(
 	db, err := connection.Open(ctx,
 		createDatabaseURL,
 		ydb.WithCredentials(creds),
+		ydb.MergeOptions(opts...),
 	)
 	if err != nil {
 		logger.Error(err, "Error connecting to YDB storage")

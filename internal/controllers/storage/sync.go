@@ -429,8 +429,18 @@ func (r *Reconciler) runSelfCheck(
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
+	tlsOptions, err := resources.GetYDBTLSOption(ctx, storage.Unwrap(), r.Config)
+	if err != nil {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get YDB TLS options: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
 
-	result, err := healthcheck.GetSelfCheckResult(ctx, storage, creds)
+	result, err := healthcheck.GetSelfCheckResult(ctx, storage, creds, tlsOptions)
 	if err != nil {
 		r.Log.Error(err, "GetSelfCheckResult error")
 		return Stop, ctrl.Result{RequeueAfter: SelfCheckRequeueDelay}, err
