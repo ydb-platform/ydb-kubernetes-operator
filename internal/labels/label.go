@@ -26,6 +26,9 @@ const (
 	// RemoteClusterKey The specialization of a remote k8s cluster
 	RemoteClusterKey = "ydb.tech/remote-cluster"
 
+	StorageGeneration  = "ydb.tech/storage-generation"
+	DatabaseGeneration = "ydb.tech/database-generation"
+
 	StorageComponent = "storage-node"
 	DynamicComponent = "dynamic-node"
 

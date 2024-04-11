@@ -17,6 +17,7 @@ import (
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -84,14 +85,15 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
+	podTemplateLabels := CopyDict(b.Labels)
+	podTemplateLabels[labels.DatabaseGeneration] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
 
 	podTemplateAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	podTemplateAnnotations[annotations.ConfigurationChecksumAnnotation] = GetConfigurationChecksum(b.Spec.Configuration)
-	podTemplateAnnotations[annotations.StorageGenerationAnnotation] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
+	podTemplateAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
 
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      b.Labels,
+			Labels:      podTemplateLabels,
 			Annotations: podTemplateAnnotations,
 		},
 		Spec: corev1.PodSpec{

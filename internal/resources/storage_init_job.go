@@ -66,11 +66,11 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 	if storage.Spec.InitJob != nil {
 		if storage.Spec.InitJob.AdditionalLabels != nil {
 			jobLabels.Merge(storage.Spec.InitJob.AdditionalLabels)
+			jobLabels[labels.StorageGeneration] = strconv.FormatInt(storage.ObjectMeta.Generation, 10)
 		}
 		if storage.Spec.InitJob.AdditionalAnnotations != nil {
 			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
-			jobAnnotations[annotations.ConfigurationChecksumAnnotation] = GetConfigurationChecksum(storage.Spec.Configuration)
-			jobAnnotations[annotations.StorageGenerationAnnotation] = strconv.FormatInt(storage.ObjectMeta.Generation, 10)
+			jobAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(storage.Spec.Configuration)
 		}
 	}
 

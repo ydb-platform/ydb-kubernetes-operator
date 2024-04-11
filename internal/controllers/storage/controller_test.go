@@ -113,7 +113,11 @@ var _ = Describe("Storage controller medium tests", func() {
 		Expect(foundVolume).To(BeTrue())
 	})
 
-	It("Check that annotation 'ydb.tech/storage-generation` propagated to pods", func() {
+	It("Check that label and annotation propagated to pods", func() {
+		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+
 		foundStorage := v1alpha1.Storage{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{
 			Name:      testobjects.StorageName,
@@ -130,41 +134,19 @@ var _ = Describe("Storage controller medium tests", func() {
 				}),
 			).Should(Succeed())
 
-			foundStorageGenerationAnnotation := false
+			foundStorageGenerationLabel := false
 			for _, storagePods := range storagePods.Items {
-				if storagePods.Annotations[annotations.StorageGenerationAnnotation] == strconv.FormatInt(foundStorage.ObjectMeta.Generation, 10) {
-					foundStorageGenerationAnnotation = true
+				if storagePods.Labels[labels.StorageGeneration] == strconv.FormatInt(foundStorage.ObjectMeta.Generation, 10) {
+					foundStorageGenerationLabel = true
 				} else {
-					foundStorageGenerationAnnotation = false
+					foundStorageGenerationLabel = false
 					break
 				}
 			}
 
-			return foundStorageGenerationAnnotation
-
-		}, test.Timeout, test.Interval).Should(BeTrue())
-	})
-
-	It("Check that annotation 'ydb.tech/configuration-checksum` propagated to pods", func() {
-		foundStorage := v1alpha1.Storage{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      testobjects.StorageName,
-			Namespace: testobjects.YdbNamespace,
-		}, &foundStorage)).Should(Succeed())
-
-		storagePods := corev1.PodList{}
-		Eventually(func() bool {
-			Expect(k8sClient.List(ctx, &storagePods,
-				client.InNamespace(testobjects.YdbNamespace),
-				client.MatchingLabels{
-					labels.InstanceKey:  testobjects.StorageName,
-					labels.ComponentKey: labels.StorageComponent,
-				}),
-			).Should(Succeed())
-
 			foundConfigurationChecksumAnnotation := false
 			for _, storagePods := range storagePods.Items {
-				if storagePods.Annotations[annotations.ConfigurationChecksumAnnotation] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {
+				if storagePods.Annotations[annotations.ConfigurationChecksum] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {
 					foundConfigurationChecksumAnnotation = true
 				} else {
 					foundConfigurationChecksumAnnotation = false
@@ -172,8 +154,7 @@ var _ = Describe("Storage controller medium tests", func() {
 				}
 			}
 
-			return foundConfigurationChecksumAnnotation
-
+			return foundStorageGenerationLabel && foundConfigurationChecksumAnnotation
 		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 })
