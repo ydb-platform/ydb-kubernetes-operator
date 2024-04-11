@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -83,10 +84,15 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
+
+	podTemplateAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	podTemplateAnnotations[annotations.ConfigurationChecksumAnnotation] = getConfigurationChecksum(b.Spec.Configuration)
+	podTemplateAnnotations[annotations.StorageGenerationAnnotation] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
+
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
-			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
+			Annotations: podTemplateAnnotations,
 		},
 		Spec: corev1.PodSpec{
 			Containers:                    []corev1.Container{b.buildContainer()},

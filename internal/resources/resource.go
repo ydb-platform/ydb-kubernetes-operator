@@ -2,6 +2,8 @@ package resources
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -424,4 +426,10 @@ func buildCAStorePatchingCommandArgs(
 	args := []string{arg}
 
 	return command, args
+}
+
+func getConfigurationChecksum(configuration string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(configuration))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

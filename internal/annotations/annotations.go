@@ -6,6 +6,9 @@ const (
 	PrimaryResourceStorageAnnotation  = "ydb.tech/primary-resource-storage"
 	PrimaryResourceDatabaseAnnotation = "ydb.tech/primary-resource-database"
 	RemoteResourceVersionAnnotation   = "ydb.tech/remote-resource-version"
+	StorageGenerationAnnotation       = "ydb.tech/storage-generation"
+	DatabaseGenerationAnnotation      = "ydb.tech/database-generation"
+	ConfigurationChecksumAnnotation   = "ydb.tech/configuration-checksum"
 	RemoteFinalizerKey                = "ydb.tech/remote-finalizer"
 	LastAppliedAnnotation             = "ydb.tech/last-applied"
 )
