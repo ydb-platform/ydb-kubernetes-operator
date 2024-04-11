@@ -47,6 +47,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = Describe("Storage controller medium tests", func() {
 	var namespace corev1.Namespace
+	var storageSample v1alpha1.Storage
 
 	BeforeEach(func() {
 		namespace = corev1.Namespace{
@@ -58,11 +59,12 @@ var _ = Describe("Storage controller medium tests", func() {
 	})
 
 	AfterEach(func() {
+		Expect(k8sClient.Delete(ctx, &storageSample)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
 	})
 
-	It("Check volume has been propagated to pods", func() {
-		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+	It("Checking field propagation to objects", func() {
+		storageSample = *testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
 
 		tmpFilesDir := "/tmp/mounted_volume"
 		testVolumeName := "sample-volume"
@@ -80,8 +82,9 @@ var _ = Describe("Storage controller medium tests", func() {
 			},
 		})
 
-		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, &storageSample)).Should(Succeed())
 
+		By("Check volume has been propagated to pods...")
 		storageStatefulSets := appsv1.StatefulSetList{}
 		Eventually(func() bool {
 			Expect(k8sClient.List(ctx, &storageStatefulSets, client.InNamespace(
@@ -111,50 +114,28 @@ var _ = Describe("Storage controller medium tests", func() {
 			}
 		}
 		Expect(foundVolume).To(BeTrue())
-	})
 
-	It("Check that label and annotation propagated to pods", func() {
-		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+		By("Check that label and annotation propagated to pods...", func() {
+			podLabels := storageSS.Spec.Template.Labels
+			podAnnotations := storageSS.Spec.Template.Annotations
 
-		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-
-		foundStorage := v1alpha1.Storage{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      testobjects.StorageName,
-			Namespace: testobjects.YdbNamespace,
-		}, &foundStorage)).Should(Succeed())
-
-		storagePods := corev1.PodList{}
-		Eventually(func() bool {
-			Expect(k8sClient.List(ctx, &storagePods,
-				client.InNamespace(testobjects.YdbNamespace),
-				client.MatchingLabels{
-					labels.InstanceKey:  testobjects.StorageName,
-					labels.ComponentKey: labels.StorageComponent,
-				}),
-			).Should(Succeed())
+			foundStorage := v1alpha1.Storage{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage)).Should(Succeed())
 
 			foundStorageGenerationLabel := false
-			for _, storagePods := range storagePods.Items {
-				if storagePods.Labels[labels.StorageGeneration] == strconv.FormatInt(foundStorage.ObjectMeta.Generation, 10) {
-					foundStorageGenerationLabel = true
-				} else {
-					foundStorageGenerationLabel = false
-					break
-				}
+			if podLabels[labels.StorageGeneration] == strconv.FormatInt(foundStorage.ObjectMeta.Generation, 10) {
+				foundStorageGenerationLabel = true
 			}
+			Expect(foundStorageGenerationLabel).To(BeTrue())
 
 			foundConfigurationChecksumAnnotation := false
-			for _, storagePods := range storagePods.Items {
-				if storagePods.Annotations[annotations.ConfigurationChecksum] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {
-					foundConfigurationChecksumAnnotation = true
-				} else {
-					foundConfigurationChecksumAnnotation = false
-					break
-				}
+			if podAnnotations[annotations.ConfigurationChecksum] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {
+				foundConfigurationChecksumAnnotation = true
 			}
-
-			return foundStorageGenerationLabel && foundConfigurationChecksumAnnotation
-		}, test.Timeout, test.Interval).Should(BeTrue())
+			Expect(foundConfigurationChecksumAnnotation).To(BeTrue())
+		})
 	})
 })
