@@ -86,7 +86,7 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
 
 	podTemplateAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	podTemplateAnnotations[annotations.ConfigurationChecksumAnnotation] = getConfigurationChecksum(b.Spec.Configuration)
+	podTemplateAnnotations[annotations.ConfigurationChecksumAnnotation] = GetConfigurationChecksum(b.Spec.Configuration)
 	podTemplateAnnotations[annotations.StorageGenerationAnnotation] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
 
 	podTemplate := corev1.PodTemplateSpec{

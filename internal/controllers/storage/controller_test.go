@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -11,11 +12,16 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
 
@@ -105,5 +111,69 @@ var _ = Describe("Storage controller medium tests", func() {
 			}
 		}
 		Expect(foundVolume).To(BeTrue())
+	})
+
+	It("Check that annotation 'ydb.tech/storage-generation` propagated to pods", func() {
+		foundStorage := v1alpha1.Storage{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      testobjects.StorageName,
+			Namespace: testobjects.YdbNamespace,
+		}, &foundStorage)).Should(Succeed())
+
+		storagePods := corev1.PodList{}
+		Eventually(func() bool {
+			Expect(k8sClient.List(ctx, &storagePods,
+				client.InNamespace(testobjects.YdbNamespace),
+				client.MatchingLabels{
+					labels.InstanceKey:  testobjects.StorageName,
+					labels.ComponentKey: labels.StorageComponent,
+				}),
+			).Should(Succeed())
+
+			foundStorageGenerationAnnotation := false
+			for _, storagePods := range storagePods.Items {
+				if storagePods.Annotations[annotations.StorageGenerationAnnotation] == strconv.FormatInt(foundStorage.ObjectMeta.Generation, 10) {
+					foundStorageGenerationAnnotation = true
+				} else {
+					foundStorageGenerationAnnotation = false
+					break
+				}
+			}
+
+			return foundStorageGenerationAnnotation
+
+		}, test.Timeout, test.Interval).Should(BeTrue())
+	})
+
+	It("Check that annotation 'ydb.tech/configuration-checksum` propagated to pods", func() {
+		foundStorage := v1alpha1.Storage{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      testobjects.StorageName,
+			Namespace: testobjects.YdbNamespace,
+		}, &foundStorage)).Should(Succeed())
+
+		storagePods := corev1.PodList{}
+		Eventually(func() bool {
+			Expect(k8sClient.List(ctx, &storagePods,
+				client.InNamespace(testobjects.YdbNamespace),
+				client.MatchingLabels{
+					labels.InstanceKey:  testobjects.StorageName,
+					labels.ComponentKey: labels.StorageComponent,
+				}),
+			).Should(Succeed())
+
+			foundConfigurationChecksumAnnotation := false
+			for _, storagePods := range storagePods.Items {
+				if storagePods.Annotations[annotations.ConfigurationChecksumAnnotation] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {
+					foundConfigurationChecksumAnnotation = true
+				} else {
+					foundConfigurationChecksumAnnotation = false
+					break
+				}
+			}
+
+			return foundConfigurationChecksumAnnotation
+
+		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 })
