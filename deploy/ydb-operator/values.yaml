@@ -18,6 +18,9 @@ image:
 imagePullSecrets: []
 
 nodeSelector: {}
+podAnnotations: {}
+affinity: {}
+tolerations: []
 
 nameOverride: ""
 fullnameOverride: ""
