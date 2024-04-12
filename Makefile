@@ -79,7 +79,7 @@ kind-load:
 
 .PHONY: unit-test
 unit-test: manifests generate fmt vet envtest ## Run unit tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use --arch=amd64 $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/storage/... -ginkgo.v -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use --arch=amd64 $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/... -ginkgo.v -coverprofile cover.out
 
 .PHONY: e2e-test
 e2e-test: manifests generate fmt vet docker-build kind-init kind-load ## Run e2e tests
@@ -104,8 +104,9 @@ docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+CONTROLLER_GEN_VERSION ?= v0.6.1
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION))
 
 # ENVTEST_VERSION is usually latest, but might need to be pinned from time to time.
 # Version pinning is needed due to version incompatibility between controller-runtime and setup-envtest.
