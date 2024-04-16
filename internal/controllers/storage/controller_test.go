@@ -47,7 +47,6 @@ func TestAPIs(t *testing.T) {
 
 var _ = Describe("Storage controller medium tests", func() {
 	var namespace corev1.Namespace
-	var storageSample v1alpha1.Storage
 
 	BeforeEach(func() {
 		namespace = corev1.Namespace{
@@ -59,12 +58,11 @@ var _ = Describe("Storage controller medium tests", func() {
 	})
 
 	AfterEach(func() {
-		Expect(k8sClient.Delete(ctx, &storageSample)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
 	})
 
 	It("Checking field propagation to objects", func() {
-		storageSample = *testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
 
 		tmpFilesDir := "/tmp/mounted_volume"
 		testVolumeName := "sample-volume"
@@ -82,7 +80,7 @@ var _ = Describe("Storage controller medium tests", func() {
 			},
 		})
 
-		Expect(k8sClient.Create(ctx, &storageSample)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 
 		By("Check volume has been propagated to pods...")
 		storageStatefulSets := appsv1.StatefulSetList{}
