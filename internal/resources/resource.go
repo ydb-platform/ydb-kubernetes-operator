@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -343,6 +344,47 @@ func LabelExistsPredicate(selector labels.Selector) predicate.Predicate {
 	})
 }
 
+func getYDBStaticCredentials(
+	ctx context.Context,
+	storage *api.Storage,
+	restConfig *rest.Config,
+) (ydbCredentials.Credentials, error) {
+	auth := storage.Spec.OperatorConnection
+	username := auth.StaticCredentials.Username
+	password := api.DefaultRootPassword
+	if auth.StaticCredentials.Password != nil {
+		var err error
+		password, err = GetSecretKey(
+			ctx,
+			storage.Namespace,
+			restConfig,
+			auth.StaticCredentials.Password.SecretKeyRef,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to get password for StaticCredentials from secret: %s, key: %s, error: %w",
+				auth.StaticCredentials.Password.SecretKeyRef.Name,
+				auth.StaticCredentials.Password.SecretKeyRef.Key,
+				err)
+		}
+	}
+	endpoint := storage.GetStorageEndpoint()
+
+	var caBundle []byte
+	if storage.IsStorageEndpointSecure() {
+		var err error
+		caBundle, err = getStorageGrpcServiceCABundle(ctx, storage, restConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+	dialOptions, err := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure(), caBundle)
+	if err != nil {
+		return nil, err
+	}
+	return ydbCredentials.NewStaticCredentials(username, password, endpoint, dialOptions), nil
+}
+
 func GetYDBCredentials(
 	ctx context.Context,
 	storage *api.Storage,
@@ -372,30 +414,51 @@ func GetYDBCredentials(
 	}
 
 	if auth.StaticCredentials != nil {
-		username := auth.StaticCredentials.Username
-		password := api.DefaultRootPassword
-		if auth.StaticCredentials.Password != nil {
-			var err error
-			password, err = GetSecretKey(
-				ctx,
-				storage.Namespace,
-				restConfig,
-				auth.StaticCredentials.Password.SecretKeyRef,
-			)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"failed to get password for StaticCredentials from secret: %s, key: %s, error: %w",
-					auth.StaticCredentials.Password.SecretKeyRef.Name,
-					auth.StaticCredentials.Password.SecretKeyRef.Key,
-					err)
-			}
-		}
-		endpoint := storage.GetStorageEndpoint()
-		secure := connection.LoadTLSCredentials(storage.IsStorageEndpointSecure())
-		return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), nil
+		return getYDBStaticCredentials(ctx, storage, restConfig)
 	}
 
 	return nil, errors.New("unsupported auth type for GetYDBCredentials")
+}
+
+func getStorageGrpcServiceCABundle(
+	ctx context.Context,
+	storage *api.Storage,
+	restConfig *rest.Config,
+) ([]byte, error) {
+	if !storage.IsStorageEndpointSecure() {
+		return nil, errors.New("can't get storage grpc CA for insecure endpoint")
+	}
+
+	tlsConfig := storage.Spec.Service.GRPC.TLSConfiguration
+	caBody, err := GetSecretKey(
+		ctx,
+		storage.Namespace,
+		restConfig,
+		&tlsConfig.CertificateAuthority,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get CA for storage grpc service from secret: %s, key: %s, error: %w",
+			tlsConfig.CertificateAuthority.Name,
+			tlsConfig.CertificateAuthority.Key,
+			err)
+	}
+	return []byte(caBody), nil
+}
+
+func GetYDBTLSOption(
+	ctx context.Context,
+	storage *api.Storage,
+	restConfig *rest.Config,
+) (ydb.Option, error) {
+	if !storage.IsStorageEndpointSecure() {
+		return ydb.WithInsecure(), nil
+	}
+	caBundle, err := getStorageGrpcServiceCABundle(ctx, storage, restConfig)
+	if err != nil {
+		return nil, err
+	}
+	return ydb.WithCertificatesFromPem(caBundle), nil
 }
 
 func buildCAStorePatchingCommandArgs(

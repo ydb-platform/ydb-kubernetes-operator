@@ -551,6 +551,57 @@ var _ = Describe("Operator smoke test", func() {
 		}
 	})
 
+	It("using grpcs for storage connection", func() {
+		By("create secret...")
+		cert := testobjects.DefaultCertificate(
+			filepath.Join(".", "data", "tls.crt"),
+			filepath.Join(".", "data", "tls.key"),
+			filepath.Join(".", "data", "ca.crt"),
+		)
+		Expect(k8sClient.Create(ctx, cert)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, cert)).Should(Succeed())
+		}()
+
+		By("create storage...")
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config-tls.yaml"))
+		storageSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
+		storageSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.crt",
+		}
+		storageSample.Spec.Service.GRPC.TLSConfiguration.Key = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.key",
+		}
+		storageSample.Spec.Service.GRPC.TLSConfiguration.CertificateAuthority = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "ca.crt",
+		}
+
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
+		By("create database...")
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("waiting until database is ready...")
+		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the database pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+	})
+
 	AfterEach(func() {
 		Expect(uninstallOperatorWithHelm(testobjects.YdbNamespace)).Should(BeTrue())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
