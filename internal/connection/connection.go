@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"time"
 
@@ -41,14 +42,26 @@ func Close(ctx context.Context, db *ydb.Driver) {
 	}
 }
 
-func LoadTLSCredentials(secure bool) grpc.DialOption {
-	if secure {
-		certPool, _ := x509.SystemCertPool()
-		tlsConfig := &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			RootCAs:    certPool,
-		}
-		return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+func LoadTLSCredentials(secure bool, caBundle []byte) (grpc.DialOption, error) {
+	if !secure {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
-	return grpc.WithTransportCredentials(insecure.NewCredentials())
+	var certPool *x509.CertPool
+	if len(caBundle) > 0 {
+		certPool = x509.NewCertPool()
+		if ok := certPool.AppendCertsFromPEM(caBundle); !ok {
+			return nil, errors.New("failed to parse CA bundle")
+		}
+	} else {
+		var err error
+		certPool, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get system cert pool, error: %w", err)
+		}
+	}
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    certPool,
+	}
+	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
 }

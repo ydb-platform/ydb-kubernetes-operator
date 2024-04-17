@@ -15,7 +15,12 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBuilder, creds ydbCredentials.Credentials) (*Ydb_Monitoring.SelfCheckResult, error) {
+func GetSelfCheckResult(
+	ctx context.Context,
+	cluster *resources.StorageClusterBuilder,
+	creds ydbCredentials.Credentials,
+	opts ...ydb.Option,
+) (*Ydb_Monitoring.SelfCheckResult, error) {
 	logger := log.FromContext(ctx)
 	getSelfCheckURL := fmt.Sprintf(
 		"%s/%s",
@@ -26,6 +31,7 @@ func GetSelfCheckResult(ctx context.Context, cluster *resources.StorageClusterBu
 	db, err := connection.Open(ctx,
 		getSelfCheckURL,
 		ydb.WithCredentials(creds),
+		ydb.MergeOptions(opts...),
 	)
 	if err != nil {
 		return nil, err

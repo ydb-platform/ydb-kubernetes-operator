@@ -178,8 +178,18 @@ func (r *Reconciler) handleTenantCreation(
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
+	tlsOptions, err := resources.GetYDBTLSOption(ctx, database.Storage, r.Config)
+	if err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get YDB TLS options: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
 
-	err = tenant.Create(ctx, database, creds)
+	err = tenant.Create(ctx, database, creds, tlsOptions)
 	if err != nil {
 		r.Recorder.Event(
 			database,
