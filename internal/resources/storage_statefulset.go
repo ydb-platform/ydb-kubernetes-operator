@@ -15,6 +15,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -102,10 +104,17 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 	dnsConfigSearches := []string{
 		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
 	}
+
+	podTemplateLabels := CopyDict(b.Labels)
+	podTemplateLabels[labels.StorageGeneration] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
+
+	podTemplateAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	podTemplateAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      b.Labels,
-			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
+			Labels:      podTemplateLabels,
+			Annotations: podTemplateAnnotations,
 		},
 		Spec: corev1.PodSpec{
 			Containers:                    []corev1.Container{b.buildContainer()},
@@ -389,7 +398,8 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		{
 			Name:      configVolumeName,
 			ReadOnly:  true,
-			MountPath: api.ConfigDir,
+			MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
+			SubPath:   api.ConfigFileName,
 		},
 	}
 

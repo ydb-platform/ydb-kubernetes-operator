@@ -3,6 +3,7 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -10,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
@@ -64,9 +66,11 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 	if storage.Spec.InitJob != nil {
 		if storage.Spec.InitJob.AdditionalLabels != nil {
 			jobLabels.Merge(storage.Spec.InitJob.AdditionalLabels)
+			jobLabels[labels.StorageGeneration] = strconv.FormatInt(storage.ObjectMeta.Generation, 10)
 		}
 		if storage.Spec.InitJob.AdditionalAnnotations != nil {
 			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
+			jobAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(storage.Spec.Configuration)
 		}
 	}
 
@@ -232,7 +236,8 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 		{
 			Name:      configVolumeName,
 			ReadOnly:  true,
-			MountPath: api.ConfigDir,
+			MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
+			SubPath:   api.ConfigFileName,
 		},
 	}
 
