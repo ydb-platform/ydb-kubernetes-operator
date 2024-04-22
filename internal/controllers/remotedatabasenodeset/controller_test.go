@@ -658,7 +658,6 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return nil
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
-
 		})
 	})
 
