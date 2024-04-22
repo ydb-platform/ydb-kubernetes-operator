@@ -207,13 +207,17 @@ func CreateResource(obj client.Object) client.Object {
 	createdObj.SetUID("")
 	createdObj.SetOwnerReferences([]metav1.OwnerReference{})
 	createdObj.SetFinalizers([]string{})
+	createdObj.SetManagedFields([]metav1.ManagedFieldsEntry{})
 
 	if svc, ok := createdObj.(*corev1.Service); ok {
 		svc.Spec.ClusterIP = ""
 		svc.Spec.ClusterIPs = nil
 	}
 
-	setRemoteResourceVersionAnnotation(createdObj, obj.GetResourceVersion())
+	// Set remote resourceVersion annotation
+	annotations := CopyDict(createdObj.GetAnnotations())
+	annotations[ydbannotations.RemoteResourceVersionAnnotation] = obj.GetResourceVersion()
+	createdObj.SetAnnotations(annotations)
 
 	return createdObj
 }
@@ -227,24 +231,27 @@ func UpdateResource(oldObj, newObj client.Object) client.Object {
 	updatedObj.SetUID(oldObj.GetUID())
 	updatedObj.SetOwnerReferences(oldObj.GetOwnerReferences())
 	updatedObj.SetFinalizers(oldObj.GetFinalizers())
+	updatedObj.SetManagedFields(oldObj.GetManagedFields())
 
+	// Specific fields to save for Service object
 	if svc, ok := updatedObj.(*corev1.Service); ok {
 		svc.Spec.ClusterIP = oldObj.(*corev1.Service).Spec.ClusterIP
 		svc.Spec.ClusterIPs = append([]string{}, oldObj.(*corev1.Service).Spec.ClusterIPs...)
 	}
 
-	setRemoteResourceVersionAnnotation(updatedObj, newObj.GetResourceVersion())
+	// Copy primary resource annotations
+	annotations := CopyDict(updatedObj.GetAnnotations())
+	for key, value := range oldObj.GetAnnotations() {
+		if key == ydbannotations.PrimaryResourceDatabaseAnnotation ||
+			key == ydbannotations.PrimaryResourceStorageAnnotation {
+			annotations[key] = value
+		}
+	}
+	// Set remote resourceVersion annotation
+	annotations[ydbannotations.RemoteResourceVersionAnnotation] = newObj.GetResourceVersion()
+	updatedObj.SetAnnotations(annotations)
 
 	return updatedObj
-}
-
-func setRemoteResourceVersionAnnotation(obj client.Object, resourceVersion string) {
-	annotations := make(map[string]string)
-	for key, value := range obj.GetAnnotations() {
-		annotations[key] = value
-	}
-	annotations[ydbannotations.RemoteResourceVersionAnnotation] = resourceVersion
-	obj.SetAnnotations(annotations)
 }
 
 func ConvertRemoteResourceToObject(remoteResource api.RemoteResource, namespace string) (client.Object, error) {

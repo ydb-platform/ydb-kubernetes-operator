@@ -198,17 +198,21 @@ func (r *Reconciler) syncRemoteObjects(
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
-			// We need to check patchResult by k8s-objectmatcherand and resourceVersion from annotation
+			// We need to check patchResult by k8s-objectmatcher and resourceVersion from annotation
 			// And update if localObj does not match updatedObj from remote cluster
-			if !patchResult.IsEmpty() ||
-				remoteObj.GetResourceVersion() != localObj.GetAnnotations()[ydbannotations.RemoteResourceVersionAnnotation] {
+			needUpdate := true
+			if !patchResult.IsEmpty() {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
 					corev1.EventTypeNormal,
 					"Provisioning",
 					fmt.Sprintf("Patch for resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), string(patchResult.Patch)),
 				)
-				// Try to update resource in local cluster
+			} else if updatedObj.GetAnnotations()[ydbannotations.RemoteResourceVersionAnnotation] == remoteObj.GetResourceVersion() {
+				needUpdate = false
+			}
+			// Try to update resource in local cluster
+			if needUpdate {
 				if err := r.Client.Update(ctx, updatedObj); err != nil {
 					r.Recorder.Event(
 						remoteStorageNodeSet,
@@ -344,6 +348,23 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 					corev1.EventTypeWarning,
 					"ControllerError",
 					fmt.Sprintf("Failed to get resource %s with name %s: %s", remoteResourceGVK.Kind, remoteObj.GetName(), err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			}
+		}
+
+		// Remove primary resource annotation from local object
+		// Reconcile will be triggered by another StorageNodeSet to reattach object
+		annotations := resources.CopyDict(remoteObj.GetAnnotations())
+		delete(annotations, ydbannotations.PrimaryResourceStorageAnnotation)
+		remoteObj.SetAnnotations(annotations)
+		if err := r.Client.Update(ctx, remoteObj); err != nil {
+			if !apierrors.IsNotFound(err) {
+				r.Recorder.Event(
+					remoteStorageNodeSet,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed to update resource %s with name %s: %s", remoteResourceGVK.Kind, remoteObj.GetName(), err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
