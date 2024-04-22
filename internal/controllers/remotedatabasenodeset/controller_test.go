@@ -34,7 +34,9 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/databasenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/remotedatabasenodeset"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/remotestoragenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storagenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
@@ -147,12 +149,27 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
+	err = (&storagenodeset.Reconciler{
+		Client: remoteManager.GetClient(),
+		Scheme: remoteManager.GetScheme(),
+		Config: remoteManager.GetConfig(),
+		Log:    logf.Log,
+	}).SetupWithManager(remoteManager)
+	Expect(err).ShouldNot(HaveOccurred())
+
 	err = (&databasenodeset.Reconciler{
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
 		Config: remoteManager.GetConfig(),
 		Log:    logf.Log,
 	}).SetupWithManager(remoteManager)
+	Expect(err).ShouldNot(HaveOccurred())
+
+	err = (&remotestoragenodeset.Reconciler{
+		Client: remoteManager.GetClient(),
+		Scheme: remoteManager.GetScheme(),
+		Log:    logf.Log,
+	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotedatabasenodeset.Reconciler{
@@ -403,7 +420,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 	When("Created RemoteDatabaseNodeSet with Secrets in k8s-mgmt-cluster", func() {
 		It("Should sync Secrets into k8s-data-cluster", func() {
-			By("create simple Secret in Database namespace")
+			By("create simple Secret in remote namespace")
 			simpleSecret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testSecretName,
@@ -414,6 +431,58 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 				},
 			}
 			Expect(localClient.Create(ctx, simpleSecret))
+
+			By("checking that Storage updated on local cluster...")
+			Eventually(func() error {
+				foundStorage := &v1alpha1.Storage{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, foundStorage))
+
+				foundStorage.Spec.NodeSets = append(foundStorage.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
+					Name: testNodeSetName + "-remote",
+					Remote: &v1alpha1.RemoteSpec{
+						Cluster: testRemoteCluster,
+					},
+					StorageNodeSpec: v1alpha1.StorageNodeSpec{
+						Nodes: 4,
+					},
+				})
+
+				foundStorage.Spec.Secrets = append(
+					foundStorage.Spec.Secrets,
+					&corev1.LocalObjectReference{
+						Name: testSecretName,
+					},
+				)
+				return localClient.Update(ctx, foundStorage)
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("checking that RemoteStorageNodeSet created on local cluster...")
+			Eventually(func() error {
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+				return localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteStorageNodeSet)
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("checking that StorageNodeSet created on remote cluster...")
+			Eventually(func() bool {
+				foundStorageNodeSetOnRemote := v1alpha1.StorageNodeSetList{}
+
+				Expect(remoteClient.List(ctx, &foundStorageNodeSetOnRemote, client.InNamespace(
+					testobjects.YdbNamespace,
+				))).Should(Succeed())
+
+				for _, nodeset := range foundStorageNodeSetOnRemote.Items {
+					if nodeset.Name == storageSample.Name+"-"+testNodeSetName+"-remote" {
+						return true
+					}
+				}
+				return false
+			}, test.Timeout, test.Interval).Should(BeTrue())
 
 			By("checking that Database updated on local cluster...")
 			Eventually(func() error {
@@ -434,6 +503,12 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 			By("checking that Secrets are synced...")
 			Eventually(func() error {
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteStorageNodeSet)).Should(Succeed())
+
 				foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
@@ -458,12 +533,20 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 					return err
 				}
 
-				primaryResourceName, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+				primaryResourceStorage, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceStorageAnnotation]
+				if !exist {
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceStorageAnnotation, remoteSecret.Name)
+				}
+				if primaryResourceStorage != foundRemoteStorageNodeSet.Spec.StorageRef.Name {
+					return fmt.Errorf("primaryResourceName %s does not equal storageRef name %s", primaryResourceStorage, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
+				}
+
+				primaryResourceDatabase, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
 				if !exist {
 					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceDatabaseAnnotation, remoteSecret.Name)
 				}
-				if primaryResourceName != foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name {
-					return fmt.Errorf("primaryResourceName %s does not equal databaseRef name %s", primaryResourceName, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
+				if primaryResourceDatabase != foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name {
+					return fmt.Errorf("primaryResourceName %s does not equal databaseRef name %s", primaryResourceDatabase, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
 				}
 
 				remoteRV, exist := remoteSecret.Annotations[ydbannotations.RemoteResourceVersionAnnotation]
@@ -476,6 +559,95 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return nil
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("delete RemoteDatabaseNodeSet on local cluster...")
+			Eventually(func() error {
+				foundDatabase := v1alpha1.Database{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundDatabase)).Should(Succeed())
+				foundDatabase.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
+					{
+						Name: testNodeSetName + "-local",
+						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+							Nodes: 4,
+						},
+					},
+					{
+						Name: testNodeSetName + "-remote-dedicated",
+						Remote: &v1alpha1.RemoteSpec{
+							Cluster: testRemoteCluster,
+						},
+						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+							Nodes: 4,
+						},
+					},
+				}
+				return localClient.Update(ctx, &foundDatabase)
+			}, test.Timeout, test.Interval).Should(Succeed())
+
+			By("delete RemoteStorageNodeSet on local cluster...")
+			Eventually(func() error {
+				foundStorage := v1alpha1.Storage{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundStorage)).Should(Succeed())
+				foundStorage.Spec.NodeSets = []v1alpha1.StorageNodeSetSpecInline{}
+				return localClient.Update(ctx, &foundStorage)
+			}, test.Timeout, test.Interval).Should(Succeed())
+
+			By("checking that Secrets are synced after RemoteStorageNodeSet and RemoteDatabaseNodeSet delete...")
+			Eventually(func() error {
+				foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteDatabaseNodeSet)).Should(Succeed())
+
+				localSecret := &corev1.Secret{}
+				err := localClient.Get(ctx, types.NamespacedName{
+					Name:      testSecretName,
+					Namespace: testobjects.YdbNamespace,
+				}, localSecret)
+				if err != nil {
+					return err
+				}
+
+				remoteSecret := &corev1.Secret{}
+				err = remoteClient.Get(ctx, types.NamespacedName{
+					Name:      testSecretName,
+					Namespace: testobjects.YdbNamespace,
+				}, remoteSecret)
+				if err != nil {
+					return err
+				}
+
+				_, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceStorageAnnotation]
+				if exist {
+					return fmt.Errorf("annotation %s still exist on remoteSecret %s", ydbannotations.PrimaryResourceStorageAnnotation, remoteSecret.Name)
+				}
+
+				primaryResourceDatabase, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+				if !exist {
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceDatabaseAnnotation, remoteSecret.Name)
+				}
+				if primaryResourceDatabase != foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name {
+					return fmt.Errorf("primaryResourceName %s does not equal databaseRef name %s", primaryResourceDatabase, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
+				}
+
+				remoteRV, exist := remoteSecret.Annotations[ydbannotations.RemoteResourceVersionAnnotation]
+				if !exist {
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.RemoteResourceVersionAnnotation, remoteSecret.Name)
+				}
+				if localSecret.GetResourceVersion() != remoteRV {
+					return fmt.Errorf("localRV %s does not equal remoteRV %s", localSecret.GetResourceVersion(), remoteRV)
+				}
+
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
 		})
 	})
 
