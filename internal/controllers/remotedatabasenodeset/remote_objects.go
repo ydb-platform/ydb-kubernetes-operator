@@ -92,6 +92,7 @@ func (r *Reconciler) syncRemoteObjects(
 	remoteObjects []client.Object,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step syncRemoteObjects")
+
 	for _, remoteObj := range remoteObjects {
 		// Determine actual GVK for generic client.Object
 		remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
@@ -111,6 +112,7 @@ func (r *Reconciler) syncRemoteObjects(
 			Namespace: remoteObj.GetNamespace(),
 		}, remoteObj)
 		if err != nil {
+			// Resource not found on remote cluster but we should retry
 			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					remoteDatabaseNodeSet,
@@ -144,13 +146,13 @@ func (r *Reconciler) syncRemoteObjects(
 		// Create client.Object from api.RemoteResource struct
 		localObj := resources.CreateResource(remoteObj)
 		remoteDatabaseNodeSet.SetPrimaryResourceAnnotations(localObj)
+
 		// Check object existence in local cluster
-		err = r.Client.Get(ctx, types.NamespacedName{
+		objExist := false
+		if err = r.Client.Get(ctx, types.NamespacedName{
 			Name:      remoteObj.GetName(),
 			Namespace: remoteObj.GetNamespace(),
-		}, localObj)
-		//nolint:nestif
-		if err != nil {
+		}, localObj); err != nil {
 			if !apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					remoteDatabaseNodeSet,
@@ -160,6 +162,33 @@ func (r *Reconciler) syncRemoteObjects(
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
+			objExist = true
+		}
+
+		if objExist {
+			// Update client.Object for local object with spec from remote object
+			updatedObj := resources.UpdateResource(localObj, remoteObj)
+			remoteDatabaseNodeSet.SetPrimaryResourceAnnotations(updatedObj)
+			// Remote object existing in local cluster, сheck the need for an update
+			// Get diff resources and compare bytes by k8s-objectmatcher PatchMaker
+			patched, err := r.patchObject(ctx, localObj, updatedObj)
+			if err != nil {
+				r.Recorder.Event(
+					remoteDatabaseNodeSet,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed to patch resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
+				)
+			}
+			if patched {
+				r.Recorder.Event(
+					remoteDatabaseNodeSet,
+					corev1.EventTypeNormal,
+					"Provisioning",
+					fmt.Sprintf("RemoteSync UPDATE resource %s with name %s resourceVersion %s", remoteObjGVK.Kind, remoteObj.GetName(), remoteObj.GetResourceVersion()),
+				)
+			}
+		} else {
 			// Object does not exist in local cluster
 			// Try to create resource in remote cluster
 			if err := r.Client.Create(ctx, localObj); err != nil {
@@ -177,34 +206,12 @@ func (r *Reconciler) syncRemoteObjects(
 				"Provisioning",
 				fmt.Sprintf("RemoteSync CREATE resource %s with name %s", remoteObjGVK.Kind, remoteObj.GetName()),
 			)
-		} else {
-			// Update client.Object for local object with spec from remote object
-			updatedObj := resources.UpdateResource(localObj, remoteObj)
-			remoteDatabaseNodeSet.SetPrimaryResourceAnnotations(updatedObj)
-			// Remote object existing in local cluster, сheck the need for an update
-			// Get diff resources and compare bytes by k8s-objectmatcher PatchMaker
-			updated, err := r.patchObject(ctx, localObj, updatedObj)
-			if err != nil {
-				r.Recorder.Event(
-					remoteDatabaseNodeSet,
-					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed to patch resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
-				)
-			}
-			// Send event with information about updated resource
-			if updated {
-				r.Recorder.Event(
-					remoteDatabaseNodeSet,
-					corev1.EventTypeNormal,
-					"Provisioning",
-					fmt.Sprintf("RemoteSync UPDATE resource %s with name %s resourceVersion %s", remoteObjGVK.Kind, remoteObj.GetName(), remoteObj.GetResourceVersion()),
-				)
-			}
 		}
-		// Set status for remote resource in RemoteDatabaseNodeSet object
+
+		// Update status for remote resource in RemoteStorageNodeSet object
 		remoteDatabaseNodeSet.SetRemoteResourceStatus(localObj, remoteObjGVK)
 	}
+
 	return r.updateRemoteResourcesStatus(ctx, remoteDatabaseNodeSet)
 }
 
@@ -214,13 +221,13 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 	remoteObjects []client.Object,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step removeUnusedRemoteObjects")
-
 	// We should check every remote resource to need existence in cluster
+	// Get processed remote resources from object Status
 	candidatesToDelete := []v1alpha1.RemoteResource{}
 
 	// Check RemoteResource usage in local DatabaseNodeSet object
 	for _, remoteResource := range remoteDatabaseNodeSet.Status.RemoteResources {
-		exist, err := r.checkRemoteResourceUsage(remoteDatabaseNodeSet, &remoteResource, remoteObjects)
+		exist, err := r.checkRemoteResourceUsage(remoteDatabaseNodeSet, remoteResource, remoteObjects)
 		if err != nil {
 			r.Recorder.Event(
 				remoteDatabaseNodeSet,
@@ -236,6 +243,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 	}
 
 	// Сhecking to avoid unnecessary List request
+	//nolint:nestif
 	if len(candidatesToDelete) > 0 {
 		// Get remote objects from another DatabaseNodeSet spec
 		remoteObjectsFromAnother, err := r.getRemoteObjectsFromAnother(ctx, remoteDatabaseNodeSet)
@@ -277,7 +285,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 
-			existInDatabase, err := r.checkRemoteResourceUsage(remoteDatabaseNodeSet, &remoteResource, remoteObjectsFromAnother)
+			existInDatabase, err := r.checkRemoteResourceUsage(remoteDatabaseNodeSet, remoteResource, remoteObjectsFromAnother)
 			if err != nil {
 				r.Recorder.Event(
 					remoteDatabaseNodeSet,
@@ -361,7 +369,7 @@ func (r *Reconciler) updateRemoteResourcesStatus(
 				remoteDatabaseNodeSet,
 				corev1.EventTypeWarning,
 				"ControllerError",
-				fmt.Sprintf("Failed fetching RemoteDatabaseNodeSet before status update: %s", err),
+				fmt.Sprintf("Failed to update status for remote resources: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
@@ -385,7 +393,7 @@ func (r *Reconciler) updateRemoteResourcesStatus(
 
 func (r *Reconciler) checkRemoteResourceUsage(
 	remoteDatabaseNodeSet *resources.RemoteDatabaseNodeSetResource,
-	remoteResource *v1alpha1.RemoteResource,
+	remoteResource v1alpha1.RemoteResource,
 	remoteObjects []client.Object,
 ) (bool, error) {
 	for _, remoteObj := range remoteObjects {
@@ -394,7 +402,7 @@ func (r *Reconciler) checkRemoteResourceUsage(
 			return false, err
 		}
 		if resources.EqualRemoteResourceWithObject(
-			remoteResource,
+			&remoteResource,
 			remoteDatabaseNodeSet.Namespace,
 			remoteObj,
 			remoteObjGVK,

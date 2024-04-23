@@ -214,10 +214,8 @@ func CreateResource(obj client.Object) client.Object {
 		svc.Spec.ClusterIPs = nil
 	}
 
-	// Set remote resourceVersion annotation
-	annotations := CopyDict(createdObj.GetAnnotations())
-	annotations[ydbannotations.RemoteResourceVersionAnnotation] = obj.GetResourceVersion()
-	createdObj.SetAnnotations(annotations)
+	// Set remoteResourceVersion annotation
+	SetRemoteResourceVersionAnnotation(createdObj, obj.GetResourceVersion())
 
 	return createdObj
 }

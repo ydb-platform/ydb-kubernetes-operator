@@ -974,9 +974,9 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 			serviceList := corev1.ServiceList{}
 			err = k8sClient.List(ctx, &serviceList, client.InNamespace(ns.Name))
 			Expect(err).ShouldNot(HaveOccurred())
-			for _, svc := range serviceList.Items {
+			for idx := range serviceList.Items {
 				policy := metav1.DeletePropagationForeground
-				err = k8sClient.Delete(ctx, &svc, &client.DeleteOptions{PropagationPolicy: &policy})
+				err = k8sClient.Delete(ctx, &serviceList.Items[idx], &client.DeleteOptions{PropagationPolicy: &policy})
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 
