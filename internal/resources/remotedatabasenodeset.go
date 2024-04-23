@@ -154,6 +154,16 @@ func (b *RemoteDatabaseNodeSetResource) SetPrimaryResourceAnnotations(obj client
 	obj.SetAnnotations(annotations)
 }
 
+func (b *RemoteDatabaseNodeSetResource) UnsetPrimaryResourceAnnotations(obj client.Object) {
+	annotations := make(map[string]string)
+	for key, value := range obj.GetAnnotations() {
+		if key != annotations[ydbannotations.PrimaryResourceDatabaseAnnotation] {
+			annotations[key] = value
+		}
+	}
+	obj.SetAnnotations(annotations)
+}
+
 func (b *RemoteDatabaseNodeSetResource) SetRemoteResourceStatus(remoteObj client.Object, remoteObjGVK schema.GroupVersionKind) {
 	for idx := range b.Status.RemoteResources {
 		if EqualRemoteResourceWithObject(&b.Status.RemoteResources[idx], b.Namespace, remoteObj, remoteObjGVK) {
