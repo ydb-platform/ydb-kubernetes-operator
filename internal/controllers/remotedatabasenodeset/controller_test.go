@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -658,6 +659,71 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return nil
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("update Secret in remote namespace")
+			Eventually(func() error {
+				localSecret := &corev1.Secret{}
+				err := localClient.Get(ctx, types.NamespacedName{
+					Name:      testSecretName,
+					Namespace: testobjects.YdbNamespace,
+				}, localSecret)
+				if err != nil {
+					return err
+				}
+				localSecret.StringData = map[string]string{
+					"message": "Updated message from k8s-mgmt-cluster",
+				}
+				return localClient.Update(ctx, localSecret)
+			}, test.Timeout, test.Interval).Should(Succeed())
+
+			By("checking that Secrets are synced after update...")
+			Eventually(func() error {
+				foundRemoteDatabaseNodeSet := &v1alpha1.RemoteDatabaseNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteDatabaseNodeSet)).Should(Succeed())
+
+				localSecret := &corev1.Secret{}
+				err := localClient.Get(ctx, types.NamespacedName{
+					Name:      testSecretName,
+					Namespace: testobjects.YdbNamespace,
+				}, localSecret)
+				if err != nil {
+					return err
+				}
+
+				remoteSecret := &corev1.Secret{}
+				err = remoteClient.Get(ctx, types.NamespacedName{
+					Name:      testSecretName,
+					Namespace: testobjects.YdbNamespace,
+				}, remoteSecret)
+				if err != nil {
+					return err
+				}
+
+				primaryResourceDatabase, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+				if !exist {
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceDatabaseAnnotation, remoteSecret.Name)
+				}
+				if primaryResourceDatabase != foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name {
+					return fmt.Errorf("primaryResourceName %s does not equal databaseRef name %s", primaryResourceDatabase, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
+				}
+
+				remoteRV, exist := remoteSecret.Annotations[ydbannotations.RemoteResourceVersionAnnotation]
+				if !exist {
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.RemoteResourceVersionAnnotation, remoteSecret.Name)
+				}
+				if localSecret.GetResourceVersion() != remoteRV {
+					return fmt.Errorf("localRV %s does not equal remoteRV %s", localSecret.GetResourceVersion(), remoteRV)
+				}
+
+				if !reflect.DeepEqual(localSecret.StringData, remoteSecret.StringData) {
+					return fmt.Errorf("localSecret StringData %s does not equal with remoteSecret %s", localSecret.StringData, remoteSecret.StringData)
+				}
+
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -902,6 +968,16 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 				u.SetGroupVersionKind(gvk)
 				err := k8sClient.DeleteAllOf(ctx, &u, client.InNamespace(ns.Name))
 				Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(err))).ShouldNot(HaveOccurred())
+			}
+
+			// Delete all Services in this namespace
+			serviceList := corev1.ServiceList{}
+			err = k8sClient.List(ctx, &serviceList, client.InNamespace(ns.Name))
+			Expect(err).ShouldNot(HaveOccurred())
+			for _, svc := range serviceList.Items {
+				policy := metav1.DeletePropagationForeground
+				err = k8sClient.Delete(ctx, &svc, &client.DeleteOptions{PropagationPolicy: &policy})
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			Eventually(func() error {

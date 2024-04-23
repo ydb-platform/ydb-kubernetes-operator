@@ -91,7 +91,6 @@ func (r *Reconciler) syncRemoteObjects(
 	remoteObjects []client.Object,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step syncRemoteObjects")
-
 	for _, remoteObj := range remoteObjects {
 		// Determine actual GVK for generic client.Object
 		remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
@@ -111,7 +110,6 @@ func (r *Reconciler) syncRemoteObjects(
 			Namespace: remoteObj.GetNamespace(),
 		}, remoteObj)
 		if err != nil {
-			// Resource not found on remote cluster but we should retry
 			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
@@ -184,44 +182,17 @@ func (r *Reconciler) syncRemoteObjects(
 			remoteStorageNodeSet.SetPrimaryResourceAnnotations(updatedObj)
 			// Remote object existing in local cluster, сheck the need for an update
 			// Get diff resources and compare bytes by k8s-objectmatcher PatchMaker
-			patchResult, err := patchMaker.Calculate(localObj, updatedObj,
-				[]patch.CalculateOption{
-					patch.IgnoreStatusFields(),
-				}...,
-			)
+			updated, err := r.patchObject(ctx, localObj, updatedObj)
 			if err != nil {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
 					corev1.EventTypeWarning,
 					"ControllerError",
-					fmt.Sprintf("Failed to get diff for remote resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
+					fmt.Sprintf("Failed to patch resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
-			// We need to check patchResult by k8s-objectmatcher and resourceVersion from annotation
-			// And update if localObj does not match updatedObj from remote cluster
-			needUpdate := true
-			if !patchResult.IsEmpty() {
-				r.Recorder.Event(
-					remoteStorageNodeSet,
-					corev1.EventTypeNormal,
-					"Provisioning",
-					fmt.Sprintf("Patch for resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), string(patchResult.Patch)),
-				)
-			} else if updatedObj.GetAnnotations()[ydbannotations.RemoteResourceVersionAnnotation] == remoteObj.GetResourceVersion() {
-				needUpdate = false
-			}
-			// Try to update resource in local cluster
-			if needUpdate {
-				if err := r.Client.Update(ctx, updatedObj); err != nil {
-					r.Recorder.Event(
-						remoteStorageNodeSet,
-						corev1.EventTypeWarning,
-						"ControllerError",
-						fmt.Sprintf("Failed to update resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
-					)
-					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-				}
+			// Send event with information about updated resource
+			if updated {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
 					corev1.EventTypeNormal,
@@ -230,10 +201,9 @@ func (r *Reconciler) syncRemoteObjects(
 				)
 			}
 		}
-		// Update status for remote resource in RemoteStorageNodeSet object
+		// Set status for remote resource in RemoteStorageNodeSet object
 		remoteStorageNodeSet.SetRemoteResourceStatus(localObj, remoteObjGVK)
 	}
-
 	return r.updateRemoteResourcesStatus(ctx, remoteStorageNodeSet)
 }
 
@@ -243,227 +213,111 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 	remoteObjects []client.Object,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step removeUnusedRemoteObjects")
+
 	// We should check every remote resource to need existence in cluster
-	// Get processed remote resources from object Status
 	candidatesToDelete := []v1alpha1.RemoteResource{}
 
-	// Remove remote resource from candidates to delete if it declared
-	// to using in current RemoteStorageNodeSet spec
-	for idx := range remoteStorageNodeSet.Status.RemoteResources {
-		remoteResource := remoteStorageNodeSet.Status.RemoteResources[idx]
-		existInSpec := false
-		for i := range remoteObjects {
-			declaredObj := remoteObjects[i]
-			declaredObjGVK, err := apiutil.GVKForObject(declaredObj, r.Scheme)
-			if err != nil {
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			if resources.EqualRemoteResourceWithObject(
-				&remoteResource,
-				remoteStorageNodeSet.Namespace,
-				declaredObj,
-				declaredObjGVK,
-			) {
-				existInSpec = true
-				break
-			}
-		}
-		if !existInSpec {
-			candidatesToDelete = append(candidatesToDelete, remoteResource)
-		}
-	}
-
-	// Check resources usage in another StorageNodeSet and make List request
-	// only if we have candidates to Delete
-	resourcesToDelete := []v1alpha1.RemoteResource{}
-	if len(candidatesToDelete) > 0 {
-		remoteObjectsUsed, err := r.getRemoteObjectsUsedInNamespace(ctx, remoteStorageNodeSet, remoteObjects)
-		if err != nil {
-			r.Recorder.Event(
-				remoteStorageNodeSet,
-				corev1.EventTypeWarning,
-				"ProvisioningFailed",
-				fmt.Sprintf("Failed to get resources used in another object: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-		for idx := range candidatesToDelete {
-			remoteResource := candidatesToDelete[idx]
-			isCandidateExistInANotherObject := false
-			// Remove resource from cadidates to Delete if another object using it now
-			for i := range remoteObjectsUsed {
-				usedObj := remoteObjectsUsed[i]
-				usedObjGVK, err := apiutil.GVKForObject(usedObj, r.Scheme)
-				if err != nil {
-					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-				}
-				if resources.EqualRemoteResourceWithObject(
-					&remoteResource,
-					remoteStorageNodeSet.Namespace,
-					usedObj,
-					usedObjGVK,
-				) {
-					isCandidateExistInANotherObject = true
-					break
-				}
-			}
-			if !isCandidateExistInANotherObject {
-				resourcesToDelete = append(resourcesToDelete, remoteResource)
-			}
-		}
-	}
-
-	// Remove unused remote resource from cluster and make API call DELETE
-	// for every candidate to Delete
-	for _, recourceToDelete := range resourcesToDelete {
-		// Convert RemoteResource struct from Status to client.Object
-		remoteObj, err := resources.ConvertRemoteResourceToObject(
-			recourceToDelete,
-			remoteStorageNodeSet.Namespace,
-		)
-		if err != nil {
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-
-		// Determine actual GVK for generic client.Object
-		remoteResourceGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
+	// Check RemoteResource usage in local StorageNodeSet object
+	for _, remoteResource := range remoteStorageNodeSet.Status.RemoteResources {
+		exist, err := r.checkRemoteResourceUsage(remoteStorageNodeSet, &remoteResource, remoteObjects)
 		if err != nil {
 			r.Recorder.Event(
 				remoteStorageNodeSet,
 				corev1.EventTypeWarning,
 				"ControllerError",
-				fmt.Sprintf("Failed to recognize GVK for remote object %v: %s", remoteObj, err),
+				fmt.Sprintf("Failed to check usage in current StorageNodeSet: %v", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
+		if !exist {
+			candidatesToDelete = append(candidatesToDelete, remoteResource)
+		}
+	}
 
-		// Try to get resource in local cluster
-		if err := r.Client.Get(ctx, types.NamespacedName{
-			Name:      remoteObj.GetName(),
-			Namespace: remoteObj.GetNamespace(),
-		}, remoteObj); err != nil {
-			if !apierrors.IsNotFound(err) {
+	// Сhecking to avoid unnecessary List request
+	if len(candidatesToDelete) > 0 {
+		// Get remote objects from another StorageNodeSet spec
+		remoteObjectsFromAnother, err := r.getRemoteObjectsFromAnother(ctx, remoteStorageNodeSet)
+		if err != nil {
+			r.Recorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to get remote objects from another StorageNodeSets: %v", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+		// Check RemoteResource usage in another objects
+		for _, remoteResource := range candidatesToDelete {
+			remoteObj, err := resources.ConvertRemoteResourceToObject(remoteResource, remoteStorageNodeSet.Namespace)
+			if err != nil {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
 					corev1.EventTypeWarning,
 					"ControllerError",
-					fmt.Sprintf("Failed to get resource %s with name %s: %s", remoteResourceGVK.Kind, remoteObj.GetName(), err),
+					fmt.Sprintf("Failed to convert RemoteResource %s with name %s to object: %v", remoteResource.Kind, remoteResource.Name, err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
-		}
 
-		// Remove primary resource annotation from local object
-		// Reconcile will be triggered by another StorageNodeSet to reattach object
-		annotations := resources.CopyDict(remoteObj.GetAnnotations())
-		delete(annotations, ydbannotations.PrimaryResourceStorageAnnotation)
-		remoteObj.SetAnnotations(annotations)
-		if err := r.Client.Update(ctx, remoteObj); err != nil {
-			if !apierrors.IsNotFound(err) {
+			if err := r.Client.Get(ctx, types.NamespacedName{
+				Name:      remoteObj.GetName(),
+				Namespace: remoteObj.GetNamespace(),
+			}, remoteObj); err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
 				r.Recorder.Event(
 					remoteStorageNodeSet,
 					corev1.EventTypeWarning,
 					"ControllerError",
-					fmt.Sprintf("Failed to update resource %s with name %s: %s", remoteResourceGVK.Kind, remoteObj.GetName(), err),
+					fmt.Sprintf("Failed to get RemoteResource %s with name %s as object: %v", remoteResource.Kind, remoteResource.Name, err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
-		}
 
-		// Skip resource deletion because it using in some Database
-		// check by existence of annotation `ydb.tech/primary-resource-database`
-		if _, exist := remoteObj.GetAnnotations()[ydbannotations.PrimaryResourceDatabaseAnnotation]; exist {
-			continue
-		}
-
-		// Try to delete unused resource from local cluster
-		if err := r.Client.Delete(ctx, remoteObj); err != nil {
-			if !apierrors.IsNotFound(err) {
+			existInStorage, err := r.checkRemoteResourceUsage(remoteStorageNodeSet, &remoteResource, remoteObjectsFromAnother)
+			if err != nil {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
 					corev1.EventTypeWarning,
 					"ControllerError",
-					fmt.Sprintf("Failed to delete resource %s with name %s: %s", remoteResourceGVK.Kind, remoteObj.GetName(), err),
+					fmt.Sprintf("Failed to check RemoteResource usage in another StorageNodeSets: %v", err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
+
+			// Skip resource deletion because it using in some Database
+			// check by existence of annotation `ydb.tech/primary-resource-database`
+			_, existInDatabase := remoteObj.GetAnnotations()[ydbannotations.PrimaryResourceDatabaseAnnotation]
+
+			if existInStorage || existInDatabase {
+				// Only remove annotation to unbind remote objects from Storage
+				// Another StorageNodeSet receive an event and reattach it
+				if err := r.unbindRemoteObject(ctx, remoteStorageNodeSet, remoteObj); err != nil {
+					r.Recorder.Event(
+						remoteStorageNodeSet,
+						corev1.EventTypeWarning,
+						"ControllerError",
+						fmt.Sprintf("Failed to unbind remote object from StorageNodeSet: %v", err),
+					)
+					return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+				}
+			} else {
+				// Delete unused remote object from namespace
+				if err := r.deleteRemoteObject(ctx, remoteStorageNodeSet, remoteObj); err != nil {
+					r.Recorder.Event(
+						remoteStorageNodeSet,
+						corev1.EventTypeWarning,
+						"ControllerError",
+						fmt.Sprintf("Failed to delete remote object from namespace: %v", err),
+					)
+				}
+			}
 		}
-		r.Recorder.Event(
-			remoteStorageNodeSet,
-			corev1.EventTypeNormal,
-			"Provisioning",
-			fmt.Sprintf("RemoteSync DELETE resource %s with name %s", remoteResourceGVK.Kind, remoteObj.GetName()),
-		)
-		// Remove status for remote resource from RemoteStorageNodeSet object
-		remoteStorageNodeSet.RemoveRemoteResourceStatus(remoteObj, remoteResourceGVK)
 	}
 
 	return r.updateRemoteResourcesStatus(ctx, remoteStorageNodeSet)
-}
-
-func (r *Reconciler) getRemoteObjectsUsedInNamespace(
-	ctx context.Context,
-	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
-	remoteObjects []client.Object,
-) ([]client.Object, error) {
-	remoteObjectsUsedInNamespace := []client.Object{}
-
-	// Create label requirement that label `ydb.tech/storage-nodeset` which not equal
-	// to current StorageNodeSet object for exclude current nodeSet from List result
-	labelRequirement, err := labels.NewRequirement(
-		ydblabels.StorageNodeSetComponent,
-		selection.NotEquals,
-		[]string{remoteStorageNodeSet.Labels[ydblabels.StorageNodeSetComponent]},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Search another StorageNodeSets in current namespace with the same StorageRef
-	storageNodeSets := &v1alpha1.StorageNodeSetList{}
-	if err := r.Client.List(
-		ctx,
-		storageNodeSets,
-		client.InNamespace(remoteStorageNodeSet.Namespace),
-		client.MatchingLabelsSelector{
-			Selector: labels.NewSelector().Add(*labelRequirement),
-		},
-		client.MatchingFields{
-			StorageRefField: remoteStorageNodeSet.Spec.StorageRef.Name,
-		},
-	); err != nil {
-		return nil, err
-	}
-
-	// We found some StorageNodeSet and should check objects usage
-	if len(storageNodeSets.Items) > 0 {
-		for _, remoteObj := range remoteObjects {
-			switch obj := remoteObj.(type) {
-			// If client.Object typed by Secret search existence
-			// in another StorageNodeSet spec.secrets
-			case *corev1.Secret:
-				for _, storageNodeSet := range storageNodeSets.Items {
-					for _, secret := range storageNodeSet.Spec.Secrets {
-						if obj.GetName() == secret.Name {
-							remoteObjectsUsedInNamespace = append(
-								remoteObjectsUsedInNamespace,
-								obj,
-							)
-						}
-					}
-				}
-			// Else client.Object typed by ConfigMap or Service
-			// which always used in another StorageNodeSet
-			default:
-				remoteObjectsUsedInNamespace = append(
-					remoteObjectsUsedInNamespace,
-					obj,
-				)
-			}
-		}
-	}
-
-	return remoteObjectsUsedInNamespace, nil
 }
 
 func (r *Reconciler) updateRemoteResourcesStatus(
@@ -486,7 +340,7 @@ func (r *Reconciler) updateRemoteResourcesStatus(
 			remoteStorageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			"Failed fetching RemoteStorageNodeSet before status update",
+			"Failed fetching RemoteStorageNodeSet before remote status update",
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -506,7 +360,7 @@ func (r *Reconciler) updateRemoteResourcesStatus(
 				remoteStorageNodeSet,
 				corev1.EventTypeWarning,
 				"ControllerError",
-				fmt.Sprintf("Failed to update status for remote resources: %s", err),
+				fmt.Sprintf("Failed fetching RemoteStorageNodeSet before status update: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
@@ -526,4 +380,164 @@ func (r *Reconciler) updateRemoteResourcesStatus(
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
+func (r *Reconciler) checkRemoteResourceUsage(
+	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
+	remoteResource *v1alpha1.RemoteResource,
+	remoteObjects []client.Object,
+) (bool, error) {
+	for _, remoteObj := range remoteObjects {
+		remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
+		if err != nil {
+			return false, err
+		}
+		if resources.EqualRemoteResourceWithObject(
+			remoteResource,
+			remoteStorageNodeSet.Namespace,
+			remoteObj,
+			remoteObjGVK,
+		) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *Reconciler) getRemoteObjectsFromAnother(
+	ctx context.Context,
+	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
+) ([]client.Object, error) {
+	storageNodeSets := &v1alpha1.StorageNodeSetList{}
+
+	// Create label requirement that label `ydb.tech/storage-nodeset` which not equal
+	// to current StorageNodeSet object for exclude current nodeSet from List result
+	labelRequirement, err := labels.NewRequirement(
+		ydblabels.StorageNodeSetComponent,
+		selection.NotEquals,
+		[]string{remoteStorageNodeSet.Labels[ydblabels.StorageNodeSetComponent]},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Search another StorageNodeSets in current namespace with the same StorageRef
+	// but exclude current nodeSet from result
+	if err := r.Client.List(
+		ctx,
+		storageNodeSets,
+		client.InNamespace(remoteStorageNodeSet.Namespace),
+		client.MatchingLabelsSelector{
+			Selector: labels.NewSelector().Add(*labelRequirement),
+		},
+		client.MatchingFields{
+			StorageRefField: remoteStorageNodeSet.Spec.StorageRef.Name,
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	remoteObjects := []client.Object{}
+	for _, storageNodeSet := range storageNodeSets.Items {
+		remoteStorageNodeSet := resources.NewRemoteStorageNodeSet(
+			&v1alpha1.RemoteStorageNodeSet{Spec: storageNodeSet.Spec},
+		)
+		remoteObjects = append(remoteObjects, remoteStorageNodeSet.GetRemoteObjects()...)
+	}
+
+	return remoteObjects, nil
+}
+
+func (r *Reconciler) patchObject(
+	ctx context.Context,
+	localObj, remoteObj client.Object,
+) (bool, error) {
+	// Get diff resources and compare bytes by k8s-objectmatcher PatchMaker
+	patchResult, err := patchMaker.Calculate(localObj, remoteObj,
+		[]patch.CalculateOption{
+			patch.IgnoreStatusFields(),
+		}...,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	if !patchResult.IsEmpty() {
+		r.Log.Info("Got a patch for resource", "name", remoteObj.GetName(), "result", patchResult.Patch)
+		if err := r.Client.Patch(ctx, remoteObj, client.RawPatch(types.StrategicMergePatchType, patchResult.Patch)); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (r *Reconciler) unbindRemoteObject(
+	ctx context.Context,
+	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
+	remoteObj client.Object,
+) error {
+	remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
+	if err != nil {
+		return err
+	}
+
+	patch := []byte(fmt.Sprintf(`{"metadata": {"annotations": {"%s": null}}}`, ydbannotations.PrimaryResourceStorageAnnotation))
+	if err := r.Client.Patch(ctx, remoteObj, client.RawPatch(types.MergePatchType, patch)); err != nil {
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to patch resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
+		)
+	}
+
+	// Send event with information about unbinded resource
+	r.Recorder.Event(
+		remoteStorageNodeSet,
+		corev1.EventTypeNormal,
+		"Provisioning",
+		fmt.Sprintf("RemoteSync UPDATE resource %s with name %s unbind from StorageNodeSet %s", remoteObjGVK.Kind, remoteObj.GetName(), remoteStorageNodeSet.Name),
+	)
+
+	// Remove status for remote resource from RemoteStorageNodeSet object
+	remoteStorageNodeSet.RemoveRemoteResourceStatus(remoteObj, remoteObjGVK)
+
+	return nil
+}
+
+func (r *Reconciler) deleteRemoteObject(
+	ctx context.Context,
+	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
+	remoteObj client.Object,
+) error {
+	remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
+	if err != nil {
+		return err
+	}
+	// Try to delete unused resource from local cluster
+	if err := r.Client.Delete(ctx, remoteObj); err != nil {
+		if !apierrors.IsNotFound(err) {
+			r.Recorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to delete resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
+			)
+			return err
+		}
+	}
+
+	// Remove status for remote resource from RemoteStorageNodeSet object
+	remoteStorageNodeSet.RemoveRemoteResourceStatus(remoteObj, remoteObjGVK)
+
+	// Send event with information about deleted resource
+	r.Recorder.Event(
+		remoteStorageNodeSet,
+		corev1.EventTypeNormal,
+		"Provisioning",
+		fmt.Sprintf("RemoteSync DELETE resource %s with name %s", remoteObjGVK.Kind, remoteObj.GetName()),
+	)
+	return nil
 }

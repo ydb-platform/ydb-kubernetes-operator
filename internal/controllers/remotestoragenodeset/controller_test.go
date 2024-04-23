@@ -668,6 +668,14 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 				}
 			}
 
+			// Delete all namespaced resources in this namespace
+			for _, gvk := range namespacedGVKs {
+				var u unstructured.Unstructured
+				u.SetGroupVersionKind(gvk)
+				err := k8sClient.DeleteAllOf(ctx, &u, client.InNamespace(ns.Name))
+				Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(err))).ShouldNot(HaveOccurred())
+			}
+
 			// Delete all Services in this namespace
 			serviceList := corev1.ServiceList{}
 			err = k8sClient.List(ctx, &serviceList, client.InNamespace(ns.Name))
@@ -676,14 +684,6 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 				policy := metav1.DeletePropagationForeground
 				err = k8sClient.Delete(ctx, &svc, &client.DeleteOptions{PropagationPolicy: &policy})
 				Expect(err).ShouldNot(HaveOccurred())
-			}
-
-			// Delete all namespaced resources in this namespace
-			for _, gvk := range namespacedGVKs {
-				var u unstructured.Unstructured
-				u.SetGroupVersionKind(gvk)
-				err := k8sClient.DeleteAllOf(ctx, &u, client.InNamespace(ns.Name))
-				Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(err))).ShouldNot(HaveOccurred())
 			}
 
 			Eventually(func() error {

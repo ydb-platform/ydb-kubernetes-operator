@@ -239,19 +239,33 @@ func UpdateResource(oldObj, newObj client.Object) client.Object {
 		svc.Spec.ClusterIPs = append([]string{}, oldObj.(*corev1.Service).Spec.ClusterIPs...)
 	}
 
-	// Copy primary resource annotations
-	annotations := CopyDict(updatedObj.GetAnnotations())
-	for key, value := range oldObj.GetAnnotations() {
+	// Copy primaryResource annotations
+	CopyPrimaryResourceVersionAnnotation(updatedObj, oldObj.GetAnnotations())
+
+	// Set remoteResourceVersion annotation
+	SetRemoteResourceVersionAnnotation(updatedObj, newObj.GetResourceVersion())
+
+	return updatedObj
+}
+
+func CopyPrimaryResourceVersionAnnotation(obj client.Object, oldAnnotations map[string]string) {
+	annotations := CopyDict(obj.GetAnnotations())
+	for key, value := range oldAnnotations {
 		if key == ydbannotations.PrimaryResourceDatabaseAnnotation ||
 			key == ydbannotations.PrimaryResourceStorageAnnotation {
 			annotations[key] = value
 		}
 	}
-	// Set remote resourceVersion annotation
-	annotations[ydbannotations.RemoteResourceVersionAnnotation] = newObj.GetResourceVersion()
-	updatedObj.SetAnnotations(annotations)
+	obj.SetAnnotations(annotations)
+}
 
-	return updatedObj
+func SetRemoteResourceVersionAnnotation(obj client.Object, resourceVersion string) {
+	annotations := make(map[string]string)
+	for key, value := range obj.GetAnnotations() {
+		annotations[key] = value
+	}
+	annotations[ydbannotations.RemoteResourceVersionAnnotation] = resourceVersion
+	obj.SetAnnotations(annotations)
 }
 
 func ConvertRemoteResourceToObject(remoteResource api.RemoteResource, namespace string) (client.Object, error) {
