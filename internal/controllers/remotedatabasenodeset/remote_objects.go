@@ -365,7 +365,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 					remoteDatabaseNodeSet,
 					corev1.EventTypeWarning,
 					"ControllerError",
-					fmt.Sprintf("Failed to update resource %s with name %s: %s", remoteResourceGVK.Kind, remoteObj.GetName(), err),
+					fmt.Sprintf("Failed to update annotations on resource %s with name %s: %s", remoteResourceGVK.Kind, remoteObj.GetName(), err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}

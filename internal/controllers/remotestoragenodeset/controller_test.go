@@ -668,6 +668,16 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 				}
 			}
 
+			// Delete all Services in this namespace
+			serviceList := corev1.ServiceList{}
+			err = k8sClient.List(ctx, &serviceList, client.InNamespace(ns.Name))
+			Expect(err).ShouldNot(HaveOccurred())
+			for _, svc := range serviceList.Items {
+				policy := metav1.DeletePropagationForeground
+				err = k8sClient.Delete(ctx, &svc, &client.DeleteOptions{PropagationPolicy: &policy})
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
 			// Delete all namespaced resources in this namespace
 			for _, gvk := range namespacedGVKs {
 				var u unstructured.Unstructured
