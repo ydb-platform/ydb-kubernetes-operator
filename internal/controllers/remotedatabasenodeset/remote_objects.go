@@ -210,11 +210,12 @@ func (r *Reconciler) syncRemoteObjects(
 		remoteDatabaseNodeSet.SetPrimaryResourceAnnotations(localObj)
 
 		// Check object existence in local cluster
-		objExist := false
-		if err = r.Client.Get(ctx, types.NamespacedName{
+		err = r.Client.Get(ctx, types.NamespacedName{
 			Name:      remoteObj.GetName(),
 			Namespace: remoteObj.GetNamespace(),
-		}, localObj); err != nil {
+		}, localObj)
+		//nolint:nestif
+		if err != nil {
 			if !apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					remoteDatabaseNodeSet,
@@ -224,10 +225,24 @@ func (r *Reconciler) syncRemoteObjects(
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
-			objExist = true
-		}
-
-		if objExist {
+			// Object does not exist in local cluster
+			// Try to create resource in remote cluster
+			if err := r.Client.Create(ctx, localObj); err != nil {
+				r.Recorder.Event(
+					remoteDatabaseNodeSet,
+					corev1.EventTypeWarning,
+					"ControllerError",
+					fmt.Sprintf("Failed to create resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
+				)
+				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+			}
+			r.Recorder.Event(
+				remoteDatabaseNodeSet,
+				corev1.EventTypeNormal,
+				"Provisioning",
+				fmt.Sprintf("RemoteSync CREATE resource %s with name %s", remoteObjGVK.Kind, remoteObj.GetName()),
+			)
+		} else {
 			// Update client.Object for local object with spec from remote object
 			updatedObj := resources.UpdateResource(localObj, remoteObj)
 			remoteDatabaseNodeSet.SetPrimaryResourceAnnotations(updatedObj)
@@ -250,24 +265,6 @@ func (r *Reconciler) syncRemoteObjects(
 					fmt.Sprintf("RemoteSync UPDATE resource %s with name %s resourceVersion %s", remoteObjGVK.Kind, remoteObj.GetName(), remoteObj.GetResourceVersion()),
 				)
 			}
-		} else {
-			// Object does not exist in local cluster
-			// Try to create resource in remote cluster
-			if err := r.Client.Create(ctx, localObj); err != nil {
-				r.Recorder.Event(
-					remoteDatabaseNodeSet,
-					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed to create resource %s with name %s: %s", remoteObjGVK.Kind, remoteObj.GetName(), err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-			}
-			r.Recorder.Event(
-				remoteDatabaseNodeSet,
-				corev1.EventTypeNormal,
-				"Provisioning",
-				fmt.Sprintf("RemoteSync CREATE resource %s with name %s", remoteObjGVK.Kind, remoteObj.GetName()),
-			)
 		}
 
 		// Update status for remote resource in RemoteStorageNodeSet object
