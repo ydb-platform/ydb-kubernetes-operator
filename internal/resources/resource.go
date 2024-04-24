@@ -22,6 +22,7 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -244,6 +245,29 @@ func UpdateResource(oldObj, newObj client.Object) client.Object {
 	SetRemoteResourceVersionAnnotation(updatedObj, newObj.GetResourceVersion())
 
 	return updatedObj
+}
+
+func CheckRemoteResourceUsage(
+	namespace string,
+	scheme *runtime.Scheme,
+	remoteResource api.RemoteResource,
+	remoteObjects []client.Object,
+) (bool, error) {
+	for _, remoteObj := range remoteObjects {
+		remoteObjGVK, err := apiutil.GVKForObject(remoteObj, scheme)
+		if err != nil {
+			return false, err
+		}
+		if EqualRemoteResourceWithObject(
+			&remoteResource,
+			namespace,
+			remoteObj,
+			remoteObjGVK,
+		) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func CopyPrimaryResourceVersionAnnotation(obj client.Object, oldAnnotations map[string]string) {
