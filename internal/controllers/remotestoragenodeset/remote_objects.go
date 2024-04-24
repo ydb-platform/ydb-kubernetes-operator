@@ -85,6 +85,68 @@ func (r *Reconciler) initRemoteResourcesStatus(
 	return r.updateRemoteResourcesStatus(ctx, remoteStorageNodeSet)
 }
 
+func (r *Reconciler) updateRemoteResourcesStatus(
+	ctx context.Context,
+	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
+) (bool, ctrl.Result, error) {
+	crRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+	err := r.RemoteClient.Get(ctx, types.NamespacedName{
+		Name:      remoteStorageNodeSet.Name,
+		Namespace: remoteStorageNodeSet.Namespace,
+	}, crRemoteStorageNodeSet)
+	if err != nil {
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			"Failed fetching RemoteStorageNodeSet on remote cluster before remote status update",
+		)
+		r.RemoteRecorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			"Failed fetching RemoteStorageNodeSet before remote status update",
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	oldSyncResources := append([]v1alpha1.RemoteResource{}, crRemoteStorageNodeSet.Status.RemoteResources...)
+	crRemoteStorageNodeSet.Status.RemoteResources = append([]v1alpha1.RemoteResource{}, remoteStorageNodeSet.Status.RemoteResources...)
+
+	if !reflect.DeepEqual(oldSyncResources, remoteStorageNodeSet.Status.RemoteResources) {
+		if err = r.RemoteClient.Status().Update(ctx, crRemoteStorageNodeSet); err != nil {
+			r.Recorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to update status for remote resources on remote cluster: %s", err),
+			)
+			r.RemoteRecorder.Event(
+				remoteStorageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to update status for remote resources: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+		r.Recorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			"Status updated for remote resources on remote cluster",
+		)
+		r.RemoteRecorder.Event(
+			remoteStorageNodeSet,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			"Status updated for remote resources",
+		)
+		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+	}
+
+	return Continue, ctrl.Result{Requeue: false}, nil
+}
+
 func (r *Reconciler) syncRemoteObjects(
 	ctx context.Context,
 	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
@@ -170,7 +232,7 @@ func (r *Reconciler) syncRemoteObjects(
 			remoteStorageNodeSet.SetPrimaryResourceAnnotations(updatedObj)
 			// Remote object existing in local cluster, сheck the need for an update
 			// Get diff resources and compare bytes by k8s-objectmatcher PatchMaker
-			patched, err := r.patchObject(ctx, localObj, updatedObj)
+			patched, err := r.patchRemoteObject(ctx, localObj, updatedObj)
 			if err != nil {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
@@ -226,7 +288,9 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 
 	// Check RemoteResource usage in local StorageNodeSet object
 	for _, remoteResource := range remoteStorageNodeSet.Status.RemoteResources {
-		exist, err := r.checkRemoteResourceUsage(remoteStorageNodeSet, remoteResource, remoteObjects)
+		exist, err := resources.CheckRemoteResourceUsage(
+			remoteStorageNodeSet.Namespace, r.Scheme, remoteResource, remoteObjects,
+		)
 		if err != nil {
 			r.Recorder.Event(
 				remoteStorageNodeSet,
@@ -245,7 +309,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 	//nolint:nestif
 	if len(candidatesToDelete) > 0 {
 		// Get remote objects from another StorageNodeSet spec
-		remoteObjectsFromAnother, err := r.getRemoteObjectsFromAnother(ctx, remoteStorageNodeSet)
+		remoteObjectsFromAnother, err := r.getUsedRemoteObjects(ctx, remoteStorageNodeSet)
 		if err != nil {
 			r.Recorder.Event(
 				remoteStorageNodeSet,
@@ -284,7 +348,9 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 
-			existInStorage, err := r.checkRemoteResourceUsage(remoteStorageNodeSet, remoteResource, remoteObjectsFromAnother)
+			existInStorage, err := resources.CheckRemoteResourceUsage(
+				remoteStorageNodeSet.Namespace, r.Scheme, remoteResource, remoteObjectsFromAnother,
+			)
 			if err != nil {
 				r.Recorder.Event(
 					remoteStorageNodeSet,
@@ -328,91 +394,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 	return r.updateRemoteResourcesStatus(ctx, remoteStorageNodeSet)
 }
 
-func (r *Reconciler) updateRemoteResourcesStatus(
-	ctx context.Context,
-	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
-) (bool, ctrl.Result, error) {
-	crRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
-	err := r.RemoteClient.Get(ctx, types.NamespacedName{
-		Name:      remoteStorageNodeSet.Name,
-		Namespace: remoteStorageNodeSet.Namespace,
-	}, crRemoteStorageNodeSet)
-	if err != nil {
-		r.Recorder.Event(
-			remoteStorageNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			"Failed fetching RemoteStorageNodeSet on remote cluster before remote status update",
-		)
-		r.RemoteRecorder.Event(
-			remoteStorageNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			"Failed fetching RemoteStorageNodeSet before remote status update",
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	oldSyncResources := append([]v1alpha1.RemoteResource{}, crRemoteStorageNodeSet.Status.RemoteResources...)
-	crRemoteStorageNodeSet.Status.RemoteResources = append([]v1alpha1.RemoteResource{}, remoteStorageNodeSet.Status.RemoteResources...)
-
-	if !reflect.DeepEqual(oldSyncResources, remoteStorageNodeSet.Status.RemoteResources) {
-		if err = r.RemoteClient.Status().Update(ctx, crRemoteStorageNodeSet); err != nil {
-			r.Recorder.Event(
-				remoteStorageNodeSet,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to update status for remote resources on remote cluster: %s", err),
-			)
-			r.RemoteRecorder.Event(
-				remoteStorageNodeSet,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to update status for remote resources: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-		r.Recorder.Event(
-			remoteStorageNodeSet,
-			corev1.EventTypeNormal,
-			"StatusChanged",
-			"Status updated for remote resources on remote cluster",
-		)
-		r.RemoteRecorder.Event(
-			remoteStorageNodeSet,
-			corev1.EventTypeNormal,
-			"StatusChanged",
-			"Status updated for remote resources",
-		)
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
-	}
-
-	return Continue, ctrl.Result{Requeue: false}, nil
-}
-
-func (r *Reconciler) checkRemoteResourceUsage(
-	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
-	remoteResource v1alpha1.RemoteResource,
-	remoteObjects []client.Object,
-) (bool, error) {
-	for _, remoteObj := range remoteObjects {
-		remoteObjGVK, err := apiutil.GVKForObject(remoteObj, r.Scheme)
-		if err != nil {
-			return false, err
-		}
-		if resources.EqualRemoteResourceWithObject(
-			&remoteResource,
-			remoteStorageNodeSet.Namespace,
-			remoteObj,
-			remoteObjGVK,
-		) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (r *Reconciler) getRemoteObjectsFromAnother(
+func (r *Reconciler) getUsedRemoteObjects(
 	ctx context.Context,
 	remoteStorageNodeSet *resources.RemoteStorageNodeSetResource,
 ) ([]client.Object, error) {
@@ -456,7 +438,7 @@ func (r *Reconciler) getRemoteObjectsFromAnother(
 	return remoteObjects, nil
 }
 
-func (r *Reconciler) patchObject(
+func (r *Reconciler) patchRemoteObject(
 	ctx context.Context,
 	localObj, remoteObj client.Object,
 ) (bool, error) {
