@@ -15,13 +15,17 @@ const (
 	DatabaseNodeSetKind       = "DatabaseNodeSet"
 	RemoteDatabaseNodeSetKind = "RemoteDatabaseNodeSet"
 
-	StoragePausedCondition             = "StoragePaused"
-	StorageInitializedCondition        = "StorageReady"
-	StorageNodeSetReadyCondition       = "StorageNodeSetReady"
-	DatabasePausedCondition            = "DatabasePaused"
-	DatabaseTenantInitializedCondition = "TenantInitialized"
-	DatabaseNodeSetReadyCondition      = "DatabaseNodeSetReady"
-	RemoteResourceSyncedCondition      = "ResourceSynced"
+	// For backward compatibility
+	OldStorageInitializedCondition  = "StorageReady"
+	OldDatabaseInitializedCondition = "TenantInitialized"
+
+	StoragePausedCondition        = "StoragePaused"
+	StorageInitializedCondition   = "StorageInitialized"
+	StorageNodeSetReadyCondition  = "StorageNodeSetReady"
+	DatabasePausedCondition       = "DatabasePaused"
+	DatabaseInitializedCondition  = "DatabaseInitialized"
+	DatabaseNodeSetReadyCondition = "DatabaseNodeSetReady"
+	RemoteResourceSyncedCondition = "ResourceSynced"
 
 	Stop     = true
 	Continue = false
@@ -30,10 +34,11 @@ const (
 	ReasonNotRequired = "NotRequired"
 	ReasonCompleted   = "Completed"
 
-	DefaultRequeueDelay               = 10 * time.Second
-	StatusUpdateRequeueDelay          = 1 * time.Second
-	SelfCheckRequeueDelay             = 30 * time.Second
-	StorageInitializationRequeueDelay = 5 * time.Second
+	DefaultRequeueDelay                = 10 * time.Second
+	StatusUpdateRequeueDelay           = 1 * time.Second
+	SelfCheckRequeueDelay              = 30 * time.Second
+	StorageInitializationRequeueDelay  = 30 * time.Second
+	DatabaseInitializationRequeueDelay = 30 * time.Second
 
 	DatabasePending      ClusterState = "Pending"
 	DatabasePreparing    ClusterState = "Preparing"
@@ -62,7 +67,6 @@ const (
 	ResourceSyncPending RemoteResourceState = "Pending"
 	ResourceSyncSuccess RemoteResourceState = "Synced"
 
-	TenantCreationRequeueDelay      = 30 * time.Second
 	StorageAwaitRequeueDelay        = 30 * time.Second
 	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
 

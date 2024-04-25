@@ -44,21 +44,32 @@ func (r *Reconciler) setInitialStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
 
+	if meta.IsStatusConditionTrue(database.Status.Conditions, OldDatabaseInitializedCondition) {
+		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+			Type:    DatabaseInitializedCondition,
+			Status:  "True",
+			Reason:  ReasonCompleted,
+			Message: "Database initialized successfully",
+		})
+		database.Status.State = DatabaseReady
+		return r.updateStatus(ctx, database)
+	}
+
 	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil ||
-			meta.IsStatusConditionFalse(database.Status.Conditions, DatabaseTenantInitializedCondition) {
+		if meta.FindStatusCondition(database.Status.Conditions, DatabaseInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(database.Status.Conditions, DatabaseInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, database)
 		}
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
 	if database.Status.State == DatabasePending ||
-		meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil {
+		meta.FindStatusCondition(database.Status.Conditions, DatabaseInitializedCondition) == nil {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    DatabaseTenantInitializedCondition,
+			Type:    DatabaseInitializedCondition,
 			Status:  "False",
 			Reason:  ReasonInProgress,
-			Message: "Tenant creation in progress",
+			Message: "Database has not been initialized yet",
 		})
 		database.Status.State = DatabasePreparing
 		return r.updateStatus(ctx, database)
@@ -73,21 +84,26 @@ func (r *Reconciler) setInitDatabaseCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    DatabaseTenantInitializedCondition,
+		Type:    DatabaseInitializedCondition,
 		Status:  "True",
 		Reason:  ReasonCompleted,
 		Message: message,
 	})
+	database.Status.State = DatabaseProvisioning
 
-	database.Status.State = DatabaseReady
 	return r.updateStatus(ctx, database)
 }
 
-func (r *Reconciler) handleTenantCreation(
+func (r *Reconciler) initializeDatabase(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handleTenantCreation")
+	r.Log.Info("running step initializeDatabase")
+
+	if database.Status.State == DatabasePreparing {
+		database.Status.State = DatabaseInitializing
+		return r.updateStatus(ctx, database)
+	}
 
 	path := database.GetDatabasePath()
 	var storageUnits []v1alpha1.StorageUnit
@@ -197,7 +213,7 @@ func (r *Reconciler) handleTenantCreation(
 			"InitializingFailed",
 			fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: TenantCreationRequeueDelay}, err
+		return Stop, ctrl.Result{RequeueAfter: DatabaseInitializationRequeueDelay}, err
 	}
 	r.Recorder.Event(
 		database,
@@ -213,9 +229,5 @@ func (r *Reconciler) handleTenantCreation(
 		"Database is initialized",
 	)
 
-	return r.setInitDatabaseCompleted(
-		ctx,
-		database,
-		"Database initialization is completed",
-	)
+	return r.setInitDatabaseCompleted(ctx, database, "Database initialized successfully")
 }

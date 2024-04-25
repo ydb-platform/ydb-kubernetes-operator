@@ -234,7 +234,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				Name:      storageSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage))
-			return foundStorage.Status.State == StorageProvisioning
+			return foundStorage.Status.State == StorageInitializing
 		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("checking that StorageNodeSet created on local cluster...")
