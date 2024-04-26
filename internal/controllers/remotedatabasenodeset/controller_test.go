@@ -351,7 +351,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 			foundDedicatedDatabaseNodeSetOnRemote.Status.Conditions = append(
 				foundDedicatedDatabaseNodeSetOnRemote.Status.Conditions,
 				metav1.Condition{
-					Type:               DatabaseNodeSetReadyCondition,
+					Type:               NodeSetReadyCondition,
 					Status:             "True",
 					Reason:             ReasonCompleted,
 					LastTransitionTime: metav1.NewTime(time.Now()),
@@ -371,7 +371,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 			foundDatabaseNodeSetOnRemote.Status.Conditions = append(
 				foundDatabaseNodeSetOnRemote.Status.Conditions,
 				metav1.Condition{
-					Type:               DatabaseNodeSetReadyCondition,
+					Type:               NodeSetReadyCondition,
 					Status:             "True",
 					Reason:             ReasonCompleted,
 					LastTransitionTime: metav1.NewTime(time.Now()),
@@ -390,7 +390,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundRemoteDatabaseNodeSetOnRemote.Status.Conditions,
-					DatabaseNodeSetReadyCondition,
+					NodeSetReadyCondition,
 					metav1.ConditionTrue,
 				) && foundRemoteDatabaseNodeSetOnRemote.Status.State == DatabaseNodeSetReady
 			}, test.Timeout, test.Interval).Should(BeTrue())
@@ -405,7 +405,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundRemoteDatabaseNodeSetOnRemote.Status.Conditions,
-					DatabaseNodeSetReadyCondition,
+					NodeSetReadyCondition,
 					metav1.ConditionTrue,
 				) && foundRemoteDatabaseNodeSetOnRemote.Status.State == DatabaseNodeSetReady
 			}, test.Timeout, test.Interval).Should(BeTrue())

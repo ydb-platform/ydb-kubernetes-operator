@@ -301,7 +301,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				foundStaticStorageNodeSetOnRemote.Status.Conditions = append(
 					foundStaticStorageNodeSetOnRemote.Status.Conditions,
 					metav1.Condition{
-						Type:               StorageNodeSetReadyCondition,
+						Type:               NodeSetReadyCondition,
 						Status:             "True",
 						Reason:             ReasonCompleted,
 						LastTransitionTime: metav1.NewTime(time.Now()),
@@ -322,7 +322,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				foundStorageNodeSetOnRemote.Status.Conditions = append(
 					foundStorageNodeSetOnRemote.Status.Conditions,
 					metav1.Condition{
-						Type:               StorageNodeSetReadyCondition,
+						Type:               NodeSetReadyCondition,
 						Status:             "True",
 						Reason:             ReasonCompleted,
 						LastTransitionTime: metav1.NewTime(time.Now()),
@@ -342,7 +342,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundStaticRemoteStorageNodeSet.Status.Conditions,
-					StorageNodeSetReadyCondition,
+					NodeSetReadyCondition,
 					metav1.ConditionTrue,
 				) && foundStaticRemoteStorageNodeSet.Status.State == StorageNodeSetReady
 			}, test.Timeout, test.Interval).Should(BeTrue())
@@ -357,7 +357,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundRemoteStorageNodeSet.Status.Conditions,
-					StorageNodeSetReadyCondition,
+					NodeSetReadyCondition,
 					metav1.ConditionTrue,
 				) && foundRemoteStorageNodeSet.Status.State == StorageNodeSetReady
 			}, test.Timeout, test.Interval).Should(BeTrue())

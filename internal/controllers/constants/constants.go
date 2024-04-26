@@ -17,11 +17,13 @@ const (
 
 	StoragePausedCondition             = "StoragePaused"
 	StorageInitializedCondition        = "StorageReady"
-	StorageNodeSetReadyCondition       = "StorageNodeSetReady"
 	DatabasePausedCondition            = "DatabasePaused"
 	DatabaseTenantInitializedCondition = "TenantInitialized"
-	DatabaseNodeSetReadyCondition      = "DatabaseNodeSetReady"
-	RemoteResourceSyncedCondition      = "ResourceSynced"
+
+	NodeSetPreparingCondition     = "NodeSetPreparing"
+	NodeSetProvisioningCondition  = "NodeSetProvisioning"
+	NodeSetReadyCondition         = "NodeSetReady"
+	RemoteResourceSyncedCondition = "ResourceSynced"
 
 	Stop     = true
 	Continue = false
@@ -43,6 +45,7 @@ const (
 	DatabasePaused       ClusterState = "Paused"
 
 	DatabaseNodeSetPending      ClusterState = "Pending"
+	DatabaseNodeSetPreparing    ClusterState = "Preparing"
 	DatabaseNodeSetProvisioning ClusterState = "Provisioning"
 	DatabaseNodeSetReady        ClusterState = "Ready"
 	DatabaseNodeSetPaused       ClusterState = "Paused"
@@ -55,6 +58,7 @@ const (
 	StoragePaused       ClusterState = "Paused"
 
 	StorageNodeSetPending      ClusterState = "Pending"
+	StorageNodeSetPreparing    ClusterState = "Preparing"
 	StorageNodeSetProvisioning ClusterState = "Provisioning"
 	StorageNodeSetReady        ClusterState = "Ready"
 	StorageNodeSetPaused       ClusterState = "Paused"

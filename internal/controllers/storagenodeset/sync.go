@@ -52,7 +52,46 @@ func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *v1alpha1.Storag
 		return result, err
 	}
 
+	stop, result, err = r.setReadyStatus(ctx, &storageNodeSet)
+	if stop {
+		return result, err
+	}
+
 	return result, err
+}
+
+func (r *Reconciler) setReadyStatus(
+	ctx context.Context,
+	storageNodeSet *resources.StorageNodeSetResource,
+) (bool, ctrl.Result, error) {
+
+	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetProvisioningCondition,
+			Status:  "True",
+			Reason:  ReasonCompleted,
+			Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
+		})
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:   NodeSetReadyCondition,
+			Status: "True",
+			Reason: ReasonCompleted,
+		})
+		storageNodeSet.Status.State = StorageNodeSetReady
+		return r.updateStatus(ctx, storageNodeSet)
+	}
+
+	if storageNodeSet.Status.State == DatabaseNodeSetReady &&
+		meta.IsStatusConditionFalse(storageNodeSet.Status.Conditions, NodeSetReadyCondition) {
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:   NodeSetReadyCondition,
+			Status: "True",
+			Reason: ReasonCompleted,
+		})
+		return r.updateStatus(ctx, storageNodeSet)
+	}
+
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) handleResourcesSync(
@@ -124,12 +163,19 @@ func (r *Reconciler) waitForStatefulSetToScale(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale")
 
-	if storageNodeSet.Status.State == StorageNodeSetPending {
-		r.Recorder.Event(
-			storageNodeSet,
-			corev1.EventTypeNormal,
-			string(StorageNodeSetProvisioning),
-			fmt.Sprintf("Starting to track number of running storageNodeSet pods, expected: %d", storageNodeSet.Spec.Nodes))
+	if storageNodeSet.Status.State == StorageNodeSetPreparing {
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetPreparingCondition,
+			Status:  "True",
+			Reason:  ReasonCompleted,
+			Message: fmt.Sprintf("Sync resources for StorageNodeSet generation %d successfully", storageNodeSet.Generation),
+		})
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetProvisioningCondition,
+			Status:  "False",
+			Reason:  ReasonInProgress,
+			Message: fmt.Sprintf("Waiting for scale StorageNodeSet to expected: %d", storageNodeSet.Spec.Nodes),
+		})
 		storageNodeSet.Status.State = StorageNodeSetProvisioning
 		return r.updateStatus(ctx, storageNodeSet)
 	}
@@ -193,17 +239,6 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-	}
-
-	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    StorageNodeSetReadyCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
-		})
-		storageNodeSet.Status.State = StorageNodeSetReady
-		return r.updateStatus(ctx, storageNodeSet)
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil
@@ -271,20 +306,25 @@ func (r *Reconciler) handlePauseResume(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume")
 
-	if storageNodeSet.Status.State == StorageReady && storageNodeSet.Spec.Pause {
+	if storageNodeSet.Status.State == DatabaseReady && storageNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    StoragePausedCondition,
 			Status:  "True",
 			Reason:  ReasonCompleted,
-			Message: "State StorageNodeSet set to Paused",
+			Message: "Storage moved to Paused state",
+		})
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:   NodeSetReadyCondition,
+			Status: "False",
+			Reason: ReasonInProgress,
 		})
 		storageNodeSet.Status.State = StorageNodeSetPaused
 		return r.updateStatus(ctx, storageNodeSet)
 	}
 
 	if storageNodeSet.Status.State == StoragePaused && !storageNodeSet.Spec.Pause {
-		r.Log.Info("`pause: false` was noticed, moving Storage to state `Ready`")
+		r.Log.Info("`pause: false` was noticed, moving StorageNodeSet to state `Ready`")
 		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, StoragePausedCondition)
 		storageNodeSet.Status.State = StorageNodeSetReady
 		return r.updateStatus(ctx, storageNodeSet)
