@@ -23,6 +23,7 @@ const (
 	NodeSetPreparingCondition     = "NodeSetPreparing"
 	NodeSetProvisioningCondition  = "NodeSetProvisioning"
 	NodeSetReadyCondition         = "NodeSetReady"
+	NodeSetPausedCondition        = "NodeSetPaused"
 	RemoteResourceSyncedCondition = "ResourceSynced"
 
 	Stop     = true

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,17 +28,8 @@ func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *v1alpha1.Storag
 	var err error
 
 	storageNodeSet := resources.NewStorageNodeSet(crStorageNodeSet)
-	stop, result, err = storageNodeSet.SetStatusOnFirstReconcile()
-	if stop {
-		return result, err
-	}
 
-	stop, result = r.checkStorageFrozen(&storageNodeSet)
-	if stop {
-		return result, nil
-	}
-
-	stop, result, err = r.handlePauseResume(ctx, &storageNodeSet)
+	stop, result, err = r.setInitialStatus(ctx, &storageNodeSet)
 	if stop {
 		return result, err
 	}
@@ -52,7 +44,7 @@ func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *v1alpha1.Storag
 		return result, err
 	}
 
-	stop, result, err = r.setReadyStatus(ctx, &storageNodeSet)
+	stop, result, err = r.handlePauseResume(ctx, &storageNodeSet)
 	if stop {
 		return result, err
 	}
@@ -60,38 +52,35 @@ func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *v1alpha1.Storag
 	return result, err
 }
 
-func (r *Reconciler) setReadyStatus(
+func (r *Reconciler) setInitialStatus(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
+	r.Log.Info("running step setInitialStatus")
 
-	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisioningCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
-		})
+	if storageNodeSet.Status.Conditions == nil {
+		storageNodeSet.Status.Conditions = []metav1.Condition{}
+
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:   NodeSetReadyCondition,
-			Status: "True",
-			Reason: ReasonCompleted,
+			Status: "Unknown",
+			Reason: ReasonInProgress,
 		})
-		storageNodeSet.Status.State = StorageNodeSetReady
-		return r.updateStatus(ctx, storageNodeSet)
+
+		if storageNodeSet.Spec.Pause {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:    StoragePausedCondition,
+				Status:  "Unknown",
+				Reason:  ReasonInProgress,
+				Message: "Transitioning to state Paused",
+			})
+		}
+
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
 	}
 
-	if storageNodeSet.Status.State == DatabaseNodeSetReady &&
-		meta.IsStatusConditionFalse(storageNodeSet.Status.Conditions, NodeSetReadyCondition) {
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:   NodeSetReadyCondition,
-			Status: "True",
-			Reason: ReasonCompleted,
-		})
-		return r.updateStatus(ctx, storageNodeSet)
-	}
-
-	return Continue, ctrl.Result{Requeue: false}, nil
+	r.Log.Info("complete step setInitialStatus")
+	return Continue, ctrl.Result{}, nil
 }
 
 func (r *Reconciler) handleResourcesSync(
@@ -99,6 +88,28 @@ func (r *Reconciler) handleResourcesSync(
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handleResourcesSync")
+
+	if !storageNodeSet.Spec.OperatorSync {
+		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
+		r.Recorder.Event(
+			storageNodeSet,
+			corev1.EventTypeNormal,
+			string(StorageNodeSetPreparing),
+			fmt.Sprintf("Found .spec.operatorSync set to %t, skip further steps", storageNodeSet.Spec.OperatorSync),
+		)
+		return Stop, ctrl.Result{Requeue: false}, nil
+	}
+
+	if storageNodeSet.Status.State == StorageNodeSetPending {
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetPreparingCondition,
+			Status:  "Unknown",
+			Reason:  ReasonInProgress,
+			Message: fmt.Sprintf("Waiting for sync resources for generation %d", storageNodeSet.Generation),
+		})
+		storageNodeSet.Status.State = StorageNodeSetPreparing
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+	}
 
 	for _, builder := range storageNodeSet.GetResourceBuilders(r.Config) {
 		newResource := builder.Placeholder(storageNodeSet)
@@ -111,7 +122,7 @@ func (r *Reconciler) handleResourcesSync(
 				r.Recorder.Event(
 					storageNodeSet,
 					corev1.EventTypeWarning,
-					"ProvisioningFailed",
+					string(StorageNodeSetPreparing),
 					fmt.Sprintf("Failed building resources: %s", err),
 				)
 				return err
@@ -121,7 +132,7 @@ func (r *Reconciler) handleResourcesSync(
 				r.Recorder.Event(
 					storageNodeSet,
 					corev1.EventTypeWarning,
-					"ProvisioningFailed",
+					string(StorageNodeSetPreparing),
 					fmt.Sprintf("Error setting controller reference for resource: %s", err),
 				)
 				return err
@@ -140,21 +151,34 @@ func (r *Reconciler) handleResourcesSync(
 			r.Recorder.Event(
 				storageNodeSet,
 				corev1.EventTypeWarning,
-				"ProvisioningFailed",
+				string(StorageNodeSetPreparing),
 				eventMessage+fmt.Sprintf(", failed to sync, error: %s", err),
 			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:    NodeSetPreparingCondition,
+				Status:  "False",
+				Reason:  ReasonInProgress,
+				Message: fmt.Sprintf("Failed to sync resources for generation %d", storageNodeSet.Generation),
+			})
+			return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
 		} else if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
 			r.Recorder.Event(
 				storageNodeSet,
 				corev1.EventTypeNormal,
-				string(StorageNodeSetProvisioning),
+				string(StorageNodeSetPreparing),
 				eventMessage+fmt.Sprintf(", changed, result: %s", result),
 			)
 		}
 	}
 
-	return Continue, ctrl.Result{Requeue: false}, nil
+	meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+		Type:    NodeSetPreparingCondition,
+		Status:  "True",
+		Reason:  ReasonCompleted,
+		Message: fmt.Sprintf("Successfully synced resources for generation %d", storageNodeSet.Generation),
+	})
+	r.Log.Info("complete step handleResourcesSync")
+	return Continue, ctrl.Result{}, nil
 }
 
 func (r *Reconciler) waitForStatefulSetToScale(
@@ -165,19 +189,13 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if storageNodeSet.Status.State == StorageNodeSetPreparing {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetPreparingCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Sync resources for StorageNodeSet generation %d successfully", storageNodeSet.Generation),
-		})
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    NodeSetProvisioningCondition,
-			Status:  "False",
+			Status:  "Unknown",
 			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Waiting for scale StorageNodeSet to expected: %d", storageNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Waiting for scale to desired nodes: %d", storageNodeSet.Spec.Nodes),
 		})
 		storageNodeSet.Status.State = StorageNodeSetProvisioning
-		return r.updateStatus(ctx, storageNodeSet)
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
 	}
 
 	foundStatefulSet := &appsv1.StatefulSet{}
@@ -190,18 +208,24 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			r.Recorder.Event(
 				storageNodeSet,
 				corev1.EventTypeWarning,
-				"Syncing",
-				fmt.Sprintf("Failed to found StatefulSet: %s", err),
+				string(StorageNodeSetProvisioning),
+				fmt.Sprintf("Failed to find StatefulSet: %s", err),
 			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		} else {
+			r.Recorder.Event(
+				storageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to get StatefulSet: %s", err),
+			)
 		}
-		r.Recorder.Event(
-			storageNodeSet,
-			corev1.EventTypeWarning,
-			"Syncing",
-			fmt.Sprintf("Failed to get StatefulSets: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetProvisioningCondition,
+			Status:  "False",
+			Reason:  ReasonInProgress,
+			Message: "Failed to check StatefulSet .spec.replicas",
+		})
+		return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
 	}
 
 	matchingLabels := client.MatchingLabels{}
@@ -218,10 +242,16 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		r.Recorder.Event(
 			storageNodeSet,
 			corev1.EventTypeWarning,
-			"Syncing",
-			fmt.Sprintf("Failed to list storageNodeSet pods: %s", err),
+			"ControllerError",
+			fmt.Sprintf("Failed to list pods: %s", err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetProvisioningCondition,
+			Status:  "False",
+			Reason:  ReasonInProgress,
+			Message: "Failed to check Pods .status.phase",
+		})
+		return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
 	}
 
 	runningPods := 0
@@ -236,19 +266,108 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			storageNodeSet,
 			corev1.EventTypeNormal,
 			string(StorageNodeSetProvisioning),
-			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetProvisioningCondition,
+			Status:  "False",
+			Reason:  ReasonInProgress,
+			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
+		})
+		return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
 	}
 
-	return Continue, ctrl.Result{Requeue: false}, nil
+	meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+		Type:    NodeSetProvisioningCondition,
+		Status:  "True",
+		Reason:  ReasonCompleted,
+		Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", storageNodeSet.Spec.Nodes),
+	})
+	r.Log.Info("complete step waitForStatefulSetToScale")
+	return Continue, ctrl.Result{}, nil
+}
+
+func (r *Reconciler) handlePauseResume(
+	ctx context.Context,
+	storageNodeSet *resources.StorageNodeSetResource,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handlePauseResume")
+
+	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:   NodeSetReadyCondition,
+			Status: "True",
+			Reason: ReasonCompleted,
+		})
+		storageNodeSet.Status.State = StorageNodeSetReady
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+	}
+
+	if storageNodeSet.Status.State == StorageNodeSetReady && storageNodeSet.Spec.Pause {
+		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetReadyCondition,
+			Status:  "False",
+			Reason:  ReasonNotRequired,
+			Message: "Transitioning to state Paused",
+		})
+		storageNodeSet.Status.State = StorageNodeSetPaused
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+	}
+
+	if storageNodeSet.Status.State == StorageNodeSetPaused && !storageNodeSet.Spec.Pause {
+		r.Log.Info("`pause: false` was noticed, moving StorageNodeSet to state `Ready`")
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetPausedCondition,
+			Status:  "False",
+			Reason:  ReasonNotRequired,
+			Message: "Transitioning to state Ready",
+		})
+		storageNodeSet.Status.State = StorageNodeSetReady
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+	}
+
+	r.Log.Info("complete step handlePauseResume")
+	return Continue, ctrl.Result{}, nil
 }
 
 func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
+	requeueAfter time.Duration,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step updateStatus")
+	r.Log.Info("running updateStatus handler")
+
+	if meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetPreparingCondition) &&
+		meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetProvisioningCondition) {
+		if storageNodeSet.Spec.Pause {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:   NodeSetPausedCondition,
+				Status: "True",
+				Reason: ReasonCompleted,
+			})
+		} else {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:   NodeSetReadyCondition,
+				Status: "True",
+				Reason: ReasonCompleted,
+			})
+		}
+	} else {
+		if storageNodeSet.Spec.Pause {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:   NodeSetPausedCondition,
+				Status: "False",
+				Reason: ReasonInProgress,
+			})
+		} else {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:   NodeSetReadyCondition,
+				Status: "False",
+				Reason: ReasonInProgress,
+			})
+		}
+	}
 
 	crStorageNodeSet := &v1alpha1.StorageNodeSet{}
 	err := r.Get(ctx, types.NamespacedName{
@@ -266,27 +385,28 @@ func (r *Reconciler) updateStatus(
 	}
 
 	oldStatus := crStorageNodeSet.Status.State
+	crStorageNodeSet.Status.State = storageNodeSet.Status.State
+	crStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
+	if err = r.Status().Update(ctx, crStorageNodeSet); err != nil {
+		r.Recorder.Event(
+			storageNodeSet,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed setting status: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
 	if oldStatus != storageNodeSet.Status.State {
-		crStorageNodeSet.Status.State = storageNodeSet.Status.State
-		crStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
-		if err = r.Status().Update(ctx, crStorageNodeSet); err != nil {
-			r.Recorder.Event(
-				storageNodeSet,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed setting status: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
 		r.Recorder.Event(
 			storageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, storageNodeSet.Status.State),
+			fmt.Sprintf("State moved from %s to %s", oldStatus, storageNodeSet.Status.State),
 		)
 	}
 
-	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+	r.Log.Info("complete updateStatus handler")
+	return Stop, ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
 func shouldIgnoreStorageNodeSetChange(storageNodeSet *resources.StorageNodeSetResource) resources.IgnoreChangesFunction {
@@ -298,47 +418,4 @@ func shouldIgnoreStorageNodeSetChange(storageNodeSet *resources.StorageNodeSetRe
 		}
 		return false
 	}
-}
-
-func (r *Reconciler) handlePauseResume(
-	ctx context.Context,
-	storageNodeSet *resources.StorageNodeSetResource,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume")
-
-	if storageNodeSet.Status.State == DatabaseReady && storageNodeSet.Spec.Pause {
-		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    StoragePausedCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: "Storage moved to Paused state",
-		})
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:   NodeSetReadyCondition,
-			Status: "False",
-			Reason: ReasonInProgress,
-		})
-		storageNodeSet.Status.State = StorageNodeSetPaused
-		return r.updateStatus(ctx, storageNodeSet)
-	}
-
-	if storageNodeSet.Status.State == StoragePaused && !storageNodeSet.Spec.Pause {
-		r.Log.Info("`pause: false` was noticed, moving StorageNodeSet to state `Ready`")
-		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, StoragePausedCondition)
-		storageNodeSet.Status.State = StorageNodeSetReady
-		return r.updateStatus(ctx, storageNodeSet)
-	}
-
-	return Continue, ctrl.Result{}, nil
-}
-
-func (r *Reconciler) checkStorageFrozen(storageNodeSet *resources.StorageNodeSetResource) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen")
-	if !storageNodeSet.Spec.OperatorSync {
-		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
-		return Stop, ctrl.Result{}
-	}
-
-	return Continue, ctrl.Result{}
 }
