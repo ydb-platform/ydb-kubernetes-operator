@@ -130,7 +130,6 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
-		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -138,7 +137,6 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
-		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -146,7 +144,6 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
-		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -154,7 +151,6 @@ var _ = BeforeSuite(func() {
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
 		Config: remoteManager.GetConfig(),
-		Log:    logf.Log,
 	}).SetupWithManager(remoteManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -162,21 +158,18 @@ var _ = BeforeSuite(func() {
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
 		Config: remoteManager.GetConfig(),
-		Log:    logf.Log,
 	}).SetupWithManager(remoteManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotestoragenodeset.Reconciler{
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
-		Log:    logf.Log,
 	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotedatabasenodeset.Reconciler{
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
-		Log:    logf.Log,
 	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 
