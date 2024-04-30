@@ -38,16 +38,16 @@ type Reconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
+	r.Log = log.FromContext(ctx)
 
 	crStorageNodeSet := &v1alpha1.StorageNodeSet{}
 	err := r.Get(ctx, req.NamespacedName, crStorageNodeSet)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("StorageNodeSet resource not found")
+			r.Log.Info("StorageNodeSet resource not found")
 			return ctrl.Result{Requeue: false}, nil
 		}
-		logger.Error(err, "unable to get StorageNodeSet")
+		r.Log.Error(err, "unable to get StorageNodeSet")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 

@@ -54,15 +54,15 @@ type Reconciler struct {
 //+kubebuilder:rbac:groups=core,resources=secrets/status,verbs=get;update;patch
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
+	r.Log = log.FromContext(ctx)
 
 	remoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 	if err := r.RemoteClient.Get(ctx, req.NamespacedName, remoteStorageNodeSet); err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("RemoteStorageNodeSet resource not found on remote cluster")
+			r.Log.Info("RemoteStorageNodeSet resource not found on remote cluster")
 			return ctrl.Result{Requeue: false}, nil
 		}
-		logger.Error(err, "unable to get RemoteStorageNodeSet on remote cluster")
+		r.Log.Error(err, "unable to get RemoteStorageNodeSet on remote cluster")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
@@ -225,29 +225,27 @@ func (r *Reconciler) deleteExternalResources(
 	ctx context.Context,
 	crRemoteStorageNodeSet *v1alpha1.RemoteStorageNodeSet,
 ) error {
-	logger := log.FromContext(ctx)
-
 	storageNodeSet := &v1alpha1.StorageNodeSet{}
 	if err := r.Client.Get(ctx, types.NamespacedName{
 		Name:      crRemoteStorageNodeSet.Name,
 		Namespace: crRemoteStorageNodeSet.Namespace,
 	}, storageNodeSet); err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("StorageNodeSet not found")
+			r.Log.Info("StorageNodeSet not found")
 		} else {
-			logger.Error(err, "unable to get StorageNodeSet")
+			r.Log.Error(err, "unable to get StorageNodeSet")
 			return err
 		}
 	} else {
 		if err := r.Client.Delete(ctx, storageNodeSet); err != nil {
-			logger.Error(err, "unable to delete StorageNodeSet")
+			r.Log.Error(err, "unable to delete StorageNodeSet")
 			return err
 		}
 	}
 
 	remoteStorageNodeSet := resources.NewRemoteStorageNodeSet(crRemoteStorageNodeSet)
 	if _, _, err := r.removeUnusedRemoteObjects(ctx, &remoteStorageNodeSet, []client.Object{}); err != nil {
-		logger.Error(err, "unable to delete unused remote resources")
+		r.Log.Error(err, "unable to delete unused remote resources")
 		return err
 	}
 
