@@ -11,7 +11,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
@@ -178,7 +177,7 @@ func (b *RemoteDatabaseNodeSetResource) CreateRemoteResourceStatus(
 ) {
 	b.Status.RemoteResources = append(
 		b.Status.RemoteResources,
-		v1alpha1.RemoteResource{
+		api.RemoteResource{
 			Group:      remoteObj.GetObjectKind().GroupVersionKind().Group,
 			Version:    remoteObj.GetObjectKind().GroupVersionKind().Version,
 			Kind:       remoteObj.GetObjectKind().GroupVersionKind().Kind,
@@ -198,7 +197,7 @@ func (b *RemoteDatabaseNodeSetResource) CreateRemoteResourceStatus(
 }
 
 func (b *RemoteDatabaseNodeSetResource) UpdateRemoteResourceStatus(
-	remoteResource *v1alpha1.RemoteResource,
+	remoteResource *api.RemoteResource,
 	status metav1.ConditionStatus,
 	resourceVersion string,
 ) {
