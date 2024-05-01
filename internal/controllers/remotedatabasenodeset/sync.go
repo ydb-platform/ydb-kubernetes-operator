@@ -34,12 +34,17 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteDatabaseNodeSet *v1alpha1
 		return result, err
 	}
 
+	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteDatabaseNodeSet, remoteObjects)
+	if stop {
+		return result, err
+	}
+
 	stop, result, err = r.handleResourcesSync(ctx, &remoteDatabaseNodeSet)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteDatabaseNodeSet, remoteObjects)
+	stop, result, err = r.updateRemoteStatus(ctx, &remoteDatabaseNodeSet)
 	if stop {
 		return result, err
 	}
@@ -98,7 +103,8 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
-	return r.updateRemoteStatus(ctx, remoteDatabaseNodeSet)
+	r.Log.Info("complete step handleResourcesSync")
+	return Continue, ctrl.Result{}, nil
 }
 
 func (r *Reconciler) updateRemoteStatus(
@@ -141,42 +147,24 @@ func (r *Reconciler) updateRemoteStatus(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	oldStatus := crRemoteDatabaseNodeSet.Status.State
-	if oldStatus != crDatabaseNodeSet.Status.State {
-		crRemoteDatabaseNodeSet.Status.State = crDatabaseNodeSet.Status.State
-		crRemoteDatabaseNodeSet.Status.Conditions = crDatabaseNodeSet.Status.Conditions
-		if err := r.RemoteClient.Status().Update(ctx, crRemoteDatabaseNodeSet); err != nil {
-			r.Recorder.Event(
-				remoteDatabaseNodeSet,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to update status on remote cluster: %s", err),
-			)
-			r.RemoteRecorder.Event(
-				remoteDatabaseNodeSet,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to update status: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
+	crRemoteDatabaseNodeSet.Status.State = crDatabaseNodeSet.Status.State
+	crRemoteDatabaseNodeSet.Status.Conditions = crDatabaseNodeSet.Status.Conditions
+	if err := r.RemoteClient.Status().Update(ctx, crRemoteDatabaseNodeSet); err != nil {
 		r.Recorder.Event(
 			remoteDatabaseNodeSet,
-			corev1.EventTypeNormal,
-			"StatusChanged",
-			"DatabaseNodeSet status updated on remote cluster",
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to update status on remote cluster: %s", err),
 		)
 		r.RemoteRecorder.Event(
 			remoteDatabaseNodeSet,
-			corev1.EventTypeNormal,
-			"StatusChanged",
-			"RemoteDatabaseNodeSet status updated",
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to update status: %s", err),
 		)
-
-		r.Log.Info("step updateRemoteStatus requeue reconcile")
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	r.Log.Info("step updateRemoteStatus completed")
-	return Continue, ctrl.Result{Requeue: false}, nil
+	r.Log.Info("complete step updateRemoteStatus")
+	return Continue, ctrl.Result{}, nil
 }

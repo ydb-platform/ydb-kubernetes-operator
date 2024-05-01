@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -449,7 +450,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				return nil
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
-			By("checking that static RemoteStorageNodeSet RemoteStatus are updated...")
+			By("checking that static RemoteStorageNodeSet RemoteResource status are updated...")
 			Eventually(func() bool {
 				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
@@ -463,7 +464,6 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
-				logf.Log.Info("remoteResources", "status", foundRemoteStorageNodeSet.Status.RemoteResources)
 				for idx := range foundRemoteStorageNodeSet.Status.RemoteResources {
 					remoteResource := foundRemoteStorageNodeSet.Status.RemoteResources[idx]
 					if resources.EqualRemoteResourceWithObject(
@@ -482,7 +482,27 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
 
-			By("checking that RemoteStorageNodeSet RemoteStatus are updated...")
+			By("checking that static RemoteStorageNodeSet status are synced...")
+			Eventually(func() bool {
+				foundStorageNodeSet := &v1alpha1.StorageNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+					Namespace: testobjects.YdbNamespace,
+				}, foundStorageNodeSet)).Should(Succeed())
+
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteStorageNodeSet)).Should(Succeed())
+
+				if foundStorageNodeSet.Status.State != foundRemoteStorageNodeSet.Status.State {
+					return false
+				}
+				return reflect.DeepEqual(foundStorageNodeSet.Status.Conditions, foundRemoteStorageNodeSet.Status.Conditions)
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that RemoteStorageNodeSet RemoteResource status are updated...")
 			Eventually(func() bool {
 				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
@@ -512,6 +532,26 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					}
 				}
 				return false
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that RemoteStorageNodeSet status are synced...")
+			Eventually(func() bool {
+				foundStorageNodeSet := &v1alpha1.StorageNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundStorageNodeSet)).Should(Succeed())
+
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteStorageNodeSet)).Should(Succeed())
+
+				if foundStorageNodeSet.Status.State != foundRemoteStorageNodeSet.Status.State {
+					return false
+				}
+				return reflect.DeepEqual(foundStorageNodeSet.Status.Conditions, foundRemoteStorageNodeSet.Status.Conditions)
 			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
