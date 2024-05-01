@@ -218,7 +218,7 @@ func (b *RemoteDatabaseNodeSetResource) UpdateRemoteResourceStatus(
 				Type:    RemoteResourceSyncedCondition,
 				Status:  metav1.ConditionTrue,
 				Reason:  ReasonCompleted,
-				Message: fmt.Sprintf("Sucessfully synced remoteObject to resourceVersion %s", resourceVersion),
+				Message: fmt.Sprintf("Successfully synced remoteObject to resourceVersion %s", resourceVersion),
 			})
 		remoteResource.State = ResourceSyncSuccess
 	}
