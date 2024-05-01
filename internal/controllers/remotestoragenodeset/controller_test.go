@@ -22,7 +22,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -124,7 +123,6 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
-		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -132,7 +130,6 @@ var _ = BeforeSuite(func() {
 		Client: localManager.GetClient(),
 		Scheme: localManager.GetScheme(),
 		Config: localManager.GetConfig(),
-		Log:    logf.Log,
 	}).SetupWithManager(localManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -140,14 +137,12 @@ var _ = BeforeSuite(func() {
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
 		Config: remoteManager.GetConfig(),
-		Log:    logf.Log,
 	}).SetupWithManager(remoteManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotestoragenodeset.Reconciler{
 		Client: remoteManager.GetClient(),
 		Scheme: remoteManager.GetScheme(),
-		Log:    logf.Log,
 	}).SetupWithManager(remoteManager, &remoteCluster)
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -481,16 +476,12 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
-				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
-				Expect(err).ShouldNot(HaveOccurred())
-
+				logf.Log.Info("remoteResources", "status", foundRemoteStorageNodeSet.Status.RemoteResources)
 				for idx := range foundRemoteStorageNodeSet.Status.RemoteResources {
 					remoteResource := foundRemoteStorageNodeSet.Status.RemoteResources[idx]
 					if resources.EqualRemoteResourceWithObject(
 						&remoteResource,
-						testobjects.YdbNamespace,
 						foundConfigMap.DeepCopy(),
-						gvk,
 					) {
 						if meta.IsStatusConditionPresentAndEqual(
 							remoteResource.Conditions,
@@ -518,16 +509,11 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
-				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
-				Expect(err).ShouldNot(HaveOccurred())
-
 				for idx := range foundRemoteStorageNodeSet.Status.RemoteResources {
 					remoteResource := foundRemoteStorageNodeSet.Status.RemoteResources[idx]
 					if resources.EqualRemoteResourceWithObject(
 						&remoteResource,
-						testobjects.YdbNamespace,
 						foundConfigMap.DeepCopy(),
-						gvk,
 					) {
 						if meta.IsStatusConditionPresentAndEqual(
 							remoteResource.Conditions,
@@ -674,6 +660,16 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 				u.SetGroupVersionKind(gvk)
 				err := k8sClient.DeleteAllOf(ctx, &u, client.InNamespace(ns.Name))
 				Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(err))).ShouldNot(HaveOccurred())
+			}
+
+			// Delete all Services in this namespace
+			serviceList := corev1.ServiceList{}
+			err = k8sClient.List(ctx, &serviceList, client.InNamespace(ns.Name))
+			Expect(err).ShouldNot(HaveOccurred())
+			for idx := range serviceList.Items {
+				policy := metav1.DeletePropagationForeground
+				err = k8sClient.Delete(ctx, &serviceList.Items[idx], &client.DeleteOptions{PropagationPolicy: &policy})
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			Eventually(func() error {

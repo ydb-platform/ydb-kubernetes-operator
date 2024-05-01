@@ -207,13 +207,15 @@ func CreateResource(obj client.Object) client.Object {
 	createdObj.SetUID("")
 	createdObj.SetOwnerReferences([]metav1.OwnerReference{})
 	createdObj.SetFinalizers([]string{})
+	createdObj.SetManagedFields([]metav1.ManagedFieldsEntry{})
 
 	if svc, ok := createdObj.(*corev1.Service); ok {
 		svc.Spec.ClusterIP = ""
 		svc.Spec.ClusterIPs = nil
 	}
 
-	setRemoteResourceVersionAnnotation(createdObj, obj.GetResourceVersion())
+	// Set remoteResourceVersion annotation
+	SetRemoteResourceVersionAnnotation(createdObj, obj.GetResourceVersion())
 
 	return createdObj
 }
@@ -227,18 +229,35 @@ func UpdateResource(oldObj, newObj client.Object) client.Object {
 	updatedObj.SetUID(oldObj.GetUID())
 	updatedObj.SetOwnerReferences(oldObj.GetOwnerReferences())
 	updatedObj.SetFinalizers(oldObj.GetFinalizers())
+	updatedObj.SetManagedFields(oldObj.GetManagedFields())
 
+	// Specific fields to save for Service object
 	if svc, ok := updatedObj.(*corev1.Service); ok {
 		svc.Spec.ClusterIP = oldObj.(*corev1.Service).Spec.ClusterIP
 		svc.Spec.ClusterIPs = append([]string{}, oldObj.(*corev1.Service).Spec.ClusterIPs...)
 	}
 
-	setRemoteResourceVersionAnnotation(updatedObj, newObj.GetResourceVersion())
+	// Copy primaryResource annotations
+	CopyPrimaryResourceObjectAnnotation(updatedObj, oldObj.GetAnnotations())
+
+	// Set remoteResourceVersion annotation
+	SetRemoteResourceVersionAnnotation(updatedObj, newObj.GetResourceVersion())
 
 	return updatedObj
 }
 
-func setRemoteResourceVersionAnnotation(obj client.Object, resourceVersion string) {
+func CopyPrimaryResourceObjectAnnotation(obj client.Object, oldAnnotations map[string]string) {
+	annotations := CopyDict(obj.GetAnnotations())
+	for key, value := range oldAnnotations {
+		if key == ydbannotations.PrimaryResourceDatabaseAnnotation ||
+			key == ydbannotations.PrimaryResourceStorageAnnotation {
+			annotations[key] = value
+		}
+	}
+	obj.SetAnnotations(annotations)
+}
+
+func SetRemoteResourceVersionAnnotation(obj client.Object, resourceVersion string) {
 	annotations := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
 		annotations[key] = value
@@ -284,17 +303,32 @@ func ConvertRemoteResourceToObject(remoteResource api.RemoteResource, namespace 
 	return runtimeObj.(client.Object), nil
 }
 
+func GetPatchResult(
+	localObj client.Object,
+	remoteObj client.Object,
+) (*patch.PatchResult, error) {
+	// Get diff resources and compare bytes by k8s-objectmatcher PatchMaker
+	updatedObj := UpdateResource(localObj, remoteObj)
+	patchResult, err := patchMaker.Calculate(localObj, updatedObj,
+		[]patch.CalculateOption{
+			patch.IgnoreStatusFields(),
+		}...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return patchResult, nil
+}
+
 func EqualRemoteResourceWithObject(
 	remoteResource *api.RemoteResource,
-	namespace string,
 	remoteObj client.Object,
-	remoteObjGVK schema.GroupVersionKind,
 ) bool {
 	if remoteObj.GetName() == remoteResource.Name &&
-		remoteObj.GetNamespace() == namespace &&
-		remoteObjGVK.Kind == remoteResource.Kind &&
-		remoteObjGVK.Group == remoteResource.Group &&
-		remoteObjGVK.Version == remoteResource.Version {
+		remoteObj.GetObjectKind().GroupVersionKind().Kind == remoteResource.Kind &&
+		remoteObj.GetObjectKind().GroupVersionKind().Group == remoteResource.Group &&
+		remoteObj.GetObjectKind().GroupVersionKind().Version == remoteResource.Version {
 		return true
 	}
 	return false
