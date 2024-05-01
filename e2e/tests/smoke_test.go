@@ -102,7 +102,7 @@ func waitUntilDatabaseReady(ctx context.Context, databaseName, databaseNamespace
 
 		return meta.IsStatusConditionPresentAndEqual(
 			database.Status.Conditions,
-			DatabaseTenantInitializedCondition,
+			DatabaseInitializedCondition,
 			metav1.ConditionTrue,
 		) && database.Status.State == testobjects.ReadyStatus
 	}, Timeout, Interval).Should(BeTrue())
@@ -521,7 +521,7 @@ var _ = Describe("Operator smoke test", func() {
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 	})
 
-	It("storage.State goes Pending -> Preparing -> Provisioning -> Initializing -> Ready", func() {
+	It("storage.State goes Pending -> Preparing -> Initializing -> Provisioning -> Ready", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
@@ -537,9 +537,9 @@ var _ = Describe("Operator smoke test", func() {
 
 		allowedChanges := map[ClusterState]ClusterState{
 			StoragePending:      StoragePreparing,
-			StoragePreparing:    StorageProvisioning,
-			StorageProvisioning: StorageInitializing,
-			StorageInitializing: StorageReady,
+			StoragePreparing:    StorageInitializing,
+			StorageInitializing: StorageProvisioning,
+			StorageProvisioning: StorageReady,
 		}
 
 		re := regexp.MustCompile(`Storage moved from ([a-zA-Z]+) to ([a-zA-Z]+)`)

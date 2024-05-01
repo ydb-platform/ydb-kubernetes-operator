@@ -80,7 +80,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 				Name:      storageSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage))
-			return foundStorage.Status.State == StorageProvisioning
+			return foundStorage.Status.State == StorageInitializing
 		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("set status Ready to Storage...")
@@ -111,7 +111,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 				Name:      databaseSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundDatabase))
-			return foundDatabase.Status.State == DatabaseProvisioning
+			return foundDatabase.Status.State == DatabaseInitializing
 		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("checking that DatabaseNodeSet created on local cluster...")
