@@ -4498,7 +4498,7 @@ spec:
           status:
             default:
               state: Pending
-            description: DatabaseNodeSetStatus defines the observed state
+            description: StorageNodeSetStatus defines the observed state
             properties:
               conditions:
                 items:

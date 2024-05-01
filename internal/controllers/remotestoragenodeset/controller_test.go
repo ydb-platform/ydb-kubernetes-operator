@@ -21,7 +21,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -464,16 +463,12 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
-				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
-				Expect(err).ShouldNot(HaveOccurred())
-
+				logf.Log.Info("remoteResources", "status", foundRemoteStorageNodeSet.Status.RemoteResources)
 				for idx := range foundRemoteStorageNodeSet.Status.RemoteResources {
 					remoteResource := foundRemoteStorageNodeSet.Status.RemoteResources[idx]
 					if resources.EqualRemoteResourceWithObject(
 						&remoteResource,
-						testobjects.YdbNamespace,
 						foundConfigMap.DeepCopy(),
-						gvk,
 					) {
 						if meta.IsStatusConditionPresentAndEqual(
 							remoteResource.Conditions,
@@ -501,16 +496,11 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
-				gvk, err := apiutil.GVKForObject(foundConfigMap.DeepCopy(), scheme.Scheme)
-				Expect(err).ShouldNot(HaveOccurred())
-
 				for idx := range foundRemoteStorageNodeSet.Status.RemoteResources {
 					remoteResource := foundRemoteStorageNodeSet.Status.RemoteResources[idx]
 					if resources.EqualRemoteResourceWithObject(
 						&remoteResource,
-						testobjects.YdbNamespace,
 						foundConfigMap.DeepCopy(),
-						gvk,
 					) {
 						if meta.IsStatusConditionPresentAndEqual(
 							remoteResource.Conditions,

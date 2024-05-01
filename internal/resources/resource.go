@@ -22,7 +22,6 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -239,7 +238,7 @@ func UpdateResource(oldObj, newObj client.Object) client.Object {
 	}
 
 	// Copy primaryResource annotations
-	CopyPrimaryResourceVersionAnnotation(updatedObj, oldObj.GetAnnotations())
+	CopyPrimaryResourceObjectAnnotation(updatedObj, oldObj.GetAnnotations())
 
 	// Set remoteResourceVersion annotation
 	SetRemoteResourceVersionAnnotation(updatedObj, newObj.GetResourceVersion())
@@ -247,30 +246,7 @@ func UpdateResource(oldObj, newObj client.Object) client.Object {
 	return updatedObj
 }
 
-func CheckRemoteResourceUsage(
-	namespace string,
-	scheme *runtime.Scheme,
-	remoteResource api.RemoteResource,
-	remoteObjects []client.Object,
-) (bool, error) {
-	for _, remoteObj := range remoteObjects {
-		remoteObjGVK, err := apiutil.GVKForObject(remoteObj, scheme)
-		if err != nil {
-			return false, err
-		}
-		if EqualRemoteResourceWithObject(
-			&remoteResource,
-			namespace,
-			remoteObj,
-			remoteObjGVK,
-		) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func CopyPrimaryResourceVersionAnnotation(obj client.Object, oldAnnotations map[string]string) {
+func CopyPrimaryResourceObjectAnnotation(obj client.Object, oldAnnotations map[string]string) {
 	annotations := CopyDict(obj.GetAnnotations())
 	for key, value := range oldAnnotations {
 		if key == ydbannotations.PrimaryResourceDatabaseAnnotation ||
@@ -327,17 +303,32 @@ func ConvertRemoteResourceToObject(remoteResource api.RemoteResource, namespace 
 	return runtimeObj.(client.Object), nil
 }
 
+func GetPatchResult(
+	localObj client.Object,
+	remoteObj client.Object,
+) (*patch.PatchResult, error) {
+	// Get diff resources and compare bytes by k8s-objectmatcher PatchMaker
+	updatedObj := UpdateResource(localObj, remoteObj)
+	patchResult, err := patchMaker.Calculate(localObj, updatedObj,
+		[]patch.CalculateOption{
+			patch.IgnoreStatusFields(),
+		}...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return patchResult, nil
+}
+
 func EqualRemoteResourceWithObject(
 	remoteResource *api.RemoteResource,
-	namespace string,
 	remoteObj client.Object,
-	remoteObjGVK schema.GroupVersionKind,
 ) bool {
 	if remoteObj.GetName() == remoteResource.Name &&
-		remoteObj.GetNamespace() == namespace &&
-		remoteObjGVK.Kind == remoteResource.Kind &&
-		remoteObjGVK.Group == remoteResource.Group &&
-		remoteObjGVK.Version == remoteResource.Version {
+		remoteObj.GetObjectKind().GroupVersionKind().Kind == remoteResource.Kind &&
+		remoteObj.GetObjectKind().GroupVersionKind().Group == remoteResource.Group &&
+		remoteObj.GetObjectKind().GroupVersionKind().Version == remoteResource.Version {
 		return true
 	}
 	return false
