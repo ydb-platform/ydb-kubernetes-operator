@@ -62,8 +62,28 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseTenantInitializedCondition) {
-		return r.handleFirstStart(ctx, &database)
+	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseInitializedCondition) {
+		return r.handleTenantCreation(ctx, &database)
+	}
+
+	if database.Spec.NodeSets != nil {
+		stop, result, err = r.waitForDatabaseNodeSetsToReady(ctx, &database)
+		if stop {
+			return result, err
+		}
+	} else {
+		stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
+		if stop {
+			return result, err
+		}
+	}
+
+	if database.Status.State != DatabaseReady {
+		database.Status.State = DatabaseReady
+		stop, result, err = r.updateStatus(ctx, &database)
+		if stop {
+			return result, err
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -130,7 +150,7 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForDatabaseNodeSetToReady")
 
-	if database.Status.State == DatabasePreparing {
+	if database.Status.State == DatabaseInitializing {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
@@ -552,7 +572,7 @@ func (r *Reconciler) handlePauseResume(
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) handleFirstStart(
+func (r *Reconciler) handleTenantCreation(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (ctrl.Result, error) {
@@ -561,19 +581,7 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	if database.Spec.NodeSets != nil {
-		stop, result, err = r.waitForDatabaseNodeSetsToReady(ctx, database)
-		if stop {
-			return result, err
-		}
-	} else {
-		stop, result, err = r.waitForStatefulSetToScale(ctx, database)
-		if stop {
-			return result, err
-		}
-	}
-
-	stop, result, err = r.handleTenantCreation(ctx, database)
+	stop, result, err = r.initializeDatabase(ctx, database)
 	if stop {
 		return result, err
 	}

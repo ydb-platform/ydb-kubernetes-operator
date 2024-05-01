@@ -56,7 +56,32 @@ func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Resul
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
-		return r.handleFirstStart(ctx, &storage)
+		return r.handleBlobstorageInit(ctx, &storage)
+	}
+
+	if storage.Spec.NodeSets != nil {
+		stop, result, err = r.waitForStorageNodeSetsToReady(ctx, &storage)
+		if stop {
+			return result, err
+		}
+	} else {
+		stop, result, err = r.waitForStatefulSetToScale(ctx, &storage)
+		if stop {
+			return result, err
+		}
+	}
+
+	stop, result, err = r.runSelfCheck(ctx, &storage, false)
+	if stop {
+		return result, err
+	}
+
+	if storage.Status.State != StorageReady {
+		storage.Status.State = StorageReady
+		stop, result, err = r.updateStatus(ctx, &storage)
+		if stop {
+			return result, err
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -68,7 +93,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStatefulSetToScale")
 
-	if storage.Status.State == StoragePreparing {
+	if storage.Status.State == StorageInitializing {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
@@ -156,7 +181,7 @@ func (r *Reconciler) waitForStorageNodeSetsToReady(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step waitForStorageNodeSetToReady")
 
-	if storage.Status.State == StoragePreparing {
+	if storage.Status.State == StorageInitializing {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
@@ -541,7 +566,7 @@ func (r *Reconciler) handlePauseResume(
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) handleFirstStart(
+func (r *Reconciler) handleBlobstorageInit(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (ctrl.Result, error) {
@@ -550,24 +575,7 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	if storage.Spec.NodeSets != nil {
-		stop, result, err = r.waitForStorageNodeSetsToReady(ctx, storage)
-		if stop {
-			return result, err
-		}
-	} else {
-		stop, result, err = r.waitForStatefulSetToScale(ctx, storage)
-		if stop {
-			return result, err
-		}
-	}
-
 	stop, result, err = r.initializeStorage(ctx, storage)
-	if stop {
-		return result, err
-	}
-
-	stop, result, err = r.runSelfCheck(ctx, storage, false)
 	if stop {
 		return result, err
 	}
