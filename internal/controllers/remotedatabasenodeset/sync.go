@@ -22,9 +22,9 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteDatabaseNodeSet *v1alpha1
 	var err error
 
 	remoteDatabaseNodeSet := resources.NewRemoteDatabaseNodeSet(crRemoteDatabaseNodeSet)
-	remoteObjects := remoteDatabaseNodeSet.GetRemoteObjects()
+	remoteObjects := remoteDatabaseNodeSet.GetRemoteObjects(r.Scheme)
 
-	stop, result, err = r.initRemoteResourcesStatus(ctx, &remoteDatabaseNodeSet, remoteObjects)
+	stop, result, err = r.initRemoteObjectsStatus(ctx, &remoteDatabaseNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}

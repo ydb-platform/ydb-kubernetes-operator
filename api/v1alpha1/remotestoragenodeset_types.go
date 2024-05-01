@@ -23,7 +23,7 @@ type RemoteStorageNodeSet struct {
 	Status RemoteStorageNodeSetStatus `json:"status,omitempty"`
 }
 
-// DatabaseNodeSetStatus defines the observed state
+// StorageNodeSetStatus defines the observed state
 type RemoteStorageNodeSetStatus struct {
 	State           constants.ClusterState `json:"state"`
 	Conditions      []metav1.Condition     `json:"conditions,omitempty"`
