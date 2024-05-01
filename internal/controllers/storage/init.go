@@ -42,11 +42,14 @@ func (r *Reconciler) processSkipInitPipeline(
 		"Skipping initialization due to skip annotation present, be careful!",
 	)
 
-	return r.setInitStorageCompleted(
-		ctx,
-		storage,
-		"Storage initialization not performed because initialization is skipped",
-	)
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:    StorageInitializedCondition,
+		Status:  "True",
+		Reason:  ReasonCompleted,
+		Message: "Storage initialization not performed because initialization is skipped",
+	})
+	storage.Status.State = StorageReady
+	return r.updateStatus(ctx, storage)
 }
 
 func (r *Reconciler) setInitialStatus(
@@ -54,6 +57,17 @@ func (r *Reconciler) setInitialStatus(
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
+
+	if meta.IsStatusConditionTrue(storage.Status.Conditions, OldStorageInitializedCondition) {
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:    StorageInitializedCondition,
+			Status:  "True",
+			Reason:  ReasonCompleted,
+			Message: "Storage initialized successfully",
+		})
+		storage.Status.State = StorageReady
+		return r.updateStatus(ctx, storage)
+	}
 
 	// This block is special internal logic that skips all Storage initialization.
 	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
@@ -73,7 +87,7 @@ func (r *Reconciler) setInitialStatus(
 			Type:    StorageInitializedCondition,
 			Status:  "False",
 			Reason:  ReasonInProgress,
-			Message: "Storage is not ready yet",
+			Message: "Storage has not been initialized yet",
 		})
 		storage.Status.State = StoragePreparing
 		return r.updateStatus(ctx, storage)
@@ -92,8 +106,7 @@ func (r *Reconciler) setInitStorageCompleted(
 		Reason:  ReasonCompleted,
 		Message: message,
 	})
-
-	storage.Status.State = StorageReady
+	storage.Status.State = StorageProvisioning
 	return r.updateStatus(ctx, storage)
 }
 
@@ -103,7 +116,7 @@ func (r *Reconciler) initializeStorage(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step initializeStorage")
 
-	if storage.Status.State == StorageProvisioning {
+	if storage.Status.State == StoragePreparing {
 		storage.Status.State = StorageInitializing
 		return r.updateStatus(ctx, storage)
 	}
