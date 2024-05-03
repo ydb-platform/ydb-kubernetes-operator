@@ -20,10 +20,11 @@ const (
 	DatabasePausedCondition            = "DatabasePaused"
 	DatabaseTenantInitializedCondition = "TenantInitialized"
 
-	NodeSetPreparingCondition     = "NodeSetPreparing"
-	NodeSetProvisioningCondition  = "NodeSetProvisioning"
-	NodeSetReadyCondition         = "NodeSetReady"
-	NodeSetPausedCondition        = "NodeSetPaused"
+	NodeSetPreparedCondition    = "NodeSetPreparing"
+	NodeSetProvisionedCondition = "NodeSetProvisioning"
+	NodeSetReadyCondition       = "NodeSetReady"
+	NodeSetPausedCondition      = "NodeSetPaused"
+
 	RemoteResourceSyncedCondition = "ResourceSynced"
 
 	Stop     = true

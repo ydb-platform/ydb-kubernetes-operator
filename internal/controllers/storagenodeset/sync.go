@@ -49,7 +49,7 @@ func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *v1alpha1.Storag
 		return result, err
 	}
 
-	return result, err
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) setInitialStatus(
@@ -103,7 +103,7 @@ func (r *Reconciler) handleResourcesSync(
 
 	if storageNodeSet.Status.State == StorageNodeSetPending {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetPreparingCondition,
+			Type:    NodeSetPreparedCondition,
 			Status:  metav1.ConditionUnknown,
 			Reason:  ReasonInProgress,
 			Message: fmt.Sprintf("Waiting for sync resources for generation %d", storageNodeSet.Generation),
@@ -156,7 +156,7 @@ func (r *Reconciler) handleResourcesSync(
 				eventMessage+fmt.Sprintf(", failed to sync, error: %s", err),
 			)
 			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-				Type:    NodeSetPreparingCondition,
+				Type:    NodeSetPreparedCondition,
 				Status:  metav1.ConditionFalse,
 				Reason:  ReasonInProgress,
 				Message: fmt.Sprintf("Failed to sync resources for generation %d", storageNodeSet.Generation),
@@ -172,9 +172,9 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
-	if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetPreparingCondition) {
+	if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetPreparedCondition) {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetPreparingCondition,
+			Type:    NodeSetPreparedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
 			Message: "Successfully synced resources",
@@ -194,7 +194,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if storageNodeSet.Status.State == StorageNodeSetPreparing {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisioningCondition,
+			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionUnknown,
 			Reason:  ReasonInProgress,
 			Message: fmt.Sprintf("Waiting for scale to desired nodes: %d", storageNodeSet.Spec.Nodes),
@@ -224,13 +224,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 				fmt.Sprintf("Failed to get StatefulSet: %s", err),
 			)
 		}
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisioningCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonInProgress,
-			Message: "Failed to check StatefulSet .spec.replicas",
-		})
-		return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	matchingLabels := client.MatchingLabels{}
@@ -251,12 +245,12 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Failed to list pods: %s", err),
 		)
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisioningCondition,
+			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
 			Message: "Failed to check Pods .status.phase",
 		})
-		return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	runningPods := 0
@@ -274,7 +268,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisioningCondition,
+			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
 			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
@@ -282,9 +276,9 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
 	}
 
-	if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetProvisioningCondition) {
+	if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetProvisionedCondition) {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisioningCondition,
+			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
 			Message: "Successfully scaled to desired number of nodes",
@@ -302,21 +296,21 @@ func (r *Reconciler) handlePauseResume(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step handlePauseResume")
 
-	if storageNodeSet.Status.State == DatabaseNodeSetProvisioning {
+	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
 		if storageNodeSet.Spec.Pause {
 			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 				Type:   NodeSetPausedCondition,
 				Status: metav1.ConditionTrue,
 				Reason: ReasonCompleted,
 			})
-			storageNodeSet.Status.State = DatabaseNodeSetPaused
+			storageNodeSet.Status.State = StorageNodeSetPaused
 		} else {
 			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 				Type:   NodeSetReadyCondition,
 				Status: metav1.ConditionTrue,
 				Reason: ReasonCompleted,
 			})
-			storageNodeSet.Status.State = DatabaseNodeSetReady
+			storageNodeSet.Status.State = StorageNodeSetReady
 		}
 		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
 	}
@@ -376,8 +370,8 @@ func (r *Reconciler) updateStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running updateStatus handler")
 
-	if meta.IsStatusConditionFalse(storageNodeSet.Status.Conditions, NodeSetPreparingCondition) ||
-		meta.IsStatusConditionFalse(storageNodeSet.Status.Conditions, NodeSetProvisioningCondition) {
+	if meta.IsStatusConditionFalse(storageNodeSet.Status.Conditions, NodeSetPreparedCondition) ||
+		meta.IsStatusConditionFalse(storageNodeSet.Status.Conditions, NodeSetProvisionedCondition) {
 		if storageNodeSet.Spec.Pause {
 			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 				Type:   NodeSetPausedCondition,

@@ -359,7 +359,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundDatabaseNodeSetOnRemote.Status.Conditions,
-					NodeSetPreparingCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
 				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
@@ -374,7 +374,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundRemoteDatabaseNodeSet.Status.Conditions,
-					NodeSetPreparingCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
 				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
@@ -389,7 +389,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundDatabaseNodeSetOnRemote.Status.Conditions,
-					NodeSetPreparingCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
 				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
@@ -404,7 +404,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundRemoteDatabaseNodeSet.Status.Conditions,
-					NodeSetPreparingCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
 				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
