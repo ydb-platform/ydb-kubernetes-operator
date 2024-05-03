@@ -295,7 +295,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundStaticRemoteStorageNodeSetOnRemote.Status.Conditions,
-					NodeSetPreparingCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
 				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
@@ -310,7 +310,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundStaticRemoteStorageNodeSet.Status.Conditions,
-					NodeSetPreparingCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
 				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
@@ -325,7 +325,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundRemoteStorageNodeSetOnRemote.Status.Conditions,
-					NodeSetPreparingCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
 				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
@@ -340,7 +340,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundRemoteStorageNodeSet.Status.Conditions,
-					NodeSetPreparingCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
 				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
