@@ -759,7 +759,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				foundConfigMap := corev1.ConfigMap{}
 				Expect(remoteClient.Get(ctx, types.NamespacedName{
-					Name:      databaseSample.Name,
+					Name:      storageSample.Name,
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
@@ -791,7 +791,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				foundConfigMap := corev1.ConfigMap{}
 				Expect(remoteClient.Get(ctx, types.NamespacedName{
-					Name:      databaseSample.Name,
+					Name:      storageSample.Name,
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
