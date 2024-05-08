@@ -90,8 +90,6 @@ func tryFillMissingSections(
 }
 
 func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
-	config := make(map[string]interface{})
-
 	// If any kind of configuration exists on Database object, then
 	// it will be used to fully override storage object.
 	// This is a temporary solution that should go away when it would
@@ -105,12 +103,14 @@ func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
 
 	dynconfig, err := TryParseDynconfig(rawYamlConfiguration)
 	if err == nil {
-		config = dynconfig.Config
-	} else {
-		err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
-		if err != nil {
-			return "", err
-		}
+		config, err := yaml.Marshal(dynconfig.Config)
+		return string(config), err
+	}
+
+	config := make(map[string]interface{})
+	err = yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
+	if err != nil {
+		return "", err
 	}
 
 	generatedConfig := generateSomeDefaults(cr, crDB)
@@ -125,10 +125,10 @@ func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
 }
 
 func TryParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
-	dynConfig := schema.Dynconfig{}
-	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &dynConfig)
+	dynconfig := schema.Dynconfig{}
+	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &dynconfig)
 	if err != nil {
 		return schema.Dynconfig{}, err
 	}
-	return dynConfig, nil
+	return dynconfig, nil
 }
