@@ -141,7 +141,7 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		database.Spec.StorageEndpoint = storage.GetStorageEndpointWithProto()
 	}
 
-	if database.Spec.Configuration != "" || (database.Spec.Encryption != nil && database.Spec.Encryption.Enabled) {
+	if database.Spec.Configuration != "" {
 		configuration, err := buildConfiguration(storage, database)
 		if err != nil {
 			return err
