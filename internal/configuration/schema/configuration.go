@@ -14,5 +14,5 @@ type Metadata struct {
 	Kind    string `yaml:"kind,omitempty"`
 	Cluster string `yaml:"cluster"`
 	Version uint64 `yaml:"version"`
-	Id      uint64 `yaml:"id,omitempty"`
+	ID      uint64 `yaml:"id,omitempty"`
 }
