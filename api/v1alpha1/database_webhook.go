@@ -145,7 +145,7 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 	if err != nil {
 		return err
 	}
-	database.Spec.Configuration = configuration
+	database.Spec.Configuration = string(configuration)
 
 	return nil
 }

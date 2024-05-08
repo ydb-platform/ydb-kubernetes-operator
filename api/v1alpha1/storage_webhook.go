@@ -170,7 +170,7 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 	if err != nil {
 		return err
 	}
-	storage.Spec.Configuration = configuration
+	storage.Spec.Configuration = string(configuration)
 
 	return nil
 }

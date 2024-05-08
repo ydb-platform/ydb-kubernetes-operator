@@ -70,13 +70,20 @@ func TestSchema(t *testing.T) {
 
 var _ = Describe("Testing schema", func() {
 	It("Parse dynconfig", func() {
-		dynconfig, err := v1alpha1.TryParseDynconfig(dynconfigExample)
+		dynconfig := schema.Dynconfig{}
+		err := v1alpha1.TryParseDynconfig(dynconfigExample, &dynconfig)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
 			Version: 1,
 			Cluster: "unknown",
 		}))
 		Expect(dynconfig.Config["yaml_config_enabled"]).Should(BeTrue())
+	})
+
+	It("Try parse static config as dynconfig", func() {
+		dynconfig := schema.Dynconfig{}
+		err := v1alpha1.TryParseDynconfig(configurationExample, &dynconfig)
+		Expect(err).Should(HaveOccurred())
 	})
 
 	It("Parse static config", func() {
