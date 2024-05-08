@@ -70,8 +70,7 @@ func TestSchema(t *testing.T) {
 
 var _ = Describe("Testing schema", func() {
 	It("Parse dynconfig", func() {
-		dynconfig := schema.Dynconfig{}
-		err := v1alpha1.TryParseDynconfig(dynconfigExample, &dynconfig)
+		dynconfig, err := v1alpha1.TryParseDynconfig(dynconfigExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
 			Version: 1,
@@ -81,8 +80,7 @@ var _ = Describe("Testing schema", func() {
 	})
 
 	It("Try parse static config as dynconfig", func() {
-		dynconfig := schema.Dynconfig{}
-		err := v1alpha1.TryParseDynconfig(configurationExample, &dynconfig)
+		_, err := v1alpha1.TryParseDynconfig(configurationExample)
 		Expect(err).Should(HaveOccurred())
 	})
 

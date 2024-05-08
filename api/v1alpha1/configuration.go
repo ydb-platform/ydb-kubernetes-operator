@@ -91,6 +91,8 @@ func tryFillMissingSections(
 }
 
 func buildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
+	config := make(map[string]interface{})
+
 	// If any kind of configuration exists on Database object, then
 	// it will be used to fully override storage object.
 	// This is a temporary solution that should go away when it would
@@ -100,16 +102,14 @@ func buildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 		rawYamlConfiguration = crDB.Spec.Configuration
 	} else {
 		rawYamlConfiguration = cr.Spec.Configuration
+		if dynconfig, err := TryParseDynconfig(rawYamlConfiguration); err == nil {
+			return yaml.Marshal(dynconfig.Config)
+		}
 	}
 
-	config := make(map[string]interface{})
-	if err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config); err != nil {
+	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
+	if err != nil {
 		return []byte(""), err
-	}
-
-	dynconfig := schema.Dynconfig{}
-	if err := TryParseDynconfig(rawYamlConfiguration, &dynconfig); err == nil {
-		return yaml.Marshal(dynconfig.Config)
 	}
 
 	generatedConfig := generateSomeDefaults(cr, crDB)
@@ -118,8 +118,10 @@ func buildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	return yaml.Marshal(config)
 }
 
-func TryParseDynconfig(rawYamlConfiguration string, dynconfig *schema.Dynconfig) error {
+func TryParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
+	dynconfig := schema.Dynconfig{}
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(true)
-	return dec.Decode(&dynconfig)
+	err := dec.Decode(&dynconfig)
+	return dynconfig, err
 }
