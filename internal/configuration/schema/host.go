@@ -6,7 +6,7 @@ type Host struct {
 	HostConfigID  int           `yaml:"host_config_id"`
 	NodeID        int           `yaml:"node_id"`
 	Port          int           `yaml:"port,omitempty"`
-	WalleLocation WalleLocation `yaml:"walle_location,omitempty"`
+	WalleLocation WalleLocation `yaml:"location,omitempty"`
 }
 
 type WalleLocation struct {

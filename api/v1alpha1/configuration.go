@@ -103,9 +103,14 @@ func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
 		rawYamlConfiguration = cr.Spec.Configuration
 	}
 
-	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
-	if err != nil {
-		return "", err
+	dynconfig, err := TryParseDynconfig(rawYamlConfiguration)
+	if err == nil {
+		config = dynconfig.Config
+	} else {
+		err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	generatedConfig := generateSomeDefaults(cr, crDB)
@@ -117,4 +122,13 @@ func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
 	}
 
 	return string(data), nil
+}
+
+func TryParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
+	dynConfig := schema.Dynconfig{}
+	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &dynConfig)
+	if err != nil {
+		return schema.Dynconfig{}, err
+	}
+	return dynConfig, nil
 }
