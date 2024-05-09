@@ -48,7 +48,7 @@ spec:
             {{- end }}
           command:
             - /manager
-          image: {{ default "cr.yandex/yc/ydb-kubernetes-operator" .Values.image.repository }}:
+          image: {{ default "ydbplatform/ydb-kubernetes-operator " .Values.image.repository }}:
             {{- if eq .Values.image.tag "REPLACED_BY_CHART_APP_VERSION_IF_UNSPECIFIED" -}}
               {{- .Chart.AppVersion -}}
             {{- else -}}
