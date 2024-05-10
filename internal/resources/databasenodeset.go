@@ -62,8 +62,9 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 			Database:   api.RecastDatabaseNodeSet(b.DatabaseNodeSet),
 			RestConfig: restConfig,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        b.Name,
+			Labels:      b.Spec.AdditionalLabels,
+			Annotations: b.Spec.AdditionalAnnotations,
 		},
 	)
 	return resourceBuilders

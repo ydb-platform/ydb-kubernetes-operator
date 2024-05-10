@@ -47,6 +47,7 @@ const (
 
 	InitJobNameFormat             = "%s-blobstorage-init"
 	OperatorTokenSecretNameFormat = "%s-operator-token"
+	EncryptionKeyConfigNameFormat = "%s-encryption-key"
 
 	systemCertsVolumeName   = "init-main-shared-certs-volume"
 	localCertsVolumeName    = "init-main-shared-source-dir-volume"
@@ -64,9 +65,9 @@ const (
 	systemCertsDir = "/etc/ssl/certs"
 
 	encryptionVolumeName                      = "encryption"
+	encryptionKeyConfigVolumeName             = "encryption-key-config"
 	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
 	defaultEncryptionSecretKey                = "key"
-	defaultPin                                = "EmptyPin"
 )
 
 type ResourceBuilder interface {
@@ -525,8 +526,8 @@ func buildCAStorePatchingCommandArgs(
 	return command, args
 }
 
-func GetConfigurationChecksum(configuration string) string {
+func GetSHA256Checksum(text string) string {
 	hasher := sha256.New()
-	hasher.Write([]byte(configuration))
+	hasher.Write([]byte(text))
 	return hex.EncodeToString(hasher.Sum(nil))
 }

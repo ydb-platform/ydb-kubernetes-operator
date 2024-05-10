@@ -1,9 +1,7 @@
 package v1alpha1
 
 import (
-	"crypto/sha256"
 	"fmt"
-	"path"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -11,30 +9,17 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 )
 
-const (
-	DatabaseEncryptionKeyPath           = "/opt/ydb/secrets/database_encryption"
-	DatabaseEncryptionKeyFile           = "key"
-	DatastreamsIAMServiceAccountKeyPath = "/opt/ydb/secrets/datastreams"
-	DatastreamsIAMServiceAccountKeyFile = "sa_key.json"
-)
-
-func hash(text string) string {
-	h := sha256.New()
-	h.Write([]byte(text))
-	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
-func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
+func generateHosts(storage *Storage) []schema.Host {
 	var hosts []schema.Host
 
-	for i := 0; i < int(cr.Spec.Nodes); i++ {
+	for i := 0; i < int(storage.Spec.Nodes); i++ {
 		datacenter := "az-1"
-		if cr.Spec.Erasure == ErasureMirror3DC {
+		if storage.Spec.Erasure == ErasureMirror3DC {
 			datacenter = fmt.Sprintf("az-%d", i%3)
 		}
 
 		hosts = append(hosts, schema.Host{
-			Host:         fmt.Sprintf("%v-%d", cr.GetName(), i),
+			Host:         fmt.Sprintf("%v-%d", storage.GetName(), i),
 			HostConfigID: 1, // TODO
 			NodeID:       i + 1,
 			Port:         InterconnectPort,
@@ -46,70 +31,30 @@ func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
 		})
 	}
 
-	if cr.Spec.NodeSets != nil {
+	if storage.Spec.NodeSets != nil {
 		hostIndex := 0
-		for _, nodeSetSpec := range cr.Spec.NodeSets {
+		for _, nodeSetSpec := range storage.Spec.NodeSets {
 			for podIndex := 0; podIndex < int(nodeSetSpec.Nodes); podIndex++ {
-				podName := cr.GetName() + "-" + nodeSetSpec.Name + "-" + strconv.Itoa(podIndex)
+				podName := storage.GetName() + "-" + nodeSetSpec.Name + "-" + strconv.Itoa(podIndex)
 				hosts[hostIndex].Host = podName
 				hostIndex++
 			}
 		}
 	}
 
-	var keyConfig *schema.KeyConfig
-	if crDB != nil && crDB.Spec.Encryption != nil && crDB.Spec.Encryption.Enabled {
-		keyConfig = &schema.KeyConfig{
-			Keys: []schema.Key{
-				{
-					ContainerPath: path.Join(DatabaseEncryptionKeyPath, DatabaseEncryptionKeyFile),
-					ID:            hash(cr.Name),
-					Pin:           crDB.Spec.Encryption.Pin,
-					Version:       1,
-				},
-			},
-		}
-	}
-
-	return schema.Configuration{
-		Hosts:     hosts,
-		KeyConfig: keyConfig,
-	}
+	return hosts
 }
 
-func tryFillMissingSections(
-	resultConfig map[string]interface{},
-	generatedConfig schema.Configuration,
-) {
-	if resultConfig["hosts"] == nil {
-		resultConfig["hosts"] = generatedConfig.Hosts
-	}
-	if generatedConfig.KeyConfig != nil {
-		resultConfig["key_config"] = generatedConfig.KeyConfig
-	}
-}
-
-func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
+func buildConfiguration(storage *Storage) (string, error) {
 	config := make(map[string]interface{})
-
-	// If any kind of configuration exists on Database object, then
-	// it will be used to fully override storage object.
-	// This is a temporary solution that should go away when it would
-	// be possible to override Database configuration partially.
-	var rawYamlConfiguration string
-	if crDB != nil && crDB.Spec.Configuration != "" {
-		rawYamlConfiguration = crDB.Spec.Configuration
-	} else {
-		rawYamlConfiguration = cr.Spec.Configuration
-	}
-
-	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
+	err := yaml.Unmarshal([]byte(storage.Spec.Configuration), &config)
 	if err != nil {
 		return "", err
 	}
 
-	generatedConfig := generateSomeDefaults(cr, crDB)
-	tryFillMissingSections(config, generatedConfig)
+	if config["hosts"] == nil {
+		config["hosts"] = generateHosts(storage)
+	}
 
 	data, err := yaml.Marshal(config)
 	if err != nil {

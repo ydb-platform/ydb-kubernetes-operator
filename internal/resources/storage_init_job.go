@@ -60,17 +60,30 @@ func (b *StorageInitJobBuilder) Placeholder(cr client.Object) client.Object {
 
 func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 	jobName := fmt.Sprintf(InitJobNameFormat, storage.Name)
-	jobLabels := labels.Common(storage.Name, make(map[string]string))
-	jobAnnotations := make(map[string]string)
+
+	jobLabels := labels.StorageLabels(storage)
+	jobAnnotations := annotations.GetYdbTechAnnotations(storage.Annotations)
+
+	for k, v := range storage.Spec.AdditionalLabels {
+		jobLabels[k] = v
+	}
+	jobLabels[labels.StorageGeneration] = strconv.FormatInt(storage.ObjectMeta.Generation, 10)
+
+	for k, v := range storage.Spec.AdditionalAnnotations {
+		jobAnnotations[k] = v
+	}
+	jobAnnotations[annotations.ConfigurationChecksum] = GetSHA256Checksum(storage.Spec.Configuration)
 
 	if storage.Spec.InitJob != nil {
 		if storage.Spec.InitJob.AdditionalLabels != nil {
-			jobLabels.Merge(storage.Spec.InitJob.AdditionalLabels)
-			jobLabels[labels.StorageGeneration] = strconv.FormatInt(storage.ObjectMeta.Generation, 10)
+			for k, v := range storage.Spec.InitJob.AdditionalLabels {
+				jobLabels[k] = v
+			}
 		}
 		if storage.Spec.InitJob.AdditionalAnnotations != nil {
-			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
-			jobAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(storage.Spec.Configuration)
+			for k, v := range storage.Spec.InitJob.AdditionalAnnotations {
+				jobAnnotations[k] = v
+			}
 		}
 	}
 

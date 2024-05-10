@@ -27,14 +27,22 @@ const (
 	DiskFilePath        = "/data"
 	YdbAuthToken        = "ydb-auth-token-file"
 
-	ConfigDir      = "/opt/ydb/cfg"
-	ConfigFileName = "config.yaml"
+	ConfigDir                           = "/opt/ydb/cfg"
+	ConfigFileName                      = "config.yaml"
+	DatabaseEncryptionKeyConfigFileName = "key.txt"
+
+	DatabaseEncryptionKeySecretDir      = "database_encryption"
+	DatastreamsIAMServiceAccountKeyDir  = "datastreams"
+	DatabaseEncryptionKeySecretFile     = "key.pem"
+	DatastreamsIAMServiceAccountKeyFile = "sa_key.json"
 
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	DefaultRootUsername = "root"
-	DefaultRootPassword = ""
+	DefaultRootUsername          = "root"
+	DefaultRootPassword          = ""
+	DefaultDatabaseDomain        = "Root"
+	DefaultDatabaseEncryptionPin = "EmptyPin"
 
 	AnnotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
 	AnnotationUpdateDNSPolicy        = "ydb.tech/update-dns-policy"

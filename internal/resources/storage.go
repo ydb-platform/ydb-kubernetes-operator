@@ -1,6 +1,9 @@
 package resources
 
 import (
+	"fmt"
+	"strconv"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -8,6 +11,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
@@ -48,6 +52,7 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	storageLabels := labels.StorageLabels(b.Unwrap())
+	storageAnnotations := annotations.GetYdbTechAnnotations(b.Annotations)
 
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -60,6 +65,13 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	statusServiceLabels := storageLabels.Copy()
 	statusServiceLabels.Merge(b.Spec.Service.Status.AdditionalLabels)
 	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
+
+	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels.Merge(b.Spec.AdditionalLabels)
+	statefulSetLabels.Merge(map[string]string{labels.StorageGeneration: strconv.FormatInt(b.ObjectMeta.Generation, 10)})
+
+	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetSHA256Checksum(b.Spec.Configuration)
 
 	var optionalBuilders []ResourceBuilder
 	optionalBuilders = append(
@@ -96,12 +108,16 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 				Storage:    b.Unwrap(),
 				RestConfig: restConfig,
 
-				Name:   b.Name,
-				Labels: storageLabels,
+				Name:        b.Name,
+				Labels:      statefulSetLabels,
+				Annotations: statefulSetAnnotations,
 			},
 		)
 	} else {
-		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(storageLabels)...)
+		optionalBuilders = append(
+			optionalBuilders,
+			b.getNodeSetBuilders(storageLabels, storageAnnotations)...,
+		)
 	}
 
 	return append(
@@ -149,34 +165,39 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	)
 }
 
-func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) []ResourceBuilder {
+func (b *StorageClusterBuilder) getNodeSetBuilders(
+	storageLabels map[string]string,
+	storageAnnotations map[string]string,
+) []ResourceBuilder {
 	var nodeSetBuilders []ResourceBuilder
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
-		nodeSetLabels := storageLabels.Copy()
-		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
-		nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 
-		nodeSetAnnotations := CopyDict(b.Annotations)
-		if nodeSetSpecInline.Annotations != nil {
-			for k, v := range nodeSetSpecInline.Annotations {
-				nodeSetAnnotations[k] = v
-			}
+		storageNodeSetLabels := CopyDict(storageLabels)
+		for k, v := range nodeSetSpecInline.Labels {
+			storageNodeSetLabels[k] = v
+		}
+		storageNodeSetLabels[labels.DatabaseNodeSetComponent] = nodeSetSpecInline.Name
+		if nodeSetSpecInline.Remote != nil {
+			storageNodeSetLabels[labels.RemoteClusterKey] = nodeSetSpecInline.Remote.Cluster
 		}
 
-		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
+		storageNodeSetAnnotations := CopyDict(storageAnnotations)
+		for k, v := range nodeSetSpecInline.Annotations {
+			storageNodeSetAnnotations[k] = v
+		}
+		delete(storageNodeSetAnnotations, annotations.LastAppliedAnnotation)
+
 		if nodeSetSpecInline.Remote != nil {
-			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-				labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster,
-			})
 			nodeSetBuilders = append(
 				nodeSetBuilders,
 				&RemoteStorageNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
-					Labels:      nodeSetLabels,
-					Annotations: nodeSetAnnotations,
+					Name:        fmt.Sprintf("%s-%s", b.Name, nodeSetSpecInline.Name),
+					Labels:      storageNodeSetLabels,
+					Annotations: storageNodeSetAnnotations,
 
 					StorageNodeSetSpec: storageNodeSetSpec,
 				},
@@ -187,9 +208,9 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 				&StorageNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
-					Labels:      nodeSetLabels,
-					Annotations: nodeSetAnnotations,
+					Name:        fmt.Sprintf("%s-%s", b.Name, nodeSetSpecInline.Name),
+					Labels:      storageNodeSetLabels,
+					Annotations: storageNodeSetAnnotations,
 
 					StorageNodeSetSpec: storageNodeSetSpec,
 				},
@@ -240,19 +261,23 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 		nodeSetSpec.TopologySpreadConstraints = append(nodeSetSpec.TopologySpreadConstraints, nodeSetSpecInline.TopologySpreadConstraints...)
 	}
 
-	nodeSetSpec.AdditionalLabels = CopyDict(b.Spec.AdditionalLabels)
+	nodeSetAdditionalLabels := CopyDict(b.Spec.AdditionalLabels)
+	nodeSetAdditionalLabels[labels.StorageGeneration] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
 	if nodeSetSpecInline.AdditionalLabels != nil {
 		for k, v := range nodeSetSpecInline.AdditionalLabels {
-			nodeSetSpec.AdditionalLabels[k] = v
+			nodeSetAdditionalLabels[k] = v
 		}
 	}
+	nodeSetSpec.AdditionalLabels = CopyDict(nodeSetAdditionalLabels)
 
-	nodeSetSpec.AdditionalAnnotations = CopyDict(b.Spec.AdditionalAnnotations)
+	nodeSetAdditionalAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	nodeSetAdditionalAnnotations[annotations.ConfigurationChecksum] = GetSHA256Checksum(b.Spec.Configuration)
 	if nodeSetSpecInline.AdditionalAnnotations != nil {
 		for k, v := range nodeSetSpecInline.AdditionalAnnotations {
-			nodeSetSpec.AdditionalAnnotations[k] = v
+			nodeSetAdditionalAnnotations[k] = v
 		}
 	}
+	nodeSetSpec.AdditionalAnnotations = CopyDict(nodeSetAdditionalAnnotations)
 
 	return nodeSetSpec
 }

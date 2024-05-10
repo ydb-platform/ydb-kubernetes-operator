@@ -16,8 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -25,8 +23,9 @@ type DatabaseStatefulSetBuilder struct {
 	*api.Database
 	RestConfig *rest.Config
 
-	Name   string
-	Labels map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
@@ -41,7 +40,8 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		sts.ObjectMeta.Name = b.Name
 	}
 	sts.ObjectMeta.Namespace = b.GetNamespace()
-	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
+	sts.ObjectMeta.Labels = b.Labels
+	sts.ObjectMeta.Annotations = b.Annotations
 
 	replicas := ptr.Int32(b.Spec.Nodes)
 	if b.Spec.Pause {
@@ -85,16 +85,10 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	podTemplateLabels := CopyDict(b.Labels)
-	podTemplateLabels[labels.DatabaseGeneration] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
-
-	podTemplateAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	podTemplateAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
-
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      podTemplateLabels,
-			Annotations: podTemplateAnnotations,
+			Labels:      b.Labels,
+			Annotations: b.Annotations,
 		},
 		Spec: corev1.PodSpec{
 			Containers:                    []corev1.Container{b.buildContainer()},
@@ -169,7 +163,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	}
 
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
-		volumes = append(volumes, b.buildEncryptionVolume())
+		volumes = append(volumes, b.buildEncryptionVolumes()...)
 	}
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
@@ -322,7 +316,7 @@ func buildTLSVolume(name string, configuration *api.TLSConfiguration) corev1.Vol
 	return volume
 }
 
-func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
+func (b *DatabaseStatefulSetBuilder) buildEncryptionVolumes() []corev1.Volume {
 	var secretName, secretKey string
 	if b.Spec.Encryption.Key != nil {
 		secretName = b.Spec.Encryption.Key.Name
@@ -332,7 +326,7 @@ func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
 		secretKey = defaultEncryptionSecretKey
 	}
 
-	return corev1.Volume{
+	encryptionKeySecret := corev1.Volume{
 		Name: encryptionVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
@@ -340,12 +334,25 @@ func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
 				Items: []corev1.KeyToPath{
 					{
 						Key:  secretKey,
-						Path: api.DatabaseEncryptionKeyFile,
+						Path: api.DatabaseEncryptionKeySecretFile,
 					},
 				},
 			},
 		},
 	}
+
+	encryptionKeyConfig := corev1.Volume{
+		Name: encryptionKeyConfigVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: fmt.Sprintf(EncryptionKeyConfigNameFormat, b.GetName()),
+				},
+			},
+		},
+	}
+
+	return []corev1.Volume{encryptionKeySecret, encryptionKeyConfig}
 }
 
 func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume() corev1.Volume {
@@ -450,9 +457,16 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      encryptionKeyConfigVolumeName,
+			ReadOnly:  true,
+			MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.DatabaseEncryptionKeyConfigFileName),
+			SubPath:   api.DatabaseEncryptionKeyConfigFileName,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      encryptionVolumeName,
 			ReadOnly:  true,
-			MountPath: api.DatabaseEncryptionKeyPath,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, api.DatabaseEncryptionKeySecretDir),
 		})
 	}
 
@@ -460,7 +474,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      datastreamsIAMServiceAccountKeyVolumeName,
 			ReadOnly:  true,
-			MountPath: api.DatastreamsIAMServiceAccountKeyPath,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, api.DatastreamsIAMServiceAccountKeyDir),
 		})
 		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
@@ -520,6 +534,13 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 		"--node-broker",
 		b.Spec.StorageEndpoint,
+	}
+
+	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
+		args = append(args,
+			"--key-file",
+			fmt.Sprintf("%s/%s", api.ConfigDir, api.DatabaseEncryptionKeyConfigFileName),
+		)
 	}
 
 	for _, secret := range b.Spec.Secrets {

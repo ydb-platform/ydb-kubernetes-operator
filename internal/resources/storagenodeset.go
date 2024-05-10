@@ -63,8 +63,9 @@ func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []
 			Storage:    api.RecastStorageNodeSet(b.StorageNodeSet),
 			RestConfig: restConfig,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        b.Name,
+			Labels:      b.Spec.AdditionalLabels,
+			Annotations: b.Spec.AdditionalAnnotations,
 		},
 	)
 

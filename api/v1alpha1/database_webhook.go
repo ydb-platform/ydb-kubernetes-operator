@@ -17,10 +17,6 @@ import (
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
-const (
-	DefaultDatabaseDomain = "Root"
-)
-
 // log is for logging in this package.
 var databaselog = logf.Log.WithName("database-resource")
 
@@ -118,6 +114,13 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		database.Spec.Encryption = &EncryptionConfig{Enabled: false}
 	}
 
+	if database.Spec.Encryption.Enabled && database.Spec.Encryption.Key == nil {
+		if database.Spec.Encryption.Pin == nil || len(*database.Spec.Encryption.Pin) == 0 {
+			encryptionPin := DefaultDatabaseEncryptionPin
+			database.Spec.Encryption.Pin = &encryptionPin
+		}
+	}
+
 	if database.Spec.Datastreams == nil {
 		database.Spec.Datastreams = &DatastreamsConfig{Enabled: false}
 	}
@@ -139,14 +142,6 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 
 	if database.Spec.StorageEndpoint == "" {
 		database.Spec.StorageEndpoint = storage.GetStorageEndpointWithProto()
-	}
-
-	if database.Spec.Configuration != "" {
-		configuration, err := buildConfiguration(storage, database)
-		if err != nil {
-			return err
-		}
-		database.Spec.Configuration = configuration
 	}
 
 	return nil

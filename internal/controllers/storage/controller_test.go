@@ -130,7 +130,7 @@ var _ = Describe("Storage controller medium tests", func() {
 			Expect(foundStorageGenerationLabel).To(BeTrue())
 
 			foundConfigurationChecksumAnnotation := false
-			if podAnnotations[annotations.ConfigurationChecksum] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {
+			if podAnnotations[annotations.ConfigurationChecksum] == resources.GetSHA256Checksum(foundStorage.Spec.Configuration) {
 				foundConfigurationChecksumAnnotation = true
 			}
 			Expect(foundConfigurationChecksumAnnotation).To(BeTrue())
