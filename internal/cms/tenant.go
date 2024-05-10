@@ -27,7 +27,12 @@ type Tenant struct {
 	SharedDatabasePath string
 }
 
-func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder, creds ydbCredentials.Credentials) error {
+func (t *Tenant) Create(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+	creds ydbCredentials.Credentials,
+	opts ...ydb.Option,
+) error {
 	logger := log.FromContext(ctx)
 	createDatabaseURL := fmt.Sprintf(
 		"%s/%s",
@@ -38,6 +43,7 @@ func (t *Tenant) Create(ctx context.Context, database *resources.DatabaseBuilder
 	db, err := connection.Open(ctx,
 		createDatabaseURL,
 		ydb.WithCredentials(creds),
+		ydb.MergeOptions(opts...),
 	)
 	if err != nil {
 		logger.Error(err, "Error connecting to YDB storage")

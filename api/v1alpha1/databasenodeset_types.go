@@ -19,9 +19,8 @@ type DatabaseNodeSetSpec struct {
 
 // DatabaseNodeSetStatus defines the observed state
 type DatabaseNodeSetStatus struct {
-	State                      constants.ClusterState `json:"state"`
-	Conditions                 []metav1.Condition     `json:"conditions,omitempty"`
-	ObservedDatabaseGeneration int64                  `json:"observedDatabaseGeneration,omitempty"`
+	State      constants.ClusterState `json:"state"`
+	Conditions []metav1.Condition     `json:"conditions,omitempty"`
 }
 
 // DatabaseNodeSetSpecInline describes an group nodes object inside parent object
@@ -30,9 +29,17 @@ type DatabaseNodeSetSpecInline struct {
 	// +required
 	Name string `json:"name,omitempty"`
 
-	// (Optional) Object should be reference to remote object
+	// Labels for DatabaseNodeSet object
 	// +optional
-	Remote bool `json:"remote,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Annotations for DatabaseNodeSet object
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// (Optional) Object should be reference to RemoteDatabaseNodeSet object
+	// +optional
+	Remote *RemoteSpec `json:"remote,omitempty"`
 
 	DatabaseNodeSpec `json:",inline"`
 }
@@ -65,4 +72,19 @@ type DatabaseNodeSetList struct {
 
 func init() {
 	SchemeBuilder.Register(&DatabaseNodeSet{}, &DatabaseNodeSetList{})
+}
+
+func RecastDatabaseNodeSet(databaseNodeSet *DatabaseNodeSet) *Database {
+	return &Database{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        databaseNodeSet.Spec.DatabaseRef.Name,
+			Namespace:   databaseNodeSet.Spec.DatabaseRef.Namespace,
+			Labels:      databaseNodeSet.Labels,
+			Annotations: databaseNodeSet.Annotations,
+		},
+		Spec: DatabaseSpec{
+			DatabaseClusterSpec: databaseNodeSet.Spec.DatabaseClusterSpec,
+			DatabaseNodeSpec:    databaseNodeSet.Spec.DatabaseNodeSpec,
+		},
+	}
 }

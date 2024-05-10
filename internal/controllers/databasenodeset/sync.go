@@ -7,7 +7,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,12 +16,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) Sync(ctx context.Context, crDatabaseNodeSet *ydbv1alpha1.DatabaseNodeSet) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, crDatabaseNodeSet *v1alpha1.DatabaseNodeSet) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -32,7 +32,7 @@ func (r *Reconciler) Sync(ctx context.Context, crDatabaseNodeSet *ydbv1alpha1.Da
 		return result, err
 	}
 
-	stop, result = r.checkDatabaseNodeSetFrozen(&databaseNodeSet)
+	stop, result = r.checkDatabaseFrozen(&databaseNodeSet)
 	if stop {
 		return result, nil
 	}
@@ -114,7 +114,7 @@ func (r *Reconciler) handleResourcesSync(
 			)
 		}
 	}
-	r.Log.Info("resource sync complete")
+
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -122,7 +122,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for DatabaseNodeSet")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if databaseNodeSet.Status.State == DatabaseNodeSetPending {
 		r.Recorder.Event(
@@ -132,7 +132,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Starting to track number of running databaseNodeSet pods, expected: %d", databaseNodeSet.Spec.Nodes),
 		)
 		databaseNodeSet.Status.State = DatabaseNodeSetProvisioning
-		return r.setState(ctx, databaseNodeSet)
+		return r.updateStatus(ctx, databaseNodeSet)
 	}
 
 	found := &appsv1.StatefulSet{}
@@ -141,7 +141,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		Namespace: databaseNodeSet.Namespace,
 	}, found)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
 				databaseNodeSet,
 				corev1.EventTypeWarning,
@@ -195,15 +195,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	if databaseNodeSet.Spec.Pause {
-		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    DatabasePausedCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: "Scaled DatabaseNodeSet to 0 successfully",
-		})
-		databaseNodeSet.Status.State = DatabaseNodeSetPaused
-	} else {
+	if databaseNodeSet.Status.State == DatabaseNodeSetProvisioning {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 			Type:    DatabaseNodeSetReadyCondition,
 			Status:  "True",
@@ -211,23 +203,26 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Message: fmt.Sprintf("Scaled DatabaseNodeSet to %d successfully", databaseNodeSet.Spec.Nodes),
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetReady
+		return r.updateStatus(ctx, databaseNodeSet)
 	}
 
-	return r.setState(ctx, databaseNodeSet)
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) setState(
+func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	crdatabaseNodeSet := &ydbv1alpha1.DatabaseNodeSet{}
-	err := r.Get(ctx, client.ObjectKey{
+	r.Log.Info("running step updateStatus")
+
+	crDatabaseNodeSet := &v1alpha1.DatabaseNodeSet{}
+	err := r.Get(ctx, types.NamespacedName{
 		Namespace: databaseNodeSet.Namespace,
 		Name:      databaseNodeSet.Name,
-	}, crdatabaseNodeSet)
+	}, crDatabaseNodeSet)
 	if err != nil {
 		r.Recorder.Event(
-			crdatabaseNodeSet,
+			databaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching CR before status update",
@@ -235,22 +230,21 @@ func (r *Reconciler) setState(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	oldStatus := crdatabaseNodeSet.Status.State
-	crdatabaseNodeSet.Status.State = databaseNodeSet.Status.State
-	crdatabaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
-
-	err = r.Status().Update(ctx, crdatabaseNodeSet)
-	if err != nil {
+	oldStatus := crDatabaseNodeSet.Status.State
+	if oldStatus != databaseNodeSet.Status.State {
+		crDatabaseNodeSet.Status.State = databaseNodeSet.Status.State
+		crDatabaseNodeSet.Status.Conditions = databaseNodeSet.Status.Conditions
+		if err = r.Status().Update(ctx, crDatabaseNodeSet); err != nil {
+			r.Recorder.Event(
+				databaseNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed setting status: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
 		r.Recorder.Event(
-			crdatabaseNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed setting status: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != databaseNodeSet.Status.State {
-		r.Recorder.Event(
-			crdatabaseNodeSet,
+			databaseNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("DatabaseNodeSet moved from %s to %s", oldStatus, databaseNodeSet.Status.State),
@@ -275,10 +269,9 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Database")
+	r.Log.Info("running step handlePauseResume")
 	if databaseNodeSet.Status.State == DatabaseReady && databaseNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving DatabaseNodeSet to state `Paused`")
-		meta.RemoveStatusCondition(&databaseNodeSet.Status.Conditions, DatabaseNodeSetReadyCondition)
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 			Type:    DatabasePausedCondition,
 			Status:  "False",
@@ -286,29 +279,24 @@ func (r *Reconciler) handlePauseResume(
 			Message: "Transitioning DatabaseNodeSet to Paused state",
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetPaused
-		return r.setState(ctx, databaseNodeSet)
+		return r.updateStatus(ctx, databaseNodeSet)
 	}
 
 	if databaseNodeSet.Status.State == DatabaseNodeSetPaused && !databaseNodeSet.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving DatabaseNodeSet to state `Ready`")
 		meta.RemoveStatusCondition(&databaseNodeSet.Status.Conditions, DatabasePausedCondition)
-		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    DatabaseNodeSetReadyCondition,
-			Status:  "False",
-			Reason:  ReasonInProgress,
-			Message: "Recovering DatabaseNodeSet from Paused state",
-		})
 		databaseNodeSet.Status.State = DatabaseNodeSetReady
-		return r.setState(ctx, databaseNodeSet)
+		return r.updateStatus(ctx, databaseNodeSet)
 	}
 
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) checkDatabaseNodeSetFrozen(
+func (r *Reconciler) checkDatabaseFrozen(
 	databaseNodeSet *resources.DatabaseNodeSetResource,
 ) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for DatabaseNodeSet parent object")
+	r.Log.Info("running step checkDatabaseFrozen")
+
 	if !databaseNodeSet.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

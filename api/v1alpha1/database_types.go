@@ -14,6 +14,7 @@ type DatabaseSpec struct {
 	DatabaseNodeSpec `json:",inline"`
 
 	// (Optional) NodeSet inline configuration to split into multiple StatefulSets
+	// Default: (not specified)
 	// +optional
 	NodeSets []DatabaseNodeSetSpecInline `json:"nodeSets,omitempty"`
 }
@@ -156,6 +157,10 @@ type DatabaseNodeSpec struct {
 	// +optional
 	PriorityClassName string `json:"priorityClassName,omitempty"`
 
+	// (Optional) If specified, the pod's terminationGracePeriodSeconds.
+	// +optional
+	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
+
 	// (Optional) Additional custom resource labels that are added to all resources
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
@@ -258,4 +263,10 @@ type DatabaseServices struct {
 
 func init() {
 	SchemeBuilder.Register(&Database{}, &DatabaseList{})
+}
+
+func (r *Database) AnyCertificatesAdded() bool {
+	return len(r.Spec.CABundle) > 0 ||
+		r.Spec.Service.GRPC.TLSConfiguration.Enabled ||
+		r.Spec.Service.Interconnect.TLSConfiguration.Enabled
 }

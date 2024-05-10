@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -45,31 +44,37 @@ func (r *Reconciler) setInitialStatus(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setInitialStatus")
 
+	if meta.IsStatusConditionTrue(database.Status.Conditions, OldDatabaseInitializedCondition) {
+		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+			Type:    DatabaseInitializedCondition,
+			Status:  "True",
+			Reason:  ReasonCompleted,
+			Message: "Database initialized successfully",
+		})
+		database.Status.State = DatabaseReady
+		return r.updateStatus(ctx, database)
+	}
+
 	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil ||
-			meta.IsStatusConditionFalse(database.Status.Conditions, DatabaseTenantInitializedCondition) {
+		if meta.FindStatusCondition(database.Status.Conditions, DatabaseInitializedCondition) == nil ||
+			meta.IsStatusConditionFalse(database.Status.Conditions, DatabaseInitializedCondition) {
 			return r.processSkipInitPipeline(ctx, database)
 		}
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	changed := false
-	if meta.FindStatusCondition(database.Status.Conditions, DatabaseTenantInitializedCondition) == nil {
+	if database.Status.State == DatabasePending ||
+		meta.FindStatusCondition(database.Status.Conditions, DatabaseInitializedCondition) == nil {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    DatabaseTenantInitializedCondition,
+			Type:    DatabaseInitializedCondition,
 			Status:  "False",
 			Reason:  ReasonInProgress,
-			Message: "Tenant creation in progress",
+			Message: "Database has not been initialized yet",
 		})
-		changed = true
+		database.Status.State = DatabasePreparing
+		return r.updateStatus(ctx, database)
 	}
-	if database.Status.State == DatabasePending {
-		database.Status.State = DatabaseInitializing
-		changed = true
-	}
-	if changed {
-		return r.setState(ctx, database)
-	}
+
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -79,22 +84,26 @@ func (r *Reconciler) setInitDatabaseCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    DatabaseTenantInitializedCondition,
+		Type:    DatabaseInitializedCondition,
 		Status:  "True",
 		Reason:  ReasonCompleted,
 		Message: message,
 	})
+	database.Status.State = DatabaseProvisioning
 
-	database.Status.State = DatabaseReady
-	return r.setState(ctx, database)
+	return r.updateStatus(ctx, database)
 }
 
-func (r *Reconciler) handleTenantCreation(
+func (r *Reconciler) initializeDatabase(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
-	creds ydbCredentials.Credentials,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handleTenantCreation")
+	r.Log.Info("running step initializeDatabase")
+
+	if database.Status.State == DatabasePreparing {
+		database.Status.State = DatabaseInitializing
+		return r.updateStatus(ctx, database)
+	}
 
 	path := database.GetDatabasePath()
 	var storageUnits []v1alpha1.StorageUnit
@@ -175,7 +184,28 @@ func (r *Reconciler) handleTenantCreation(
 		SharedDatabasePath: sharedDatabasePath,
 	}
 
-	err := tenant.Create(ctx, database, creds)
+	creds, err := resources.GetYDBCredentials(ctx, database.Storage, r.Config)
+	if err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get YDB credentials: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+	tlsOptions, err := resources.GetYDBTLSOption(ctx, database.Storage, r.Config)
+	if err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to get YDB TLS options: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	err = tenant.Create(ctx, database, creds, tlsOptions)
 	if err != nil {
 		r.Recorder.Event(
 			database,
@@ -183,7 +213,7 @@ func (r *Reconciler) handleTenantCreation(
 			"InitializingFailed",
 			fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: TenantCreationRequeueDelay}, err
+		return Stop, ctrl.Result{RequeueAfter: DatabaseInitializationRequeueDelay}, err
 	}
 	r.Recorder.Event(
 		database,
@@ -199,9 +229,5 @@ func (r *Reconciler) handleTenantCreation(
 		"Database is initialized",
 	)
 
-	return r.setInitDatabaseCompleted(
-		ctx,
-		database,
-		"Database initialization is completed",
-	)
+	return r.setInitDatabaseCompleted(ctx, database, "Database initialized successfully")
 }

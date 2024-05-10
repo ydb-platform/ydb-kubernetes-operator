@@ -7,7 +7,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,12 +16,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *ydbv1alpha1.StorageNodeSet) (ctrl.Result, error) {
+func (r *Reconciler) Sync(ctx context.Context, crStorageNodeSet *v1alpha1.StorageNodeSet) (ctrl.Result, error) {
 	var stop bool
 	var result ctrl.Result
 	var err error
@@ -114,7 +114,7 @@ func (r *Reconciler) handleResourcesSync(
 			)
 		}
 	}
-	r.Log.Info("resource sync complete")
+
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -122,7 +122,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for StorageNodeSet")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
 	if storageNodeSet.Status.State == StorageNodeSetPending {
 		r.Recorder.Event(
@@ -131,7 +131,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			string(StorageNodeSetProvisioning),
 			fmt.Sprintf("Starting to track number of running storageNodeSet pods, expected: %d", storageNodeSet.Spec.Nodes))
 		storageNodeSet.Status.State = StorageNodeSetProvisioning
-		return r.setState(ctx, storageNodeSet)
+		return r.updateStatus(ctx, storageNodeSet)
 	}
 
 	foundStatefulSet := &appsv1.StatefulSet{}
@@ -140,7 +140,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		Namespace: storageNodeSet.Namespace,
 	}, foundStatefulSet)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
 				storageNodeSet,
 				corev1.EventTypeWarning,
@@ -195,39 +195,34 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 	}
 
-	if storageNodeSet.Spec.Pause {
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    StoragePausedCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: "Scaled StorageNodeSet to 0 successfully",
-		})
-		storageNodeSet.Status.State = DatabaseNodeSetPaused
-	} else {
+	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    StorageNodeSetReadyCondition,
 			Status:  "True",
 			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Scaled DatabaseNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
 		})
-		storageNodeSet.Status.State = DatabaseNodeSetReady
+		storageNodeSet.Status.State = StorageNodeSetReady
+		return r.updateStatus(ctx, storageNodeSet)
 	}
 
-	return r.setState(ctx, storageNodeSet)
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) setState(
+func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	crStorageNodeSet := &ydbv1alpha1.StorageNodeSet{}
-	err := r.Get(ctx, client.ObjectKey{
+	r.Log.Info("running step updateStatus")
+
+	crStorageNodeSet := &v1alpha1.StorageNodeSet{}
+	err := r.Get(ctx, types.NamespacedName{
 		Namespace: storageNodeSet.Namespace,
 		Name:      storageNodeSet.Name,
 	}, crStorageNodeSet)
 	if err != nil {
 		r.Recorder.Event(
-			crStorageNodeSet,
+			storageNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching CR before status update",
@@ -236,21 +231,20 @@ func (r *Reconciler) setState(
 	}
 
 	oldStatus := crStorageNodeSet.Status.State
-	crStorageNodeSet.Status.State = storageNodeSet.Status.State
-	crStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
-
-	err = r.Status().Update(ctx, crStorageNodeSet)
-	if err != nil {
+	if oldStatus != storageNodeSet.Status.State {
+		crStorageNodeSet.Status.State = storageNodeSet.Status.State
+		crStorageNodeSet.Status.Conditions = storageNodeSet.Status.Conditions
+		if err = r.Status().Update(ctx, crStorageNodeSet); err != nil {
+			r.Recorder.Event(
+				storageNodeSet,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed setting status: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
 		r.Recorder.Event(
-			crStorageNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed setting status: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	} else if oldStatus != storageNodeSet.Status.State {
-		r.Recorder.Event(
-			crStorageNodeSet,
+			storageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
 			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, storageNodeSet.Status.State),
@@ -275,38 +269,32 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Storage")
+	r.Log.Info("running step handlePauseResume")
+
 	if storageNodeSet.Status.State == StorageReady && storageNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
-		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, StorageNodeSetReadyCondition)
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    StoragePausedCondition,
-			Status:  "False",
-			Reason:  ReasonInProgress,
-			Message: "Transitioning StorageNodeSet to Paused state",
+			Status:  "True",
+			Reason:  ReasonCompleted,
+			Message: "State StorageNodeSet set to Paused",
 		})
 		storageNodeSet.Status.State = StorageNodeSetPaused
-		return r.setState(ctx, storageNodeSet)
+		return r.updateStatus(ctx, storageNodeSet)
 	}
 
 	if storageNodeSet.Status.State == StoragePaused && !storageNodeSet.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving Storage to state `Ready`")
 		meta.RemoveStatusCondition(&storageNodeSet.Status.Conditions, StoragePausedCondition)
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    StorageNodeSetReadyCondition,
-			Status:  "False",
-			Reason:  ReasonInProgress,
-			Message: "Recovering StorageNodeSet from Paused state",
-		})
 		storageNodeSet.Status.State = StorageNodeSetReady
-		return r.setState(ctx, storageNodeSet)
+		return r.updateStatus(ctx, storageNodeSet)
 	}
 
 	return Continue, ctrl.Result{}, nil
 }
 
 func (r *Reconciler) checkStorageFrozen(storageNodeSet *resources.StorageNodeSetResource) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for StorageNodeSet parent object")
+	r.Log.Info("running step checkStorageFrozen")
 	if !storageNodeSet.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

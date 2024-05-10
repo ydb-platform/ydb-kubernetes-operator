@@ -11,13 +11,13 @@ import (
 )
 
 const (
-	YdbImage      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44"
-	YdbNamespace  = "ydb"
-	YdbHome       = "/home/ydb"
-	StorageName   = "storage"
-	DatabaseName  = "database"
-	DefaultDomain = "Root"
-	ReadyStatus   = "Ready"
+	YdbImage              = "cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17"
+	YdbNamespace          = "ydb"
+	StorageName           = "storage"
+	DatabaseName          = "database"
+	CertificateSecretName = "storage-crt"
+	DefaultDomain         = "Root"
+	ReadyStatus           = "Ready"
 )
 
 func constructAntiAffinityFor(key, value string) *corev1.Affinity {
@@ -160,6 +160,28 @@ func DefaultDatabase() *v1alpha1.Database {
 				AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
 				Affinity:         databaseAntiAffinity,
 			},
+		},
+	}
+}
+
+func DefaultCertificate(certPath, keyPath, caPath string) *corev1.Secret {
+	cert, err := os.ReadFile(certPath)
+	Expect(err).To(BeNil())
+	key, err := os.ReadFile(keyPath)
+	Expect(err).To(BeNil())
+	ca, err := os.ReadFile(caPath)
+	Expect(err).To(BeNil())
+
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      CertificateSecretName,
+			Namespace: YdbNamespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"ca.crt":  ca,
+			"tls.crt": cert,
+			"tls.key": key,
 		},
 	}
 }

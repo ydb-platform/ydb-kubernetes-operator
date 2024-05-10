@@ -14,10 +14,22 @@ spec:
     metadata:
       labels:
         {{- include "ydb.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 -}}
+      {{- end }}
+      {{ with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{ end }}
+      {{ with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - args:
@@ -29,6 +41,10 @@ spec:
             {{- end }}
             {{- if .Values.metrics.enabled }}
             - --with-service-monitors=true
+            {{- end }}
+            {{- if .Values.mgmtCluster.enabled }}
+            - --mgmt-cluster-name={{- .Values.mgmtCluster.name }}
+            - --mgmt-cluster-kubeconfig=/mgmt-cluster/kubeconfig
             {{- end }}
           command:
             - /manager
@@ -60,17 +76,24 @@ spec:
             {{- toYaml .Values.resources | nindent 12  }}
           securityContext:
             allowPrivilegeEscalation: false
+          {{- if or .Values.webhook.enabled .Values.mgmtCluster.enabled }}
           {{- if .Values.webhook.enabled }}
           volumeMounts:
             - mountPath: /tmp/k8s-webhook-server/serving-certs
               name: webhook-tls
           {{- end }}
+          {{- if .Values.mgmtCluster.enabled }}
+            - mountPath: /mgmt-cluster
+              name: mgmt-cluster-kubeconfig
+          {{- end }}
+          {{- end }}
       securityContext:
         runAsNonRoot: true
       serviceAccountName: {{ include "ydb.fullname" . }}
       terminationGracePeriodSeconds: 10
-      {{- if .Values.webhook.enabled }}
+      {{- if or .Values.webhook.enabled .Values.mgmtCluster.enabled }}
       volumes:
+        {{- if .Values.webhook.enabled }}
         - name: webhook-tls
           secret:
             secretName: {{ include "ydb.fullname" . }}-webhook
@@ -83,6 +106,12 @@ spec:
               - key: key
                 path: tls.key
             {{- end }}
+        {{- end }}
+        {{- if .Values.mgmtCluster.enabled }}
+        - name: mgmt-cluster-kubeconfig
+          secret:
+            secretName: {{ .Values.mgmtCluster.kubeconfig }}
+        {{- end }}
       {{- end }}
       {{- if .Values.imagePullSecrets }}
       {{- with .Values.imagePullSecrets }}

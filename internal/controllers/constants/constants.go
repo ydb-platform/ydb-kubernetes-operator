@@ -2,15 +2,30 @@ package constants
 
 import "time"
 
-type ClusterState string
+type (
+	ClusterState        string
+	RemoteResourceState string
+)
 
 const (
-	StoragePausedCondition             = "StoragePaused"
-	StorageInitializedCondition        = "StorageReady"
-	StorageNodeSetReadyCondition       = "StorageNodeSetReady"
-	DatabasePausedCondition            = "DatabasePaused"
-	DatabaseTenantInitializedCondition = "TenantInitialized"
-	DatabaseNodeSetReadyCondition      = "DatabaseNodeSetReady"
+	StorageKind               = "Storage"
+	StorageNodeSetKind        = "StorageNodeSet"
+	RemoteStorageNodeSetKind  = "RemoteStorageNodeSet"
+	DatabaseKind              = "Database"
+	DatabaseNodeSetKind       = "DatabaseNodeSet"
+	RemoteDatabaseNodeSetKind = "RemoteDatabaseNodeSet"
+
+	// For backward compatibility
+	OldStorageInitializedCondition  = "StorageReady"
+	OldDatabaseInitializedCondition = "TenantInitialized"
+
+	StoragePausedCondition        = "StoragePaused"
+	StorageInitializedCondition   = "StorageInitialized"
+	StorageNodeSetReadyCondition  = "StorageNodeSetReady"
+	DatabasePausedCondition       = "DatabasePaused"
+	DatabaseInitializedCondition  = "DatabaseInitialized"
+	DatabaseNodeSetReadyCondition = "DatabaseNodeSetReady"
+	RemoteResourceSyncedCondition = "ResourceSynced"
 
 	Stop     = true
 	Continue = false
@@ -19,12 +34,14 @@ const (
 	ReasonNotRequired = "NotRequired"
 	ReasonCompleted   = "Completed"
 
-	DefaultRequeueDelay               = 10 * time.Second
-	StatusUpdateRequeueDelay          = 1 * time.Second
-	SelfCheckRequeueDelay             = 30 * time.Second
-	StorageInitializationRequeueDelay = 5 * time.Second
+	DefaultRequeueDelay                = 10 * time.Second
+	StatusUpdateRequeueDelay           = 1 * time.Second
+	SelfCheckRequeueDelay              = 30 * time.Second
+	StorageInitializationRequeueDelay  = 30 * time.Second
+	DatabaseInitializationRequeueDelay = 30 * time.Second
 
 	DatabasePending      ClusterState = "Pending"
+	DatabasePreparing    ClusterState = "Preparing"
 	DatabaseProvisioning ClusterState = "Provisioning"
 	DatabaseInitializing ClusterState = "Initializing"
 	DatabaseReady        ClusterState = "Ready"
@@ -47,9 +64,14 @@ const (
 	StorageNodeSetReady        ClusterState = "Ready"
 	StorageNodeSetPaused       ClusterState = "Paused"
 
-	TenantCreationRequeueDelay      = 30 * time.Second
+	ResourceSyncPending RemoteResourceState = "Pending"
+	ResourceSyncSuccess RemoteResourceState = "Synced"
+
 	StorageAwaitRequeueDelay        = 30 * time.Second
 	SharedDatabaseAwaitRequeueDelay = 30 * time.Second
 
-	OwnerControllerKey = ".metadata.controller"
+	OwnerControllerField = ".metadata.controller"
+	DatabaseRefField     = ".spec.databaseRef.name"
+	StorageRefField      = ".spec.storageRef.name"
+	SecretField          = ".spec.secrets"
 )

@@ -16,8 +16,10 @@ import (
 type StorageNodeSetBuilder struct {
 	client.Object
 
-	Name               string
-	Labels             map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
+
 	StorageNodeSetSpec api.StorageNodeSetSpec
 }
 
@@ -37,6 +39,8 @@ func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 	sns.ObjectMeta.Namespace = b.GetNamespace()
 
 	sns.ObjectMeta.Labels = b.Labels
+	sns.ObjectMeta.Annotations = b.Annotations
+
 	sns.Spec = b.StorageNodeSetSpec
 
 	return nil
@@ -52,25 +56,14 @@ func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	storage := b.recastStorageNodeSet()
-
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(
 		resourceBuilders,
 		&StorageStatefulSetBuilder{
-			Storage:    storage.DeepCopy(),
+			Storage:    api.RecastStorageNodeSet(b.StorageNodeSet),
 			RestConfig: restConfig,
 
 			Name:   b.Name,
-			Labels: b.Labels,
-		},
-		&ConfigMapBuilder{
-			Object: b,
-
-			Name: b.Name,
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
-			},
 			Labels: b.Labels,
 		},
 	)
@@ -107,18 +100,4 @@ func (b *StorageNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.Result,
 
 func (b *StorageNodeSetResource) Unwrap() *api.StorageNodeSet {
 	return b.DeepCopy()
-}
-
-func (b *StorageNodeSetResource) recastStorageNodeSet() api.Storage {
-	return api.Storage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.StorageNodeSet.Spec.StorageRef.Name,
-			Namespace: b.StorageNodeSet.Spec.StorageRef.Namespace,
-			Labels:    b.StorageNodeSet.Labels,
-		},
-		Spec: api.StorageSpec{
-			StorageClusterSpec: b.StorageNodeSet.Spec.StorageClusterSpec,
-			StorageNodeSpec:    b.StorageNodeSet.Spec.StorageNodeSpec,
-		},
-	}
 }

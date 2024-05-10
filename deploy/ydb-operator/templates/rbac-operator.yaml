@@ -77,19 +77,26 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - ""
+  - batch
   resources:
-  - pods
+  - jobs
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
   resources:
-  - pods/exec
+  - pods
+  - pods/log
   verbs:
-  - create
+  - get
+  - list
+  - watch
 - apiGroups:
   - apps
   resources:
@@ -179,7 +186,9 @@ rules:
   - ydb.tech
   resources:
   - databasenodesets
+  - remotedatabasenodesets
   - storagenodesets
+  - remotestoragenodesets
   verbs:
   - create
   - delete
@@ -192,14 +201,18 @@ rules:
   - ydb.tech
   resources:
   - databasenodesets/finalizers
+  - remotedatabasenodesets/finalizers
   - storagenodesets/finalizers
+  - remotestoragenodesets/finalizers
   verbs:
   - update
 - apiGroups:
   - ydb.tech
   resources:
   - databasenodesets/status
+  - remotedatabasenodesets/status
   - storagenodesets/status
+  - remotestoragenodesets/status
   verbs:
   - get
   - patch

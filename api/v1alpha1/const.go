@@ -41,6 +41,7 @@ const (
 	AnnotationSkipInitialization     = "ydb.tech/skip-initialization"
 	AnnotationDisableLivenessProbe   = "ydb.tech/disable-liveness-probe"
 	AnnotationDataCenter             = "ydb.tech/data-center"
+	AnnotationGRPCPublicHost         = "ydb.tech/grpc-public-host"
 	AnnotationNodeHost               = "ydb.tech/node-host"
 	AnnotationNodeDomain             = "ydb.tech/node-domain"
 

@@ -18,6 +18,9 @@ image:
 imagePullSecrets: []
 
 nodeSelector: {}
+podAnnotations: {}
+affinity: {}
+tolerations: []
 
 nameOverride: ""
 fullnameOverride: ""
@@ -46,6 +49,14 @@ metrics:
   ## Create ServiceMonitor resources
   ##
   enabled: false
+
+mgmtCluster:
+  ## Watch resources from mgmtCluster
+  ##
+  enabled: false
+  name: ""
+  ## Define existing kubeconfig Secret name in current namespace
+  kubeconfig: "remote-kubeconfig"
 
 webhook:
   enabled: true

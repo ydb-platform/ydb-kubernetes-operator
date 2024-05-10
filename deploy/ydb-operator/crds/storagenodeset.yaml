@@ -2433,65 +2433,6 @@ spec:
                 description: Number of nodes (pods)
                 format: int32
                 type: integer
-              operatorConnection:
-                description: '(Optional) Operator connection settings Default: (not
-                  specified)'
-                properties:
-                  accessToken:
-                    properties:
-                      secretKeyRef:
-                        description: SecretKeySelector selects a key of a Secret.
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                    required:
-                    - secretKeyRef
-                    type: object
-                  staticCredentials:
-                    properties:
-                      password:
-                        properties:
-                          secretKeyRef:
-                            description: SecretKeySelector selects a key of a Secret.
-                            properties:
-                              key:
-                                description: The key of the secret to select from.  Must
-                                  be a valid secret key.
-                                type: string
-                              name:
-                                description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                  TODO: Add other useful fields. apiVersion, kind,
-                                  uid?'
-                                type: string
-                              optional:
-                                description: Specify whether the Secret or its key
-                                  must be defined
-                                type: boolean
-                            required:
-                            - key
-                            type: object
-                        required:
-                        - secretKeyRef
-                        type: object
-                      username:
-                        type: string
-                    required:
-                    - username
-                    type: object
-                type: object
               operatorSync:
                 default: true
                 description: Enables or disables operator's reconcile loop. `false`
@@ -2784,6 +2725,10 @@ spec:
                 required:
                 - name
                 type: object
+              terminationGracePeriodSeconds:
+                description: (Optional) If specified, the pod's terminationGracePeriodSeconds.
+                format: int64
+                type: integer
               tolerations:
                 description: (Optional) If specified, the pod's tolerations.
                 items:
@@ -4624,9 +4569,6 @@ spec:
                   - type
                   type: object
                 type: array
-              observedStorageGeneration:
-                format: int64
-                type: integer
               state:
                 type: string
             required:

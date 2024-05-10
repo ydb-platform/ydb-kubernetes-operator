@@ -10,7 +10,7 @@ IMG ?= cr.yandex/yc/ydb-operator:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.21
+ENVTEST_K8S_VERSION = 1.26
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -51,6 +51,8 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	cp config/crd/bases/ydb.tech_databases.yaml deploy/ydb-operator/crds/database.yaml
 	cp config/crd/bases/ydb.tech_storagenodesets.yaml deploy/ydb-operator/crds/storagenodeset.yaml
 	cp config/crd/bases/ydb.tech_databasenodesets.yaml deploy/ydb-operator/crds/databasenodeset.yaml
+	cp config/crd/bases/ydb.tech_remotestoragenodesets.yaml deploy/ydb-operator/crds/remotestoragenodeset.yaml
+	cp config/crd/bases/ydb.tech_remotedatabasenodesets.yaml deploy/ydb-operator/crds/remotedatabasenodeset.yaml
 	cp config/crd/bases/ydb.tech_databasemonitorings.yaml deploy/ydb-operator/crds/databasemonitoring.yaml
 	cp config/crd/bases/ydb.tech_storagemonitorings.yaml deploy/ydb-operator/crds/storagemonitoring.yaml
 
@@ -68,16 +70,23 @@ kind-init:
 	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator; \
 	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0; \
 	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --name kind-ydb-operator; \
-	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44; \
-	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44 --name kind-ydb-operator
+	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17; \
+	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17 --name kind-ydb-operator
 
 kind-load:
 	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
 	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
 
+.PHONY: unit-test
+unit-test: manifests generate fmt vet envtest ## Run unit tests
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use --arch=amd64 $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/... -ginkgo.v -coverprofile cover.out
+
+.PHONY: e2e-test
+e2e-test: manifests generate fmt vet docker-build kind-init kind-load ## Run e2e tests
+	go test -v -timeout 1800s -p 1 ./e2e/... -args -ginkgo.v
+
 .PHONY: test
-test: manifests generate fmt vet docker-build kind-init kind-load envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -timeout 1800s -p 1 ./... -ginkgo.v -coverprofile cover.out
+test: unit-test e2e-test ## Run all tests
 
 .PHONY: clean
 clean:
@@ -95,12 +104,17 @@ docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+CONTROLLER_GEN_VERSION ?= v0.6.1
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION))
 
+# ENVTEST_VERSION is usually latest, but might need to be pinned from time to time.
+# Version pinning is needed due to version incompatibility between controller-runtime and setup-envtest.
+# For more information: https://github.com/kubernetes-sigs/controller-runtime/issues/2744
 ENVTEST = $(shell pwd)/bin/setup-envtest
+ENVTEST_VERSION ?= release-0.16
 envtest: ## Download envtest-setup locally if necessary.
-	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
+	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION))
 
 # go-get-tool will 'go install' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))

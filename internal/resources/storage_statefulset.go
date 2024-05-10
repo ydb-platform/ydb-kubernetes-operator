@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -13,7 +14,8 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
@@ -23,7 +25,7 @@ const (
 )
 
 type StorageStatefulSetBuilder struct {
-	*v1alpha1.Storage
+	*api.Storage
 	RestConfig *rest.Config
 
 	Name   string
@@ -40,11 +42,11 @@ func StringRJust(str, pad string, length int) string {
 }
 
 func (b *StorageStatefulSetBuilder) GeneratePVCName(index int) string {
-	return b.Name + "-" + StringRJust(strconv.Itoa(index), "0", v1alpha1.DiskNumberMaxDigits)
+	return b.Name + "-" + StringRJust(strconv.Itoa(index), "0", api.DiskNumberMaxDigits)
 }
 
 func (b *StorageStatefulSetBuilder) GenerateDeviceName(index int) string {
-	return v1alpha1.DiskPathPrefix + "_" + StringRJust(strconv.Itoa(index), "0", v1alpha1.DiskNumberMaxDigits)
+	return api.DiskPathPrefix + "_" + StringRJust(strconv.Itoa(index), "0", api.DiskNumberMaxDigits)
 }
 
 func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
@@ -73,11 +75,11 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
-		ServiceName:          fmt.Sprintf(interconnectServiceNameFormat, b.Storage.Name),
+		ServiceName:          fmt.Sprintf(InterconnectServiceNameFormat, b.Storage.Name),
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete]; ok && value == v1alpha1.AnnotationValueTrue {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok && value == api.AnnotationValueTrue {
 		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
 			Type: "OnDelete",
 		}
@@ -102,26 +104,30 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
 	podTemplateLabels := CopyDict(b.Labels)
-	podTemplateLabels[labels.StatefulsetComponent] = b.Name
+	podTemplateLabels[labels.StorageGeneration] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
+
+	podTemplateAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	podTemplateAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
 
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      podTemplateLabels,
-			Annotations: CopyDict(b.Spec.AdditionalAnnotations),
+			Annotations: podTemplateAnnotations,
 		},
 		Spec: corev1.PodSpec{
-			Containers:                []corev1.Container{b.buildContainer()},
-			NodeSelector:              b.Spec.NodeSelector,
-			Affinity:                  b.Spec.Affinity,
-			Tolerations:               b.Spec.Tolerations,
-			PriorityClassName:         b.Spec.PriorityClassName,
-			TopologySpreadConstraints: b.buildTopologySpreadConstraints(),
+			Containers:                    []corev1.Container{b.buildContainer()},
+			NodeSelector:                  b.Spec.NodeSelector,
+			Affinity:                      b.Spec.Affinity,
+			Tolerations:                   b.Spec.Tolerations,
+			PriorityClassName:             b.Spec.PriorityClassName,
+			TopologySpreadConstraints:     b.buildTopologySpreadConstraints(),
+			TerminationGracePeriodSeconds: b.Spec.TerminationGracePeriodSeconds,
 
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: []string{
-					fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+					fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
 				},
 			},
 		},
@@ -129,7 +135,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -146,7 +152,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 		podTemplate.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: *b.Spec.Image.PullSecret}}
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationUpdateDNSPolicy]; ok {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateDNSPolicy]; ok {
 		switch value {
 		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
 			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
@@ -164,7 +170,7 @@ func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.To
 		return b.Spec.TopologySpreadConstraints
 	}
 
-	if b.Spec.Erasure != v1alpha1.ErasureMirror3DC {
+	if b.Spec.Erasure != api.ErasureMirror3DC {
 		return []corev1.TopologySpreadConstraint{}
 	}
 
@@ -185,7 +191,7 @@ func (b *StorageStatefulSetBuilder) buildTopologySpreadConstraints() []corev1.To
 }
 
 func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
-	configMapName := b.Name
+	configMapName := b.Storage.Name
 
 	volumes := []corev1.Volume{
 		{
@@ -221,7 +227,7 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, *volume)
 	}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumes = append(volumes, corev1.Volume{
 			Name: systemCertsVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -241,7 +247,11 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 }
 
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.Container {
-	command, args := b.buildCaStorePatchingInitContainerArgs()
+	command, args := buildCAStorePatchingCommandArgs(
+		b.Spec.CABundle,
+		b.Spec.Service.GRPC,
+		b.Spec.Service.Interconnect,
+	)
 	containerResources := corev1.ResourceRequirements{}
 	if b.Spec.Resources != nil {
 		containerResources = *b.Spec.Resources
@@ -275,16 +285,10 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 	return container
 }
 
-func (b *StorageStatefulSetBuilder) areAnyCertificatesAddedToStore() bool {
-	return len(b.Spec.CABundle) > 0 ||
-		b.Spec.Service.GRPC.TLSConfiguration.Enabled ||
-		b.Spec.Service.Interconnect.TLSConfiguration.Enabled
-}
-
 func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
 			MountPath: localCertsDir,
@@ -300,7 +304,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/grpc", // fixme const
+			MountPath: grpcTLSVolumeMountPath,
 		})
 	}
 
@@ -308,7 +312,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/interconnect", // fixme const
+			MountPath: interconnectTLSVolumeMountPath,
 		})
 	}
 	return volumeMounts
@@ -340,22 +344,22 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		},
 
 		Ports: []corev1.ContainerPort{{
-			Name: "grpc", ContainerPort: v1alpha1.GRPCPort,
+			Name: "grpc", ContainerPort: api.GRPCPort,
 		}, {
-			Name: "interconnect", ContainerPort: v1alpha1.InterconnectPort,
+			Name: "interconnect", ContainerPort: api.InterconnectPort,
 		}, {
-			Name: "status", ContainerPort: v1alpha1.StatusPort,
+			Name: "status", ContainerPort: api.StatusPort,
 		}},
 
 		VolumeMounts: b.buildVolumeMounts(),
 		Resources:    containerResources,
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[v1alpha1.AnnotationDisableLivenessProbe]; !ok || value != v1alpha1.AnnotationValueTrue {
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; !ok || value != api.AnnotationValueTrue {
 		container.LivenessProbe = &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(v1alpha1.GRPCPort),
+					Port: intstr.FromInt(api.GRPCPort),
 				},
 			},
 		}
@@ -369,7 +373,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 				volumeMountList,
 				corev1.VolumeMount{
 					Name:      b.GeneratePVCName(i),
-					MountPath: v1alpha1.DiskFilePath,
+					MountPath: api.DiskFilePath,
 				},
 			)
 		}
@@ -394,7 +398,8 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		{
 			Name:      configVolumeName,
 			ReadOnly:  true,
-			MountPath: v1alpha1.ConfigDir,
+			MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
+			SubPath:   api.ConfigFileName,
 		},
 	}
 
@@ -414,7 +419,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.areAnyCertificatesAddedToStore() {
+	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
 			MountPath: localCertsDir,
@@ -443,70 +448,50 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	return volumeMounts
 }
 
-func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerArgs() ([]string, []string) {
-	command := []string{"/bin/bash", "-c"}
-
-	arg := ""
-
-	if len(b.Spec.CABundle) > 0 {
-		arg += fmt.Sprintf("printf $%s | base64 --decode > %s/%s && ", caBundleEnvName, localCertsDir, caBundleFileName)
-	}
-
-	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/grpc/ca.crt %s/grpcRoot.crt && ", localCertsDir) // fixme const
-	}
-
-	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp /tls/interconnect/ca.crt %s/interconnectRoot.crt && ", localCertsDir) // fixme const
-	}
-
-	if arg != "" {
-		arg += updateCACertificatesBin
-	}
-
-	args := []string{arg}
-
-	return command, args
-}
-
 func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
-	command := []string{fmt.Sprintf("%s/%s", v1alpha1.BinariesDir, v1alpha1.DaemonBinaryName)}
+	command := []string{fmt.Sprintf("%s/%s", api.BinariesDir, api.DaemonBinaryName)}
 	var args []string
 
 	args = append(args,
 		"server",
 
 		"--mon-port",
-		fmt.Sprintf("%d", v1alpha1.StatusPort),
+		fmt.Sprintf("%d", api.StatusPort),
 
 		"--ic-port",
-		fmt.Sprintf("%d", v1alpha1.InterconnectPort),
+		fmt.Sprintf("%d", api.InterconnectPort),
 
 		"--yaml-config",
-		fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.ConfigFileName),
+		fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
 
 		"--node",
 		"static",
 	)
 
 	for _, secret := range b.Spec.Secrets {
-		exists, err := checkSecretHasField(
+		exist, err := CheckSecretKey(
+			context.Background(),
 			b.GetNamespace(),
-			secret.Name,
-			v1alpha1.YdbAuthToken,
 			b.RestConfig,
+			&corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secret.Name,
+				},
+				Key: api.YdbAuthToken,
+			},
 		)
-
 		if err != nil {
 			log.Default().Printf("Failed to inspect a secret %s: %s\n", secret.Name, err.Error())
-		} else if exists {
+			continue
+		}
+		if exist {
 			args = append(args,
 				"--auth-token-file",
 				fmt.Sprintf(
 					"%s/%s/%s",
 					wellKnownDirForAdditionalSecrets,
 					secret.Name,
-					v1alpha1.YdbAuthToken,
+					api.YdbAuthToken,
 				),
 			)
 		}

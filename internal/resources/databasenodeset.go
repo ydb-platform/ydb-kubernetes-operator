@@ -16,8 +16,9 @@ import (
 type DatabaseNodeSetBuilder struct {
 	client.Object
 
-	Name   string
-	Labels map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
 
 	DatabaseNodeSetSpec api.DatabaseNodeSetSpec
 }
@@ -38,6 +39,8 @@ func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 	dns.ObjectMeta.Namespace = b.GetNamespace()
 
 	dns.ObjectMeta.Labels = b.Labels
+	dns.ObjectMeta.Annotations = b.Annotations
+
 	dns.Spec = b.DatabaseNodeSetSpec
 
 	return nil
@@ -53,25 +56,13 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	database := b.recastDatabaseNodeSet()
-
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseStatefulSetBuilder{
-			Database:   database.DeepCopy(),
+			Database:   api.RecastDatabaseNodeSet(b.DatabaseNodeSet),
 			RestConfig: restConfig,
 
-			Name:            b.Name,
-			Labels:          b.Labels,
-			StorageEndpoint: b.Spec.StorageEndpoint,
-		},
-		&ConfigMapBuilder{
-			Object: b,
-
-			Name: b.Name,
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
-			},
+			Name:   b.Name,
 			Labels: b.Labels,
 		},
 	)
@@ -105,18 +96,4 @@ func (b *DatabaseNodeSetResource) SetStatusOnFirstReconcile() (bool, ctrl.Result
 
 func (b *DatabaseNodeSetResource) Unwrap() *api.DatabaseNodeSet {
 	return b.DeepCopy()
-}
-
-func (b *DatabaseNodeSetResource) recastDatabaseNodeSet() *api.Database {
-	return &api.Database{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      b.DatabaseNodeSet.Spec.DatabaseRef.Name,
-			Namespace: b.DatabaseNodeSet.Spec.DatabaseRef.Namespace,
-			Labels:    b.DatabaseNodeSet.Labels,
-		},
-		Spec: api.DatabaseSpec{
-			DatabaseClusterSpec: b.Spec.DatabaseClusterSpec,
-			DatabaseNodeSpec:    b.Spec.DatabaseNodeSpec,
-		},
-	}
 }

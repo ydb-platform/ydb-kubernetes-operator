@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 
-	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -64,8 +62,28 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseTenantInitializedCondition) {
-		return r.handleFirstStart(ctx, &database)
+	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseInitializedCondition) {
+		return r.handleTenantCreation(ctx, &database)
+	}
+
+	if database.Spec.NodeSets != nil {
+		stop, result, err = r.waitForDatabaseNodeSetsToReady(ctx, &database)
+		if stop {
+			return result, err
+		}
+	} else {
+		stop, result, err = r.waitForStatefulSetToScale(ctx, &database)
+		if stop {
+			return result, err
+		}
+	}
+
+	if database.Status.State != DatabaseReady {
+		database.Status.State = DatabaseReady
+		stop, result, err = r.updateStatus(ctx, &database)
+		if stop {
+			return result, err
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -130,9 +148,9 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForDatabaseNodeSetToReady for Database")
+	r.Log.Info("running step waitForDatabaseNodeSetToReady")
 
-	if database.Status.State == DatabasePending {
+	if database.Status.State == DatabaseInitializing {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
@@ -140,40 +158,56 @@ func (r *Reconciler) waitForDatabaseNodeSetsToReady(
 			fmt.Sprintf("Starting to track readiness of running nodeSets objects, expected: %d", len(database.Spec.NodeSets)),
 		)
 		database.Status.State = DatabaseProvisioning
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	for _, nodeSetSpec := range database.Spec.NodeSets {
-		foundDatabaseNodeSet := v1alpha1.DatabaseNodeSet{}
-		databaseNodeSetName := database.Name + "-" + nodeSetSpec.Name
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      databaseNodeSetName,
+		var nodeSetObject client.Object
+		var nodeSetKind string
+		var nodeSetStatus ClusterState
+
+		if nodeSetSpec.Remote != nil {
+			nodeSetObject = &v1alpha1.RemoteDatabaseNodeSet{}
+			nodeSetKind = RemoteDatabaseNodeSetKind
+		} else {
+			nodeSetObject = &v1alpha1.DatabaseNodeSet{}
+			nodeSetKind = DatabaseNodeSetKind
+		}
+
+		nodeSetName := database.Name + "-" + nodeSetSpec.Name
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      nodeSetName,
 			Namespace: database.Namespace,
-		}, &foundDatabaseNodeSet)
-		if err != nil {
+		}, nodeSetObject); err != nil {
 			if apierrors.IsNotFound(err) {
 				r.Recorder.Event(
 					database,
 					corev1.EventTypeWarning,
 					"ProvisioningFailed",
-					fmt.Sprintf("DatabaseNodeSet with name %s was not found: %s", databaseNodeSetName, err),
+					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 			}
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeWarning,
 				"ProvisioningFailed",
-				fmt.Sprintf("Failed to get DatabaseNodeSet: %s", err),
+				fmt.Sprintf("Failed to get %s with name %s: %s", nodeSetKind, nodeSetName, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		if foundDatabaseNodeSet.Status.State != DatabaseNodeSetReady {
-			eventMessage := fmt.Sprintf("Waiting %s state for DatabaseNodeSet object %s, current: %s",
-				string(DatabaseReady),
-				foundDatabaseNodeSet.Name,
-				foundDatabaseNodeSet.Status.State,
+		if nodeSetSpec.Remote != nil {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.RemoteDatabaseNodeSet).Status.State
+		} else {
+			nodeSetStatus = nodeSetObject.(*v1alpha1.DatabaseNodeSet).Status.State
+		}
+
+		if nodeSetStatus != DatabaseNodeSetReady {
+			eventMessage := fmt.Sprintf(
+				"Waiting %s with name %s for Ready state , current: %s",
+				nodeSetKind,
+				nodeSetName,
+				nodeSetStatus,
 			)
 			r.Recorder.Event(
 				database,
@@ -192,9 +226,9 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step waitForStatefulSetToScale for Database")
+	r.Log.Info("running step waitForStatefulSetToScale")
 
-	if database.Status.State == DatabasePending {
+	if database.Status.State == DatabasePreparing {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
@@ -202,7 +236,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Starting to track number of running database pods, expected: %d", database.Spec.Nodes),
 		)
 		database.Status.State = DatabaseProvisioning
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	if database.Spec.ServerlessResources != nil {
@@ -352,22 +386,23 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
-	r.Log.Info("resource sync complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
-func (r *Reconciler) setState(
+func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
+	r.Log.Info("running step updateStatus")
+
 	databaseCr := &v1alpha1.Database{}
-	err := r.Get(ctx, client.ObjectKey{
+	err := r.Get(ctx, types.NamespacedName{
 		Namespace: database.Namespace,
 		Name:      database.Name,
 	}, databaseCr)
 	if err != nil {
 		r.Recorder.Event(
-			databaseCr,
+			database,
 			corev1.EventTypeWarning,
 			"ControllerError",
 			"Failed fetching CR before status update",
@@ -375,85 +410,29 @@ func (r *Reconciler) setState(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	databaseCr.Status.State = database.Status.State
-	databaseCr.Status.Conditions = database.Status.Conditions
-
-	err = r.Status().Update(ctx, databaseCr)
-	if err != nil {
+	oldStatus := databaseCr.Status.State
+	if oldStatus != database.Status.State {
+		databaseCr.Status.State = database.Status.State
+		databaseCr.Status.Conditions = database.Status.Conditions
+		err = r.Status().Update(ctx, databaseCr)
+		if err != nil {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("failed setting status: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
 		r.Recorder.Event(
-			databaseCr,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("failed setting status: %s", err),
+			database,
+			corev1.EventTypeNormal,
+			"StatusChanged",
+			fmt.Sprintf("Database moved from %s to %s", oldStatus, databaseCr.Status.State),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
-}
-
-func (r *Reconciler) getYDBCredentials(
-	ctx context.Context,
-	database *resources.DatabaseBuilder,
-) (ydbCredentials.Credentials, ctrl.Result, error) {
-	r.Log.Info("running step getYDBCredentials")
-
-	if auth := database.Storage.Spec.OperatorConnection; auth != nil {
-		switch {
-		case auth.AccessToken != nil:
-			token, err := r.getSecretKey(
-				ctx,
-				database.Storage.Namespace,
-				auth.AccessToken.SecretKeyRef,
-			)
-			if err != nil {
-				return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			return ydbCredentials.NewAccessTokenCredentials(token), ctrl.Result{Requeue: false}, nil
-		case auth.StaticCredentials != nil:
-			username := auth.StaticCredentials.Username
-			password := v1alpha1.DefaultRootPassword
-			if auth.StaticCredentials.Password != nil {
-				var err error
-				password, err = r.getSecretKey(
-					ctx,
-					database.Storage.Namespace,
-					auth.StaticCredentials.Password.SecretKeyRef,
-				)
-				if err != nil {
-					return nil, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-				}
-			}
-			endpoint := database.Storage.GetStorageEndpoint()
-			secure := connection.LoadTLSCredentials(database.Storage.IsStorageEndpointSecure())
-			return ydbCredentials.NewStaticCredentials(username, password, endpoint, secure), ctrl.Result{Requeue: false}, nil
-		}
-	}
-	return ydbCredentials.NewAnonymousCredentials(), ctrl.Result{Requeue: false}, nil
-}
-
-func (r *Reconciler) getSecretKey(
-	ctx context.Context,
-	namespace string,
-	secretKeyRef *corev1.SecretKeySelector,
-) (string, error) {
-	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{
-		Name:      secretKeyRef.Name,
-		Namespace: namespace,
-	}, secret)
-	if err != nil {
-		return "", err
-	}
-	secretVal, exist := secret.Data[secretKeyRef.Key]
-	if !exist {
-		return "", fmt.Errorf(
-			"key %s does not exist in secretData %s",
-			secretKeyRef.Key,
-			secretKeyRef.Name,
-		)
-	}
-	return string(secretVal), nil
 }
 
 func (r *Reconciler) syncNodeSetSpecInline(
@@ -463,12 +442,11 @@ func (r *Reconciler) syncNodeSetSpecInline(
 	r.Log.Info("running step syncNodeSetSpecInline")
 
 	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
-	matchingFields := client.MatchingFields{
-		OwnerControllerKey: database.Name,
-	}
 	if err := r.List(ctx, databaseNodeSets,
 		client.InNamespace(database.Namespace),
-		matchingFields,
+		client.MatchingFields{
+			OwnerControllerField: database.Name,
+		},
 	); err != nil {
 		r.Recorder.Event(
 			database,
@@ -483,10 +461,12 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		databaseNodeSet := databaseNodeSet.DeepCopy()
 		isFoundDatabaseNodeSetSpecInline := false
 		for _, nodeSetSpecInline := range database.Spec.NodeSets {
-			databaseNodeSetName := database.Name + "-" + nodeSetSpecInline.Name
-			if databaseNodeSet.Name == databaseNodeSetName {
-				isFoundDatabaseNodeSetSpecInline = true
-				break
+			if nodeSetSpecInline.Remote == nil {
+				nodeSetName := database.Name + "-" + nodeSetSpecInline.Name
+				if databaseNodeSet.Name == nodeSetName {
+					isFoundDatabaseNodeSetSpecInline = true
+					break
+				}
 			}
 		}
 		if !isFoundDatabaseNodeSetSpecInline {
@@ -509,29 +489,59 @@ func (r *Reconciler) syncNodeSetSpecInline(
 					databaseNodeSet.Name),
 			)
 		}
+	}
 
-		oldGeneration := databaseNodeSet.Status.ObservedDatabaseGeneration
-		if oldGeneration != database.Generation {
-			databaseNodeSet.Status.ObservedDatabaseGeneration = database.Generation
-			if err := r.Status().Update(ctx, databaseNodeSet); err != nil {
+	remoteDatabaseNodeSets := &v1alpha1.RemoteDatabaseNodeSetList{}
+	if err := r.List(ctx, remoteDatabaseNodeSets,
+		client.InNamespace(database.Namespace),
+		client.MatchingFields{
+			OwnerControllerField: database.Name,
+		},
+	); err != nil {
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed to list RemoteDatabaseNodeSets: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	for _, remoteDatabaseNodeSet := range remoteDatabaseNodeSets.Items {
+		remoteDatabaseNodeSet := remoteDatabaseNodeSet.DeepCopy()
+		isFoundRemoteDatabaseNodeSetSpecInline := false
+		for _, nodeSetSpecInline := range database.Spec.NodeSets {
+			if nodeSetSpecInline.Remote != nil {
+				nodeSetName := database.Name + "-" + nodeSetSpecInline.Name
+				if remoteDatabaseNodeSet.Name == nodeSetName {
+					isFoundRemoteDatabaseNodeSetSpecInline = true
+					break
+				}
+			}
+		}
+
+		if !isFoundRemoteDatabaseNodeSetSpecInline {
+			if err := r.Delete(ctx, remoteDatabaseNodeSet); err != nil {
 				r.Recorder.Event(
-					databaseNodeSet,
+					database,
 					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed setting status: %s", err),
+					"ProvisioningFailed",
+					fmt.Sprintf("Failed to delete RemoteDatabaseNodeSet: %s", err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 			r.Recorder.Event(
-				databaseNodeSet,
+				database,
 				corev1.EventTypeNormal,
-				"StatusChanged",
-				fmt.Sprintf("DatabaseNodeSet updated observedStorageGeneration from %d to %d", oldGeneration, database.Generation),
+				"Syncing",
+				fmt.Sprintf("Resource: %s, Namespace: %s, Name: %s, deleted",
+					reflect.TypeOf(remoteDatabaseNodeSet),
+					remoteDatabaseNodeSet.Namespace,
+					remoteDatabaseNodeSet.Name),
 			)
 		}
 	}
 
-	r.Log.Info("syncNodeSetSpecInline complete")
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
@@ -539,7 +549,7 @@ func (r *Reconciler) handlePauseResume(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume for Database")
+	r.Log.Info("running step handlePauseResume")
 	if database.Status.State == DatabaseReady && database.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving Database to state `Paused`")
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
@@ -549,20 +559,20 @@ func (r *Reconciler) handlePauseResume(
 			Message: "State Database set to Paused",
 		})
 		database.Status.State = DatabasePaused
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	if database.Status.State == DatabasePaused && !database.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving Database to state `Ready`")
 		meta.RemoveStatusCondition(&database.Status.Conditions, DatabasePausedCondition)
 		database.Status.State = DatabaseReady
-		return r.setState(ctx, database)
+		return r.updateStatus(ctx, database)
 	}
 
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) handleFirstStart(
+func (r *Reconciler) handleTenantCreation(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (ctrl.Result, error) {
@@ -571,31 +581,19 @@ func (r *Reconciler) handleFirstStart(
 		return result, err
 	}
 
-	if database.Spec.NodeSets != nil {
-		stop, result, err = r.waitForDatabaseNodeSetsToReady(ctx, database)
-		if stop {
-			return result, err
-		}
-	} else {
-		stop, result, err = r.waitForStatefulSetToScale(ctx, database)
-		if stop {
-			return result, err
-		}
-	}
-
-	auth, result, err := r.getYDBCredentials(ctx, database)
-	if auth == nil {
+	stop, result, err = r.initializeDatabase(ctx, database)
+	if stop {
 		return result, err
 	}
 
-	_, result, err = r.handleTenantCreation(ctx, database, auth)
-	return result, err
+	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) checkDatabaseFrozen(
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result) {
-	r.Log.Info("running step checkStorageFrozen for Database")
+	r.Log.Info("running step checkDatabaseFrozen")
+
 	if !database.Spec.OperatorSync {
 		r.Log.Info("`operatorSync: false` is set, no further steps will be run")
 		return Stop, ctrl.Result{}

@@ -49,20 +49,6 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	storageLabels := labels.StorageLabels(b.Unwrap())
 
-	var optionalBuilders []ResourceBuilder
-
-	optionalBuilders = append(
-		optionalBuilders,
-		&ConfigMapBuilder{
-			Object: b,
-			Name:   b.Storage.GetName(),
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
-			},
-			Labels: storageLabels,
-		},
-	)
-
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
 	grpcServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.GRPCComponent})
@@ -74,6 +60,19 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	statusServiceLabels := storageLabels.Copy()
 	statusServiceLabels.Merge(b.Spec.Service.Status.AdditionalLabels)
 	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
+
+	var optionalBuilders []ResourceBuilder
+	optionalBuilders = append(
+		optionalBuilders,
+		&ConfigMapBuilder{
+			Object: b,
+			Name:   b.Storage.GetName(),
+			Data: map[string]string{
+				api.ConfigFileName: b.Spec.Configuration,
+			},
+			Labels: storageLabels,
+		},
+	)
 
 	if b.Spec.Monitoring.Enabled {
 		optionalBuilders = append(optionalBuilders,
@@ -102,30 +101,14 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		for _, nodeSetSpecInline := range b.Spec.NodeSets {
-			nodeSetLabels := storageLabels.Copy()
-			nodeSetLabels = nodeSetLabels.Merge(nodeSetSpecInline.AdditionalLabels)
-			nodeSetLabels = nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
-
-			optionalBuilders = append(
-				optionalBuilders,
-				&StorageNodeSetBuilder{
-					Object: b,
-
-					Name:   b.Name + "-" + nodeSetSpecInline.Name,
-					Labels: nodeSetLabels,
-
-					StorageNodeSetSpec: b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy()),
-				},
-			)
-		}
+		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(storageLabels)...)
 	}
 
 	return append(
 		optionalBuilders,
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     grpcServiceNameFormat,
+			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
@@ -138,7 +121,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 		},
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     interconnectServiceNameFormat,
+			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
 			SelectorLabels: storageLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
@@ -152,10 +135,10 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 		},
 		&ServiceBuilder{
 			Object:         b,
-			NameFormat:     statusServiceNameFormat,
+			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
 			SelectorLabels: storageLabels,
-			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
+			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
 				Port: api.StatusPort,
@@ -164,6 +147,57 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 	)
+}
+
+func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) []ResourceBuilder {
+	var nodeSetBuilders []ResourceBuilder
+
+	for _, nodeSetSpecInline := range b.Spec.NodeSets {
+		nodeSetLabels := storageLabels.Copy()
+		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
+		nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+
+		nodeSetAnnotations := CopyDict(b.Annotations)
+		if nodeSetSpecInline.Annotations != nil {
+			for k, v := range nodeSetSpecInline.Annotations {
+				nodeSetAnnotations[k] = v
+			}
+		}
+
+		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
+		if nodeSetSpecInline.Remote != nil {
+			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
+				labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster,
+			})
+			nodeSetBuilders = append(
+				nodeSetBuilders,
+				&RemoteStorageNodeSetBuilder{
+					Object: b,
+
+					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Labels:      nodeSetLabels,
+					Annotations: nodeSetAnnotations,
+
+					StorageNodeSetSpec: storageNodeSetSpec,
+				},
+			)
+		} else {
+			nodeSetBuilders = append(
+				nodeSetBuilders,
+				&StorageNodeSetBuilder{
+					Object: b,
+
+					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Labels:      nodeSetLabels,
+					Annotations: nodeSetAnnotations,
+
+					StorageNodeSetSpec: storageNodeSetSpec,
+				},
+			)
+		}
+	}
+
+	return nodeSetBuilders
 }
 
 func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline *api.StorageNodeSetSpecInline) api.StorageNodeSetSpec {
@@ -187,10 +221,6 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 		nodeSetSpec.Resources = nodeSetSpecInline.Resources
 	}
 
-	if nodeSetSpecInline.HostNetwork != nodeSetSpec.HostNetwork {
-		nodeSetSpec.HostNetwork = nodeSetSpecInline.HostNetwork
-	}
-
 	nodeSetSpec.NodeSelector = CopyDict(b.Spec.NodeSelector)
 	if nodeSetSpecInline.NodeSelector != nil {
 		for k, v := range nodeSetSpecInline.NodeSelector {
@@ -208,10 +238,6 @@ func (b *StorageClusterBuilder) recastStorageNodeSetSpecInline(nodeSetSpecInline
 
 	if nodeSetSpecInline.TopologySpreadConstraints != nil {
 		nodeSetSpec.TopologySpreadConstraints = append(nodeSetSpec.TopologySpreadConstraints, nodeSetSpecInline.TopologySpreadConstraints...)
-	}
-
-	if nodeSetSpecInline.PriorityClassName != nodeSetSpec.PriorityClassName {
-		nodeSetSpec.PriorityClassName = nodeSetSpecInline.PriorityClassName
 	}
 
 	nodeSetSpec.AdditionalLabels = CopyDict(b.Spec.AdditionalLabels)

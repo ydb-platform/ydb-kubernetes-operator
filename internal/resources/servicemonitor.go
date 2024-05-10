@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -19,7 +19,7 @@ type ServiceMonitorBuilder struct {
 	Name            string
 	MetricsServices []metrics.Service
 	TargetPort      int
-	Options         *v1alpha1.MonitoringOptions
+	Options         *api.MonitoringOptions
 
 	Labels         labels.Labels
 	SelectorLabels labels.Labels

@@ -2,6 +2,15 @@ package annotations
 
 import "strings"
 
+const (
+	PrimaryResourceStorageAnnotation  = "ydb.tech/primary-resource-storage"
+	PrimaryResourceDatabaseAnnotation = "ydb.tech/primary-resource-database"
+	RemoteResourceVersionAnnotation   = "ydb.tech/remote-resource-version"
+	ConfigurationChecksum             = "ydb.tech/configuration-checksum"
+	RemoteFinalizerKey                = "ydb.tech/remote-finalizer"
+	LastAppliedAnnotation             = "ydb.tech/last-applied"
+)
+
 func GetYdbTechAnnotations(annotations map[string]string) map[string]string {
 	result := make(map[string]string)
 	for key, value := range annotations {
