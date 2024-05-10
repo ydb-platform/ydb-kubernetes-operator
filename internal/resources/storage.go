@@ -1,6 +1,8 @@
 package resources
 
 import (
+	"strconv"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -8,6 +10,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
@@ -48,6 +51,13 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	storageLabels := labels.StorageLabels(b.Unwrap())
+
+	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+	statefulSetLabels.Merge(map[string]string{labels.StorageGeneration: strconv.FormatInt(b.ObjectMeta.Generation, 10)})
+
+	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
 
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -96,8 +106,9 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 				Storage:    b.Unwrap(),
 				RestConfig: restConfig,
 
-				Name:   b.Name,
-				Labels: storageLabels,
+				Name:        b.Name,
+				Labels:      statefulSetLabels,
+				Annotations: statefulSetAnnotations,
 			},
 		)
 	} else {
