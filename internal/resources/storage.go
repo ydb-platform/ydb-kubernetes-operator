@@ -2,9 +2,13 @@ package resources
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -17,6 +21,25 @@ func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	cr := ydbCr.DeepCopy()
 
 	return StorageClusterBuilder{cr}
+}
+
+func (b *StorageClusterBuilder) SetStatusOnFirstReconcile() (bool, ctrl.Result, error) {
+	if b.Status.Conditions == nil {
+		b.Status.Conditions = []metav1.Condition{}
+
+		if b.Spec.Pause {
+			meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
+				Type:    StoragePausedCondition,
+				Status:  "True",
+				Reason:  ReasonCompleted,
+				Message: "State Storage set to Paused",
+			})
+
+			return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+		}
+	}
+
+	return Continue, ctrl.Result{}, nil
 }
 
 func (b *StorageClusterBuilder) Unwrap() *api.Storage {

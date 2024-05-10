@@ -19,20 +19,13 @@ const (
 	OldStorageInitializedCondition  = "StorageReady"
 	OldDatabaseInitializedCondition = "TenantInitialized"
 
-	StoragePreparedCondition    = "StoragePrepared"
-	StorageInitializedCondition = "StorageInitialized"
-	StorageProvisionedCondition = "StorageProvisioned"
-	StoragePausedCondition      = "StoragePaused"
-	StorageReadyCondition       = "StorageReady"
-
-	DatabasePreparedCondition    = "DatabasePrepared"
-	DatabaseInitializedCondition = "DatabaseInitialized"
-	DatabaseProvisionedCondition = "DatabaseProvisioned"
+	StoragePausedCondition       = "StoragePaused"
+	StorageInitializedCondition  = "StorageInitialized"
 	DatabasePausedCondition      = "DatabasePaused"
-	DatabaseReadyCondition       = "DatabaseReady"
+	DatabaseInitializedCondition = "DatabaseInitialized"
 
-	NodeSetPreparedCondition    = "NodeSetPrepared"
-	NodeSetProvisionedCondition = "NodeSetProvisioned"
+	NodeSetPreparedCondition    = "NodeSetPreparing"
+	NodeSetProvisionedCondition = "NodeSetProvisioning"
 	NodeSetReadyCondition       = "NodeSetReady"
 	NodeSetPausedCondition      = "NodeSetPaused"
 
