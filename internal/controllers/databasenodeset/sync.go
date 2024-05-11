@@ -8,6 +8,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -122,7 +123,7 @@ func (r *Reconciler) handleResourcesSync(
 				r.Recorder.Event(
 					databaseNodeSet,
 					corev1.EventTypeWarning,
-					string(DatabaseNodeSetPreparing),
+					"ProvisioningFailed",
 					fmt.Sprintf("Failed building resources: %s", err),
 				)
 				return err
@@ -132,7 +133,7 @@ func (r *Reconciler) handleResourcesSync(
 				r.Recorder.Event(
 					databaseNodeSet,
 					corev1.EventTypeWarning,
-					string(DatabaseNodeSetPreparing),
+					"ProvisioningFailed",
 					fmt.Sprintf("Error setting controller reference for resource: %s", err),
 				)
 				return err
@@ -151,7 +152,7 @@ func (r *Reconciler) handleResourcesSync(
 			r.Recorder.Event(
 				databaseNodeSet,
 				corev1.EventTypeWarning,
-				string(DatabaseNodeSetPreparing),
+				"ProvisioningFailed",
 				eventMessage+fmt.Sprintf(", failed to sync, error: %s", err),
 			)
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
@@ -208,11 +209,20 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		Namespace: databaseNodeSet.Namespace,
 	}, found)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			r.Recorder.Event(
+				databaseNodeSet,
+				corev1.EventTypeWarning,
+				"Syncing",
+				fmt.Sprintf("Failed to found StatefulSet: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		}
 		r.Recorder.Event(
 			databaseNodeSet,
 			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to get StatefulSet: %s", err),
+			"Syncing",
+			fmt.Sprintf("Failed to get StatefulSets: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -231,8 +241,8 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		r.Recorder.Event(
 			databaseNodeSet,
 			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to list Pods: %s", err),
+			"Syncing",
+			fmt.Sprintf("Failed to list databaseNodeSet pods: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -249,7 +259,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			databaseNodeSet,
 			corev1.EventTypeNormal,
 			string(DatabaseNodeSetProvisioning),
-			fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running databaseNodeSet pods to match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 			Type:    NodeSetProvisionedCondition,
@@ -265,7 +275,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", databaseNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Scaled DatabaseNodeSet to %d successfully", databaseNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 	}
@@ -330,7 +340,7 @@ func (r *Reconciler) updateStatus(
 			databaseNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("State moved from %s to %s", oldStatus, databaseNodeSet.Status.State),
+			fmt.Sprintf("DatabaseNodeSet moved from %s to %s", oldStatus, databaseNodeSet.Status.State),
 		)
 	}
 

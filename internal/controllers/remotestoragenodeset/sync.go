@@ -35,12 +35,12 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *v1alpha1.
 		return result, err
 	}
 
-	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteStorageNodeSet, remoteObjects)
+	stop, result, err = r.handleResourcesSync(ctx, &remoteStorageNodeSet)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.handleResourcesSync(ctx, &remoteStorageNodeSet)
+	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteStorageNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}

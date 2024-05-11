@@ -123,7 +123,7 @@ func (r *Reconciler) handleResourcesSync(
 				r.Recorder.Event(
 					storageNodeSet,
 					corev1.EventTypeWarning,
-					string(StorageNodeSetPreparing),
+					"ProvisioningFailed",
 					fmt.Sprintf("Failed building resources: %s", err),
 				)
 				return err
@@ -133,7 +133,7 @@ func (r *Reconciler) handleResourcesSync(
 				r.Recorder.Event(
 					storageNodeSet,
 					corev1.EventTypeWarning,
-					string(StorageNodeSetPreparing),
+					"ProvisioningFailed",
 					fmt.Sprintf("Error setting controller reference for resource: %s", err),
 				)
 				return err
@@ -152,7 +152,7 @@ func (r *Reconciler) handleResourcesSync(
 			r.Recorder.Event(
 				storageNodeSet,
 				corev1.EventTypeWarning,
-				string(StorageNodeSetPreparing),
+				"ProvisioningFailed",
 				eventMessage+fmt.Sprintf(", failed to sync, error: %s", err),
 			)
 			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
@@ -213,17 +213,17 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			r.Recorder.Event(
 				storageNodeSet,
 				corev1.EventTypeWarning,
-				string(StorageNodeSetProvisioning),
-				fmt.Sprintf("Failed to find StatefulSet: %s", err),
+				"Syncing",
+				fmt.Sprintf("Failed to found StatefulSet: %s", err),
 			)
-		} else {
-			r.Recorder.Event(
-				storageNodeSet,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to get StatefulSet: %s", err),
-			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
+		r.Recorder.Event(
+			storageNodeSet,
+			corev1.EventTypeWarning,
+			"Syncing",
+			fmt.Sprintf("Failed to get StatefulSets: %s", err),
+		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
@@ -241,8 +241,8 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		r.Recorder.Event(
 			storageNodeSet,
 			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to list pods: %s", err),
+			"Syncing",
+			fmt.Sprintf("Failed to list storageNodeSet pods: %s", err),
 		)
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    NodeSetProvisionedCondition,
@@ -265,7 +265,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			storageNodeSet,
 			corev1.EventTypeNormal,
 			string(StorageNodeSetProvisioning),
-			fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    NodeSetProvisionedCondition,
@@ -281,7 +281,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
-			Message: "Successfully scaled to desired number of nodes",
+			Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
 	}
@@ -346,7 +346,7 @@ func (r *Reconciler) updateStatus(
 			storageNodeSet,
 			corev1.EventTypeNormal,
 			"StatusChanged",
-			fmt.Sprintf("State moved from %s to %s", oldStatus, storageNodeSet.Status.State),
+			fmt.Sprintf("StorageNodeSet moved from %s to %s", oldStatus, storageNodeSet.Status.State),
 		)
 	}
 
