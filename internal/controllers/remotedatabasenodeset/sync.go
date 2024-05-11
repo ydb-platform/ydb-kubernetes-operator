@@ -34,12 +34,12 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteDatabaseNodeSet *v1alpha1
 		return result, err
 	}
 
-	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteDatabaseNodeSet, remoteObjects)
+	stop, result, err = r.handleResourcesSync(ctx, &remoteDatabaseNodeSet)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.handleResourcesSync(ctx, &remoteDatabaseNodeSet)
+	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteDatabaseNodeSet, remoteObjects)
 	if stop {
 		return result, err
 	}
@@ -162,8 +162,22 @@ func (r *Reconciler) updateRemoteStatus(
 			"ControllerError",
 			fmt.Sprintf("Failed to update status: %s", err),
 		)
+
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
+
+	r.Recorder.Event(
+		remoteDatabaseNodeSet,
+		corev1.EventTypeNormal,
+		"StatusChanged",
+		"Status updated on remote cluster",
+	)
+	r.RemoteRecorder.Event(
+		remoteDatabaseNodeSet,
+		corev1.EventTypeNormal,
+		"StatusChanged",
+		"Status updated",
+	)
 
 	r.Log.Info("complete step updateRemoteStatus")
 	return Continue, ctrl.Result{}, nil

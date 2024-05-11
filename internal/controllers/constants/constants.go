@@ -24,8 +24,8 @@ const (
 	DatabasePausedCondition      = "DatabasePaused"
 	DatabaseInitializedCondition = "DatabaseInitialized"
 
-	NodeSetPreparedCondition    = "NodeSetPreparing"
-	NodeSetProvisionedCondition = "NodeSetProvisioning"
+	NodeSetPreparedCondition    = "NodeSetPrepared"
+	NodeSetProvisionedCondition = "NodeSetProvisioned"
 	NodeSetReadyCondition       = "NodeSetReady"
 	NodeSetPausedCondition      = "NodeSetPaused"
 
