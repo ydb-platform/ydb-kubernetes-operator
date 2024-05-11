@@ -6,8 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
@@ -20,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -532,35 +529,4 @@ func GetConfigurationChecksum(configuration string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(configuration))
 	return hex.EncodeToString(hasher.Sum(nil))
-}
-
-func GetPodLogs(
-	ctx context.Context,
-	clientset *kubernetes.Clientset,
-	namespace,
-	name string,
-) (string, error) {
-	var logsBuilder strings.Builder
-
-	streamCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	podLogs, err := clientset.CoreV1().
-		Pods(namespace).
-		GetLogs(name, &corev1.PodLogOptions{}).
-		Stream(streamCtx)
-	if err != nil {
-		return "", fmt.Errorf("failed to stream GetLogs from pod %s/%s, error: %w", namespace, name, err)
-	}
-	defer podLogs.Close()
-
-	buf := make([]byte, 4096)
-	for {
-		numBytes, err := podLogs.Read(buf)
-		if numBytes == 0 && err != nil {
-			break
-		}
-		logsBuilder.Write(buf[:numBytes])
-	}
-
-	return logsBuilder.String(), nil
 }

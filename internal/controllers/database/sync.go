@@ -9,6 +9,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,9 +54,8 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	stop, result, err = r.handleTenantCreation(ctx, &database)
-	if stop {
-		return result, err
+	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseInitializedCondition) {
+		return r.handleTenantCreation(ctx, &database)
 	}
 
 	if database.Spec.NodeSets != nil {
@@ -129,13 +129,27 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 		Namespace: database.Spec.StorageClusterRef.Namespace,
 	}, storage)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"Pending",
+				fmt.Sprintf(
+					"Storage (%s/%s) not found.",
+					database.Spec.StorageClusterRef.Name,
+					database.Spec.StorageClusterRef.Namespace,
+				),
+			)
+			return Stop, ctrl.Result{RequeueAfter: StorageAwaitRequeueDelay}, nil
+		}
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
 			"Pending",
 			fmt.Sprintf(
-				"Failed to get Storage resource %s, error: %s",
+				"Failed to get Storage (%s, %s) resource, error: %s",
 				database.Spec.StorageClusterRef.Name,
+				database.Spec.StorageClusterRef.Namespace,
 				err,
 			),
 		)
@@ -148,8 +162,9 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 			corev1.EventTypeWarning,
 			"Pending",
 			fmt.Sprintf(
-				"Referenced Storage resource %s is not initialized",
+				"Referenced storage cluster (%s, %s) is not initialized",
 				database.Spec.StorageClusterRef.Name,
+				database.Spec.StorageClusterRef.Namespace,
 			),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
@@ -157,8 +172,9 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 			Status: metav1.ConditionFalse,
 			Reason: ReasonInProgress,
 			Message: fmt.Sprintf(
-				"Referenced Storage resource %s is not initialized",
+				"Referenced storage cluster (%s, %s) is not initialized",
 				database.Spec.StorageClusterRef.Name,
+				database.Spec.StorageClusterRef.Namespace,
 			),
 		})
 		return r.updateStatus(ctx, database, StorageAwaitRequeueDelay)
@@ -167,7 +183,7 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 	database.Storage = storage
 
 	r.Log.Info("complete step waitForClusterResources")
-	return Continue, ctrl.Result{}, nil
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) waitForNodeSetsToProvisioned(
@@ -187,28 +203,35 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 		return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
 	}
 
-	var nodeSetName string
-	var nodeSetKind string
-	var nodeSetObject client.Object
-	var nodeSetConditions []metav1.Condition
 	for _, nodeSetSpec := range database.Spec.NodeSets {
-		nodeSetName = database.Name + "-" + nodeSetSpec.Name
-		nodeSetKind = DatabaseNodeSetKind
-		nodeSetObject = &v1alpha1.DatabaseNodeSet{}
-
+		var nodeSetObject client.Object
+		var nodeSetKind string
+		var nodeSetConditions []metav1.Condition
 		if nodeSetSpec.Remote != nil {
-			nodeSetKind = RemoteDatabaseNodeSetKind
 			nodeSetObject = &v1alpha1.RemoteDatabaseNodeSet{}
+			nodeSetKind = RemoteDatabaseNodeSetKind
+		} else {
+			nodeSetObject = &v1alpha1.DatabaseNodeSet{}
+			nodeSetKind = DatabaseNodeSetKind
 		}
 
+		nodeSetName := database.Name + "-" + nodeSetSpec.Name
 		if err := r.Get(ctx, types.NamespacedName{
 			Name:      nodeSetName,
 			Namespace: database.Namespace,
 		}, nodeSetObject); err != nil {
+			if apierrors.IsNotFound(err) {
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeWarning,
+					"ProvisioningFailed",
+					fmt.Sprintf("%s with name %s was not found: %s", nodeSetKind, nodeSetName, err),
+				)
+			}
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeWarning,
-				"ControllerError",
+				"ProvisioningFailed",
 				fmt.Sprintf("Failed to get %s with name %s: %s", nodeSetKind, nodeSetName, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -257,7 +280,7 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 	}
 
 	r.Log.Info("complete step waitForNodeSetsToProvisioned")
-	return Continue, ctrl.Result{}, nil
+	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
 func (r *Reconciler) waitForStatefulSetToScale(
@@ -287,11 +310,20 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		Namespace: database.Namespace,
 	}, found)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"ProvisioningFailed",
+				fmt.Sprintf("StatefulSet with name %s was not found: %s", database.Name, err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
+		}
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to get StatefulSet: %s", err),
+			"ProvisioningFailed",
+			fmt.Sprintf("Failed to get StatefulSets: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -317,7 +349,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
-			"ControllerError",
+			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list cluster pods: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -334,14 +366,14 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
-			"Provisioning",
-			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", runningPods, database.Spec.Nodes),
+			string(DatabaseProvisioning),
+			fmt.Sprintf("Waiting for number of running dynamic pods to match expected: %d != %d", runningPods, database.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:    DatabaseProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", runningPods, database.Spec.Nodes),
+			Message: fmt.Sprintf("Number of running dynamic pods does not match expected: %d != %d", runningPods, database.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, database, DefaultRequeueDelay)
 	}
@@ -400,17 +432,18 @@ func (r *Reconciler) handleResourcesSync(
 					database,
 					corev1.EventTypeWarning,
 					"ProvisioningFailed",
-					fmt.Sprintf("Failed to build resource: %s", err),
+					fmt.Sprintf("Failed building resources: %s", err),
 				)
 				return err
 			}
+
 			err = ctrl.SetControllerReference(database.Unwrap(), newResource, r.Scheme)
 			if err != nil {
 				r.Recorder.Event(
 					database,
 					corev1.EventTypeWarning,
 					"ProvisioningFailed",
-					fmt.Sprintf("Failed to set controller reference: %s", err),
+					fmt.Sprintf("Error setting controller reference for resource: %s", err),
 				)
 				return err
 			}
@@ -534,7 +567,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
-			"ControllerError",
+			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list DatabaseNodeSets: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -557,7 +590,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 				r.Recorder.Event(
 					database,
 					corev1.EventTypeWarning,
-					"ControllerError",
+					"ProvisioningFailed",
 					fmt.Sprintf("Failed to delete DatabaseNodeSet: %s", err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -584,7 +617,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
-			"ControllerError",
+			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list RemoteDatabaseNodeSets: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -608,7 +641,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 				r.Recorder.Event(
 					database,
 					corev1.EventTypeWarning,
-					"ControllerError",
+					"ProvisioningFailed",
 					fmt.Sprintf("Failed to delete RemoteDatabaseNodeSet: %s", err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
@@ -715,18 +748,19 @@ func (r *Reconciler) handlePauseResume(
 func (r *Reconciler) handleTenantCreation(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
-) (bool, ctrl.Result, error) {
+) (ctrl.Result, error) {
 	r.Log.Info("running step handleTenantCreation")
-
-	if meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseInitializedCondition) {
-		r.Log.Info("complete step handleTenantCreation")
-		return Continue, ctrl.Result{}, nil
-	}
 
 	stop, result, err := r.setInitPipelineStatus(ctx, database)
 	if stop {
-		return stop, result, err
+		return result, err
 	}
 
-	return r.initializeTenant(ctx, database)
+	stop, result, err = r.initializeTenant(ctx, database)
+	if stop {
+		return result, err
+	}
+
+	r.Log.Info("complete step handleTenantCreation")
+	return ctrl.Result{}, nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -15,20 +16,6 @@ import (
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
-
-func (r *Reconciler) setInitDatabaseCompleted(
-	ctx context.Context,
-	database *resources.DatabaseBuilder,
-	message string,
-) (bool, ctrl.Result, error) {
-	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    DatabaseInitializedCondition,
-		Status:  metav1.ConditionTrue,
-		Reason:  ReasonCompleted,
-		Message: message,
-	})
-	return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
-}
 
 func (r *Reconciler) setInitPipelineStatus(
 	ctx context.Context,
@@ -64,6 +51,20 @@ func (r *Reconciler) setInitPipelineStatus(
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
 
+func (r *Reconciler) setInitDatabaseCompleted(
+	ctx context.Context,
+	database *resources.DatabaseBuilder,
+	message string,
+) (bool, ctrl.Result, error) {
+	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+		Type:    DatabaseInitializedCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  ReasonCompleted,
+		Message: message,
+	})
+	return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
+}
+
 func (r *Reconciler) initializeTenant(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
@@ -86,13 +87,27 @@ func (r *Reconciler) initializeTenant(
 			Namespace: database.Spec.ServerlessResources.SharedDatabaseRef.Namespace,
 		}, sharedDatabaseCr)
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				r.Recorder.Event(
+					database,
+					corev1.EventTypeWarning,
+					"Pending",
+					fmt.Sprintf(
+						"Database (%s/%s) not found.",
+						database.Spec.ServerlessResources.SharedDatabaseRef.Name,
+						database.Spec.ServerlessResources.SharedDatabaseRef.Namespace,
+					),
+				)
+				return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, nil
+			}
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeWarning,
-				"ControllerError",
+				"Pending",
 				fmt.Sprintf(
-					"Failed to get Database %s resource, error: %s",
+					"Failed to get Database (%s, %s) resource, error: %s",
 					database.Spec.ServerlessResources.SharedDatabaseRef.Name,
+					database.Spec.ServerlessResources.SharedDatabaseRef.Namespace,
 					err,
 				),
 			)
@@ -103,10 +118,11 @@ func (r *Reconciler) initializeTenant(
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeWarning,
-				"InitializingTenant",
+				"Pending",
 				fmt.Sprintf(
-					"Referenced shared Database %s is not Provisioned",
+					"Referenced shared Database (%s, %s) is not Provisioned",
 					database.Spec.ServerlessResources.SharedDatabaseRef.Name,
+					database.Spec.ServerlessResources.SharedDatabaseRef.Namespace,
 				),
 			)
 			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
@@ -157,7 +173,7 @@ func (r *Reconciler) initializeTenant(
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
-			"InitializingTenant",
+			"InitializingFailed",
 			fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, err),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
@@ -167,12 +183,12 @@ func (r *Reconciler) initializeTenant(
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
-
 	r.Recorder.Event(
 		database,
 		corev1.EventTypeNormal,
-		"InitializingTenant",
+		"Initialized",
 		fmt.Sprintf("Tenant %s created", tenant.Path),
 	)
+
 	return r.setInitDatabaseCompleted(ctx, database, "Database initialized successfully")
 }

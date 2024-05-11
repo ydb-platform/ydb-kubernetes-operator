@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
@@ -27,20 +28,6 @@ import (
 var mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# " +
 	"0.*ItemConfigGenerationExpected# 1.*")
 
-func (r *Reconciler) setInitStorageCompleted(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-	message string,
-) (bool, ctrl.Result, error) {
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    StorageInitializedCondition,
-		Status:  metav1.ConditionTrue,
-		Reason:  ReasonCompleted,
-		Message: message,
-	})
-	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
-}
-
 func (r *Reconciler) setInitPipelineStatus(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
@@ -48,7 +35,7 @@ func (r *Reconciler) setInitPipelineStatus(
 	if storage.Status.State == StoragePreparing {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageInitializedCondition,
-			Status:  metav1.ConditionFalse,
+			Status:  metav1.ConditionUnknown,
 			Reason:  ReasonInProgress,
 			Message: "Storage has not been initialized yet",
 		})
@@ -71,8 +58,21 @@ func (r *Reconciler) setInitPipelineStatus(
 	if meta.IsStatusConditionTrue(storage.Status.Conditions, OldStorageInitializedCondition) {
 		return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
 	}
+	return Continue, ctrl.Result{Requeue: false}, nil
+}
 
-	return Continue, ctrl.Result{}, nil
+func (r *Reconciler) setInitStorageCompleted(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+	message string,
+) (bool, ctrl.Result, error) {
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:    StorageInitializedCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  ReasonCompleted,
+		Message: message,
+	})
+	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }
 
 func (r *Reconciler) initializeBlobstorage(
@@ -102,8 +102,8 @@ func (r *Reconciler) initializeBlobstorage(
 				r.Recorder.Event(
 					storage,
 					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed to create Secret with YDB token: %s", err),
+					"InitializingStorage",
+					fmt.Sprintf("Failed to create operator token Secret, error: %s", err),
 				)
 				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
@@ -113,8 +113,8 @@ func (r *Reconciler) initializeBlobstorage(
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to create initBlobstorage Job: %s", err),
+				"InitializingStorage",
+				fmt.Sprintf("Failed to create init blobstorage Job, error: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
@@ -127,19 +127,28 @@ func (r *Reconciler) initializeBlobstorage(
 			storage,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			fmt.Sprintf("Failed to get initBlobstorage Job: %s", err),
+			fmt.Sprintf("Failed to get Job: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	if initJob.Status.Succeeded > 0 {
+		r.Log.Info("Init Job status succeeded")
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
 			"InitializingStorage",
-			"Succeeded iniBlobstorage Job",
+			"Storage initialized successfully",
 		)
 		return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
+	}
+
+	var conditionFailed bool
+	for _, condition := range initJob.Status.Conditions {
+		if condition.Type == batchv1.JobFailed {
+			conditionFailed = true
+			break
+		}
 	}
 
 	initialized, err := r.checkFailedJob(ctx, storage, initJob)
@@ -153,27 +162,27 @@ func (r *Reconciler) initializeBlobstorage(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	conditionFailed := false
-	for _, condition := range initJob.Status.Conditions {
-		if condition.Type == batchv1.JobFailed {
-			conditionFailed = true
-			break
-		}
-	}
-
-	if initJob.Status.Failed == *initJob.Spec.BackoffLimit || conditionFailed {
+	if initialized {
+		r.Log.Info("Storage is already initialized, continuing...")
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			"InitializingStorage",
+			"Storage initialization attempted and skipped, storage already initialized",
+		)
 		if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
 				"ControllerError",
-				fmt.Sprintf("Failed to delete initBlobstorage Job: %s", err),
+				fmt.Sprintf("Failed to delete Job: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
+		return r.setInitStorageCompleted(ctx, storage, "Storage already initialized")
 	}
 
-	if !initialized {
+	if initJob.Status.Failed == *initJob.Spec.BackoffLimit || conditionFailed {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
@@ -185,16 +194,20 @@ func (r *Reconciler) initializeBlobstorage(
 			Status: metav1.ConditionFalse,
 			Reason: ReasonInProgress,
 		})
-		return r.updateStatus(ctx, storage, StorageInitializationRequeueDelay)
+		if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to delete initBlobstorage Job: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
-	r.Recorder.Event(
-		storage,
-		corev1.EventTypeNormal,
-		"InitializingStorage",
-		"Storage initialization attempted and skipped, storage already initialized",
-	)
-	return r.setInitStorageCompleted(ctx, storage, "Storage already initialized")
+	return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 }
 
 func (r *Reconciler) checkFailedJob(
@@ -226,7 +239,7 @@ func (r *Reconciler) checkFailedJob(
 				return false, fmt.Errorf("failed to initialize clientset for checkFailedJob, error: %w", err)
 			}
 
-			podLogs, err := resources.GetPodLogs(ctx, clientset, storage.Namespace, pod.Name)
+			podLogs, err := getPodLogs(ctx, clientset, storage.Namespace, pod.Name)
 			if err != nil {
 				return false, fmt.Errorf("failed to get pod logs for checkFailedJob, error: %w", err)
 			}
@@ -237,6 +250,41 @@ func (r *Reconciler) checkFailedJob(
 		}
 	}
 	return false, nil
+}
+
+func getPodLogs(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (string, error) {
+	var logsBuilder strings.Builder
+
+	streamCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	podLogs, err := clientset.CoreV1().
+		Pods(namespace).
+		GetLogs(name, &corev1.PodLogOptions{}).
+		Stream(streamCtx)
+	if err != nil {
+		return "", fmt.Errorf("failed to stream GetLogs from pod %s/%s, error: %w", namespace, name, err)
+	}
+	defer podLogs.Close()
+
+	buf := make([]byte, 4096)
+	for {
+		numBytes, err := podLogs.Read(buf)
+		if numBytes == 0 && err != nil {
+			break
+		}
+		logsBuilder.Write(buf[:numBytes])
+	}
+
+	return logsBuilder.String(), nil
+}
+
+func shouldIgnoreJobUpdate() resources.IgnoreChangesFunction {
+	return func(oldObj, newObj runtime.Object) bool {
+		if _, ok := oldObj.(*batchv1.Job); ok {
+			return true
+		}
+		return false
+	}
 }
 
 func (r *Reconciler) createInitBlobstorageJob(
@@ -295,13 +343,4 @@ func (r *Reconciler) createOrUpdateOperatorTokenSecret(
 	}, resources.DoNotIgnoreChanges())
 
 	return err
-}
-
-func shouldIgnoreJobUpdate() resources.IgnoreChangesFunction {
-	return func(oldObj, newObj runtime.Object) bool {
-		if _, ok := oldObj.(*batchv1.Job); ok {
-			return true
-		}
-		return false
-	}
 }
