@@ -290,79 +290,6 @@ func (r *Reconciler) waitForStatefulSetToScale(
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) handlePauseResume(
-	ctx context.Context,
-	storageNodeSet *resources.StorageNodeSetResource,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running step handlePauseResume")
-
-	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
-		if storageNodeSet.Spec.Pause {
-			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetPausedCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
-			})
-			storageNodeSet.Status.State = StorageNodeSetPaused
-		} else {
-			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetReadyCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
-			})
-			storageNodeSet.Status.State = StorageNodeSetReady
-		}
-		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
-	}
-
-	if storageNodeSet.Status.State == StorageNodeSetReady && storageNodeSet.Spec.Pause {
-		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetReadyCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonNotRequired,
-			Message: "Transitioning to state Paused",
-		})
-		storageNodeSet.Status.State = StorageNodeSetPaused
-		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
-	}
-
-	if storageNodeSet.Status.State == StorageNodeSetPaused && !storageNodeSet.Spec.Pause {
-		r.Log.Info("`pause: false` was noticed, moving StorageNodeSet to state `Ready`")
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetPausedCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonNotRequired,
-			Message: "Transitioning to state Ready",
-		})
-		storageNodeSet.Status.State = StorageNodeSetReady
-		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
-	}
-
-	if storageNodeSet.Spec.Pause {
-		if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetPausedCondition) {
-			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetPausedCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
-			})
-			return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
-		}
-	} else {
-		if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetReadyCondition) {
-			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetReadyCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
-			})
-			return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
-		}
-	}
-
-	r.Log.Info("complete step handlePauseResume")
-	return Continue, ctrl.Result{}, nil
-}
-
 func (r *Reconciler) updateStatus(
 	ctx context.Context,
 	storageNodeSet *resources.StorageNodeSetResource,
@@ -436,4 +363,77 @@ func shouldIgnoreStorageNodeSetChange(storageNodeSet *resources.StorageNodeSetRe
 		}
 		return false
 	}
+}
+
+func (r *Reconciler) handlePauseResume(
+	ctx context.Context,
+	storageNodeSet *resources.StorageNodeSetResource,
+) (bool, ctrl.Result, error) {
+	r.Log.Info("running step handlePauseResume")
+
+	if storageNodeSet.Status.State == StorageNodeSetProvisioning {
+		if storageNodeSet.Spec.Pause {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:   NodeSetPausedCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
+			})
+			storageNodeSet.Status.State = StorageNodeSetPaused
+		} else {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:   NodeSetReadyCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
+			})
+			storageNodeSet.Status.State = StorageNodeSetReady
+		}
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+	}
+
+	if storageNodeSet.Status.State == StorageNodeSetReady && storageNodeSet.Spec.Pause {
+		r.Log.Info("`pause: true` was noticed, moving StorageNodeSet to state `Paused`")
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetReadyCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  ReasonNotRequired,
+			Message: "Transitioning to state Paused",
+		})
+		storageNodeSet.Status.State = StorageNodeSetPaused
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+	}
+
+	if storageNodeSet.Status.State == StorageNodeSetPaused && !storageNodeSet.Spec.Pause {
+		r.Log.Info("`pause: false` was noticed, moving StorageNodeSet to state `Ready`")
+		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+			Type:    NodeSetPausedCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  ReasonNotRequired,
+			Message: "Transitioning to state Ready",
+		})
+		storageNodeSet.Status.State = StorageNodeSetReady
+		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+	}
+
+	if storageNodeSet.Spec.Pause {
+		if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetPausedCondition) {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:   NodeSetPausedCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
+			})
+			return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+		}
+	} else {
+		if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetReadyCondition) {
+			meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
+				Type:   NodeSetReadyCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
+			})
+			return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
+		}
+	}
+
+	r.Log.Info("complete step handlePauseResume")
+	return Continue, ctrl.Result{}, nil
 }

@@ -163,8 +163,22 @@ func (r *Reconciler) updateRemoteStatus(
 			"ControllerError",
 			fmt.Sprintf("Failed to update status: %s", err),
 		)
+
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
+
+	r.Recorder.Event(
+		remoteStorageNodeSet,
+		corev1.EventTypeNormal,
+		"StatusChanged",
+		"Status updated on remote cluster",
+	)
+	r.RemoteRecorder.Event(
+		remoteStorageNodeSet,
+		corev1.EventTypeNormal,
+		"StatusChanged",
+		"Status updated",
+	)
 
 	r.Log.Info("complete step updateRemoteStatus")
 	return Continue, ctrl.Result{}, nil
