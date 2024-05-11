@@ -119,6 +119,10 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 	storage := obj.(*Storage)
 	storagelog.Info("default", "name", storage.Name)
 
+	if !storage.Spec.OperatorSync {
+		return nil
+	}
+
 	if storage.Spec.Image == nil {
 		storage.Spec.Image = &PodImage{}
 	}

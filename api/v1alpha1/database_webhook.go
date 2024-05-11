@@ -58,6 +58,10 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 	database := obj.(*Database)
 	databaselog.Info("default", "name", database.Name)
 
+	if !database.Spec.OperatorSync {
+		return nil
+	}
+
 	if database.Spec.StorageClusterRef.Namespace == "" {
 		database.Spec.StorageClusterRef.Namespace = database.Namespace
 	}
