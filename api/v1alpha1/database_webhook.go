@@ -141,11 +141,13 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		database.Spec.StorageEndpoint = storage.GetStorageEndpointWithProto()
 	}
 
-	configuration, err := buildConfiguration(storage, database)
-	if err != nil {
-		return err
+	if database.Spec.Configuration != "" || (database.Spec.Encryption != nil && database.Spec.Encryption.Enabled) {
+		configuration, err := buildConfiguration(storage, database)
+		if err != nil {
+			return err
+		}
+		database.Spec.Configuration = configuration
 	}
-	database.Spec.Configuration = configuration
 
 	return nil
 }
