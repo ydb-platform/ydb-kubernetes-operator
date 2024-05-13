@@ -301,15 +301,15 @@ func buildTLSVolume(name string, configuration *api.TLSConfiguration) corev1.Vol
 				Items: []corev1.KeyToPath{
 					{
 						Key:  configuration.CertificateAuthority.Key,
-						Path: "ca.crt",
+						Path: wellKnownNameForTLSCertificateAuthority,
 					},
 					{
 						Key:  configuration.Certificate.Key,
-						Path: "tls.crt",
+						Path: wellKnownNameForTLSCertificate,
 					},
 					{
 						Key:  configuration.Key.Key,
-						Path: "tls.key",
+						Path: wellKnownNameForTLSPrivateKey,
 					},
 				},
 			},
@@ -433,7 +433,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/grpc", // fixme const
+			MountPath: grpcTLSVolumeMountPath,
 		})
 	}
 
@@ -441,7 +441,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/interconnect", // fixme const
+			MountPath: interconnectTLSVolumeMountPath,
 		})
 	}
 
@@ -463,7 +463,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
 				Name:      datastreamsTLSVolumeName,
 				ReadOnly:  true,
-				MountPath: "/tls/datastreams", // fixme const
+				MountPath: datastreamsTLSVolumeMountPath,
 			})
 		}
 	}
@@ -517,6 +517,17 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 		"--node-broker",
 		b.Spec.StorageEndpoint,
+	}
+
+	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		args = append(args,
+			"--grpc-ca",
+			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority),
+			"--grpc-cert",
+			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSCertificate),
+			"--grpc-key",
+			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSPrivateKey),
+		)
 	}
 
 	for _, secret := range b.Spec.Secrets {
