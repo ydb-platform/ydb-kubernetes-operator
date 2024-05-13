@@ -259,14 +259,18 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 			return foundStorage.Status.State == StorageInitializing
 		}, test.Timeout, test.Interval).Should(BeTrue())
 
-		By("set status Ready to Storage...")
+		By("set condition Initialized to Storage...")
 		Eventually(func() error {
 			foundStorage := v1alpha1.Storage{}
 			Expect(localClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage))
-			foundStorage.Status.State = StorageReady
+			meta.SetStatusCondition(&foundStorage.Status.Conditions, metav1.Condition{
+				Type:   StorageInitializedCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
+			})
 			return localClient.Status().Update(ctx, &foundStorage)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
