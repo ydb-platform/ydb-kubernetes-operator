@@ -1,6 +1,7 @@
 package schema_test
 
 import (
+	"fmt"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -38,7 +39,7 @@ hosts:
   location: {body: 5, data_center: 'dcExample', rack: '5'}
   node_id: 6
   host_config_id: 1
-- host:  storage-6
+- host: storage-6
   location: {body: 6, data_center: 'dcExample', rack: '6'}
   node_id: 7
   host_config_id: 1
@@ -88,88 +89,20 @@ var _ = Describe("Testing schema", func() {
 		yamlConfig := schema.Configuration{}
 		err := yaml.Unmarshal([]byte(configurationExample), &yamlConfig)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(yamlConfig.Hosts).Should(BeEquivalentTo([]schema.Host{
-			{
-				Host:         "storage-0",
-				NodeID:       1,
+		hosts := []schema.Host{}
+		for i := 0; i < 8; i++ {
+			hosts = append(hosts, schema.Host{
+				Host:         fmt.Sprintf("storage-%d", i),
+				NodeID:       i + 1,
 				HostConfigID: 1,
-				WalleLocation: schema.WalleLocation{
-					Body:       0,
+				Location: schema.Location{
+					Body:       i,
 					DataCenter: "dcExample",
-					Rack:       "0",
+					Rack:       fmt.Sprint(i),
 				},
-			},
-			{
-				Host:         "storage-1",
-				NodeID:       2,
-				HostConfigID: 1,
-				WalleLocation: schema.WalleLocation{
-					Body:       1,
-					DataCenter: "dcExample",
-					Rack:       "1",
-				},
-			},
-			{
-				Host:         "storage-2",
-				NodeID:       3,
-				HostConfigID: 1,
-				WalleLocation: schema.WalleLocation{
-					Body:       2,
-					DataCenter: "dcExample",
-					Rack:       "2",
-				},
-			},
-			{
-				Host:         "storage-3",
-				NodeID:       4,
-				HostConfigID: 1,
-				WalleLocation: schema.WalleLocation{
-					Body:       3,
-					DataCenter: "dcExample",
-					Rack:       "3",
-				},
-			},
-			{
-				Host:         "storage-4",
-				NodeID:       5,
-				HostConfigID: 1,
-				WalleLocation: schema.WalleLocation{
-					Body:       4,
-					DataCenter: "dcExample",
-					Rack:       "4",
-				},
-			},
-			{
-				Host:         "storage-5",
-				NodeID:       6,
-				HostConfigID: 1,
-				WalleLocation: schema.WalleLocation{
-					Body:       5,
-					DataCenter: "dcExample",
-					Rack:       "5",
-				},
-			},
-			{
-				Host:         "storage-6",
-				NodeID:       7,
-				HostConfigID: 1,
-				WalleLocation: schema.WalleLocation{
-					Body:       6,
-					DataCenter: "dcExample",
-					Rack:       "6",
-				},
-			},
-			{
-				Host:         "storage-7",
-				NodeID:       8,
-				HostConfigID: 1,
-				WalleLocation: schema.WalleLocation{
-					Body:       7,
-					DataCenter: "dcExample",
-					Rack:       "7",
-				},
-			},
-		}))
+			})
+		}
+		Expect(yamlConfig.Hosts).Should(BeEquivalentTo(hosts))
 		Expect(*yamlConfig.KeyConfig).Should(BeEquivalentTo(schema.KeyConfig{
 			Keys: []schema.Key{
 				{
