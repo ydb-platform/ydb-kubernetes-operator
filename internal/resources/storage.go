@@ -1,6 +1,9 @@
 package resources
 
 import (
+	"fmt"
+
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,17 +65,45 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
 
 	var optionalBuilders []ResourceBuilder
-	optionalBuilders = append(
-		optionalBuilders,
-		&ConfigMapBuilder{
-			Object: b,
-			Name:   b.Storage.GetName(),
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
+
+	dynConfig, err := api.TryParseDynconfig(b.Spec.Configuration)
+	if err != nil {
+		optionalBuilders = append(
+			optionalBuilders,
+			&ConfigMapBuilder{
+				Object: b,
+				Name:   b.Storage.GetName(),
+				Data: map[string]string{
+					api.ConfigFileName: b.Spec.Configuration,
+				},
+				Labels: storageLabels,
 			},
-			Labels: storageLabels,
-		},
-	)
+		)
+	} else {
+		staticConfig, _ := yaml.Marshal(dynConfig.Config)
+		optionalBuilders = append(
+			optionalBuilders,
+			&ConfigMapBuilder{
+				Object: b,
+				Name:   b.Storage.GetName(),
+				Data: map[string]string{
+					api.ConfigFileName: string(staticConfig),
+				},
+				Labels: storageLabels,
+			},
+		)
+		optionalBuilders = append(
+			optionalBuilders,
+			&ConfigMapBuilder{
+				Object: b,
+				Name:   fmt.Sprintf(DynConfigNameFormat, b.Storage.GetName()),
+				Data: map[string]string{
+					api.DynconfigFileName: b.Spec.Configuration,
+				},
+				Labels: storageLabels,
+			},
+		)
+	}
 
 	if b.Spec.Monitoring.Enabled {
 		optionalBuilders = append(optionalBuilders,

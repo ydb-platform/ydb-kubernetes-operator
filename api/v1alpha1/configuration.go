@@ -39,7 +39,7 @@ func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
 			HostConfigID: 1, // TODO
 			NodeID:       i + 1,
 			Port:         InterconnectPort,
-			WalleLocation: schema.WalleLocation{
+			Location: schema.Location{
 				Body:       12340 + i,
 				DataCenter: datacenter,
 				Rack:       strconv.Itoa(i),
@@ -102,14 +102,16 @@ func buildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 		rawYamlConfiguration = crDB.Spec.Configuration
 	} else {
 		rawYamlConfiguration = cr.Spec.Configuration
-		if dynconfig, err := TryParseDynconfig(rawYamlConfiguration); err == nil {
-			return yaml.Marshal(dynconfig.Config)
-		}
 	}
 
 	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
 	if err != nil {
 		return []byte(""), err
+	}
+
+	dynConfig, err := TryParseDynconfig(rawYamlConfiguration)
+	if err == nil {
+		return yaml.Marshal(dynConfig)
 	}
 
 	generatedConfig := generateSomeDefaults(cr, crDB)
