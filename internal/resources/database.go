@@ -72,18 +72,20 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 	var optionalBuilders []ResourceBuilder
 
-	optionalBuilders = append(
-		optionalBuilders,
-		&ConfigMapBuilder{
-			Object: b,
+	if b.Spec.Configuration != "" {
+		optionalBuilders = append(
+			optionalBuilders,
+			&ConfigMapBuilder{
+				Object: b,
 
-			Name: b.GetName(),
-			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
+				Name: b.GetName(),
+				Data: map[string]string{
+					api.ConfigFileName: b.Spec.Configuration,
+				},
+				Labels: databaseLabels,
 			},
-			Labels: databaseLabels,
-		},
-	)
+		)
+	}
 
 	if b.Spec.Monitoring != nil && b.Spec.Monitoring.Enabled {
 		optionalBuilders = append(optionalBuilders,
