@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,6 +41,11 @@ func (r *Reconciler) Sync(ctx context.Context, crRemoteStorageNodeSet *v1alpha1.
 	}
 
 	stop, result, err = r.removeUnusedRemoteObjects(ctx, &remoteStorageNodeSet, remoteObjects)
+	if stop {
+		return result, err
+	}
+
+	stop, result, err = r.updateRemoteStatus(ctx, &remoteStorageNodeSet)
 	if stop {
 		return result, err
 	}
@@ -99,7 +105,7 @@ func (r *Reconciler) handleResourcesSync(
 	}
 
 	r.Log.Info("complete step handleResourcesSync")
-	return r.updateRemoteStatus(ctx, remoteStorageNodeSet)
+	return Continue, ctrl.Result{}, nil
 }
 
 func (r *Reconciler) updateRemoteStatus(
@@ -142,41 +148,38 @@ func (r *Reconciler) updateRemoteStatus(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	oldStatus := crRemoteStorageNodeSet.Status.State
-	if oldStatus != crStorageNodeSet.Status.State {
-		crRemoteStorageNodeSet.Status.State = crStorageNodeSet.Status.State
-		crRemoteStorageNodeSet.Status.Conditions = crStorageNodeSet.Status.Conditions
-		if err := r.RemoteClient.Status().Update(ctx, crRemoteStorageNodeSet); err != nil {
-			r.Recorder.Event(
-				remoteStorageNodeSet,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to update status on remote cluster: %s", err),
-			)
-			r.RemoteRecorder.Event(
-				remoteStorageNodeSet,
-				corev1.EventTypeWarning,
-				"ControllerError",
-				fmt.Sprintf("Failed to update status: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
+	crRemoteStorageNodeSet.Status.State = crStorageNodeSet.Status.State
+	crRemoteStorageNodeSet.Status.Conditions = append([]metav1.Condition{}, crStorageNodeSet.Status.Conditions...)
+	if err := r.RemoteClient.Status().Update(ctx, crRemoteStorageNodeSet); err != nil {
 		r.Recorder.Event(
 			remoteStorageNodeSet,
-			corev1.EventTypeNormal,
-			"StatusChanged",
-			"Status updated on remote cluster",
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to update status on remote cluster: %s", err),
 		)
 		r.RemoteRecorder.Event(
 			remoteStorageNodeSet,
-			corev1.EventTypeNormal,
-			"StatusChanged",
-			"Status updated",
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to update status: %s", err),
 		)
-		r.Log.Info("step updateRemoteStatus requeue reconcile")
-		return Stop, ctrl.Result{RequeueAfter: StatusUpdateRequeueDelay}, nil
+
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	r.Log.Info("step updateRemoteStatus completed")
-	return Continue, ctrl.Result{Requeue: false}, nil
+	r.Recorder.Event(
+		remoteStorageNodeSet,
+		corev1.EventTypeNormal,
+		"StatusChanged",
+		"Status updated on remote cluster",
+	)
+	r.RemoteRecorder.Event(
+		remoteStorageNodeSet,
+		corev1.EventTypeNormal,
+		"StatusChanged",
+		"Status updated",
+	)
+
+	r.Log.Info("complete step updateRemoteStatus")
+	return Continue, ctrl.Result{}, nil
 }
