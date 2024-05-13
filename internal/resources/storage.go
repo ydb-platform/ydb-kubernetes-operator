@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"strconv"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,7 +52,6 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	statefulSetLabels := storageLabels.Copy()
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
-	statefulSetLabels.Merge(map[string]string{labels.StorageGeneration: strconv.FormatInt(b.ObjectMeta.Generation, 10)})
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)

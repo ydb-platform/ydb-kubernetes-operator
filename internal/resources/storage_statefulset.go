@@ -59,7 +59,8 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		sts.ObjectMeta.Name = b.Name
 	}
 	sts.ObjectMeta.Namespace = b.GetNamespace()
-	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
+	sts.ObjectMeta.Labels = b.Labels
+	sts.ObjectMeta.Annotations = b.Annotations
 
 	replicas := ptr.Int32(b.Spec.Nodes)
 	if b.Spec.Pause {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -20,7 +19,6 @@ import (
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
@@ -113,8 +111,7 @@ var _ = Describe("Storage controller medium tests", func() {
 		}
 		Expect(foundVolume).To(BeTrue())
 
-		By("Check that label and annotation propagated to pods...", func() {
-			podLabels := storageSS.Spec.Template.Labels
+		By("Check that configuration checksum annotation propagated to pods...", func() {
 			podAnnotations := storageSS.Spec.Template.Annotations
 
 			foundStorage := v1alpha1.Storage{}
@@ -122,12 +119,6 @@ var _ = Describe("Storage controller medium tests", func() {
 				Name:      testobjects.StorageName,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage)).Should(Succeed())
-
-			foundStorageGenerationLabel := false
-			if podLabels[labels.StorageGeneration] == strconv.FormatInt(foundStorage.ObjectMeta.Generation, 10) {
-				foundStorageGenerationLabel = true
-			}
-			Expect(foundStorageGenerationLabel).To(BeTrue())
 
 			foundConfigurationChecksumAnnotation := false
 			if podAnnotations[annotations.ConfigurationChecksum] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {

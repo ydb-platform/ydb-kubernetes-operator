@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"strconv"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,7 +57,6 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 	statefulSetLabels := databaseLabels.Copy()
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
-	statefulSetLabels.Merge(map[string]string{labels.DatabaseGeneration: strconv.FormatInt(b.ObjectMeta.Generation, 10)})
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
