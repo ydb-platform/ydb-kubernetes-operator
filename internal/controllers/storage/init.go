@@ -28,69 +28,35 @@ import (
 var mismatchItemConfigGenerationRegexp = regexp.MustCompile(".*mismatch.*ItemConfigGenerationProvided# " +
 	"0.*ItemConfigGenerationExpected# 1.*")
 
-func (r *Reconciler) processSkipInitPipeline(
+func (r *Reconciler) setInitPipelineStatus(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step processSkipInitPipeline")
-	r.Log.Info("Storage initialization disabled (with annotation), proceed with caution")
-
-	r.Recorder.Event(
-		storage,
-		corev1.EventTypeWarning,
-		"SkippingInit",
-		"Skipping initialization due to skip annotation present, be careful!",
-	)
-
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    StorageInitializedCondition,
-		Status:  "True",
-		Reason:  ReasonCompleted,
-		Message: "Storage initialization not performed because initialization is skipped",
-	})
-	storage.Status.State = StorageReady
-	return r.updateStatus(ctx, storage)
-}
-
-func (r *Reconciler) setInitialStatus(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running step setInitialStatus")
-
-	if meta.IsStatusConditionTrue(storage.Status.Conditions, OldStorageInitializedCondition) {
+	if storage.Status.State == StoragePreparing {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageInitializedCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: "Storage initialized successfully",
-		})
-		storage.Status.State = StorageReady
-		return r.updateStatus(ctx, storage)
-	}
-
-	// This block is special internal logic that skips all Storage initialization.
-	// It is needed when large clusters are migrated where `waitForStatefulSetToScale`
-	// does not make sense, since some nodes can be down for a long time (and it is okay, since
-	// database is healthy even with partial outage).
-	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		if meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil ||
-			meta.IsStatusConditionFalse(storage.Status.Conditions, StorageInitializedCondition) {
-			return r.processSkipInitPipeline(ctx, storage)
-		}
-		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
-	}
-
-	if storage.Status.State == StoragePending ||
-		meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition) == nil {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    StorageInitializedCondition,
-			Status:  "False",
+			Status:  metav1.ConditionUnknown,
 			Reason:  ReasonInProgress,
 			Message: "Storage has not been initialized yet",
 		})
-		storage.Status.State = StoragePreparing
-		return r.updateStatus(ctx, storage)
+		storage.Status.State = StorageInitializing
+		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
+	}
+
+	// This block is special internal logic that skips all Storage initialization.
+	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
+		r.Log.Info("Storage initialization disabled (with annotation), proceed with caution")
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"SkippingInit",
+			"Skipping initialization due to skip annotation present, be careful!",
+		)
+		return r.setInitStorageCompleted(ctx, storage, "Storage initialization not performed because initialization is skipped")
+	}
+
+	if meta.IsStatusConditionTrue(storage.Status.Conditions, OldStorageInitializedCondition) {
+		return r.setInitStorageCompleted(ctx, storage, "Storage initialized successfully")
 	}
 	return Continue, ctrl.Result{Requeue: false}, nil
 }
@@ -102,25 +68,17 @@ func (r *Reconciler) setInitStorageCompleted(
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 		Type:    StorageInitializedCondition,
-		Status:  "True",
+		Status:  metav1.ConditionTrue,
 		Reason:  ReasonCompleted,
 		Message: message,
 	})
-	storage.Status.State = StorageProvisioning
-	return r.updateStatus(ctx, storage)
+	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }
 
-func (r *Reconciler) initializeStorage(
+func (r *Reconciler) initializeBlobstorage(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step initializeStorage")
-
-	if storage.Status.State == StoragePreparing {
-		storage.Status.State = StorageInitializing
-		return r.updateStatus(ctx, storage)
-	}
-
 	initJob := &batchv1.Job{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      fmt.Sprintf(resources.InitJobNameFormat, storage.Name),
@@ -193,57 +151,60 @@ func (r *Reconciler) initializeStorage(
 		}
 	}
 
-	//nolint:nestif
-	if initJob.Status.Failed > 0 {
-		initialized, err := r.checkFailedJob(ctx, storage, initJob)
-		if err != nil {
+	initialized, err := r.checkFailedJob(ctx, storage, initJob)
+	if err != nil {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"ControllerError",
+			fmt.Sprintf("Failed to check logs for initBlobstorage Job: %s", err),
+		)
+		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+	}
+
+	if initialized {
+		r.Log.Info("Storage is already initialized, continuing...")
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			"InitializingStorage",
+			"Storage initialization attempted and skipped, storage already initialized",
+		)
+		if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
 				"ControllerError",
-				fmt.Sprintf("Failed to check logs from failed Pod for Job: %s", err),
+				fmt.Sprintf("Failed to delete Job: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+		return r.setInitStorageCompleted(ctx, storage, "Storage already initialized")
+	}
+
+	if initJob.Status.Failed == *initJob.Spec.BackoffLimit || conditionFailed {
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeWarning,
+			"InitializingStorage",
+			"Failed initBlobstorage Job, check Pod logs for addditional info",
+		)
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:   StorageInitializedCondition,
+			Status: metav1.ConditionFalse,
+			Reason: ReasonInProgress,
+		})
+		if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"ControllerError",
+				fmt.Sprintf("Failed to delete initBlobstorage Job: %s", err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
-		if initialized {
-			r.Log.Info("Storage is already initialized, continuing...")
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeNormal,
-				"InitializingStorage",
-				"Storage initialization attempted and skipped, storage already initialized",
-			)
-			if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-				r.Recorder.Event(
-					storage,
-					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed to delete Job: %s", err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-			return r.setInitStorageCompleted(ctx, storage, "Storage already initialized")
-		}
-
-		if initJob.Status.Failed == *initJob.Spec.BackoffLimit || conditionFailed {
-			r.Log.Info("Init Job status failed")
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeWarning,
-				"InitializingStorage",
-				"Failed to initializing Storage",
-			)
-			if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-				r.Recorder.Event(
-					storage,
-					corev1.EventTypeWarning,
-					"ControllerError",
-					fmt.Sprintf("Failed to delete Job: %s", err),
-				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-			}
-		}
+		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
 	return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
