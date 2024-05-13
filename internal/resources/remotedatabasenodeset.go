@@ -102,13 +102,23 @@ func (b *RemoteDatabaseNodeSetResource) GetRemoteObjects(
 	}
 
 	// sync ConfigMap
-	remoteObjects = append(remoteObjects,
-		&corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      b.Spec.DatabaseRef.Name,
-				Namespace: b.Namespace,
-			},
-		})
+	if b.Spec.Configuration != "" {
+		remoteObjects = append(remoteObjects,
+			&corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      b.Spec.DatabaseRef.Name,
+					Namespace: b.Namespace,
+				},
+			})
+	} else {
+		remoteObjects = append(remoteObjects,
+			&corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      b.Spec.StorageClusterRef.Name,
+					Namespace: b.Namespace,
+				},
+			})
+	}
 
 	// sync Services
 	remoteObjects = append(remoteObjects,
