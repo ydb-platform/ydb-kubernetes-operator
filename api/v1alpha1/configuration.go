@@ -106,7 +106,7 @@ func buildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 
 	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
 	if err != nil {
-		return []byte(""), err
+		return nil, err
 	}
 
 	dynConfig, err := TryParseDynconfig(rawYamlConfiguration)

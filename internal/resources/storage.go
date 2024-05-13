@@ -80,6 +80,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
+		// error was previously handled in the ValidationWebhook
 		staticConfig, _ := yaml.Marshal(dynConfig.Config)
 		optionalBuilders = append(
 			optionalBuilders,
