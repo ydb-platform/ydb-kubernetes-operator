@@ -82,7 +82,6 @@ var _ = Describe("Database controller medium tests", func() {
 			foundStorage.Status.State = StorageReady
 			return k8sClient.Status().Update(ctx, &foundStorage)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
-
 	})
 
 	AfterEach(func() {
