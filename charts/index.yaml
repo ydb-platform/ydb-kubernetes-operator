@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  ydb-operator:
+  - apiVersion: v2
+    appVersion: 0.5.6
+    created: "2024-05-13T11:24:12.735294774+02:00"
+    description: A Helm chart for deploying YDB Kubernetes operator.
+    digest: c5f30161bc47490bf28725c4acb1d47259e3cdb60ccb096fee5056e35357e675
+    name: ydb-operator
+    type: application
+    urls:
+    - ydb-operator-0.5.6.tgz
+    version: 0.5.6
+generated: "2024-05-13T11:24:12.724956009+02:00"
