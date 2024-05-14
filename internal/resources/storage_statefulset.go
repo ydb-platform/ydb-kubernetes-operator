@@ -466,6 +466,9 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 		"--node",
 		"static",
+
+		"--label",
+		fmt.Sprintf("%s=%s", api.LabelDeploymentKey, api.LabelDeploymentValueKubernetes),
 	)
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
