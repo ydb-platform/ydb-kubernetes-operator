@@ -402,7 +402,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      grpcTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/grpc", // fixme const
+			MountPath: grpcTLSVolumeMountPath,
 		})
 	}
 
@@ -410,7 +410,7 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: "/tls/interconnect", // fixme const
+			MountPath: interconnectTLSVolumeMountPath,
 		})
 	}
 
