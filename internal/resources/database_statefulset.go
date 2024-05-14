@@ -545,7 +545,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 			"--grpc-key",
 			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSPrivateKey),
 			"--grpc-ca",
-			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority),
+			fmt.Sprintf("%s/%s", systemCertsDir, caCertificatesFileName),
 		)
 	}
 

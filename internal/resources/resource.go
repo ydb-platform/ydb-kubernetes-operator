@@ -61,6 +61,7 @@ const (
 
 	caBundleEnvName         = "CA_BUNDLE"
 	caBundleFileName        = "userCABundle.crt"
+	caCertificatesFileName  = "ca-certificates.crt"
 	updateCACertificatesBin = "update-ca-certificates"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
