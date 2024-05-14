@@ -520,6 +520,21 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 		"--node-broker",
 		b.Spec.StorageEndpoint,
+
+		"--label",
+		fmt.Sprintf("%s=%s", api.LabelDeploymentKey, api.LabelDeploymentValueKubernetes),
+	}
+
+	if b.Spec.SharedResources != nil {
+		args = append(args,
+			"--label",
+			fmt.Sprintf("%s=%s", api.LabelSharedDatabaseKey, api.LabelSharedDatabaseValueTrue),
+		)
+	} else {
+		args = append(args,
+			"--label",
+			fmt.Sprintf("%s=%s", api.LabelSharedDatabaseKey, api.LabelSharedDatabaseValueFalse),
+		)
 	}
 
 	for _, secret := range b.Spec.Secrets {
