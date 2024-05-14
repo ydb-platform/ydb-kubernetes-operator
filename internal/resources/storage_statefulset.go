@@ -461,6 +461,9 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 		"--node",
 		"static",
+
+		"--label",
+		fmt.Sprintf("%s=%s", api.LabelDeploymentKey, api.LabelDeploymentValueKubernetes),
 	)
 
 	for _, secret := range b.Spec.Secrets {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -125,6 +126,20 @@ var _ = Describe("Storage controller medium tests", func() {
 				foundConfigurationChecksumAnnotation = true
 			}
 			Expect(foundConfigurationChecksumAnnotation).To(BeTrue())
+		})
+
+		By("Check that args with --label propagated to pods...", func() {
+			podContainerArgs := storageSS.Spec.Template.Spec.Containers[0].Args
+			var labelArgKey string
+			var labelArgValue string
+			for idx, arg := range podContainerArgs {
+				if arg == "--label" {
+					labelArgKey = strings.Split(podContainerArgs[idx+1], "=")[0]
+					labelArgValue = strings.Split(podContainerArgs[idx+1], "=")[1]
+				}
+			}
+			Expect(labelArgKey).Should(BeEquivalentTo(v1alpha1.LabelDeploymentKey))
+			Expect(labelArgValue).Should(BeEquivalentTo(v1alpha1.LabelDeploymentValueKubernetes))
 		})
 	})
 })
