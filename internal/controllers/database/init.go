@@ -17,62 +17,35 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) processSkipInitPipeline(
+func (r *Reconciler) setInitPipelineStatus(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step processSkipInitPipeline")
-	r.Log.Info("Database initialization disabled (with annotation), proceed with caution")
-
-	r.Recorder.Event(
-		database,
-		corev1.EventTypeWarning,
-		"SkippingInit",
-		"Skipping database creation due to skip annotation present, be careful!",
-	)
-
-	return r.setInitDatabaseCompleted(
-		ctx,
-		database,
-		"Database creation not performed because initialization is skipped",
-	)
-}
-
-func (r *Reconciler) setInitialStatus(
-	ctx context.Context,
-	database *resources.DatabaseBuilder,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running step setInitialStatus")
-
-	if meta.IsStatusConditionTrue(database.Status.Conditions, OldDatabaseInitializedCondition) {
+	if database.Status.State == DatabasePreparing {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:    DatabaseInitializedCondition,
-			Status:  "True",
-			Reason:  ReasonCompleted,
-			Message: "Database initialized successfully",
-		})
-		database.Status.State = DatabaseReady
-		return r.updateStatus(ctx, database)
-	}
-
-	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		if meta.FindStatusCondition(database.Status.Conditions, DatabaseInitializedCondition) == nil ||
-			meta.IsStatusConditionFalse(database.Status.Conditions, DatabaseInitializedCondition) {
-			return r.processSkipInitPipeline(ctx, database)
-		}
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
-	}
-
-	if database.Status.State == DatabasePending ||
-		meta.FindStatusCondition(database.Status.Conditions, DatabaseInitializedCondition) == nil {
-		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    DatabaseInitializedCondition,
-			Status:  "False",
+			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
 			Message: "Database has not been initialized yet",
 		})
-		database.Status.State = DatabasePreparing
-		return r.updateStatus(ctx, database)
+		database.Status.State = DatabaseInitializing
+		return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
+	}
+
+	// This block is special internal logic that skips all Database initialization.
+	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
+		r.Log.Info("Database initialization disabled (with annotation), proceed with caution")
+		r.Recorder.Event(
+			database,
+			corev1.EventTypeWarning,
+			"SkippingInit",
+			"Skipping initialization due to skip annotation present, be careful!",
+		)
+		return r.setInitDatabaseCompleted(ctx, database, "Database initialization not performed because initialization is skipped")
+	}
+
+	if meta.IsStatusConditionTrue(database.Status.Conditions, OldDatabaseInitializedCondition) {
+		return r.setInitDatabaseCompleted(ctx, database, "Database initialized successfully")
 	}
 
 	return Continue, ctrl.Result{Requeue: false}, nil
@@ -85,26 +58,17 @@ func (r *Reconciler) setInitDatabaseCompleted(
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 		Type:    DatabaseInitializedCondition,
-		Status:  "True",
+		Status:  metav1.ConditionTrue,
 		Reason:  ReasonCompleted,
 		Message: message,
 	})
-	database.Status.State = DatabaseProvisioning
-
-	return r.updateStatus(ctx, database)
+	return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
 }
 
-func (r *Reconciler) initializeDatabase(
+func (r *Reconciler) initializeTenant(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step initializeDatabase")
-
-	if database.Status.State == DatabasePreparing {
-		database.Status.State = DatabaseInitializing
-		return r.updateStatus(ctx, database)
-	}
-
 	path := database.GetDatabasePath()
 	var storageUnits []v1alpha1.StorageUnit
 	var shared bool
@@ -150,16 +114,15 @@ func (r *Reconciler) initializeDatabase(
 			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
 		}
 
-		if sharedDatabaseCr.Status.State != "Ready" {
+		if !meta.IsStatusConditionTrue(sharedDatabaseCr.Status.Conditions, DatabaseProvisionedCondition) {
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeWarning,
 				"Pending",
 				fmt.Sprintf(
-					"Referenced shared Database (%s, %s) in a bad state: %s != Ready",
+					"Referenced shared Database (%s, %s) is not Provisioned",
 					database.Spec.ServerlessResources.SharedDatabaseRef.Name,
 					database.Spec.ServerlessResources.SharedDatabaseRef.Namespace,
-					sharedDatabaseCr.Status.State,
 				),
 			)
 			return Stop, ctrl.Result{RequeueAfter: SharedDatabaseAwaitRequeueDelay}, err
@@ -213,20 +176,18 @@ func (r *Reconciler) initializeDatabase(
 			"InitializingFailed",
 			fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DatabaseInitializationRequeueDelay}, err
+		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+			Type:   DatabaseInitializedCondition,
+			Status: metav1.ConditionFalse,
+			Reason: ReasonInProgress,
+		})
+		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
 	r.Recorder.Event(
 		database,
 		corev1.EventTypeNormal,
 		"Initialized",
 		fmt.Sprintf("Tenant %s created", tenant.Path),
-	)
-
-	r.Recorder.Event(
-		database,
-		corev1.EventTypeNormal,
-		"DatabaseReady",
-		"Database is initialized",
 	)
 
 	return r.setInitDatabaseCompleted(ctx, database, "Database initialized successfully")
