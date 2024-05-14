@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -72,14 +73,18 @@ var _ = Describe("Database controller medium tests", func() {
 			return foundStorage.Status.State == StorageInitializing
 		}, test.Timeout, test.Interval).Should(BeTrue())
 
-		By("set status Ready to Storage...")
+		By("set condition Initialized to Storage...")
 		Eventually(func() error {
 			foundStorage := v1alpha1.Storage{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage))
-			foundStorage.Status.State = StorageReady
+			meta.SetStatusCondition(&foundStorage.Status.Conditions, metav1.Condition{
+				Type:   StorageInitializedCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
+			})
 			return k8sClient.Status().Update(ctx, &foundStorage)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 	})
