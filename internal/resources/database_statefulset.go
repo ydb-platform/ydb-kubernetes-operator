@@ -537,14 +537,11 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		)
 	}
 
+	// hotfix KIKIMR-16728
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		args = append(args,
 			"--grpc-ca",
 			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority),
-			"--grpc-cert",
-			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSCertificate),
-			"--grpc-key",
-			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSPrivateKey),
 		)
 	}
 

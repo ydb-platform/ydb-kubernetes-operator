@@ -471,17 +471,6 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		fmt.Sprintf("%s=%s", api.LabelDeploymentKey, api.LabelDeploymentValueKubernetes),
 	)
 
-	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		args = append(args,
-			"--grpc-ca",
-			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority),
-			"--grpc-cert",
-			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSCertificate),
-			"--grpc-key",
-			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSPrivateKey),
-		)
-	}
-
 	for _, secret := range b.Spec.Secrets {
 		exist, err := CheckSecretKey(
 			context.Background(),
