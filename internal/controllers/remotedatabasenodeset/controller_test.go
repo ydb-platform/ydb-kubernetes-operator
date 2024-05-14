@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -260,14 +259,18 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 			return foundStorage.Status.State == StorageInitializing
 		}, test.Timeout, test.Interval).Should(BeTrue())
 
-		By("set status Ready to Storage...")
+		By("set condition Initialized to Storage...")
 		Eventually(func() error {
 			foundStorage := v1alpha1.Storage{}
 			Expect(localClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage))
-			foundStorage.Status.State = StorageReady
+			meta.SetStatusCondition(&foundStorage.Status.Conditions, metav1.Condition{
+				Type:   StorageInitializedCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
+			})
 			return localClient.Status().Update(ctx, &foundStorage)
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
@@ -350,74 +353,64 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 	When("Created RemoteDatabaseNodeSet in k8s-mgmt-cluster", func() {
 		It("Should receive status from k8s-data-cluster", func() {
-			By("set dedicated DatabaseNodeSet status to Ready on remote cluster...")
-			foundDedicatedDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSet{}
-			Expect(remoteClient.Get(ctx, types.NamespacedName{
-				Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
-				Namespace: testobjects.YdbNamespace,
-			}, &foundDedicatedDatabaseNodeSetOnRemote)).Should(Succeed())
+			By("checking that dedicated DatabaseNodeSet status updated on remote cluster...")
+			Eventually(func() bool {
+				foundDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
+					Namespace: testobjects.YdbNamespace,
+				}, &foundDatabaseNodeSetOnRemote)).Should(Succeed())
 
-			foundDedicatedDatabaseNodeSetOnRemote.Status.State = DatabaseNodeSetReady
-			foundDedicatedDatabaseNodeSetOnRemote.Status.Conditions = append(
-				foundDedicatedDatabaseNodeSetOnRemote.Status.Conditions,
-				metav1.Condition{
-					Type:               DatabaseNodeSetReadyCondition,
-					Status:             "True",
-					Reason:             ReasonCompleted,
-					LastTransitionTime: metav1.NewTime(time.Now()),
-					Message:            fmt.Sprintf("Scaled databaseNodeSet to %d successfully", foundDedicatedDatabaseNodeSetOnRemote.Spec.Nodes),
-				},
-			)
-			Expect(remoteClient.Status().Update(ctx, &foundDedicatedDatabaseNodeSetOnRemote)).Should(Succeed())
-
-			By("set DatabaseNodeSet status to Ready on remote cluster...")
-			foundDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSet{}
-			Expect(remoteClient.Get(ctx, types.NamespacedName{
-				Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
-				Namespace: testobjects.YdbNamespace,
-			}, &foundDatabaseNodeSetOnRemote)).Should(Succeed())
-
-			foundDatabaseNodeSetOnRemote.Status.State = DatabaseNodeSetReady
-			foundDatabaseNodeSetOnRemote.Status.Conditions = append(
-				foundDatabaseNodeSetOnRemote.Status.Conditions,
-				metav1.Condition{
-					Type:               DatabaseNodeSetReadyCondition,
-					Status:             "True",
-					Reason:             ReasonCompleted,
-					LastTransitionTime: metav1.NewTime(time.Now()),
-					Message:            fmt.Sprintf("Scaled databaseNodeSet to %d successfully", foundDatabaseNodeSetOnRemote.Spec.Nodes),
-				},
-			)
-			Expect(remoteClient.Status().Update(ctx, &foundDatabaseNodeSetOnRemote)).Should(Succeed())
+				return meta.IsStatusConditionPresentAndEqual(
+					foundDatabaseNodeSetOnRemote.Status.Conditions,
+					NodeSetPreparedCondition,
+					metav1.ConditionTrue,
+				)
+			}, test.Timeout, test.Interval).Should(BeTrue())
 
 			By("checking that dedicated RemoteDatabaseNodeSet status updated on local cluster...")
 			Eventually(func() bool {
-				foundRemoteDatabaseNodeSetOnRemote := v1alpha1.RemoteDatabaseNodeSet{}
+				foundRemoteDatabaseNodeSet := v1alpha1.RemoteDatabaseNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote-dedicated",
 					Namespace: testobjects.YdbNamespace,
-				}, &foundRemoteDatabaseNodeSetOnRemote)).Should(Succeed())
+				}, &foundRemoteDatabaseNodeSet)).Should(Succeed())
 
 				return meta.IsStatusConditionPresentAndEqual(
-					foundRemoteDatabaseNodeSetOnRemote.Status.Conditions,
-					DatabaseNodeSetReadyCondition,
+					foundRemoteDatabaseNodeSet.Status.Conditions,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
-				) && foundRemoteDatabaseNodeSetOnRemote.Status.State == DatabaseNodeSetReady
+				)
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that DatabaseNodeSet status updated on remote cluster...")
+			Eventually(func() bool {
+				foundDatabaseNodeSetOnRemote := v1alpha1.DatabaseNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, &foundDatabaseNodeSetOnRemote)).Should(Succeed())
+
+				return meta.IsStatusConditionPresentAndEqual(
+					foundDatabaseNodeSetOnRemote.Status.Conditions,
+					NodeSetPreparedCondition,
+					metav1.ConditionTrue,
+				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
 
 			By("checking that RemoteDatabaseNodeSet status updated on local cluster...")
 			Eventually(func() bool {
-				foundRemoteDatabaseNodeSetOnRemote := v1alpha1.RemoteDatabaseNodeSet{}
+				foundRemoteDatabaseNodeSet := v1alpha1.RemoteDatabaseNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
 					Name:      databaseSample.Name + "-" + testNodeSetName + "-remote",
 					Namespace: testobjects.YdbNamespace,
-				}, &foundRemoteDatabaseNodeSetOnRemote)).Should(Succeed())
+				}, &foundRemoteDatabaseNodeSet)).Should(Succeed())
 
 				return meta.IsStatusConditionPresentAndEqual(
-					foundRemoteDatabaseNodeSetOnRemote.Status.Conditions,
-					DatabaseNodeSetReadyCondition,
+					foundRemoteDatabaseNodeSet.Status.Conditions,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
-				) && foundRemoteDatabaseNodeSetOnRemote.Status.State == DatabaseNodeSetReady
+				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
@@ -759,7 +752,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				foundConfigMap := corev1.ConfigMap{}
 				Expect(remoteClient.Get(ctx, types.NamespacedName{
-					Name:      databaseSample.Name,
+					Name:      storageSample.Name,
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
@@ -791,7 +784,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 
 				foundConfigMap := corev1.ConfigMap{}
 				Expect(remoteClient.Get(ctx, types.NamespacedName{
-					Name:      databaseSample.Name,
+					Name:      storageSample.Name,
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 

@@ -144,7 +144,10 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 }
 
 func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
-	configMapName := b.Database.Name
+	configMapName := b.Spec.StorageClusterRef.Name
+	if b.Spec.Configuration != "" {
+		configMapName = b.GetName()
+	}
 
 	volumes := []corev1.Volume{
 		{

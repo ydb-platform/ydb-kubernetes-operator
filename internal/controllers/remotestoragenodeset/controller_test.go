@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -285,47 +285,20 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 	When("Created RemoteStorageNodeSet in k8s-mgmt-cluster", func() {
 		It("Should receive status from k8s-data-cluster", func() {
-			By("set static StorageNodeSet status to Ready on remote cluster...")
-			Eventually(func() error {
-				foundStaticStorageNodeSetOnRemote := &v1alpha1.StorageNodeSet{}
+			By("checking that static StorageNodeSet status updated on remote cluster...")
+			Eventually(func() bool {
+				foundStaticRemoteStorageNodeSetOnRemote := v1alpha1.StorageNodeSet{}
 				Expect(remoteClient.Get(ctx, types.NamespacedName{
 					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
 					Namespace: testobjects.YdbNamespace,
-				}, foundStaticStorageNodeSetOnRemote)).Should(Succeed())
-				foundStaticStorageNodeSetOnRemote.Status.State = StorageNodeSetReady
-				foundStaticStorageNodeSetOnRemote.Status.Conditions = append(
-					foundStaticStorageNodeSetOnRemote.Status.Conditions,
-					metav1.Condition{
-						Type:               StorageNodeSetReadyCondition,
-						Status:             "True",
-						Reason:             ReasonCompleted,
-						LastTransitionTime: metav1.NewTime(time.Now()),
-						Message:            fmt.Sprintf("Scaled StorageNodeSet to %d successfully", foundStaticStorageNodeSetOnRemote.Spec.Nodes),
-					},
-				)
-				return remoteClient.Status().Update(ctx, foundStaticStorageNodeSetOnRemote)
-			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+				}, &foundStaticRemoteStorageNodeSetOnRemote)).Should(Succeed())
 
-			By("set StorageNodeSet status to Ready on remote cluster...")
-			Eventually(func() error {
-				foundStorageNodeSetOnRemote := &v1alpha1.StorageNodeSet{}
-				Expect(remoteClient.Get(ctx, types.NamespacedName{
-					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
-					Namespace: testobjects.YdbNamespace,
-				}, foundStorageNodeSetOnRemote)).Should(Succeed())
-				foundStorageNodeSetOnRemote.Status.State = StorageNodeSetReady
-				foundStorageNodeSetOnRemote.Status.Conditions = append(
-					foundStorageNodeSetOnRemote.Status.Conditions,
-					metav1.Condition{
-						Type:               StorageNodeSetReadyCondition,
-						Status:             "True",
-						Reason:             ReasonCompleted,
-						LastTransitionTime: metav1.NewTime(time.Now()),
-						Message:            fmt.Sprintf("Scaled StorageNodeSet to %d successfully", foundStorageNodeSetOnRemote.Spec.Nodes),
-					},
+				return meta.IsStatusConditionPresentAndEqual(
+					foundStaticRemoteStorageNodeSetOnRemote.Status.Conditions,
+					NodeSetPreparedCondition,
+					metav1.ConditionTrue,
 				)
-				return remoteClient.Status().Update(ctx, foundStorageNodeSetOnRemote)
-			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+			}, test.Timeout, test.Interval).Should(BeTrue())
 
 			By("checking that static RemoteStorageNodeSet status updated on local cluster...")
 			Eventually(func() bool {
@@ -337,9 +310,24 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundStaticRemoteStorageNodeSet.Status.Conditions,
-					StorageNodeSetReadyCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
-				) && foundStaticRemoteStorageNodeSet.Status.State == StorageNodeSetReady
+				)
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that StorageNodeSet status updated on remote cluster...")
+			Eventually(func() bool {
+				foundRemoteStorageNodeSetOnRemote := v1alpha1.StorageNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, &foundRemoteStorageNodeSetOnRemote)).Should(Succeed())
+
+				return meta.IsStatusConditionPresentAndEqual(
+					foundRemoteStorageNodeSetOnRemote.Status.Conditions,
+					NodeSetPreparedCondition,
+					metav1.ConditionTrue,
+				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
 
 			By("checking that RemoteStorageNodeSet status updated on local cluster...")
@@ -352,9 +340,9 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 
 				return meta.IsStatusConditionPresentAndEqual(
 					foundRemoteStorageNodeSet.Status.Conditions,
-					StorageNodeSetReadyCondition,
+					NodeSetPreparedCondition,
 					metav1.ConditionTrue,
-				) && foundRemoteStorageNodeSet.Status.State == StorageNodeSetReady
+				)
 			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
@@ -462,7 +450,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				return nil
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
-			By("checking that static RemoteStorageNodeSet RemoteStatus are updated...")
+			By("checking that static RemoteStorageNodeSet RemoteResource status are updated...")
 			Eventually(func() bool {
 				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
@@ -476,7 +464,6 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					Namespace: testobjects.YdbNamespace,
 				}, &foundConfigMap)).Should(Succeed())
 
-				logf.Log.Info("remoteResources", "status", foundRemoteStorageNodeSet.Status.RemoteResources)
 				for idx := range foundRemoteStorageNodeSet.Status.RemoteResources {
 					remoteResource := foundRemoteStorageNodeSet.Status.RemoteResources[idx]
 					if resources.EqualRemoteResourceWithObject(
@@ -495,7 +482,27 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
 
-			By("checking that RemoteStorageNodeSet RemoteStatus are updated...")
+			By("checking that static RemoteStorageNodeSet status are synced...")
+			Eventually(func() bool {
+				foundStorageNodeSet := &v1alpha1.StorageNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+					Namespace: testobjects.YdbNamespace,
+				}, foundStorageNodeSet)).Should(Succeed())
+
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote-static",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteStorageNodeSet)).Should(Succeed())
+
+				if foundStorageNodeSet.Status.State != foundRemoteStorageNodeSet.Status.State {
+					return false
+				}
+				return reflect.DeepEqual(foundStorageNodeSet.Status.Conditions, foundRemoteStorageNodeSet.Status.Conditions)
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that RemoteStorageNodeSet RemoteResource status are updated...")
 			Eventually(func() bool {
 				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
 				Expect(localClient.Get(ctx, types.NamespacedName{
@@ -525,6 +532,26 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					}
 				}
 				return false
+			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			By("checking that RemoteStorageNodeSet status are synced...")
+			Eventually(func() bool {
+				foundStorageNodeSet := &v1alpha1.StorageNodeSet{}
+				Expect(remoteClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundStorageNodeSet)).Should(Succeed())
+
+				foundRemoteStorageNodeSet := &v1alpha1.RemoteStorageNodeSet{}
+				Expect(localClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name + "-" + testNodeSetName + "-remote",
+					Namespace: testobjects.YdbNamespace,
+				}, foundRemoteStorageNodeSet)).Should(Succeed())
+
+				if foundStorageNodeSet.Status.State != foundRemoteStorageNodeSet.Status.State {
+					return false
+				}
+				return reflect.DeepEqual(foundStorageNodeSet.Status.Conditions, foundRemoteStorageNodeSet.Status.Conditions)
 			}, test.Timeout, test.Interval).Should(BeTrue())
 		})
 	})
