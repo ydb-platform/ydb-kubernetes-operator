@@ -40,7 +40,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	// YDBOPS-9722 backward compability
+	// YDBOPS-9722 backward compatibility
 	cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
 
 	optionalBuilders = append(
