@@ -50,7 +50,6 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 	var optionalBuilders []ResourceBuilder
 
 	if b.Spec.Configuration != "" {
-
 		// YDBOPS-9722 backward compatibility
 		cfg, _ := api.BuildConfiguration(b.Storage, b.Unwrap())
 
