@@ -10,7 +10,7 @@ require (
 	github.com/onsi/gomega v1.27.6
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.50.0
-	github.com/ydb-platform/ydb-go-genproto v0.0.0-20230801151335-81e01be38941
+	github.com/ydb-platform/ydb-go-genproto v0.0.0-20240316140903-4a47abca1cca
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.53.0
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.1
