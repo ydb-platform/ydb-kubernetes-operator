@@ -7,6 +7,7 @@ const (
 	PrimaryResourceDatabaseAnnotation = "ydb.tech/primary-resource-database"
 	RemoteResourceVersionAnnotation   = "ydb.tech/remote-resource-version"
 	ConfigurationChecksum             = "ydb.tech/configuration-checksum"
+	StorageFinalizerKey               = "ydb.tech/storage-finalizer"
 	RemoteFinalizerKey                = "ydb.tech/remote-finalizer"
 	LastAppliedAnnotation             = "ydb.tech/last-applied"
 )
