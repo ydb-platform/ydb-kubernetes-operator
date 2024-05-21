@@ -152,7 +152,7 @@ func bringYdbCliToPod(podName, podNamespace string) {
 	}, Timeout, Interval).Should(BeNil())
 }
 
-func executeSimpleQuery(podName, podNamespace, storageEndpoint string) {
+func executeSimpleQuery(podName, podNamespace, endpoint string) {
 	Eventually(func(g Gomega) string {
 		args := []string{
 			"-n",
@@ -163,7 +163,7 @@ func executeSimpleQuery(podName, podNamespace, storageEndpoint string) {
 			"/tmp/ydb",
 			"-d",
 			"/" + testobjects.DefaultDomain,
-			"-e" + storageEndpoint,
+			"-e" + endpoint,
 			"yql",
 			"-s",
 			"select 1",
@@ -603,13 +603,6 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the database pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
 
-		database := v1alpha1.Database{}
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      databaseSample.Name,
-			Namespace: testobjects.YdbNamespace,
-		}, &database)).Should(Succeed())
-		storageEndpoint := database.Spec.StorageEndpoint
-
 		databasePods := corev1.PodList{}
 		Expect(k8sClient.List(ctx, &databasePods,
 			client.InNamespace(testobjects.YdbNamespace),
@@ -622,7 +615,8 @@ var _ = Describe("Operator smoke test", func() {
 		bringYdbCliToPod(podName, testobjects.YdbNamespace)
 
 		By("execute simple query inside ydb database pod...")
-		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
+		databaseEndpoint := fmt.Sprintf("grpcs://%s:%d", testobjects.DatabaseGRPCService, testobjects.DatabaseGRPCPort)
+		executeSimpleQuery(podName, testobjects.YdbNamespace, databaseEndpoint)
 	})
 
 	It("Check that Storage deleted after Database...", func() {
