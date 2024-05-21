@@ -88,7 +88,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// then lets add the finalizer and update the object. This is equivalent
 		// to registering our finalizer.
 		if !controllerutil.ContainsFinalizer(resource, ydbannotations.StorageFinalizerKey) {
-			controllerutil.AddFinalizer(resource, ydbannotations.RemoteFinalizerKey)
+			controllerutil.AddFinalizer(resource, ydbannotations.StorageFinalizerKey)
 			if err := r.Client.Update(ctx, resource); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
@@ -104,7 +104,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(resource, ydbannotations.RemoteFinalizerKey)
+			controllerutil.RemoveFinalizer(resource, ydbannotations.StorageFinalizerKey)
 			if err := r.Client.Update(ctx, resource); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}

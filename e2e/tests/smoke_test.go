@@ -663,10 +663,7 @@ var _ = Describe("Operator smoke test", func() {
 			if err != nil {
 				return false
 			}
-			if foundStorage.DeletionTimestamp == nil {
-				return false
-			}
-			return true
+			return !foundStorage.DeletionTimestamp.IsZero()
 		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("checking that Storage is present in cluster...")
