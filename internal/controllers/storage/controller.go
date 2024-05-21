@@ -267,7 +267,6 @@ func (r *Reconciler) checkExistingDatabases(
 			StorageRefField: storage.Name,
 		},
 	)
-
 	if err != nil {
 		r.Log.Error(err, "failed to list Databases")
 		r.Recorder.Event(

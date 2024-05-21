@@ -654,14 +654,20 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 
 		By("checking that Storage deletionTimestamp is not nil...")
-		Eventually(func() *metav1.Time {
+		Eventually(func() bool {
 			foundStorage := v1alpha1.Storage{}
-			k8sClient.Get(ctx, types.NamespacedName{
+			err := k8sClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage)
-			return foundStorage.DeletionTimestamp
-		}, test.Timeout, test.Interval).ShouldNot(BeNil())
+			if err != nil {
+				return false
+			}
+			if foundStorage.DeletionTimestamp == nil {
+				return false
+			}
+			return true
+		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("checking that Storage is present in cluster...")
 		Consistently(func() error {

@@ -699,6 +699,16 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 
+			// Remove all finalizers from Storage in this namespace
+			storageList := v1alpha1.StorageList{}
+			err = k8sClient.List(ctx, &storageList, client.InNamespace(ns.Name))
+			Expect(err).ShouldNot(HaveOccurred())
+			for idx := range storageList.Items {
+				storageList.Items[idx].Finalizers = []string{}
+				err = k8sClient.Update(ctx, &storageList.Items[idx])
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
 			Eventually(func() error {
 				key := client.ObjectKeyFromObject(ns)
 				if err := k8sClient.Get(ctx, key, ns); err != nil {
