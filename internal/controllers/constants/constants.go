@@ -39,7 +39,6 @@ const (
 	ConfigurationSyncedCondition  = "ConfigurationSynced"
 	RemoteResourceSyncedCondition = "ResourceSynced"
 
-	GetConfigOperationCondition     = "ydb.tech/GetConfigOperation"
 	ReplaceConfigOperationCondition = "ydb.tech/ReplaceConfigOperation"
 
 	Stop     = true
@@ -51,7 +50,6 @@ const (
 
 	DefaultRequeueDelay                = 10 * time.Second
 	StatusUpdateRequeueDelay           = 1 * time.Second
-	GetConfigOperationRequeueDelay     = 15 * time.Second
 	ReplaceConfigOperationRequeueDelay = 15 * time.Second
 	SelfCheckRequeueDelay              = 30 * time.Second
 	StorageInitializationRequeueDelay  = 30 * time.Second

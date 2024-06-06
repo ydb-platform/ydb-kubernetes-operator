@@ -15,132 +15,6 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
-func (r *Reconciler) getConfig(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running handler getConfig")
-	creds, err := resources.GetYDBCredentials(ctx, storage.Unwrap(), r.Config)
-	if err != nil {
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to get YDB credentials: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	tlsOptions, err := resources.GetYDBTLSOption(ctx, storage.Unwrap(), r.Config)
-	if err != nil {
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to get YDB TLS options: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	condition := meta.FindStatusCondition(storage.Status.Conditions, GetConfigOperationCondition)
-	if condition == nil ||
-		condition.ObservedGeneration < storage.Generation ||
-		condition.Status == metav1.ConditionFalse {
-		getConfig, err := cms.GetConfig(ctx, storage, creds, tlsOptions)
-		if err != nil {
-			r.Log.Error(err, "request CMS GetConfig error")
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeWarning,
-				string(StorageProvisioning),
-				fmt.Sprintf("Failed to request CMS GetConfig: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-		}
-		r.Log.Info("CMS GetConfig response", getConfig)
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               GetConfigOperationCondition,
-			Status:             metav1.ConditionUnknown,
-			ObservedGeneration: storage.Generation,
-			Reason:             getConfig.GetOperation().GetId(),
-			Message:            fmt.Sprintf("Waiting for request CMS GetConfig: %s", err),
-		})
-		return r.updateStatus(ctx, storage, GetConfigOperationRequeueDelay)
-	}
-
-	operationId := condition.Reason
-	cmsResponse, err := cms.GetOperation(ctx, storage, operationId, creds, tlsOptions)
-	if err != nil {
-		r.Log.Error(err, "request CMS GetOperation error")
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			string(StorageProvisioning),
-			fmt.Sprintf("Failed to request CMS GetOperation: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	err = cms.CheckOperationReady(cmsResponse)
-	if err != nil {
-		r.Log.Info("Waiting for request CMS GetConfig", "status", err)
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeNormal,
-			string(StorageProvisioning),
-			fmt.Sprintf("Waiting for request CMS GetConfig: %s", err),
-		)
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               GetConfigOperationCondition,
-			Status:             metav1.ConditionUnknown,
-			ObservedGeneration: storage.Generation,
-			Reason:             operationId,
-			Message:            fmt.Sprintf("Waiting for request CMS GetConfig: %s", err),
-		})
-		return r.updateStatus(ctx, storage, GetConfigOperationRequeueDelay)
-	}
-
-	err = cms.CheckOperationSuccess(cmsResponse)
-	if err != nil {
-		r.Log.Error(err, "Failed status for CMS GetConfig")
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			string(StorageProvisioning),
-			fmt.Sprintf("Failed status for CMS GetConfig: %s", err),
-		)
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               GetConfigOperationCondition,
-			Status:             metav1.ConditionFalse,
-			ObservedGeneration: storage.Generation,
-			Reason:             operationId,
-			Message:            fmt.Sprintf("Failed status for CMS GetConfig: %s", err),
-		})
-		return r.updateStatus(ctx, storage, GetConfigOperationRequeueDelay)
-	}
-
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, GetConfigOperationCondition) {
-		r.Log.Info("Success status for CMS GetConfig operation", "operationId", operationId)
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeNormal,
-			string(StorageProvisioning),
-			fmt.Sprintf("Success CMS GetConfig operation %s", operationId),
-		)
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               GetConfigOperationCondition,
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: storage.Generation,
-			Reason:             operationId,
-			Message:            fmt.Sprintf("Success CMS GetConfig operation %s", operationId),
-		})
-		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
-	}
-
-	r.Log.Info("complete handler getConfig")
-	return Continue, ctrl.Result{}, nil
-}
-
 func (r *Reconciler) checkConfig(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
@@ -169,32 +43,27 @@ func (r *Reconciler) checkConfig(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	condition := meta.FindStatusCondition(storage.Status.Conditions, GetConfigOperationCondition)
-	if condition == nil {
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	operationId := condition.Reason
-	cmsResponse, err := cms.GetOperation(ctx, storage, operationId, creds, tlsOptions)
+	configResponse, err := cms.GetConfig(ctx, storage, creds, tlsOptions)
 	if err != nil {
-		r.Log.Error(err, "request CMS GetOperation error")
+		r.Log.Error(err, "request CMS GetConfig error")
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
 			string(StorageProvisioning),
-			fmt.Sprintf("Failed to request CMS GetOperation: %s", err),
+			fmt.Sprintf("Failed to request CMS GetConfig: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	cmsConfig, err := cms.GetConfigResult(cmsResponse)
+	r.Log.Info("CMS GetConfig", "response", configResponse)
+	cmsConfig, err := cms.GetConfigResult(configResponse)
 	if err != nil {
-		r.Log.Error(err, "Failed to unmarshal OperationResult to ConfigResult", "operationId", operationId)
+		r.Log.Error(err, "Failed to unmarshal OperationResult to ConfigResult")
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
 			string(StorageProvisioning),
-			fmt.Sprintf("Failed to unmarshal OperationResult %s to ConfigResult: %s", operationId, err),
+			fmt.Sprintf("Failed to unmarshal OperationResult to ConfigResult: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -271,7 +140,7 @@ func (r *Reconciler) replaceConfig(
 	if condition == nil ||
 		condition.ObservedGeneration < storage.Generation ||
 		condition.Status == metav1.ConditionFalse {
-		replaceConfig, err := cms.ReplaceConfig(ctx, storage, creds, tlsOptions)
+		replaceConfigResponse, err := cms.ReplaceConfig(ctx, storage, creds, tlsOptions)
 		if err != nil {
 			r.Log.Error(err, "request CMS ReplaceConfig error")
 			r.Recorder.Event(
@@ -282,13 +151,13 @@ func (r *Reconciler) replaceConfig(
 			)
 			return Continue, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
-		r.Log.Info("CMS ReplaceConfig response", replaceConfig)
+		r.Log.Info("CMS ReplaceConfig", "response", replaceConfigResponse)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ReplaceConfigOperationCondition,
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
-			Reason:             replaceConfig.GetOperation().GetId(),
-			Message:            fmt.Sprintf("Waiting for request CMS ReplaceConfig: %s", err),
+			Reason:             replaceConfigResponse.GetOperation().GetId(),
+			Message:            fmt.Sprintf("Waiting for CMS ReplaceConfig"),
 		})
 		return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
 	}
@@ -308,19 +177,19 @@ func (r *Reconciler) replaceConfig(
 
 	err = cms.CheckOperationReady(response)
 	if err != nil {
-		r.Log.Info("Waiting for request CMS ReplaceConfig", "message", err)
+		r.Log.Info("Waiting for CMS ReplaceConfig operation", "message", err)
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
 			string(StorageProvisioning),
-			fmt.Sprintf("Waiting for request CMS ReplaceConfig: %s", err),
+			fmt.Sprintf("Waiting for CMS ReplaceConfig: %s", err),
 		)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ReplaceConfigOperationCondition,
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
 			Reason:             operationId,
-			Message:            fmt.Sprintf("Waiting for request CMS ReplaceConfig: %s", err),
+			Message:            fmt.Sprintf("Waiting for CMS ReplaceConfig: %s", err),
 		})
 		return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
 	}
@@ -331,7 +200,7 @@ func (r *Reconciler) replaceConfig(
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
-			"ReplaceConfig",
+			string(StorageProvisioning),
 			fmt.Sprintf("Failed status for CMS ReplaceConfig: %s", err),
 		)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
@@ -350,18 +219,19 @@ func (r *Reconciler) replaceConfig(
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             operationId,
-			Message:            fmt.Sprintf("Success CMS ReplaceConfig operation %s", operationId),
+			Message:            fmt.Sprintf("CMS ReplaceConfig operation %s status is SUCCESS", operationId),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
+	dynConfig, _ := v1alpha1.TryParseDynconfig(storage.Spec.Configuration)
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, ConfigurationSyncedCondition) {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ConfigurationSyncedCondition,
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonCompleted,
-			Message:            "Configuration synced with CMS successfully",
+			Message:            fmt.Sprintf("Configuration synced to version %d successfully", dynConfig.Metadata.Version),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
@@ -394,7 +264,7 @@ func (r *Reconciler) setConfigPipelineStatus(
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonInProgress,
-			Message:            fmt.Sprintf("Sync configuration version %d with CMS", dynConfig.Metadata.Version),
+			Message:            fmt.Sprintf("Sync configuration to version %d", dynConfig.Metadata.Version),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}

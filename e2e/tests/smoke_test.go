@@ -611,23 +611,8 @@ var _ = Describe("Operator smoke test", func() {
 			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 		}()
 
-		By("waiting until GetConfig condition is true...")
-		storage := v1alpha1.Storage{}
-		Eventually(func(g Gomega) bool {
-			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      storageSample.Name,
-				Namespace: testobjects.YdbNamespace,
-			}, &storage)).Should(Succeed())
-
-			condition := meta.FindStatusCondition(storage.Status.Conditions, GetConfigOperationCondition)
-			if condition != nil && condition.ObservedGeneration == storage.Generation {
-				return condition.Status == metav1.ConditionTrue
-			}
-
-			return false
-		}, Timeout, Interval).Should(BeTrue())
-
 		By("waiting until ReplaceConfig condition is true...")
+		storage := v1alpha1.Storage{}
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,

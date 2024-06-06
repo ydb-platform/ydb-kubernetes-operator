@@ -42,20 +42,23 @@ func GetConfig(
 	}()
 
 	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
-	request := &Ydb_DynamicConfig.GetConfigRequest{}
+	request := &Ydb_DynamicConfig.GetConfigRequest{
+		OperationParams: &Ydb_Operations.OperationParams{
+			OperationMode: Ydb_Operations.OperationParams_SYNC,
+		},
+	}
 	return client.GetConfig(ctx, request)
 }
 
 func GetConfigResult(
-	response *Ydb_Operations.GetOperationResponse,
+	response *Ydb_DynamicConfig.GetConfigResponse,
 ) (*Ydb_DynamicConfig.GetConfigResult, error) {
-	configResult := Ydb_DynamicConfig.GetConfigResult{}
-	err := response.GetOperation().GetResult().UnmarshalTo(&configResult)
+	configResult := &Ydb_DynamicConfig.GetConfigResult{}
+	err := response.GetOperation().GetResult().UnmarshalTo(configResult)
 	if err != nil {
 		return nil, err
 	}
-
-	return &configResult, nil
+	return configResult, nil
 }
 
 func ReplaceConfig(
@@ -85,9 +88,11 @@ func ReplaceConfig(
 
 	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
 	request := &Ydb_DynamicConfig.ReplaceConfigRequest{
+		OperationParams: &Ydb_Operations.OperationParams{
+			OperationMode: Ydb_Operations.OperationParams_ASYNC,
+		},
 		Config:             storage.Spec.Configuration,
-		DryRun:             false,
-		AllowUnknownFields: false,
+		AllowUnknownFields: true,
 	}
 	logger.Info(fmt.Sprintf("Sending CMS ReplaceConfigRequest: %s", request))
 	return client.ReplaceConfig(ctx, request)

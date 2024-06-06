@@ -776,12 +776,7 @@ func (r *Reconciler) handleConfigurationSync(
 ) (ctrl.Result, error) {
 	r.Log.Info("running step handleConfigurationSync")
 
-	stop, result, err := r.getConfig(ctx, storage)
-	if stop {
-		return result, err
-	}
-
-	stop, result, err = r.checkConfig(ctx, storage)
+	stop, result, err := r.checkConfig(ctx, storage)
 	if stop {
 		return result, err
 	}
