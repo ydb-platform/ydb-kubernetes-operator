@@ -57,6 +57,7 @@ func (r *Reconciler) getConfig(
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
+		r.Log.Info("CMS GetConfig response", getConfig)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               GetConfigOperationCondition,
 			Status:             metav1.ConditionUnknown,
@@ -281,6 +282,7 @@ func (r *Reconciler) replaceConfig(
 			)
 			return Continue, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
+		r.Log.Info("CMS ReplaceConfig response", replaceConfig)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ReplaceConfigOperationCondition,
 			Status:             metav1.ConditionUnknown,
