@@ -122,9 +122,9 @@ func (r *Reconciler) getConfig(
 		r.Log.Info("Success status for CMS GetConfig operation", "operationId", operationId)
 		r.Recorder.Event(
 			storage,
-			corev1.EventTypeWarning,
+			corev1.EventTypeNormal,
 			string(StorageProvisioning),
-			fmt.Sprintf("Success CMS GetConfig operation %s", operationId, err),
+			fmt.Sprintf("Success CMS GetConfig operation %s", operationId),
 		)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               GetConfigOperationCondition,
