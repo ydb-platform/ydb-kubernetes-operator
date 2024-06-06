@@ -602,6 +602,68 @@ var _ = Describe("Operator smoke test", func() {
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
 	})
 
+	It("check storage with dynconfig", func() {
+		By("create storage...")
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-dynconfig.yaml"))
+
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
+
+		By("waiting until GetConfig condition is true...")
+		storage := v1alpha1.Storage{}
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, GetConfigOperationCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("waiting until ReplaceConfig condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigOperationCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("waiting until ConfigurationSynced condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+	})
+
 	AfterEach(func() {
 		Expect(uninstallOperatorWithHelm(testobjects.YdbNamespace)).Should(BeTrue())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())

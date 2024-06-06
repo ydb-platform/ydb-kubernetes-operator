@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -141,12 +140,11 @@ func (r *Reconciler) getConfig(
 	return Continue, ctrl.Result{}, nil
 }
 
-func (r *Reconciler) checkConfigIdentity(
+func (r *Reconciler) checkConfig(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-	dynConfig schema.Dynconfig,
 ) (bool, ctrl.Result, error) {
-	r.Log.Info("running step checkConfigIdentity")
+	r.Log.Info("running step checkConfig")
 
 	creds, err := resources.GetYDBCredentials(ctx, storage.Unwrap(), r.Config)
 	if err != nil {
@@ -200,6 +198,7 @@ func (r *Reconciler) checkConfigIdentity(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
+	dynConfig, _ := v1alpha1.TryParseDynconfig(storage.Spec.Configuration)
 	cmsConfigIdentity := cmsConfig.GetIdentity()
 	if dynConfig.Metadata.Cluster != cmsConfigIdentity.Cluster {
 		r.Log.Error(err, "Configuration metadata.cluster does not equal with current CMS value", "Storage Config metadata", dynConfig.Metadata, "CMS Config metadata", cmsConfigIdentity)
@@ -235,37 +234,7 @@ func (r *Reconciler) checkConfigIdentity(
 		return r.updateStatus(ctx, storage, 0)
 	}
 
-	if dynConfig.Metadata.Version == cmsConfigIdentity.Version {
-		configuration, _ := yaml.Marshal(dynConfig.Config)
-		if string(configuration) != cmsConfig.GetConfig() {
-			r.Log.Error(err, "Configuration does not equal with current version", "Storage Config metadata", dynConfig.Metadata, "CMS Config metadata", cmsConfigIdentity.String())
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeWarning,
-				string(StorageProvisioning),
-				fmt.Sprintf("Configuration does not equal with current version %d", dynConfig.Metadata.Version),
-			)
-			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-				Type:    ConfigurationSyncedCondition,
-				Status:  metav1.ConditionFalse,
-				Reason:  ReasonNotRequired,
-				Message: fmt.Sprintf("Configuration does not equal with current version %d", dynConfig.Metadata.Version),
-			})
-			return r.updateStatus(ctx, storage, 0)
-		}
-	}
-
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, ConfigurationSyncedCondition) {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    ConfigurationSyncedCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Configuration successfully synced to version %s", dynConfig.Metadata.Version),
-		})
-		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
-	}
-
-	r.Log.Info("complete step checkConfigIdentity")
+	r.Log.Info("complete step checkConfig")
 	return Continue, ctrl.Result{}, nil
 }
 
@@ -384,6 +353,17 @@ func (r *Reconciler) replaceConfig(
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
+	if !meta.IsStatusConditionTrue(storage.Status.Conditions, ConfigurationSyncedCondition) {
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:               ConfigurationSyncedCondition,
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: storage.Generation,
+			Reason:             ReasonCompleted,
+			Message:            "Configuration synced with CMS successfully",
+		})
+		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
+	}
+
 	r.Log.Info("complete step replaceConfig")
 	return Continue, ctrl.Result{}, nil
 }
@@ -395,42 +375,27 @@ func (r *Reconciler) setConfigPipelineStatus(
 
 	dynConfig, err := v1alpha1.TryParseDynconfig(storage.Spec.Configuration)
 	if err != nil {
-		message := "Dynconfig does not recognize at .spec.configuration, skip..."
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			string(StorageProvisioning),
-			message,
-		)
-		return r.setConfigurationSyncCompleted(ctx, storage, message)
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:               ConfigurationSyncedCondition,
+			Status:             metav1.ConditionTrue,
+			ObservedGeneration: storage.Generation,
+			Reason:             ReasonCompleted,
+			Message:            "Sync static configuration does not support, skip...",
+		})
+		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
-	condition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
-	if condition == nil || condition.ObservedGeneration < storage.Generation {
+	configSyncCondition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
+	if configSyncCondition == nil || configSyncCondition.ObservedGeneration < storage.Generation {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ConfigurationSyncedCondition,
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonInProgress,
-			Message:            "",
+			Message:            fmt.Sprintf("Sync configuration version %d with CMS", dynConfig.Metadata.Version),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
 	return Continue, ctrl.Result{}, nil
-}
-
-func (r *Reconciler) setConfigurationSyncCompleted(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-	message string,
-) (bool, ctrl.Result, error) {
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:               ConfigurationSyncedCondition,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: storage.Generation,
-		Reason:             ReasonCompleted,
-		Message:            message,
-	})
-	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }
