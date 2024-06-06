@@ -109,14 +109,15 @@ func buildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 		return nil, err
 	}
 
+	generatedConfig := generateSomeDefaults(cr, crDB)
+
 	dynConfig, err := TryParseDynconfig(rawYamlConfiguration)
 	if err == nil {
+		tryFillMissingSections(dynConfig.Config, generatedConfig)
 		return yaml.Marshal(dynConfig)
 	}
 
-	generatedConfig := generateSomeDefaults(cr, crDB)
 	tryFillMissingSections(config, generatedConfig)
-
 	return yaml.Marshal(config)
 }
 
