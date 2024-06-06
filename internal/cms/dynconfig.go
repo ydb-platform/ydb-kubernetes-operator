@@ -23,8 +23,13 @@ func GetConfig(
 	opts ...ydb.Option,
 ) (*Ydb_DynamicConfig.GetConfigResponse, error) {
 	logger := log.FromContext(ctx)
-	conn, err := connection.Open(ctx,
+	endpoint := fmt.Sprintf(
+		"%s/%s",
 		storage.GetStorageEndpointWithProto(),
+		storage.Spec.Domain,
+	)
+	conn, err := connection.Open(ctx,
+		endpoint,
 		ydb.WithCredentials(creds),
 		ydb.MergeOptions(opts...),
 	)
@@ -60,8 +65,13 @@ func ReplaceConfig(
 	opts ...ydb.Option,
 ) (*Ydb_DynamicConfig.ReplaceConfigResponse, error) {
 	logger := log.FromContext(ctx)
-	conn, err := connection.Open(ctx,
+	endpoint := fmt.Sprintf(
+		"%s/%s",
 		storage.GetStorageEndpointWithProto(),
+		storage.Spec.Domain,
+	)
+	conn, err := connection.Open(ctx,
+		endpoint,
 		ydb.WithCredentials(creds),
 		ydb.MergeOptions(opts...),
 	)

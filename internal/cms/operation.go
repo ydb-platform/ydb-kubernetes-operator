@@ -22,8 +22,13 @@ func GetOperation(
 	opts ...ydb.Option,
 ) (*Ydb_Operations.GetOperationResponse, error) {
 	logger := log.FromContext(ctx)
-	conn, err := connection.Open(ctx,
+	endpoint := fmt.Sprintf(
+		"%s/%s",
 		storage.GetStorageEndpointWithProto(),
+		storage.Spec.Domain,
+	)
+	conn, err := connection.Open(ctx,
+		endpoint,
 		ydb.WithCredentials(creds),
 		ydb.MergeOptions(opts...),
 	)
