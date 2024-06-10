@@ -43,11 +43,10 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	dynConfig, err := api.TryParseDynconfig(b.Spec.Configuration)
+	dynConfig, err := api.ParseDynconfig(b.Spec.Configuration)
 	if err != nil {
 		// YDBOPS-9722 backward compatibility
 		cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
-
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{
@@ -59,20 +58,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		// YDBOPS-9722 backward compatibility
 		cfg, _ := yaml.Marshal(dynConfig.Config)
-
-		if _, exist := dynConfig.Config["hosts"]; exist {
-			delete(dynConfig.Config, "hosts")
-		}
-		if _, exist := dynConfig.Config["host_configs"]; exist {
-			delete(dynConfig.Config, "host_configs")
-		}
-		if _, exist := dynConfig.Config["nameservice_config"]; exist {
-			delete(dynConfig.Config, "nameservice_config")
-		}
-		dynConfigYaml, _ := yaml.Marshal(dynConfig)
-
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{
@@ -83,16 +69,20 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 				},
 				Labels: storageLabels,
 			},
+		)
+
+		configForCMS, _ := api.GetConfigForCMS(dynConfig)
+		optionalBuilders = append(
+			optionalBuilders,
 			&ConfigMapBuilder{
 				Object: b,
 				Name:   fmt.Sprintf(DynConfigNameFormat, b.Storage.GetName()),
 				Data: map[string]string{
-					api.DynConfigFileName: string(dynConfigYaml),
+					api.DynConfigFileName: string(configForCMS),
 				},
 				Labels: storageLabels,
 			},
 		)
-
 	}
 
 	if b.Spec.Monitoring.Enabled {

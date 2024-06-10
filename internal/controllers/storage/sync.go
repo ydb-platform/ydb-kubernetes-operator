@@ -51,8 +51,10 @@ func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Resul
 		return r.handleBlobstorageInit(ctx, &storage)
 	}
 
-	stop, result, err = r.setConfigPipelineStatus(ctx, &storage)
-	if stop {
+	configSyncCondition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
+	if configSyncCondition == nil || configSyncCondition.ObservedGeneration < storage.Generation {
+		// should always stop
+		_, result, err := r.setConfigPipelineStatus(ctx, &storage)
 		return result, err
 	}
 
@@ -776,7 +778,7 @@ func (r *Reconciler) handleConfigurationSync(
 ) (ctrl.Result, error) {
 	r.Log.Info("running step handleConfigurationSync")
 
-	stop, result, err := r.checkConfig(ctx, storage)
+	stop, result, err := r.setConfigPipelineStatus(ctx, storage)
 	if stop {
 		return result, err
 	}

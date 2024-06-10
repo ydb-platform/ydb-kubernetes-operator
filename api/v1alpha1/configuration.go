@@ -95,7 +95,7 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 		rawYamlConfiguration = cr.Spec.Configuration
 	}
 
-	dynConfig, err := TryParseDynconfig(rawYamlConfiguration)
+	dynConfig, err := ParseDynconfig(rawYamlConfiguration)
 	if err == nil {
 		if dynConfig.Config["hosts"] == nil {
 			hosts := generateHosts(cr)
@@ -124,8 +124,8 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	return yaml.Marshal(config)
 }
 
-func TryParseDynconfig(rawYamlConfiguration string) (*schema.Dynconfig, error) {
-	dynConfig := &schema.Dynconfig{}
+func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
+	dynConfig := schema.Dynconfig{}
 
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(true)
@@ -140,4 +140,20 @@ func TryParseDynconfig(rawYamlConfiguration string) (*schema.Dynconfig, error) {
 	}
 
 	return dynConfig, err
+}
+
+func GetConfigForCMS(dynConfig schema.Dynconfig) ([]byte, error) {
+	if _, exist := dynConfig.Config["hosts"]; exist {
+		delete(dynConfig.Config, "hosts")
+	}
+
+	if _, exist := dynConfig.Config["host_configs"]; exist {
+		delete(dynConfig.Config, "host_configs")
+	}
+
+	if _, exist := dynConfig.Config["nameservice_config"]; exist {
+		delete(dynConfig.Config, "nameservice_config")
+	}
+
+	return yaml.Marshal(dynConfig)
 }
