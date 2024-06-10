@@ -170,7 +170,7 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 		storage.Spec.Domain = DefaultDatabaseDomain
 	}
 
-	configuration, err := buildConfiguration(storage, nil)
+	configuration, err := BuildConfiguration(storage, nil)
 	if err != nil {
 		return err
 	}

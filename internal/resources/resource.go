@@ -53,12 +53,16 @@ const (
 	localCertsVolumeName    = "init-main-shared-source-dir-volume"
 	operatorTokenVolumeName = "operator-token-volume"
 
-	wellKnownDirForAdditionalSecrets = "/opt/ydb/secrets"
-	wellKnownDirForAdditionalVolumes = "/opt/ydb/volumes"
-	wellKnownNameForOperatorToken    = "token-file"
+	wellKnownDirForAdditionalSecrets        = "/opt/ydb/secrets"
+	wellKnownDirForAdditionalVolumes        = "/opt/ydb/volumes"
+	wellKnownNameForOperatorToken           = "token-file"
+	wellKnownNameForTLSCertificateAuthority = "ca.crt"
+	wellKnownNameForTLSCertificate          = "tls.crt"
+	wellKnownNameForTLSPrivateKey           = "tls.key"
 
 	caBundleEnvName         = "CA_BUNDLE"
 	caBundleFileName        = "userCABundle.crt"
+	caCertificatesFileName  = "ca-certificates.crt"
 	updateCACertificatesBin = "update-ca-certificates"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
@@ -510,11 +514,11 @@ func buildCAStorePatchingCommandArgs(
 	}
 
 	if grpcService.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp %s/ca.crt %s/grpcRoot.crt && ", grpcTLSVolumeMountPath, localCertsDir)
+		arg += fmt.Sprintf("cp %s/%s %s/grpcRoot.crt && ", grpcTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
 	}
 
 	if interconnectService.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cp %s/ca.crt %s/interconnectRoot.crt && ", interconnectTLSVolumeMountPath, localCertsDir)
+		arg += fmt.Sprintf("cp %s/%s %s/interconnectRoot.crt && ", interconnectTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
 	}
 
 	if arg != "" {

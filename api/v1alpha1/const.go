@@ -37,6 +37,12 @@ const (
 	DefaultRootUsername = "root"
 	DefaultRootPassword = ""
 
+	LabelDeploymentKey             = "deployment"
+	LabelDeploymentValueKubernetes = "kubernetes"
+	LabelSharedDatabaseKey         = "shared"
+	LabelSharedDatabaseValueTrue   = "true"
+	LabelSharedDatabaseValueFalse  = "false"
+
 	AnnotationUpdateStrategyOnDelete = "ydb.tech/update-strategy-on-delete"
 	AnnotationUpdateDNSPolicy        = "ydb.tech/update-dns-policy"
 	AnnotationSkipInitialization     = "ydb.tech/skip-initialization"

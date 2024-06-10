@@ -90,7 +90,7 @@ func tryFillMissingSections(
 	}
 }
 
-func buildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
+func BuildConfiguration(cr *Storage, crDB *Database) (string, error) {
 	config := make(map[string]interface{})
 
 	// If any kind of configuration exists on Database object, then
