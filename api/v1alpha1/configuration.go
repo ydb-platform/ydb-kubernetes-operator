@@ -142,7 +142,12 @@ func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
 	return dynConfig, err
 }
 
-func GetConfigForCMS(dynConfig schema.Dynconfig) ([]byte, error) {
+func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
+	dynConfig, err := ParseDynconfig(rawYamlConfiguration)
+	if err != nil {
+		return nil, err
+	}
+
 	if _, exist := dynConfig.Config["hosts"]; exist {
 		delete(dynConfig.Config, "hosts")
 	}

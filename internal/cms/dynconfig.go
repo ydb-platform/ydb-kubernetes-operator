@@ -14,6 +14,7 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
@@ -95,12 +96,16 @@ func ReplaceConfig(
 		connection.Close(ctx, conn)
 	}()
 
+	config, err := v1alpha1.GetConfigForCMS(storage.Spec.Configuration)
+	if err != nil {
+		return nil, err
+	}
 	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
 	request := &Ydb_DynamicConfig.ReplaceConfigRequest{
 		OperationParams: &Ydb_Operations.OperationParams{
 			OperationMode: Ydb_Operations.OperationParams_ASYNC,
 		},
-		Config:             storage.Spec.Configuration,
+		Config:             string(config),
 		AllowUnknownFields: true,
 	}
 	logger.Info(fmt.Sprintf("Sending CMS ReplaceConfigRequest: %s", request))
