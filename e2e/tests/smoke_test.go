@@ -13,6 +13,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -619,6 +620,38 @@ var _ = Describe("Operator smoke test", func() {
 
 		storage := v1alpha1.Storage{}
 		By("waiting until ConfigurationSynced condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("try to update dynconfig...")
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      storageSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &storage)).Should(Succeed())
+
+		dynConfig, _ := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
+		dynConfig.Metadata.Version += 1
+		dynConfig.Config["grpc_config"] = map[string]string{
+			"port":                    "2135",
+			"grpc_memory_quota_bytes": "1073741824",
+		}
+
+		cfg, _ := yaml.Marshal(dynConfig)
+		storage.Spec.Configuration = string(cfg)
+		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
+
+		By("waiting until ConfigurationSynced condition is true after update...")
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
