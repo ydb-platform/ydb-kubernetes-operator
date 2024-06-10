@@ -149,7 +149,7 @@ func (r *Reconciler) replaceConfig(
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonCompleted,
-			Message:            fmt.Sprintf("Configuration synced to version %d successfully", dynConfig.Metadata.Version),
+			Message:            fmt.Sprintf("Configuration with version %d synced to CMS successfully", dynConfig.Metadata.Version),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
@@ -228,7 +228,7 @@ func (r *Reconciler) setConfigPipelineStatus(
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonNotRequired,
-			Message:            fmt.Sprintf("Configuration version %s already synced with CMS, skip...", dynConfig.Metadata.Version),
+			Message:            fmt.Sprintf("Configuration version %d already synced to CMS, skip...", dynConfig.Metadata.Version),
 		})
 	} else {
 		r.Log.Info("Sync configuration to CMS", "version", dynConfig.Metadata.Version)
