@@ -604,7 +604,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("check storage with dynconfig", func() {
 		By("create storage...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-dynconfig.yaml"))
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
@@ -617,56 +617,7 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the storage pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-dynconfig.yaml"))
-
 		storage := v1alpha1.Storage{}
-		By("setting storage configuration to dynconfig...")
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      storageSample.Name,
-			Namespace: testobjects.YdbNamespace,
-		}, &storage)).Should(Succeed())
-
-		storage.Spec.Configuration = storageSample.Spec.Configuration
-		storage.Annotations = make(map[string]string)
-		storage.Annotations[v1alpha1.AnnotationUpdateStrategyOnDelete] = "true"
-		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
-
-		storagePods := corev1.PodList{}
-		By("expecting storage pods provisioned...")
-		Eventually(func(g Gomega) bool {
-			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      storageSample.Name,
-				Namespace: testobjects.YdbNamespace,
-			}, &storage)).Should(Succeed())
-
-			g.Expect(k8sClient.List(ctx,
-				&storagePods,
-				client.InNamespace(testobjects.YdbNamespace),
-				client.MatchingLabels{
-					"ydb-cluster": "kind-storage",
-				})).Should(Succeed())
-			return len(storagePods.Items) == int(storage.Spec.Nodes)
-		}, Timeout, Interval).Should(BeTrue())
-
-		podName := storagePods.Items[0].Name
-		By("bring YDB CLI inside ydb database pod...")
-		bringYdbCliToPod(podName, testobjects.YdbNamespace)
-
-		By("waiting until ReplaceConfig condition is true...")
-		Eventually(func(g Gomega) bool {
-			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      storageSample.Name,
-				Namespace: testobjects.YdbNamespace,
-			}, &storage)).Should(Succeed())
-
-			condition := meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigOperationCondition)
-			if condition != nil && condition.ObservedGeneration == storage.Generation {
-				return condition.Status == metav1.ConditionTrue
-			}
-
-			return false
-		}, Timeout, Interval).Should(BeTrue())
-
 		By("waiting until ConfigurationSynced condition is true...")
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
@@ -681,7 +632,6 @@ var _ = Describe("Operator smoke test", func() {
 
 			return false
 		}, Timeout, Interval).Should(BeTrue())
-
 	})
 
 	AfterEach(func() {

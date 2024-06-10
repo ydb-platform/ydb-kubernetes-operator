@@ -169,7 +169,7 @@ func (r *Reconciler) setConfigPipelineStatus(
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonNotRequired,
-			Message:            "Sync configuration does not support, skip...",
+			Message:            "Sync configuration does not support",
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
@@ -228,7 +228,7 @@ func (r *Reconciler) setConfigPipelineStatus(
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonNotRequired,
-			Message:            fmt.Sprintf("Configuration version %d already synced to CMS, skip...", dynConfig.Metadata.Version),
+			Message:            fmt.Sprintf("Configuration version %d already synced to CMS", dynConfig.Metadata.Version),
 		})
 	} else {
 		r.Log.Info("Sync configuration to CMS", "version", dynConfig.Metadata.Version)
