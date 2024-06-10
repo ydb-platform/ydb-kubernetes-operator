@@ -47,22 +47,14 @@ func GetOperation(
 	return client.GetOperation(ctx, request)
 }
 
-func CheckOperationReady(response *Ydb_Operations.GetOperationResponse) error {
-	if response.Operation.Ready {
+func CheckOperationSuccess(operation *Ydb_Operations.Operation) error {
+	if operation.Status == Ydb.StatusIds_ALREADY_EXISTS || operation.Status == Ydb.StatusIds_SUCCESS {
 		return nil
 	}
 
-	return fmt.Errorf("operation %s is not Ready", response.Operation.Id)
-}
-
-func CheckOperationSuccess(response *Ydb_Operations.GetOperationResponse) error {
-	if response.Operation.Status == Ydb.StatusIds_ALREADY_EXISTS || response.Operation.Status == Ydb.StatusIds_SUCCESS {
+	if operation.Status == Ydb.StatusIds_STATUS_CODE_UNSPECIFIED && len(operation.Issues) == 0 {
 		return nil
 	}
 
-	if response.Operation.Status == Ydb.StatusIds_STATUS_CODE_UNSPECIFIED && len(response.Operation.Issues) == 0 {
-		return nil
-	}
-
-	return fmt.Errorf("operation %s error: %v %v", response.Operation.Id, response.Operation.Status, response.Operation.Issues)
+	return fmt.Errorf("operation status is %v: %v", operation.Status, operation.Issues)
 }

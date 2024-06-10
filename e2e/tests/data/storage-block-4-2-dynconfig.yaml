@@ -107,3 +107,5 @@ config:
       profile_id: 0
   grpc_config:
       port: 2135
+allowed_labels: {}
+selector_config: []

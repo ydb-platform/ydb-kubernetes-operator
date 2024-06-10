@@ -43,7 +43,7 @@ func (r *Reconciler) checkConfig(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	configResponse, err := cms.GetConfig(ctx, storage, creds, tlsOptions)
+	response, err := cms.GetConfig(ctx, storage, creds, tlsOptions)
 	if err != nil {
 		r.Log.Error(err, "request CMS GetConfig error")
 		r.Recorder.Event(
@@ -55,15 +55,15 @@ func (r *Reconciler) checkConfig(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	r.Log.Info("CMS GetConfig", "response", configResponse)
-	cmsConfig, err := cms.GetConfigResult(configResponse)
+	r.Log.Info("CMS GetConfig response", "message", response)
+	cmsConfig, err := cms.GetConfigResult(response)
 	if err != nil {
-		r.Log.Error(err, "Failed to unmarshal OperationResult to ConfigResult")
+		r.Log.Error(err, "Failed to unmarshal GetConfigResponse")
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
 			string(StorageProvisioning),
-			fmt.Sprintf("Failed to unmarshal OperationResult to ConfigResult: %s", err),
+			fmt.Sprintf("Failed to unmarshal GetConfigResponse: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
@@ -140,7 +140,7 @@ func (r *Reconciler) replaceConfig(
 	if condition == nil ||
 		condition.ObservedGeneration < storage.Generation ||
 		condition.Status == metav1.ConditionFalse {
-		replaceConfigResponse, err := cms.ReplaceConfig(ctx, storage, creds, tlsOptions)
+		response, err := cms.ReplaceConfig(ctx, storage, creds, tlsOptions)
 		if err != nil {
 			r.Log.Error(err, "request CMS ReplaceConfig error")
 			r.Recorder.Event(
@@ -149,15 +149,38 @@ func (r *Reconciler) replaceConfig(
 				string(StorageProvisioning),
 				fmt.Sprintf("Failed to request CMS ReplaceConfig: %s", err),
 			)
-			return Continue, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
-		r.Log.Info("CMS ReplaceConfig", "response", replaceConfigResponse)
+
+		r.Log.Info("CMS ReplaceConfig", "response", response)
+		operation := response.GetOperation()
+		err = cms.CheckOperationSuccess(operation)
+		if err != nil {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				string(StorageProvisioning),
+				fmt.Sprintf("Failed CMS ReplaceConfig response: %s", err),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
+
+		operationId := operation.GetId()
+		if len(operationId) == 0 {
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				string(StorageProvisioning),
+				fmt.Sprintf("Failed to get operationId from CMS response: %s", response),
+			)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		}
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ReplaceConfigOperationCondition,
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
-			Reason:             replaceConfigResponse.GetOperation().GetId(),
-			Message:            fmt.Sprintf("Waiting for CMS ReplaceConfig"),
+			Reason:             operationId,
+			Message:            "Waiting for CMS ReplaceConfig operation",
 		})
 		return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
 	}
@@ -175,34 +198,22 @@ func (r *Reconciler) replaceConfig(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	err = cms.CheckOperationReady(response)
-	if err != nil {
-		r.Log.Info("Waiting for CMS ReplaceConfig operation", "message", err)
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeNormal,
-			string(StorageProvisioning),
-			fmt.Sprintf("Waiting for CMS ReplaceConfig: %s", err),
-		)
+	operation := response.GetOperation()
+	if !operation.GetReady() {
+		r.Log.Info("Waiting for CMS ReplaceConfig operation is Ready", "operationId", operationId)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ReplaceConfigOperationCondition,
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
 			Reason:             operationId,
-			Message:            fmt.Sprintf("Waiting for CMS ReplaceConfig: %s", err),
+			Message:            "Waiting for CMS ReplaceConfig operation is Ready",
 		})
 		return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
 	}
 
-	err = cms.CheckOperationSuccess(response)
+	err = cms.CheckOperationSuccess(operation)
 	if err != nil {
-		r.Log.Error(err, "Failed status for CMS ReplaceConfig")
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			string(StorageProvisioning),
-			fmt.Sprintf("Failed status for CMS ReplaceConfig: %s", err),
-		)
+		r.Log.Error(err, "Failed status for CMS ReplaceConfig", "operationId", operationId)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ReplaceConfigOperationCondition,
 			Status:             metav1.ConditionFalse,
@@ -219,7 +230,7 @@ func (r *Reconciler) replaceConfig(
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             operationId,
-			Message:            fmt.Sprintf("CMS ReplaceConfig operation %s status is SUCCESS", operationId),
+			Message:            fmt.Sprintf("CMS ReplaceConfig operation %s status is Success", operationId),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}

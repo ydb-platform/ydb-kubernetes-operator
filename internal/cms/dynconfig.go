@@ -3,7 +3,9 @@ package cms
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"google.golang.org/protobuf/types/known/durationpb"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/ydb-platform/ydb-go-genproto/draft/Ydb_DynamicConfig_V1"
@@ -14,6 +16,10 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
+)
+
+const (
+	GetConfigTimeoutSeconds = 10
 )
 
 func GetConfig(
@@ -41,13 +47,16 @@ func GetConfig(
 		connection.Close(ctx, conn)
 	}()
 
+	cmsCtx, cancel := context.WithTimeout(ctx, GetConfigTimeoutSeconds*time.Second)
+	defer cancel()
 	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
 	request := &Ydb_DynamicConfig.GetConfigRequest{
 		OperationParams: &Ydb_Operations.OperationParams{
-			OperationMode: Ydb_Operations.OperationParams_SYNC,
+			OperationMode:    Ydb_Operations.OperationParams_SYNC,
+			OperationTimeout: &durationpb.Duration{Seconds: GetConfigTimeoutSeconds},
 		},
 	}
-	return client.GetConfig(ctx, request)
+	return client.GetConfig(cmsCtx, request)
 }
 
 func GetConfigResult(
