@@ -53,13 +53,17 @@ func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Resul
 
 	configSyncCondition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
 	if configSyncCondition == nil || configSyncCondition.ObservedGeneration < storage.Generation {
-		// should always stop
-		_, result, err := r.setConfigPipelineStatus(ctx, &storage)
-		return result, err
+		stop, result, err := r.setConfigPipelineStatus(ctx, &storage)
+		if stop {
+			return result, err
+		}
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, ConfigurationSyncedCondition) {
-		return r.handleConfigurationSync(ctx, &storage)
+		stop, result, err := r.replaceConfig(ctx, &storage)
+		if stop {
+			return result, err
+		}
 	}
 
 	if storage.Spec.NodeSets != nil {
@@ -769,25 +773,5 @@ func (r *Reconciler) handleBlobstorageInit(
 	}
 
 	r.Log.Info("complete step handleBlobstorageInit")
-	return ctrl.Result{}, nil
-}
-
-func (r *Reconciler) handleConfigurationSync(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-) (ctrl.Result, error) {
-	r.Log.Info("running step handleConfigurationSync")
-
-	stop, result, err := r.setConfigPipelineStatus(ctx, storage)
-	if stop {
-		return result, err
-	}
-
-	stop, result, err = r.replaceConfig(ctx, storage)
-	if stop {
-		return result, err
-	}
-
-	r.Log.Info("complete step handleConfigurationSync")
 	return ctrl.Result{}, nil
 }
