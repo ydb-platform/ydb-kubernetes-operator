@@ -96,6 +96,11 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 
 	dynConfig, err := TryParseDynconfig(rawYamlConfiguration)
 	if err == nil {
+		if dynConfig.Config["hosts"] == nil {
+			hosts := generateHosts(cr)
+			dynConfig.Config["hosts"] = hosts
+		}
+
 		return yaml.Marshal(dynConfig)
 	}
 
