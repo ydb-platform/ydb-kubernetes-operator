@@ -59,9 +59,12 @@ var dynconfigExample = `
 metadata:
   version: 1
   cluster: "unknown"
+  kind: MainConfig
   # comment1
 config:
   yaml_config_enabled: true
+selector_config: []
+allowed_labels: {}
 `
 
 func TestSchema(t *testing.T) {
@@ -76,10 +79,12 @@ var _ = Describe("Testing schema", func() {
 		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
 			Version: 1,
 			Cluster: "unknown",
+			Kind:    "MainConfig",
 		}))
+		Expect(dynconfig.AllowedLabels).ShouldNot(BeNil())
+		Expect(dynconfig.SelectorConfig).ShouldNot(BeNil())
 		Expect(dynconfig.Config["yaml_config_enabled"]).Should(BeTrue())
 	})
-
 	It("Try parse static config as dynconfig", func() {
 		_, err := v1alpha1.TryParseDynconfig(configurationExample)
 		Expect(err).Should(HaveOccurred())

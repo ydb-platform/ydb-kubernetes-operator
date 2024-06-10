@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
@@ -123,12 +124,20 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	return yaml.Marshal(config)
 }
 
-func TryParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
-	dynConfig := schema.Dynconfig{}
+func TryParseDynconfig(rawYamlConfiguration string) (*schema.Dynconfig, error) {
+	dynConfig := &schema.Dynconfig{}
 
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(true)
 	err := dec.Decode(&dynConfig)
+
+	if dynConfig.AllowedLabels == nil {
+		return dynConfig, errors.New("Field allowed_labels must be specified for dynconfig")
+	}
+
+	if dynConfig.SelectorConfig == nil {
+		return dynConfig, errors.New("Field selector_config must be specified for dynconfig")
+	}
 
 	return dynConfig, err
 }
