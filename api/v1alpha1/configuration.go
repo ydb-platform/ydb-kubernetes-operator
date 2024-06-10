@@ -3,7 +3,6 @@ package v1alpha1
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -161,5 +160,5 @@ func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
 		delete(dynConfig.Config, "nameservice_config")
 	}
 
-	return json.Marshal(dynConfig)
+	return yaml.Marshal(dynConfig)
 }
