@@ -641,7 +641,6 @@ var _ = Describe("Operator smoke test", func() {
 		}, &storage)).Should(Succeed())
 
 		dynConfig, _ := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
-		dynConfig.Metadata.Version += 1
 		dynConfig.Config["grpc_config"] = map[string]string{
 			"port":                    "2135",
 			"grpc_memory_quota_bytes": "1073741824",
