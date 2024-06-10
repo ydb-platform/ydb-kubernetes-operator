@@ -62,10 +62,13 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 		// YDBOPS-9722 backward compatibility
 		cfg, _ := yaml.Marshal(dynConfig.Config)
 
-		if dynConfig.Config["hosts"] != nil {
+		if _, exist := dynConfig.Config["hosts"]; exist {
 			delete(dynConfig.Config, "hosts")
 		}
-		if dynConfig.Config["nameservice_config"] != nil {
+		if _, exist := dynConfig.Config["host_configs"]; exist {
+			delete(dynConfig.Config, "host_configs")
+		}
+		if _, exist := dynConfig.Config["nameservice_config"]; exist {
 			delete(dynConfig.Config, "nameservice_config")
 		}
 		dynConfigYaml, _ := yaml.Marshal(dynConfig)

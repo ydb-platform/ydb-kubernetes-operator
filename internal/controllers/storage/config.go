@@ -71,7 +71,7 @@ func (r *Reconciler) checkConfig(
 	dynConfig, _ := v1alpha1.TryParseDynconfig(storage.Spec.Configuration)
 	cmsConfigIdentity := cmsConfig.GetIdentity()
 	if dynConfig.Metadata.Cluster != cmsConfigIdentity.Cluster {
-		r.Log.Error(err, "Configuration metadata.cluster does not equal with current CMS value", "Storage Config metadata", dynConfig.Metadata, "CMS Config metadata", cmsConfigIdentity)
+		r.Log.Error(err, "Configuration metadata.cluster does not equal with current CMS value", "Storage Config metadata", dynConfig.Metadata, "CMS Config metadata", cmsConfigIdentity.String())
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
@@ -87,19 +87,19 @@ func (r *Reconciler) checkConfig(
 		return r.updateStatus(ctx, storage, 0)
 	}
 
-	if dynConfig.Metadata.Version < cmsConfigIdentity.Version {
-		r.Log.Error(err, "Configuration metadata.version less than current CMS value", "Storage Config metadata", dynConfig.Metadata, "CMS Config metadata", cmsConfigIdentity.String())
+	if dynConfig.Metadata.Version <= cmsConfigIdentity.Version {
+		r.Log.Error(err, "Configuration metadata.version should be greater than CMS value", "Storage Config metadata", dynConfig.Metadata, "CMS Config metadata", cmsConfigIdentity.String())
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
 			string(StorageProvisioning),
-			fmt.Sprintf("Configuration metadata.version %s less than current CMS value: %s", dynConfig.Metadata.Cluster, cmsConfigIdentity.Cluster),
+			fmt.Sprintf("Configuration metadata.version %d should be greater than CMS value: %d", dynConfig.Metadata.Version, cmsConfigIdentity.Version),
 		)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    ConfigurationSyncedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonNotRequired,
-			Message: fmt.Sprintf("Configuration metadata.version %s less than current CMS value: %s", dynConfig.Metadata.Cluster, cmsConfigIdentity.Cluster),
+			Message: fmt.Sprintf("Configuration metadata.version %s less than current CMS value: %s", dynConfig.Metadata.Version, cmsConfigIdentity.Version),
 		})
 		return r.updateStatus(ctx, storage, 0)
 	}

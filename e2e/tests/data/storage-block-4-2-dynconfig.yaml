@@ -1,7 +1,7 @@
 metadata:
   kind: MainConfig
   cluster: ""
-  version: 0
+  version: 2
 config:
   yaml_config_enabled: true
   static_erasure: block-4-2
