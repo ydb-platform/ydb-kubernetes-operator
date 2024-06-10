@@ -29,7 +29,7 @@ const (
 
 	ConfigDir         = "/opt/ydb/cfg"
 	ConfigFileName    = "config.yaml"
-	DynconfigFileName = "dynconfig.yaml"
+	DynConfigFileName = "dynconfig.yaml"
 
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"

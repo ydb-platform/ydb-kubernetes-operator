@@ -25,7 +25,7 @@ func hash(text string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
+func generateHosts(cr *Storage) []schema.Host {
 	var hosts []schema.Host
 
 	for i := 0; i < int(cr.Spec.Nodes); i++ {
@@ -58,7 +58,12 @@ func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
 		}
 	}
 
+	return hosts
+}
+
+func generateKeyConfig(cr *Storage, crDB *Database) *schema.KeyConfig {
 	var keyConfig *schema.KeyConfig
+
 	if crDB != nil && crDB.Spec.Encryption != nil && crDB.Spec.Encryption.Enabled {
 		keyConfig = &schema.KeyConfig{
 			Keys: []schema.Key{
@@ -72,25 +77,10 @@ func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
 		}
 	}
 
-	return schema.Configuration{
-		Hosts:     hosts,
-		KeyConfig: keyConfig,
-	}
+	return keyConfig
 }
 
-func tryFillMissingSections(
-	resultConfig map[string]interface{},
-	generatedConfig schema.Configuration,
-) {
-	if resultConfig["hosts"] == nil {
-		resultConfig["hosts"] = generatedConfig.Hosts
-	}
-	if generatedConfig.KeyConfig != nil {
-		resultConfig["key_config"] = generatedConfig.KeyConfig
-	}
-}
-
-func BuildConfiguration(cr *Storage, crDB *Database) (string, error) {
+func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	config := make(map[string]interface{})
 
 	// If any kind of configuration exists on Database object, then
@@ -104,27 +94,36 @@ func BuildConfiguration(cr *Storage, crDB *Database) (string, error) {
 		rawYamlConfiguration = cr.Spec.Configuration
 	}
 
-	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
+	dynConfig, err := TryParseDynconfig(rawYamlConfiguration)
+	if err == nil {
+		return yaml.Marshal(dynConfig)
+	}
+
+	err = yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
 	if err != nil {
 		return nil, err
 	}
 
-	generatedConfig := generateSomeDefaults(cr, crDB)
-
-	dynConfig, err := TryParseDynconfig(rawYamlConfiguration)
-	if err == nil {
-		tryFillMissingSections(dynConfig.Config, generatedConfig)
-		return yaml.Marshal(dynConfig)
+	if config["hosts"] == nil {
+		hosts := generateHosts(cr)
+		config["hosts"] = hosts
 	}
 
-	tryFillMissingSections(config, generatedConfig)
+	// Will be removed by YDBOPS-9692
+	keyConfig := generateKeyConfig(cr, crDB)
+	if keyConfig != nil {
+		config["key_config"] = keyConfig
+	}
+
 	return yaml.Marshal(config)
 }
 
 func TryParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
-	dynconfig := schema.Dynconfig{}
+	dynConfig := schema.Dynconfig{}
+
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(true)
-	err := dec.Decode(&dynconfig)
-	return dynconfig, err
+	err := dec.Decode(&dynConfig)
+
+	return dynConfig, err
 }

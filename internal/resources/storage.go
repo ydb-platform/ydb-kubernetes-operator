@@ -43,43 +43,53 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	// YDBOPS-9722 backward compatibility
-	cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
+	dynConfig, err := api.TryParseDynconfig(b.Spec.Configuration)
+	if err != nil {
+		// YDBOPS-9722 backward compatibility
+		cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
 
-	optionalBuilders = append(
-		optionalBuilders,
-		&ConfigMapBuilder{
-			Object: b,
-			Name:   b.Storage.GetName(),
-			Data: map[string]string{
-				api.ConfigFileName: cfg,
-			},
-		)
-	} else {
-		// error was previously handled in the ValidationWebhook
-		staticConfig, _ := yaml.Marshal(dynConfig.Config)
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{
 				Object: b,
 				Name:   b.Storage.GetName(),
 				Data: map[string]string{
-					api.ConfigFileName: string(staticConfig),
+					api.ConfigFileName: string(cfg),
 				},
-				Labels: storageLabels,
 			},
 		)
+	} else {
+		// YDBOPS-9722 backward compatibility
+		cfg, _ := yaml.Marshal(dynConfig.Config)
+
+		if dynConfig.Config["hosts"] != nil {
+			delete(dynConfig.Config, "hosts")
+		}
+		if dynConfig.Config["nameservice_config"] != nil {
+			delete(dynConfig.Config, "nameservice_config")
+		}
+		dynConfigYaml, _ := yaml.Marshal(dynConfig)
+
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{
 				Object: b,
+				Name:   b.Storage.GetName(),
+				Data: map[string]string{
+					api.ConfigFileName: string(cfg),
+				},
+				Labels: storageLabels,
+			},
+			&ConfigMapBuilder{
+				Object: b,
 				Name:   fmt.Sprintf(DynConfigNameFormat, b.Storage.GetName()),
 				Data: map[string]string{
-					api.DynconfigFileName: b.Spec.Configuration,
+					api.DynConfigFileName: string(dynConfigYaml),
 				},
 				Labels: storageLabels,
 			},
 		)
+
 	}
 
 	if b.Spec.Monitoring.Enabled {
