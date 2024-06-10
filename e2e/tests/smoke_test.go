@@ -611,8 +611,26 @@ var _ = Describe("Operator smoke test", func() {
 			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 		}()
 
-		By("waiting until ReplaceConfig condition is true...")
 		storage := v1alpha1.Storage{}
+		storagePods := corev1.PodList{}
+		By("expecting storage pods provisioned...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			g.Expect(k8sClient.List(ctx, &storagePods, client.InNamespace(testobjects.YdbNamespace), client.MatchingLabels{
+				"ydb-cluster": "kind-storage",
+			})).Should(Succeed())
+			return len(storagePods.Items) == int(storage.Spec.Nodes)
+		}, Timeout, Interval).Should(BeTrue())
+
+		podName := storagePods.Items[0].Name
+		By("bring YDB CLI inside ydb database pod...")
+		bringYdbCliToPod(podName, testobjects.YdbNamespace)
+
+		By("waiting until ReplaceConfig condition is true...")
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      storageSample.Name,
