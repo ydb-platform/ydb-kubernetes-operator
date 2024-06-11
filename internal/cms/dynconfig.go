@@ -102,9 +102,6 @@ func ReplaceConfig(
 	}
 	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
 	request := &Ydb_DynamicConfig.ReplaceConfigRequest{
-		OperationParams: &Ydb_Operations.OperationParams{
-			OperationMode: Ydb_Operations.OperationParams_ASYNC,
-		},
 		Config:             string(config),
 		AllowUnknownFields: true,
 	}

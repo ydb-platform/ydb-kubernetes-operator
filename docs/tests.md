@@ -88,14 +88,14 @@ kind create cluster \
 kubectl config use-context kind-local-kind
 
 # Within tests, the following two images are used:
-# cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
+# cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.11
 # kind/ydb-operator:current
 
 # You have to download the ydb image and build the operator image yourself. Then, explicitly
 # upload them into the kind cluster. Refer to `./github/e2e.yaml` github workflow which essentially
 # does the same thing.
 kind --name local-kind load docker-image kind/ydb-operator:current
-kind --name local-kind load docker-image ydb:23.3.17
+kind --name local-kind load docker-image ydb:23.3.11
 
 # Run all tests with disabled concurrency, because there is only one cluster to run tests against
 go test -p 1 -v ./...

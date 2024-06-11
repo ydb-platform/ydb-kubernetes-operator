@@ -61,24 +61,32 @@ func (r *Reconciler) replaceConfig(
 
 		r.Log.Info("CMS ReplaceConfig", "response", response)
 		operation := response.GetOperation()
-		err = cms.CheckOperationSuccess(operation)
-		if err != nil {
-			r.Recorder.Event(
-				storage,
-				corev1.EventTypeWarning,
-				string(StorageProvisioning),
-				fmt.Sprintf("Failed CMS ReplaceConfig response: %s", err),
-			)
-			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		if operation.GetReady() {
+			err := cms.CheckOperationSuccess(operation)
+			if err != nil {
+				r.Log.Error(err, "Failed status for CMS ReplaceConfig")
+				meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+					Type:               ReplaceConfigOperationCondition,
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: storage.Generation,
+					Reason:             ReasonFailed,
+					Message:            fmt.Sprintf("Failed status for CMS ReplaceConfig: %s", err),
+				})
+				return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
+			}
+
+			r.Log.Info("complete step replaceConfig")
+			return r.setConfigurationSyncCompleted(ctx, storage)
 		}
 
+		// poll response with ready == false
 		operationId := operation.GetId()
 		if len(operationId) == 0 {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeWarning,
 				string(StorageProvisioning),
-				fmt.Sprintf("Failed to get operationId from CMS response: %s", response),
+				fmt.Sprintf("Failed to get operationId from response: %s", response),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
@@ -87,7 +95,7 @@ func (r *Reconciler) replaceConfig(
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
 			Reason:             operationId,
-			Message:            "Waiting for CMS ReplaceConfig operation",
+			Message:            "Waiting for CMS ReplaceConfig operation is Ready",
 		})
 		return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
 	}
@@ -108,54 +116,11 @@ func (r *Reconciler) replaceConfig(
 	operation := response.GetOperation()
 	if !operation.GetReady() {
 		r.Log.Info("Waiting for CMS ReplaceConfig operation is Ready", "operationId", operationId)
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               ReplaceConfigOperationCondition,
-			Status:             metav1.ConditionUnknown,
-			ObservedGeneration: storage.Generation,
-			Reason:             operationId,
-			Message:            "Waiting for CMS ReplaceConfig operation is Ready",
-		})
 		return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
-	}
-
-	err = cms.CheckOperationSuccess(operation)
-	if err != nil {
-		r.Log.Error(err, "Failed status for CMS ReplaceConfig", "operationId", operationId)
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               ReplaceConfigOperationCondition,
-			Status:             metav1.ConditionFalse,
-			ObservedGeneration: storage.Generation,
-			Reason:             operationId,
-			Message:            fmt.Sprintf("Failed status for CMS ReplaceConfig: %s", err),
-		})
-		return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
-	}
-
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, ReplaceConfigOperationCondition) {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               ReplaceConfigOperationCondition,
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: storage.Generation,
-			Reason:             operationId,
-			Message:            fmt.Sprintf("CMS ReplaceConfig operation %s status is Success", operationId),
-		})
-		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
-	}
-
-	dynConfig, _ := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, ConfigurationSyncedCondition) {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               ConfigurationSyncedCondition,
-			Status:             metav1.ConditionTrue,
-			ObservedGeneration: storage.Generation,
-			Reason:             ReasonCompleted,
-			Message:            fmt.Sprintf("Configuration with version %d synced to CMS successfully", dynConfig.Metadata.Version),
-		})
-		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
 	r.Log.Info("complete step replaceConfig")
-	return Continue, ctrl.Result{}, nil
+	return r.setConfigurationSyncCompleted(ctx, storage)
 }
 
 func (r *Reconciler) setConfigPipelineStatus(
@@ -222,24 +187,46 @@ func (r *Reconciler) setConfigPipelineStatus(
 	}
 
 	if dynConfig.Metadata.Version < cmsConfig.GetIdentity().GetVersion() {
-		r.Log.Info("Configuration version %s already synced with CMS", "Storage Config metadata", dynConfig.Metadata, "CMS Config metadata", cmsConfig.GetIdentity().String())
+		r.Log.Info("Configuration version %s already synced", "Storage Config metadata", dynConfig.Metadata, "Current Config metadata", cmsConfig.GetIdentity().String())
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ConfigurationSyncedCondition,
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonNotRequired,
-			Message:            fmt.Sprintf("Configuration version %d already synced to CMS", dynConfig.Metadata.Version),
+			Message:            fmt.Sprintf("Configuration version %d already synced", dynConfig.Metadata.Version),
 		})
 	} else {
-		r.Log.Info("Sync configuration to CMS", "version", dynConfig.Metadata.Version)
+		r.Log.Info("Sync configuration", "version", dynConfig.Metadata.Version)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ConfigurationSyncedCondition,
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonInProgress,
-			Message:            fmt.Sprintf("Sync configuration to CMS with version %d", dynConfig.Metadata.Version),
+			Message:            fmt.Sprintf("Sync configuration with version %d", dynConfig.Metadata.Version),
 		})
 	}
 
+	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
+}
+
+func (r *Reconciler) setConfigurationSyncCompleted(
+	ctx context.Context,
+	storage *resources.StorageClusterBuilder,
+) (bool, ctrl.Result, error) {
+	dynConfig, _ := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:               ReplaceConfigOperationCondition,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: storage.Generation,
+		Reason:             ReasonCompleted,
+		Message:            fmt.Sprintf("CMS ReplaceConfig operation status is Success"),
+	})
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:               ConfigurationSyncedCondition,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: storage.Generation,
+		Reason:             ReasonCompleted,
+		Message:            fmt.Sprintf("Configuration with version %d synced successfully", dynConfig.Metadata.Version),
+	})
 	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }
