@@ -13,7 +13,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -605,7 +604,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("check storage with dynconfig", func() {
 		By("create storage...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-dynconfig.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
@@ -640,14 +639,8 @@ var _ = Describe("Operator smoke test", func() {
 			Namespace: testobjects.YdbNamespace,
 		}, &storage)).Should(Succeed())
 
-		dynConfig, _ := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
-		dynConfig.Config["grpc_config"] = map[string]string{
-			"port":                    "2135",
-			"grpc_memory_quota_bytes": "1073741824",
-		}
-
-		cfg, _ := yaml.Marshal(dynConfig)
-		storage.Spec.Configuration = string(cfg)
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-dynconfig.yaml"))
+		storage.Spec.Configuration = storageSample.Spec.Configuration
 		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
 		By("waiting until ConfigurationSynced condition is true after update...")

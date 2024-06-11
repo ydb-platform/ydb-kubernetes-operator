@@ -142,10 +142,10 @@ func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
 	return dynConfig, err
 }
 
-func GetConfigForCMS(rawYamlConfiguration string) (string, error) {
+func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
 	dynConfig, err := ParseDynconfig(rawYamlConfiguration)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if _, exist := dynConfig.Config["hosts"]; exist {
@@ -160,15 +160,5 @@ func GetConfigForCMS(rawYamlConfiguration string) (string, error) {
 		delete(dynConfig.Config, "nameservice_config")
 	}
 
-	var buf bytes.Buffer
-	encoder := yaml.NewEncoder(&buf)
-	defer encoder.Close()
-
-	encoder.SetIndent(2)
-	err = encoder.Encode(dynConfig)
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
+	return yaml.Marshal(dynConfig)
 }
