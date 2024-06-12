@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	YdbImage              = "cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.11"
+	YdbImage              = "cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17"
 	YdbNamespace          = "ydb"
 	StorageName           = "storage"
 	DatabaseName          = "database"
