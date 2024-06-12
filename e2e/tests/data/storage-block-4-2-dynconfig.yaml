@@ -4,7 +4,7 @@ metadata:
   version: 0
 allowed_labels: {}
 selector_config: []
-config: |
+config:
   static_erasure: block-4-2
   host_configs:
     - drive:
