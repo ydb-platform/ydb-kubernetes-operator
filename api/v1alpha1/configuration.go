@@ -148,6 +148,10 @@ func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
 		return nil, err
 	}
 
+	if _, exist := dynConfig.Config["static_erasure"]; exist {
+		delete(dynConfig.Config, "static_erasure")
+	}
+
 	if _, exist := dynConfig.Config["hosts"]; exist {
 		delete(dynConfig.Config, "hosts")
 	}
@@ -158,6 +162,10 @@ func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
 
 	if _, exist := dynConfig.Config["nameservice_config"]; exist {
 		delete(dynConfig.Config, "nameservice_config")
+	}
+
+	if _, exist := dynConfig.Config["blob_storage_config"]; exist {
+		delete(dynConfig.Config, "blob_storage_config")
 	}
 
 	return yaml.Marshal(dynConfig)
