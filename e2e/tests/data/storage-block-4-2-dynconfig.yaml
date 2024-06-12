@@ -2,8 +2,9 @@ metadata:
   kind: MainConfig
   cluster: ""
   version: 0
-config:
-  yaml_config_enabled: true
+allowed_labels: {}
+selector_config: []
+config: |
   static_erasure: block-4-2
   host_configs:
     - drive:
@@ -14,20 +15,19 @@ config:
     domain:
     - name: Root
       storage_pool_types:
-      - kind: /Root
+      - kind: ssd
         pool_config:
           box_id: 1
           erasure_species: block-4-2
-          kind: /Root
+          kind: ssd
           pdisk_filter:
           - property:
-            - {type: SSD}
+            - type: SSD
           vdisk_kind: Default
     state_storage:
     - ring:
+        node: [1, 2, 3, 4, 5, 6, 7, 8]
         nto_select: 5
-        ring:
-        - node: [1, 2, 3, 4, 5, 6, 7, 8]
       ssid: 1
   table_service_config:
     sql_version: 1
@@ -107,6 +107,4 @@ config:
         storage_pool_kind: ssd
       profile_id: 0
   grpc_config:
-    port: 2135
-allowed_labels: {}
-selector_config: []
+      port: 2135

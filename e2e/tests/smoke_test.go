@@ -604,20 +604,29 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("check storage with dynconfig", func() {
 		By("create storage...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-dynconfig.yaml"))
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 		}()
 
-		By("waiting until Storage is ready...")
-		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
-
-		By("checking that all the storage pods are running and ready...")
-		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
-
 		storage := v1alpha1.Storage{}
+		By("waiting until ReplaceConfig condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigOperationCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
 		By("waiting until ConfigurationSynced condition is true...")
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
@@ -633,30 +642,11 @@ var _ = Describe("Operator smoke test", func() {
 			return false
 		}, Timeout, Interval).Should(BeTrue())
 
-		By("try to update dynconfig...")
-		Expect(k8sClient.Get(ctx, types.NamespacedName{
-			Name:      storageSample.Name,
-			Namespace: testobjects.YdbNamespace,
-		}, &storage)).Should(Succeed())
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
 
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-dynconfig.yaml"))
-		storage.Spec.Configuration = storageSample.Spec.Configuration
-		Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
-
-		By("waiting until ConfigurationSynced condition is true after update...")
-		Eventually(func(g Gomega) bool {
-			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      storageSample.Name,
-				Namespace: testobjects.YdbNamespace,
-			}, &storage)).Should(Succeed())
-
-			condition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
-			if condition != nil && condition.ObservedGeneration == storage.Generation {
-				return condition.Status == metav1.ConditionTrue
-			}
-
-			return false
-		}, Timeout, Interval).Should(BeTrue())
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 	})
 
 	AfterEach(func() {
