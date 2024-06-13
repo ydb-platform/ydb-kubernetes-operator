@@ -39,7 +39,8 @@ const (
 	ConfigurationSyncedCondition  = "ConfigurationSynced"
 	RemoteResourceSyncedCondition = "ResourceSynced"
 
-	ReplaceConfigOperationCondition = "ydb.tech/ReplaceConfigOperation"
+	ReplaceConfigDryRunOperationCondition = "ydb.tech/ReplaceConfigDryRunOperation"
+	ReplaceConfigOperationCondition       = "ydb.tech/ReplaceConfigOperation"
 
 	Stop     = true
 	Continue = false

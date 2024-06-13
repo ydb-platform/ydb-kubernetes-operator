@@ -60,7 +60,7 @@ func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Resul
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, ConfigurationSyncedCondition) {
-		stop, result, err := r.replaceConfig(ctx, &storage)
+		stop, result, err := r.handleConfigurationSync(ctx, &storage)
 		if stop {
 			return result, err
 		}
