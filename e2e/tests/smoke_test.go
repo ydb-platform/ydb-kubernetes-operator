@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"io"
 	"net"
 	"net/http"
@@ -31,6 +30,7 @@ import (
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 const (
