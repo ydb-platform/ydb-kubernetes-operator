@@ -161,9 +161,9 @@ func (r *Reconciler) replaceConfig(
 		return "", nil
 	}
 
-	operationId := operation.GetId()
-	if len(operationId) == 0 {
-		errMessage := fmt.Sprintf("Failed to get operationId from response: %s", response)
+	operationID := operation.GetId()
+	if len(operationID) == 0 {
+		errMessage := fmt.Sprintf("Failed to get operationID from response: %s", response)
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
@@ -173,7 +173,7 @@ func (r *Reconciler) replaceConfig(
 		return "", errors.New(errMessage)
 	}
 
-	return operationId, nil
+	return operationID, nil
 }
 
 func (r *Reconciler) pollOperation(
@@ -204,8 +204,8 @@ func (r *Reconciler) pollOperation(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	operationId := condition.Reason
-	response, err := cms.GetOperation(ctx, storage, operationId, creds, tlsOptions)
+	operationID := condition.Reason
+	response, err := cms.GetOperation(ctx, storage, operationID, creds, tlsOptions)
 	if err != nil {
 		r.Log.Error(err, "request CMS GetOperation error")
 		r.Recorder.Event(
@@ -219,7 +219,7 @@ func (r *Reconciler) pollOperation(
 
 	operation := response.GetOperation()
 	if !operation.GetReady() {
-		r.Log.Info("Waiting for CMS ReplaceConfig operation is Ready", "operationId", operationId)
+		r.Log.Info("Waiting for CMS ReplaceConfig operation is Ready", "operationID", operationID)
 		return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
 	}
 
@@ -228,7 +228,7 @@ func (r *Reconciler) pollOperation(
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: storage.Generation,
 		Reason:             ReasonCompleted,
-		Message:            fmt.Sprintf("CMS ReplaceConfig operation %s status is Success", operationId),
+		Message:            fmt.Sprintf("CMS ReplaceConfig operation %s status is Success", operationID),
 	})
 	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }

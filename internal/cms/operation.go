@@ -18,7 +18,7 @@ import (
 func GetOperation(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-	operationId string,
+	operationID string,
 	creds credentials.Credentials,
 	opts ...ydb.Option,
 ) (*Ydb_Operations.GetOperationResponse, error) {
@@ -43,7 +43,7 @@ func GetOperation(
 
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(conn))
 	request := &Ydb_Operations.GetOperationRequest{
-		Id: operationId,
+		Id: operationID,
 	}
 	return client.GetOperation(ctx, request)
 }

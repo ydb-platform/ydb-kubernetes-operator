@@ -1,7 +1,6 @@
 package resources
 
 import (
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
@@ -41,7 +40,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	dynConfig, err := api.ParseDynconfig(b.Spec.Configuration)
+	_, err := api.ParseDynconfig(b.Spec.Configuration)
 	if err != nil {
 		// YDBOPS-9722 backward compatibility
 		cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
@@ -53,19 +52,6 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 				Data: map[string]string{
 					api.ConfigFileName: string(cfg),
 				},
-			},
-		)
-	} else {
-		cfg, _ := yaml.Marshal(dynConfig.Config)
-		optionalBuilders = append(
-			optionalBuilders,
-			&ConfigMapBuilder{
-				Object: b,
-				Name:   b.Storage.GetName(),
-				Data: map[string]string{
-					api.ConfigFileName: string(cfg),
-				},
-				Labels: storageLabels,
 			},
 		)
 	}
