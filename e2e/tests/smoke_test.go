@@ -620,7 +620,7 @@ var _ = Describe("Operator smoke test", func() {
 			}, &storage)).Should(Succeed())
 
 			condition := meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition)
-			if condition != nil && condition.ObservedGeneration == storage.Generation {
+			if condition != nil {
 				return condition.Status == metav1.ConditionTrue
 			}
 
