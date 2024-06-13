@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/types/known/durationpb"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
 	"github.com/ydb-platform/ydb-go-genproto/draft/Ydb_DynamicConfig_V1"
 	"github.com/ydb-platform/ydb-go-genproto/draft/protos/Ydb_DynamicConfig"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/credentials"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"

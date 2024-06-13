@@ -54,7 +54,7 @@ func (r *Reconciler) handleConfigurationSync(
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonCompleted,
-			Message:            fmt.Sprintf("CMS ReplaceConfig operation status is Success"),
+			Message:            "CMS ReplaceConfig operation status is Success",
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
@@ -91,7 +91,7 @@ func (r *Reconciler) handleConfigurationSync(
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonCompleted,
-			Message:            fmt.Sprintf("CMS ReplaceConfig operation status is Success"),
+			Message:            "CMS ReplaceConfig operation status is Success",
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
@@ -228,7 +228,7 @@ func (r *Reconciler) pollOperation(
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: storage.Generation,
 		Reason:             ReasonCompleted,
-		Message:            fmt.Sprintf("CMS ReplaceConfig operation %d status is Success", operationId),
+		Message:            fmt.Sprintf("CMS ReplaceConfig operation %s status is Success", operationId),
 	})
 	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }

@@ -9,9 +9,10 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/credentials"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func GetOperation(
