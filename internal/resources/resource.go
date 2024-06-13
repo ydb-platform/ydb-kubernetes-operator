@@ -67,7 +67,7 @@ const (
 	caBundleFileName        = "userCABundle.crt"
 	caCertificatesFileName  = "ca-certificates.crt"
 	updateCACertificatesBin = "update-ca-certificates"
-	statusBundleFileName    = "bundle.crt"
+	statusBundleFileName    = "web.pem"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
@@ -527,9 +527,11 @@ func buildCAStorePatchingCommandArgs(
 	}
 
 	if statusService.TLSConfiguration.Enabled {
-		arg += fmt.Sprintf("cat %s/%s %s/%s > %s/%s && ",
-			statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificate,
+		arg += fmt.Sprintf("cp %s/%s %s/web.crt && ", statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
+		arg += fmt.Sprintf("cat %s/%s %s/%s %s/%s > %s/%s && ",
 			statusOriginTLSVolumeMountPath, wellKnownNameForTLSPrivateKey,
+			statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificate,
+			statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority,
 			statusTLSVolumeMountPath, statusBundleFileName,
 		)
 	}

@@ -245,7 +245,7 @@ func portForward(ctx context.Context, svcName string, svcNamespace string, port 
 		} else {
 			content, _ := io.ReadAll(stderr)
 
-			return errors.New(fmt.Sprintf("kubectl port-forward stderr: %s", content))
+			return fmt.Errorf("kubectl port-forward stderr: %s", content)
 		}
 		return nil
 	}, 60*time.Second, Interval).Should(BeNil())
@@ -675,7 +675,7 @@ var _ = Describe("Operator smoke test", func() {
 	})
 
 	It("TLS for status service", func() {
-		tlsHttpCheck := func(port int) error {
+		tlsHTTPCheck := func(port int) error {
 			url := fmt.Sprintf("https://localhost:%d/", port)
 			cert, err := os.ReadFile(filepath.Join(".", "data", "ca.crt"))
 			Expect(err).ShouldNot(HaveOccurred())
@@ -685,6 +685,7 @@ var _ = Describe("Operator smoke test", func() {
 			Expect(ok).To(BeTrue())
 
 			tlsConfig := &tls.Config{
+				MinVersion: tls.VersionTLS12,
 				RootCAs:    certPool,
 				ServerName: "storage-grpc.ydb.svc.cluster.local",
 			}
@@ -723,8 +724,6 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(k8sClient.Create(ctx, cert)).Should(Succeed())
 
 		By("create storage...")
-		storageSample.Spec.Service.Status.TLSConfiguration.Enabled = true
-
 		storageSample.Spec.Service.Status.TLSConfiguration = &v1alpha1.TLSConfiguration{
 			Enabled: true,
 			Certificate: corev1.SecretKeySelector{
@@ -734,6 +733,10 @@ var _ = Describe("Operator smoke test", func() {
 			Key: corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
 				Key:                  "tls.key",
+			},
+			CertificateAuthority: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+				Key:                  "ca.crt",
 			},
 		}
 
@@ -753,7 +756,7 @@ var _ = Describe("Operator smoke test", func() {
 		By("forward storage status port and check that we can check TLS response")
 		portForward(ctx,
 			fmt.Sprintf(resources.StatusServiceNameFormat, storageSample.Name), storageSample.Namespace,
-			v1alpha1.StatusPort, tlsHttpCheck,
+			v1alpha1.StatusPort, tlsHTTPCheck,
 		)
 
 		By("waiting until database is ready...")
@@ -765,7 +768,7 @@ var _ = Describe("Operator smoke test", func() {
 		By("forward database status port and check that we can check TLS response")
 		portForward(ctx,
 			fmt.Sprintf(resources.StatusServiceNameFormat, databaseSample.Name), databaseSample.Namespace,
-			v1alpha1.StatusPort, tlsHttpCheck,
+			v1alpha1.StatusPort, tlsHTTPCheck,
 		)
 	})
 

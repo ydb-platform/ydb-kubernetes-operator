@@ -170,25 +170,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 
 	if b.Spec.Service.Status.TLSConfiguration.Enabled {
 		volumes = append(volumes,
-			// No CA here
-			corev1.Volume{
-				Name: statusOriginTLSVolumeName,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: b.Spec.Service.Status.TLSConfiguration.Key.Name,
-						Items: []corev1.KeyToPath{
-							{
-								Key:  b.Spec.Service.Status.TLSConfiguration.Certificate.Key,
-								Path: wellKnownNameForTLSCertificate,
-							},
-							{
-								Key:  b.Spec.Service.Status.TLSConfiguration.Key.Key,
-								Path: wellKnownNameForTLSPrivateKey,
-							},
-						},
-					},
-				},
-			},
+			buildTLSVolume(statusOriginTLSVolumeName, b.Spec.Service.Status.TLSConfiguration),
 			corev1.Volume{
 				Name: statusTLSVolumeName,
 				VolumeSource: corev1.VolumeSource{
