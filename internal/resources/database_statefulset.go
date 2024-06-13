@@ -168,6 +168,36 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumes = append(volumes,
+			// No CA here
+			corev1.Volume{
+				Name: statusOriginTLSVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: b.Spec.Service.Status.TLSConfiguration.Key.Name,
+						Items: []corev1.KeyToPath{
+							{
+								Key:  b.Spec.Service.Status.TLSConfiguration.Certificate.Key,
+								Path: wellKnownNameForTLSCertificate,
+							},
+							{
+								Key:  b.Spec.Service.Status.TLSConfiguration.Key.Key,
+								Path: wellKnownNameForTLSPrivateKey,
+							},
+						},
+					},
+				},
+			},
+			corev1.Volume{
+				Name: statusTLSVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		)
+	}
+
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumes = append(volumes, b.buildEncryptionVolume())
 	}
@@ -218,6 +248,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 		b.Spec.CABundle,
 		b.Spec.Service.GRPC,
 		b.Spec.Service.Interconnect,
+		b.Spec.Service.Status,
 	)
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {
@@ -292,6 +323,19 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMoun
 			MountPath: datastreamsTLSVolumeMountPath,
 		})
 	}
+
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusOriginTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: statusOriginTLSVolumeMountPath,
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusTLSVolumeName,
+			MountPath: statusTLSVolumeMountPath,
+		})
+	}
+
 	return volumeMounts
 }
 
@@ -448,6 +492,14 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: statusTLSVolumeMountPath,
+		})
+	}
+
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      encryptionVolumeName,
@@ -546,6 +598,13 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSPrivateKey),
 			"--grpc-ca",
 			fmt.Sprintf("%s/%s", systemCertsDir, caCertificatesFileName),
+		)
+	}
+
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		args = append(args,
+			"--mon-cert",
+			fmt.Sprintf("%s/%s", statusTLSVolumeMountPath, statusBundleFileName),
 		)
 	}
 

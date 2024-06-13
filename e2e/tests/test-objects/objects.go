@@ -78,6 +78,9 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 					},
 					Status: v1alpha1.StatusService{
 						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
+						TLSConfiguration: &v1alpha1.TLSConfiguration{
+							Enabled: false,
+						},
 					},
 				},
 				Monitoring: &v1alpha1.MonitoringOptions{

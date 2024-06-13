@@ -32,6 +32,8 @@ type InterconnectService struct {
 
 type StatusService struct {
 	Service `json:""`
+
+	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
 }
 
 type DatastreamsService struct {
