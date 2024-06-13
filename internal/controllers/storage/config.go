@@ -129,7 +129,7 @@ func (r *Reconciler) replaceConfig(
 		return "", errors.New(errMessage)
 	}
 
-	response, err := cms.ReplaceConfig(ctx, storage, creds, tlsOptions)
+	response, err := cms.ReplaceConfig(ctx, storage, dryRun, creds, tlsOptions)
 	if err != nil {
 		r.Log.Error(err, "failed to request CMS ReplaceConfig")
 		errMessage := fmt.Sprintf("Failed to request CMS ReplaceConfig: %s", err)

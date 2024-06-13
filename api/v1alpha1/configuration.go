@@ -132,11 +132,11 @@ func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
 	err := dec.Decode(&dynConfig)
 
 	if dynConfig.AllowedLabels == nil {
-		return dynConfig, errors.New("Field allowed_labels must be specified for dynconfig")
+		return dynConfig, errors.New("failed to parse mandatory `allowed_labels` field inside dynconfig")
 	}
 
 	if dynConfig.SelectorConfig == nil {
-		return dynConfig, errors.New("Field selector_config must be specified for dynconfig")
+		return dynConfig, errors.New("failed to parse mandatory `selector_config` field inside dynconfig")
 	}
 
 	return dynConfig, err
@@ -148,25 +148,11 @@ func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
 		return nil, err
 	}
 
-	if _, exist := dynConfig.Config["static_erasure"]; exist {
-		delete(dynConfig.Config, "static_erasure")
-	}
-
-	if _, exist := dynConfig.Config["hosts"]; exist {
-		delete(dynConfig.Config, "hosts")
-	}
-
-	if _, exist := dynConfig.Config["host_configs"]; exist {
-		delete(dynConfig.Config, "host_configs")
-	}
-
-	if _, exist := dynConfig.Config["nameservice_config"]; exist {
-		delete(dynConfig.Config, "nameservice_config")
-	}
-
-	if _, exist := dynConfig.Config["blob_storage_config"]; exist {
-		delete(dynConfig.Config, "blob_storage_config")
-	}
+	delete(dynConfig.Config, "static_erasure")
+	delete(dynConfig.Config, "hosts")
+	delete(dynConfig.Config, "host_configs")
+	delete(dynConfig.Config, "nameservice_config")
+	delete(dynConfig.Config, "blob_storage_config")
 
 	return yaml.Marshal(dynConfig)
 }

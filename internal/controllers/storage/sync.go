@@ -53,14 +53,14 @@ func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Resul
 
 	configSyncCondition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
 	if configSyncCondition == nil || configSyncCondition.ObservedGeneration < storage.Generation {
-		stop, result, err := r.setConfigPipelineStatus(ctx, &storage)
+		stop, result, err = r.setConfigPipelineStatus(ctx, &storage)
 		if stop {
 			return result, err
 		}
 	}
 
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, ConfigurationSyncedCondition) {
-		stop, result, err := r.handleConfigurationSync(ctx, &storage)
+		stop, result, err = r.handleConfigurationSync(ctx, &storage)
 		if stop {
 			return result, err
 		}

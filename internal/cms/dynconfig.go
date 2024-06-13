@@ -70,48 +70,10 @@ func GetConfigResult(
 	return configResult, nil
 }
 
-func ReplaceConfigDryRyn(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-	creds credentials.Credentials,
-	opts ...ydb.Option,
-) (*Ydb_DynamicConfig.ReplaceConfigResponse, error) {
-	logger := log.FromContext(ctx)
-	endpoint := fmt.Sprintf(
-		"%s/%s",
-		storage.GetStorageEndpointWithProto(),
-		storage.Spec.Domain,
-	)
-	conn, err := connection.Open(ctx,
-		endpoint,
-		ydb.WithCredentials(creds),
-		ydb.MergeOptions(opts...),
-	)
-	if err != nil {
-		logger.Error(err, "Error connecting to YDB storage")
-		return nil, err
-	}
-	defer func() {
-		connection.Close(ctx, conn)
-	}()
-
-	config, err := v1alpha1.GetConfigForCMS(storage.Spec.Configuration)
-	if err != nil {
-		return nil, err
-	}
-	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
-	request := &Ydb_DynamicConfig.ReplaceConfigRequest{
-		Config:             string(config),
-		DryRun:             true,
-		AllowUnknownFields: true,
-	}
-	logger.Info(fmt.Sprintf("Sending CMS ReplaceConfigRequest: %s", request))
-	return client.ReplaceConfig(ctx, request)
-}
-
 func ReplaceConfig(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
+	dryRun bool,
 	creds credentials.Credentials,
 	opts ...ydb.Option,
 ) (*Ydb_DynamicConfig.ReplaceConfigResponse, error) {
@@ -141,6 +103,7 @@ func ReplaceConfig(
 	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
 	request := &Ydb_DynamicConfig.ReplaceConfigRequest{
 		Config:             string(config),
+		DryRun:             dryRun,
 		AllowUnknownFields: true,
 	}
 	logger.Info(fmt.Sprintf("Sending CMS ReplaceConfigRequest: %s", request))
