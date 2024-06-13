@@ -8,7 +8,7 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Cms_V1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Cms"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
+	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 

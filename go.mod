@@ -12,7 +12,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.50.0
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20240528144234-5d5a685e41f7
-	github.com/ydb-platform/ydb-go-sdk/v3 v3.74.0
+	github.com/ydb-platform/ydb-go-sdk/v3 v3.74.2
 	google.golang.org/grpc v1.57.1
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/yaml.v3 v3.0.1
