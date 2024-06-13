@@ -735,10 +735,6 @@ var _ = Describe("Operator smoke test", func() {
 				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
 				Key:                  "tls.key",
 			},
-			//CertificateAuthority: corev1.SecretKeySelector{
-			//	LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-			//	Key:                  "ca.crt",
-			//},
 		}
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
@@ -771,10 +767,6 @@ var _ = Describe("Operator smoke test", func() {
 			fmt.Sprintf(resources.StatusServiceNameFormat, databaseSample.Name), databaseSample.Namespace,
 			v1alpha1.StatusPort, tlsHttpCheck,
 		)
-
-		//By("sleep")
-		//time.Sleep(600 * time.Second)
-
 	})
 
 	AfterEach(func() {
