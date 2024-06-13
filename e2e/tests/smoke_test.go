@@ -612,6 +612,36 @@ var _ = Describe("Operator smoke test", func() {
 		}()
 
 		storage := v1alpha1.Storage{}
+		By("waiting until StorageInitialized condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("waiting until ReplaceConfigDryRun condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigDryRunOperationCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
 		By("waiting until ReplaceConfig condition is true...")
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{

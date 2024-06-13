@@ -24,6 +24,9 @@ func (r *Reconciler) handleConfigurationSync(
 
 	// DryRun ReplaceConfig
 	condition := meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigDryRunOperationCondition)
+	if condition != nil && condition.Status == metav1.ConditionUnknown {
+		return r.pollOperation(ctx, storage, condition)
+	}
 	if condition == nil || condition.ObservedGeneration < storage.Generation || condition.Status == metav1.ConditionFalse {
 		operationID, err := r.replaceConfig(ctx, storage, true)
 		if err != nil {
@@ -36,37 +39,31 @@ func (r *Reconciler) handleConfigurationSync(
 			})
 			return r.updateStatus(ctx, storage, DefaultRequeueDelay)
 		}
-
 		if operationID != "" {
 			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 				Type:               ReplaceConfigDryRunOperationCondition,
 				Status:             metav1.ConditionUnknown,
 				ObservedGeneration: storage.Generation,
 				Reason:             operationID,
-				Message:            "Waiting for CMS ReplaceConfig DryRun operation is Ready",
+				Message:            "Waiting for CMS ReplaceConfig operation is Ready",
 			})
 			return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
 		}
-
-	}
-
-	if condition.Status == metav1.ConditionUnknown {
-		return r.pollOperation(ctx, storage, condition)
-	}
-
-	if condition.Status != metav1.ConditionTrue {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ReplaceConfigDryRunOperationCondition,
 			Status:             metav1.ConditionTrue,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonCompleted,
-			Message:            fmt.Sprintf("CMS ReplaceConfig DryRun operation status is Success"),
+			Message:            fmt.Sprintf("CMS ReplaceConfig operation status is Success"),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
 	// Exactly ReplaceConfig
 	condition = meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigOperationCondition)
+	if condition != nil && condition.Status == metav1.ConditionUnknown {
+		return r.pollOperation(ctx, storage, condition)
+	}
 	if condition == nil || condition.ObservedGeneration < storage.Generation || condition.Status == metav1.ConditionFalse {
 		operationID, err := r.replaceConfig(ctx, storage, false)
 		if err != nil {
@@ -79,7 +76,6 @@ func (r *Reconciler) handleConfigurationSync(
 			})
 			return r.updateStatus(ctx, storage, DefaultRequeueDelay)
 		}
-
 		if operationID != "" {
 			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 				Type:               ReplaceConfigOperationCondition,
@@ -90,13 +86,6 @@ func (r *Reconciler) handleConfigurationSync(
 			})
 			return r.updateStatus(ctx, storage, ReplaceConfigOperationRequeueDelay)
 		}
-	}
-
-	if condition.Status == metav1.ConditionUnknown {
-		return r.pollOperation(ctx, storage, condition)
-	}
-
-	if condition.Status != metav1.ConditionTrue {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ReplaceConfigOperationCondition,
 			Status:             metav1.ConditionTrue,
@@ -239,7 +228,7 @@ func (r *Reconciler) pollOperation(
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: storage.Generation,
 		Reason:             ReasonCompleted,
-		Message:            fmt.Sprintf("CMS ReplaceConfig operation status is Success"),
+		Message:            fmt.Sprintf("CMS ReplaceConfig operation %d status is Success", operationId),
 	})
 	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }
