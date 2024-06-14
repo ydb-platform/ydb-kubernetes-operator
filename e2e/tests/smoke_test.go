@@ -637,14 +637,10 @@ var _ = Describe("Operator smoke test", func() {
 		By("create storage...")
 		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+
 		By("create database...")
+		databaseSample = testobjects.DefaultDatabase()
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
-		}()
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)

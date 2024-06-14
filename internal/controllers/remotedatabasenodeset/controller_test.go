@@ -347,6 +347,8 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 	})
 
 	AfterEach(func() {
+		Expect(localClient.Delete(ctx, databaseSample)).Should(Succeed())
+		Expect(localClient.Delete(ctx, storageSample)).Should(Succeed())
 		deleteAll(localEnv, localClient, &localNamespace)
 		deleteAll(remoteEnv, remoteClient, &localNamespace)
 	})
@@ -952,16 +954,6 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 			for idx := range serviceList.Items {
 				policy := metav1.DeletePropagationForeground
 				err = k8sClient.Delete(ctx, &serviceList.Items[idx], &client.DeleteOptions{PropagationPolicy: &policy})
-				Expect(err).ShouldNot(HaveOccurred())
-			}
-
-			// Remove all finalizers from Storage in this namespace
-			storageList := v1alpha1.StorageList{}
-			err = k8sClient.List(ctx, &storageList, client.InNamespace(ns.Name))
-			Expect(err).ShouldNot(HaveOccurred())
-			for idx := range storageList.Items {
-				storageList.Items[idx].Finalizers = []string{}
-				err = k8sClient.Update(ctx, &storageList.Items[idx])
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 
