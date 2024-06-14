@@ -50,6 +50,7 @@ const (
 	AnnotationGRPCPublicHost         = "ydb.tech/grpc-public-host"
 	AnnotationNodeHost               = "ydb.tech/node-host"
 	AnnotationNodeDomain             = "ydb.tech/node-domain"
+	AnnotationCABundleSecret         = "ydb.tech/ca-bundle-secret"
 
 	AnnotationValueTrue = "true"
 
