@@ -168,7 +168,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
-	if b.Spec.Service.Status.TLSConfiguration != nil && b.Spec.Service.Status.TLSConfiguration.Enabled {
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
 		volumes = append(volumes,
 			buildTLSVolume(statusOriginTLSVolumeName, b.Spec.Service.Status.TLSConfiguration),
 			corev1.Volume{
@@ -306,7 +306,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMoun
 		})
 	}
 
-	if b.Spec.Service.Status.TLSConfiguration != nil && b.Spec.Service.Status.TLSConfiguration.Enabled {
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      statusOriginTLSVolumeName,
 			ReadOnly:  true,
@@ -474,7 +474,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.Spec.Service.Status.TLSConfiguration != nil && b.Spec.Service.Status.TLSConfiguration.Enabled {
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      statusTLSVolumeName,
 			ReadOnly:  true,
@@ -583,7 +583,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		)
 	}
 
-	if b.Spec.Service.Status.TLSConfiguration != nil && b.Spec.Service.Status.TLSConfiguration.Enabled {
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
 		args = append(args,
 			"--mon-cert",
 			fmt.Sprintf("%s/%s", statusTLSVolumeMountPath, statusBundleFileName),
