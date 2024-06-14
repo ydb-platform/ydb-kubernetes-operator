@@ -126,7 +126,7 @@ jobs:
           gcc --version
           go version
           kind version
-          kubectl version --short --client=true
+          kubectl version --client=true
           helm version
       - name: setup-medium-test-class-binaries
         run: |
