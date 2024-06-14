@@ -142,7 +142,7 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 	}
 
 	if database.Spec.Configuration != "" || (database.Spec.Encryption != nil && database.Spec.Encryption.Enabled) {
-		configuration, err := buildConfiguration(storage, database)
+		configuration, err := BuildConfiguration(storage, database)
 		if err != nil {
 			return err
 		}

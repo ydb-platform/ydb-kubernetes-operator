@@ -57,6 +57,9 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 	var optionalBuilders []ResourceBuilder
 
 	if b.Spec.Configuration != "" {
+		// YDBOPS-9722 backward compatibility
+		cfg, _ := api.BuildConfiguration(b.Storage, b.Unwrap())
+
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{
@@ -64,7 +67,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 				Name: b.GetName(),
 				Data: map[string]string{
-					api.ConfigFileName: b.Spec.Configuration,
+					api.ConfigFileName: cfg,
 				},
 				Labels: databaseLabels,
 			},
