@@ -50,13 +50,13 @@ jobs:
       - smart-checkout
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
     steps:
+      - name: set-env-vars
+        run: |
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
       - name: setup-go
         uses: actions/setup-go@v3
         with:
           go-version: '1.20'
-      - name: set-env-vars
-        run: |
-          echo "HOME=/actions-runner" >> $GITHUB_ENV
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
@@ -67,13 +67,13 @@ jobs:
       - smart-checkout
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
     steps:
+      - name: set-env-vars
+        run: |
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
       - name: setup-go
         uses: actions/setup-go@v3
         with:
           go-version: '1.20'
-      - name: set-env-vars
-        run: |
-          echo "HOME=/actions-runner" >> $GITHUB_ENV
       - name: Install utilities
         run: |
           go install mvdan.cc/gofumpt@v0.5.0
@@ -90,6 +90,9 @@ jobs:
     outputs:
       result: ${{ steps.run-tests.outputs.result }}
     steps:
+      - name: set-env-vars
+        run: |
+          echo "HOME=/actions-runner" >> $GITHUB_ENV
       - name: setup-go
         uses: actions/setup-go@v3
         with:
@@ -99,12 +102,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
-          export HOME=/actions-runner
-          echo "HOME=/actions-runner" >> $GITHUB_ENV
+          go install sigs.k8s.io/kind@v0.17.0
 
-          go install sigs.k8s.io/kind@v0.21.0
-
-          curl -LO https://dl.k8s.io/release/v1.29.1/bin/linux/amd64/kubectl
+          curl -LO https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl
           chmod +x ./kubectl
 
           HELM_PKG="helm-v3.13.3-linux-amd64.tar.gz"
@@ -126,20 +126,20 @@ jobs:
           gcc --version
           go version
           kind version
-          kubectl version --short --client=true
+          kubectl version --client=true
           helm version
       - name: setup-medium-test-class-binaries
         run: |
           # This installs kube-apiserver and etcd binaries for `medium`
           # class tests. Refer to the writing tests docs for more info.
           make envtest
-          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.29 -p path)
+          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
           echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
       - name: setup-k8s-cluster
         run: |
           kind delete cluster
           kind create cluster \
-          --image=kindest/node:v1.29.1@sha256:a0cc28af37cf39b019e2b448c54d1a3f789de32536cb5a5db61a49623e527144 \
+          --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
           --config=./e2e/kind-cluster-config.yaml
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
       - name: build-operator-image
