@@ -5,6 +5,7 @@ name: run-tests
 
 on:
   workflow_call:
+  workflow_dispatch:
 
 jobs:
   start-runner:
@@ -45,7 +46,7 @@ jobs:
         if: github.event.pull_request.head.sha == ''
   lint:
     concurrency:
-      group: lint-golangci-${{ github.ref }}
+      group: lint-golangci-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     needs:
       - start-runner
@@ -62,10 +63,10 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
-          version: v1.48.0
+          version: v1.52.2
   code-format-check:
     concurrency:
-      group: lint-autoformat-${{ github.ref }}
+      group: lint-autoformat-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     needs:
       - start-runner
@@ -81,8 +82,8 @@ jobs:
           echo "HOME=/actions-runner" >> $GITHUB_ENV
       - name: Install utilities
         run: |
-          go install mvdan.cc/gofumpt@v0.3.1
-          go install github.com/rinchsan/gosimports/cmd/gosimports@v0.1.5
+          go install mvdan.cc/gofumpt@v0.5.0
+          go install github.com/rinchsan/gosimports/cmd/gosimports@v0.3.8
       - name: format all files with auto-formatter
         run: bash ./.github/scripts/format-all-go-code.sh "$PWD"
       - name: Check repository diff
@@ -107,12 +108,12 @@ jobs:
           export HOME=/actions-runner
           echo "HOME=/actions-runner" >> $GITHUB_ENV
 
-          go install sigs.k8s.io/kind@v0.17.0
+          go install sigs.k8s.io/kind@v0.21.0
 
-          curl -LO https://dl.k8s.io/release/v1.25.0/bin/linux/amd64/kubectl
+          curl -LO https://dl.k8s.io/release/v1.29.1/bin/linux/amd64/kubectl
           chmod +x ./kubectl
 
-          HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
+          HELM_PKG="helm-v3.13.3-linux-amd64.tar.gz"
           curl -LO https://get.helm.sh/"${HELM_PKG}"
           tar -zxvf "${HELM_PKG}"
           mv ./linux-amd64/helm .
@@ -138,13 +139,13 @@ jobs:
           # This installs kube-apiserver and etcd binaries for `medium`
           # class tests. Refer to the writing tests docs for more info.
           make envtest
-          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
+          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.29 -p path)
           echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
       - name: setup-k8s-cluster
         run: |
           kind delete cluster
           kind create cluster \
-          --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
+          --image=kindest/node:v1.29.1@sha256:a0cc28af37cf39b019e2b448c54d1a3f789de32536cb5a5db61a49623e527144 \
           --config=./e2e/kind-cluster-config.yaml
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
       - name: build-operator-image
