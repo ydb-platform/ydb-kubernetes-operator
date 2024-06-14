@@ -615,7 +615,7 @@ var _ = Describe("Operator smoke test", func() {
 		bringYdbCliToPod(podName, testobjects.YdbNamespace)
 
 		By("execute simple query inside ydb database pod...")
-		databaseEndpoint := fmt.Sprintf("grpcs://%s:%d", testobjects.DatabaseGRPCService, testobjects.DatabaseGRPCPort)
+		databaseEndpoint := fmt.Sprintf("grpcs://%s:%d", testobjects.StorageGRPCService, testobjects.StorageGRPCPort)
 		executeSimpleQuery(podName, testobjects.YdbNamespace, databaseEndpoint)
 	})
 

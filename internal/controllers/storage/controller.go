@@ -288,7 +288,7 @@ func (r *Reconciler) checkExistingDatabases(
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
-			"DELETE",
+			string(StorageProvisioning),
 			fmt.Sprintf(errMessage, databases),
 		)
 		return errors.New(errMessage)
