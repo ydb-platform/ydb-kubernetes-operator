@@ -580,15 +580,9 @@ var _ = Describe("Operator smoke test", func() {
 			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
 			Key:                  "ca.crt",
 		}
-
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
-		By("create database...")
-		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
 		}()
 
 		By("waiting until Storage is ready...")
@@ -596,6 +590,25 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("checking that all the storage pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("create database...")
+		databaseSample = testobjects.DefaultDatabase()
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.crt",
+		}
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Key = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.key",
+		}
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.CertificateAuthority = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "ca.crt",
+		}
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
 
 		By("waiting until database is ready...")
 		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
