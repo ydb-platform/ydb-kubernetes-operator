@@ -39,13 +39,17 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	statusServiceLabels.Merge(map[string]string{labels.ServiceComponent: labels.StatusComponent})
 
 	var optionalBuilders []ResourceBuilder
+
+	// YDBOPS-9722 backward compatibility
+	cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
+
 	optionalBuilders = append(
 		optionalBuilders,
 		&ConfigMapBuilder{
 			Object: b,
 			Name:   b.Storage.GetName(),
 			Data: map[string]string{
-				api.ConfigFileName: b.Spec.Configuration,
+				api.ConfigFileName: cfg,
 			},
 			Labels: storageLabels,
 		},
