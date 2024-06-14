@@ -593,6 +593,7 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("create database...")
 		databaseSample = testobjects.DefaultDatabase()
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
 		databaseSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
 			Key:                  "tls.crt",
