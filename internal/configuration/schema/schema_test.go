@@ -67,6 +67,7 @@ selector_config: []
 allowed_labels: {}
 `
 
+//nolint:all
 var dynconfigValidExample = `
 ---
 metadata:
