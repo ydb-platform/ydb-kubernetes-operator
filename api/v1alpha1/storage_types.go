@@ -243,5 +243,5 @@ func (r *Storage) AnyCertificatesAdded() bool {
 	return len(r.Spec.CABundle) > 0 ||
 		r.Spec.Service.GRPC.TLSConfiguration.Enabled ||
 		r.Spec.Service.Interconnect.TLSConfiguration.Enabled ||
-		r.Spec.Service.Status.TLSConfiguration.Enabled
+		(r.Spec.Service.Status.TLSConfiguration != nil && r.Spec.Service.Status.TLSConfiguration.Enabled)
 }

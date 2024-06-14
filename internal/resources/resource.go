@@ -526,7 +526,7 @@ func buildCAStorePatchingCommandArgs(
 		arg += fmt.Sprintf("cp %s/%s %s/interconnectRoot.crt && ", interconnectTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
 	}
 
-	if statusService.TLSConfiguration.Enabled {
+	if statusService.TLSConfiguration != nil && statusService.TLSConfiguration.Enabled {
 		arg += fmt.Sprintf("cp %s/%s %s/web.crt && ", statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
 		arg += fmt.Sprintf("cat %s/%s %s/%s %s/%s > %s/%s && ",
 			statusOriginTLSVolumeMountPath, wellKnownNameForTLSPrivateKey,
