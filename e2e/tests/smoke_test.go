@@ -198,13 +198,11 @@ func portForward(ctx context.Context, svcName string, svcNamespace string, port 
 
 		cmd := exec.CommandContext(ctx, "kubectl", args...)
 		stdout, err := cmd.StdoutPipe()
-
 		if err != nil {
 			return err
 		}
 
 		stderr, err := cmd.StderrPipe()
-
 		if err != nil {
 			return err
 		}
@@ -696,7 +694,6 @@ var _ = Describe("Operator smoke test", func() {
 				Timeout:   10 * time.Second,
 			}
 			resp, err := client.Get(url)
-
 			if err != nil {
 				var netError net.Error
 				var opError *net.OpError
