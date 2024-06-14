@@ -43,13 +43,15 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	dynConfig, err := api.TryParseDynconfig(b.Spec.Configuration)
 	if err != nil {
+		// YDBOPS-9722 backward compatibility
+		cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{
 				Object: b,
 				Name:   b.Storage.GetName(),
 				Data: map[string]string{
-					api.ConfigFileName: b.Spec.Configuration,
+					api.ConfigFileName: string(cfg),
 				},
 				Labels: storageLabels,
 			},
