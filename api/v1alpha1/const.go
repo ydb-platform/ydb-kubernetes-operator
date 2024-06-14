@@ -27,9 +27,8 @@ const (
 	DiskFilePath        = "/data"
 	YdbAuthToken        = "ydb-auth-token-file"
 
-	ConfigDir         = "/opt/ydb/cfg"
-	ConfigFileName    = "config.yaml"
-	DynconfigFileName = "dynconfig.yaml"
+	ConfigDir      = "/opt/ydb/cfg"
+	ConfigFileName = "config.yaml"
 
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"

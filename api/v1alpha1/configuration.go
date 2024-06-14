@@ -39,7 +39,7 @@ func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
 			HostConfigID: 1, // TODO
 			NodeID:       i + 1,
 			Port:         InterconnectPort,
-			Location: schema.Location{
+			WalleLocation: schema.WalleLocation{
 				Body:       12340 + i,
 				DataCenter: datacenter,
 				Rack:       strconv.Itoa(i),

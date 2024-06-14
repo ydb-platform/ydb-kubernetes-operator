@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"fmt"
-
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
@@ -57,26 +55,14 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		// error was previously handled in the ValidationWebhook
-		staticConfig, _ := yaml.Marshal(dynConfig.Config)
+		cfg, _ := yaml.Marshal(dynConfig.Config)
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{
 				Object: b,
 				Name:   b.Storage.GetName(),
 				Data: map[string]string{
-					api.ConfigFileName: string(staticConfig),
-				},
-				Labels: storageLabels,
-			},
-		)
-		optionalBuilders = append(
-			optionalBuilders,
-			&ConfigMapBuilder{
-				Object: b,
-				Name:   fmt.Sprintf(DynConfigNameFormat, b.Storage.GetName()),
-				Data: map[string]string{
-					api.DynconfigFileName: b.Spec.Configuration,
+					api.ConfigFileName: string(cfg),
 				},
 				Labels: storageLabels,
 			},
