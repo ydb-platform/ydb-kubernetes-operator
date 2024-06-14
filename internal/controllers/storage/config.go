@@ -28,7 +28,7 @@ func (r *Reconciler) handleConfigurationSync(
 		return r.pollOperation(ctx, storage, condition)
 	}
 	if condition == nil || condition.ObservedGeneration < storage.Generation || condition.Status == metav1.ConditionFalse {
-		operationID, err := r.replaceConfig(ctx, storage, true)
+		operationID, err := r.requestOperation(ctx, storage, true)
 		if err != nil {
 			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 				Type:               ReplaceConfigDryRunOperationCondition,
@@ -65,7 +65,7 @@ func (r *Reconciler) handleConfigurationSync(
 		return r.pollOperation(ctx, storage, condition)
 	}
 	if condition == nil || condition.ObservedGeneration < storage.Generation || condition.Status == metav1.ConditionFalse {
-		operationID, err := r.replaceConfig(ctx, storage, false)
+		operationID, err := r.requestOperation(ctx, storage, false)
 		if err != nil {
 			meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 				Type:               ReplaceConfigOperationCondition,
@@ -96,11 +96,19 @@ func (r *Reconciler) handleConfigurationSync(
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
+	dynConfig, _ := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
+	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+		Type:               ConfigurationSyncedCondition,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: storage.Generation,
+		Reason:             ReasonCompleted,
+		Message:            fmt.Sprintf("Configuration synced successfully to version %d", dynConfig.Metadata.Version),
+	})
 	r.Log.Info("complete step handleConfigurationSync")
-	return r.setConfigurationSyncCompleted(ctx, storage)
+	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }
 
-func (r *Reconciler) replaceConfig(
+func (r *Reconciler) requestOperation(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 	dryRun bool,
@@ -250,6 +258,18 @@ func (r *Reconciler) setConfigPipelineStatus(
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
+	err = v1alpha1.ValidateDynconfig(dynConfig)
+	if err != nil {
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:               ConfigurationSyncedCondition,
+			Status:             metav1.ConditionFalse,
+			ObservedGeneration: storage.Generation,
+			Reason:             ReasonFailed,
+			Message:            err.Error(),
+		})
+		return r.updateStatus(ctx, storage, DefaultRequeueDelay)
+	}
+
 	creds, err := resources.GetYDBCredentials(ctx, storage.Unwrap(), r.Config)
 	if err != nil {
 		r.Recorder.Event(
@@ -313,25 +333,10 @@ func (r *Reconciler) setConfigPipelineStatus(
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonInProgress,
-			Message:            fmt.Sprintf("Sync configuration with version %d", dynConfig.Metadata.Version),
+			Message:            fmt.Sprintf("Sync configuration to version %d", dynConfig.Metadata.Version),
 		})
 	}
 
 	r.Log.Info("complete step setConfigPipelineStatus")
-	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
-}
-
-func (r *Reconciler) setConfigurationSyncCompleted(
-	ctx context.Context,
-	storage *resources.StorageClusterBuilder,
-) (bool, ctrl.Result, error) {
-	dynConfig, _ := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
-	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:               ConfigurationSyncedCondition,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: storage.Generation,
-		Reason:             ReasonCompleted,
-		Message:            fmt.Sprintf("Configuration with version %d synced successfully", dynConfig.Metadata.Version),
-	})
 	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }

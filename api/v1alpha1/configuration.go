@@ -97,6 +97,11 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 
 	dynConfig, err := ParseDynconfig(rawYamlConfiguration)
 	if err == nil {
+		validErr := ValidateDynconfig(dynConfig)
+		if validErr != nil {
+			return nil, validErr
+		}
+
 		if dynConfig.Config["hosts"] == nil {
 			hosts := generateHosts(cr)
 			dynConfig.Config["hosts"] = hosts
@@ -131,15 +136,35 @@ func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
 	dec.KnownFields(true)
 	err := dec.Decode(&dynConfig)
 
+	return dynConfig, err
+}
+
+func ValidateDynconfig(dynConfig schema.Dynconfig) error {
 	if dynConfig.AllowedLabels == nil {
-		return dynConfig, errors.New("failed to parse mandatory `allowed_labels` field inside dynconfig")
+		return errors.New("failed to parse mandatory `allowed_labels` field inside dynconfig")
 	}
 
 	if dynConfig.SelectorConfig == nil {
-		return dynConfig, errors.New("failed to parse mandatory `selector_config` field inside dynconfig")
+		return errors.New("failed to parse mandatory `selector_config` field inside dynconfig")
 	}
 
-	return dynConfig, err
+	if _, exist := dynConfig.Config["yaml_config_enabled"]; !exist {
+		return errors.New("failed to parse mandatory `yaml_config_enabled` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["static_erasure"]; !exist {
+		return errors.New("failed to parse mandatory `static_erasure` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["host_configs"]; !exist {
+		return errors.New("failed to parse mandatory `host_configs` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["blob_storage_config"]; !exist {
+		return errors.New("failed to parse mandatory `blob_storage_config` field inside config")
+	}
+
+	return nil
 }
 
 func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
@@ -148,11 +173,16 @@ func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
 		return nil, err
 	}
 
+	err = ValidateDynconfig(dynConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	delete(dynConfig.Config, "static_erasure")
-	delete(dynConfig.Config, "hosts")
 	delete(dynConfig.Config, "host_configs")
 	delete(dynConfig.Config, "nameservice_config")
 	delete(dynConfig.Config, "blob_storage_config")
 
+	delete(dynConfig.Config, "hosts")
 	return yaml.Marshal(dynConfig)
 }
