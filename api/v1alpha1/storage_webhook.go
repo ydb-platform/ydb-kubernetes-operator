@@ -61,18 +61,15 @@ func (r *Storage) GetGRPCServiceEndpoint() string {
 	return fmt.Sprintf("%s:%d", host, GRPCPort)
 }
 
-// +k8s:deepcopy-gen=false
-type PartialHostsConfig struct {
-	Hosts []schema.Host `yaml:"hosts,flow"`
-}
-
 func (r *Storage) GetHostFromConfigEndpoint() string {
+	configuration := make(map[string]interface{})
+
 	// skip handle error because we already checked in webhook
-	hostsConfig := PartialHostsConfig{}
-	_ = yaml.Unmarshal([]byte(r.Spec.Configuration), &hostsConfig)
+	_ = yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
+	hostsConfig := configuration["hosts"].([]schema.Host)
 
 	randNum := rand.Int31n(r.Spec.Nodes) // #nosec G404
-	host := hostsConfig.Hosts[randNum].Host
+	host := hostsConfig[randNum].Host
 	return fmt.Sprintf("%s:%d", host, GRPCPort)
 }
 
@@ -95,15 +92,6 @@ func (r *Storage) IsRemoteNodeSetsOnly() bool {
 	}
 
 	return true
-}
-
-// +k8s:deepcopy-gen=false
-type PartialDomainsConfig struct {
-	DomainsConfig struct {
-		SecurityConfig struct {
-			EnforceUserTokenRequirement bool `yaml:"enforce_user_token_requirement"`
-		} `yaml:"security_config"`
-	} `yaml:"domains_config"`
 }
 
 // StorageDefaulter mutates Storages
@@ -202,16 +190,16 @@ func (r *Storage) ValidateCreate() error {
 		configuration = dynConfig.Config
 	}
 
-	hostsConfig, ok := configuration["hosts"].(PartialHostsConfig)
+	hostsConfig, ok := configuration["hosts"].([]schema.Host)
 	if !ok {
 		return fmt.Errorf("failed to parse YAML to determine `hosts`")
 	}
 
 	var nodesNumber int32
-	if len(hostsConfig.Hosts) == 0 {
+	if len(hostsConfig) == 0 {
 		nodesNumber = r.Spec.Nodes
 	} else {
-		nodesNumber = int32(len(hostsConfig.Hosts))
+		nodesNumber = int32(len(hostsConfig))
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
@@ -223,13 +211,13 @@ func (r *Storage) ValidateCreate() error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
-	domainsConfig, ok := configuration["domains_config"].(PartialDomainsConfig)
+	domainsConfig, ok := configuration["domains_config"].(schema.DomainsConfig)
 	if !ok {
 		return fmt.Errorf("failed to parse YAML to determine `domains_config`")
 	}
 
 	var authEnabled bool
-	if domainsConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+	if domainsConfig.SecurityConfig.EnforceUserTokenRequirement {
 		authEnabled = true
 	}
 
@@ -304,16 +292,16 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		configuration = dynConfig.Config
 	}
 
-	hostsConfig, ok := configuration["hosts"].(PartialHostsConfig)
+	hostsConfig, ok := configuration["hosts"].([]schema.Host)
 	if !ok {
 		return fmt.Errorf("failed to parse YAML to determine `hosts`")
 	}
 
 	var nodesNumber int32
-	if len(hostsConfig.Hosts) == 0 {
+	if len(hostsConfig) == 0 {
 		nodesNumber = r.Spec.Nodes
 	} else {
-		nodesNumber = int32(len(hostsConfig.Hosts))
+		nodesNumber = int32(len(hostsConfig))
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
@@ -325,13 +313,13 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
-	domainsConfig, ok := configuration["domains_config"].(PartialDomainsConfig)
+	domainsConfig, ok := configuration["domains_config"].(schema.DomainsConfig)
 	if !ok {
 		return fmt.Errorf("failed to parse YAML to determine `domains_config`")
 	}
 
 	var authEnabled bool
-	if domainsConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+	if domainsConfig.SecurityConfig.EnforceUserTokenRequirement {
 		authEnabled = true
 	}
 

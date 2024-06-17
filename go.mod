@@ -1,6 +1,6 @@
 module github.com/ydb-platform/ydb-kubernetes-operator
 
-go 1.19
+go 1.20
 
 require (
 	github.com/banzaicloud/k8s-objectmatcher v1.7.0

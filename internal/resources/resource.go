@@ -45,7 +45,6 @@ const (
 	interconnectTLSVolumeMountPath = "/tls/interconnect"
 	datastreamsTLSVolumeMountPath  = "/tls/datastreams"
 
-	DynConfigNameFormat           = "%s-dynconfig"
 	InitJobNameFormat             = "%s-blobstorage-init"
 	OperatorTokenSecretNameFormat = "%s-operator-token"
 

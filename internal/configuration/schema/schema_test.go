@@ -16,35 +16,35 @@ var configurationExample = `
 ---
 hosts:
 - host: storage-0
-  location: {body: 0, data_center: 'dcExample', rack: '0'}
+  walle_location: {body: 0, data_center: 'dcExample', rack: '0'}
   node_id: 1
   host_config_id: 1
 - host: storage-1
-  location: {body: 1, data_center: 'dcExample', rack: '1'}
+  walle_location: {body: 1, data_center: 'dcExample', rack: '1'}
   node_id: 2
   host_config_id: 1
 - host: storage-2
-  location: {body: 2, data_center: 'dcExample', rack: '2'}
+  walle_location: {body: 2, data_center: 'dcExample', rack: '2'}
   node_id: 3
   host_config_id: 1
 - host: storage-3
-  location: {body: 3, data_center: 'dcExample', rack: '3'}
+  walle_location: {body: 3, data_center: 'dcExample', rack: '3'}
   node_id: 4
   host_config_id: 1
 - host: storage-4
-  location: {body: 4, data_center: 'dcExample', rack: '4'}
+  walle_location: {body: 4, data_center: 'dcExample', rack: '4'}
   node_id: 5
   host_config_id: 1
 - host: storage-5
-  location: {body: 5, data_center: 'dcExample', rack: '5'}
+  walle_location: {body: 5, data_center: 'dcExample', rack: '5'}
   node_id: 6
   host_config_id: 1
 - host: storage-6
-  location: {body: 6, data_center: 'dcExample', rack: '6'}
+  walle_location: {body: 6, data_center: 'dcExample', rack: '6'}
   node_id: 7
   host_config_id: 1
 - host: storage-7
-  location: {body: 7, data_center: 'dcExample', rack: '7'}
+  walle_location: {body: 7, data_center: 'dcExample', rack: '7'}
   node_id: 8
   host_config_id: 1
 key_config:
@@ -57,10 +57,26 @@ key_config:
 var dynconfigExample = `
 ---
 metadata:
+  kind: MainConfig
   version: 0
   cluster: "unknown"
-  kind: MainConfig
   # comment1
+selector_config:
+- description: actor system config for dynnodes
+  selector:
+    node_type: slot
+  config:
+    actor_system_config:
+      cpu_count: 10
+      node_type: COMPUTE
+      use_auto_config: true
+allowed_labels:
+  node_id:
+    type: string
+  host:
+    type: string
+  tenant:
+    type: string
 config:
   yaml_config_enabled: true
 selector_config: []
@@ -193,9 +209,9 @@ var _ = Describe("Testing schema", func() {
 		dynconfig, err := v1alpha1.ParseDynconfig(dynconfigExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
+			Kind:    "MainConfig",
 			Version: 0,
 			Cluster: "unknown",
-			Kind:    "MainConfig",
 		}))
 		Expect(dynconfig.AllowedLabels).ShouldNot(BeNil())
 		Expect(dynconfig.SelectorConfig).ShouldNot(BeNil())
@@ -231,7 +247,7 @@ var _ = Describe("Testing schema", func() {
 				Host:         fmt.Sprintf("storage-%d", i),
 				NodeID:       i + 1,
 				HostConfigID: 1,
-				Location: schema.Location{
+				WalleLocation: schema.WalleLocation{
 					Body:       i,
 					DataCenter: "dcExample",
 					Rack:       fmt.Sprint(i),

@@ -40,7 +40,7 @@ func generateHosts(cr *Storage) []schema.Host {
 			HostConfigID: 1, // TODO
 			NodeID:       i + 1,
 			Port:         InterconnectPort,
-			Location: schema.Location{
+			WalleLocation: schema.WalleLocation{
 				Body:       12340 + i,
 				DataCenter: datacenter,
 				Rack:       strconv.Itoa(i),
@@ -130,13 +130,12 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 }
 
 func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
-	dynConfig := schema.Dynconfig{}
-
+	dynconfig := schema.Dynconfig{}
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(true)
-	err := dec.Decode(&dynConfig)
+	err := dec.Decode(&dynconfig)
 
-	return dynConfig, err
+	return dynconfig, err
 }
 
 func ValidateDynconfig(dynConfig schema.Dynconfig) error {

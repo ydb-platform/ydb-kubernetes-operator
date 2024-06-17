@@ -6,7 +6,6 @@ type Dynconfig struct {
 	AllowedLabels  map[string]interface{} `yaml:"allowed_labels"`
 	SelectorConfig []SelectorConfig       `yaml:"selector_config"`
 }
-
 type Configuration struct {
 	Hosts     []Host     `yaml:"hosts"`
 	KeyConfig *KeyConfig `yaml:"key_config,omitempty"`
