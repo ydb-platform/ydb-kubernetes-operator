@@ -11,6 +11,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 )
 
+//nolint:all
 var configurationExample = `
 ---
 yaml_config_enabled: true

@@ -209,8 +209,10 @@ func (r *Storage) ValidateCreate() error {
 	}
 
 	var authEnabled bool
-	if configuration.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		authEnabled = true
+	if configuration.DomainsConfig.SecurityConfig != nil {
+		if configuration.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement != nil {
+			authEnabled = *configuration.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement
+		}
 	}
 
 	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
@@ -306,8 +308,10 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	var authEnabled bool
-	if configuration.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		authEnabled = true
+	if configuration.DomainsConfig.SecurityConfig != nil {
+		if configuration.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement != nil {
+			authEnabled = *configuration.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement
+		}
 	}
 
 	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
