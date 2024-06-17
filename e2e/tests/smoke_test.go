@@ -721,20 +721,19 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(k8sClient.Create(ctx, cert)).Should(Succeed())
 
 		By("create storage...")
-		storageSample.Spec.Service.Status.TLSConfiguration = &v1alpha1.TLSConfiguration{
-			Enabled: true,
-			Certificate: corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-				Key:                  "tls.crt",
-			},
-			Key: corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-				Key:                  "tls.key",
-			},
-			CertificateAuthority: corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-				Key:                  "ca.crt",
-			},
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
+		storageSample.Spec.Service.Status.TLSConfiguration.Enabled = true
+		storageSample.Spec.Service.Status.TLSConfiguration.Certificate = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.crt",
+		}
+		storageSample.Spec.Service.Status.TLSConfiguration.Key = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.key",
+		}
+		storageSample.Spec.Service.Status.TLSConfiguration.CertificateAuthority = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "ca.crt",
 		}
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
