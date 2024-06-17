@@ -61,8 +61,22 @@ metadata:
   version: 0
   cluster: "unknown"
   # comment1
-selector_config: []
-allowed_labels: {}
+selector_config:
+- description: actor system config for dynnodes
+  selector:
+    node_type: slot
+  config:
+    actor_system_config:
+      cpu_count: 10
+      node_type: COMPUTE
+      use_auto_config: true
+allowed_labels:
+  node_id:
+    type: string
+  host:
+    type: string
+  tenant:
+    type: string
 config:
   yaml_config_enabled: true
 `
@@ -74,7 +88,7 @@ func TestSchema(t *testing.T) {
 
 var _ = Describe("Testing schema", func() {
 	It("Parse dynconfig", func() {
-		dynconfig, err := v1alpha1.TryParseDynconfig(dynconfigExample)
+		dynconfig, err := v1alpha1.ParseDynconfig(dynconfigExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
 			Kind:    "MainConfig",
@@ -85,7 +99,7 @@ var _ = Describe("Testing schema", func() {
 	})
 
 	It("Try parse static config as dynconfig", func() {
-		_, err := v1alpha1.TryParseDynconfig(configurationExample)
+		_, err := v1alpha1.ParseDynconfig(configurationExample)
 		Expect(err).Should(HaveOccurred())
 	})
 

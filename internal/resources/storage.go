@@ -41,7 +41,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	dynConfig, err := api.TryParseDynconfig(b.Spec.Configuration)
+	dynConfig, err := api.ParseDynconfig(b.Spec.Configuration)
 	if err != nil {
 		// YDBOPS-9722 backward compatibility
 		cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)

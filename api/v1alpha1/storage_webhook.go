@@ -193,10 +193,14 @@ func (r *Storage) ValidateCreate() error {
 		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
 	}
 
-	hostsConfig := PartialHostsConfig{}
-	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &hostsConfig)
-	if err != nil {
-		return fmt.Errorf("failed to parse YAML to determine `hosts`, error: %w", err)
+	dynConfig, err := ParseDynconfig(r.Spec.Configuration)
+	if err == nil {
+		configuration = dynConfig.Config
+	}
+
+	hostsConfig, ok := configuration["hosts"].(PartialHostsConfig)
+	if !ok {
+		return fmt.Errorf("failed to parse YAML to determine `hosts`")
 	}
 
 	var nodesNumber int32
@@ -215,14 +219,13 @@ func (r *Storage) ValidateCreate() error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
-	yamlConfig := PartialDomainsConfig{}
-	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
-	if err != nil {
-		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`, error: %w", err)
+	domainsConfig, ok := configuration["domains_config"].(PartialDomainsConfig)
+	if !ok {
+		return fmt.Errorf("failed to parse YAML to determine `domains_config`")
 	}
 
 	var authEnabled bool
-	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+	if domainsConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
 		authEnabled = true
 	}
 
@@ -291,10 +294,14 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
 	}
 
-	hostsConfig := PartialHostsConfig{}
-	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &hostsConfig)
-	if err != nil {
-		return fmt.Errorf("failed to parse YAML to determine `hosts`, error: %w", err)
+	dynConfig, err := ParseDynconfig(r.Spec.Configuration)
+	if err == nil {
+		configuration = dynConfig.Config
+	}
+
+	hostsConfig, ok := configuration["hosts"].(PartialHostsConfig)
+	if !ok {
+		return fmt.Errorf("failed to parse YAML to determine `hosts`")
 	}
 
 	var nodesNumber int32
@@ -313,6 +320,20 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
+	domainsConfig, ok := configuration["domains_config"].(PartialDomainsConfig)
+	if !ok {
+		return fmt.Errorf("failed to parse YAML to determine `domains_config`")
+	}
+
+	var authEnabled bool
+	if domainsConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+		authEnabled = true
+	}
+
+	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
+	}
+
 	if !r.Spec.OperatorSync {
 		oldStorage := old.(*Storage)
 
@@ -329,21 +350,6 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 				"it is illegal to update any spec fields when spec.OperatorSync is false. "+
 					"Here is what you else tried to update: %s", diff)
 		}
-	}
-
-	yamlConfig := PartialDomainsConfig{}
-	err = yaml.Unmarshal([]byte(r.Spec.Configuration), &yamlConfig)
-	if err != nil {
-		return fmt.Errorf("failed to parse YAML to determine `enforce_user_token_requirement`, error: %w", err)
-	}
-
-	var authEnabled bool
-	if yamlConfig.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
-		authEnabled = true
-	}
-
-	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
-		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
 	if r.Spec.NodeSets != nil {
