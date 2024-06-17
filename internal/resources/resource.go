@@ -8,7 +8,8 @@ import (
 	"fmt"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/golang-jwt/jwt/v4"
+	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -425,7 +426,69 @@ func getYDBStaticCredentials(
 	if err != nil {
 		return nil, err
 	}
-	return ydbCredentials.NewStaticCredentials(username, password, endpoint, dialOptions), nil
+
+	return ydbCredentials.NewStaticCredentials(
+		username,
+		password,
+		endpoint,
+		ydbCredentials.WithGrpcDialOptions(dialOptions),
+	), nil
+}
+
+func getYDBOauth2Credentials(
+	ctx context.Context,
+	storage *api.Storage,
+	restConfig *rest.Config,
+) (ydbCredentials.Credentials, error) {
+	auth := storage.Spec.OperatorConnection
+	privateKey, err := GetSecretKey(
+		ctx,
+		storage.Namespace,
+		restConfig,
+		auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get RSA private key for Oauth2TokenExchange from secret: %s, key: %s, error: %w",
+			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Name,
+			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Key,
+			err)
+	}
+	privateKeyPEM, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privateKey))
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to parse RSA private key for Oauth2TokenExchange from secret: %s, key: %s, error: %w",
+			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Name,
+			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Key,
+			err,
+		)
+	}
+
+	var signMethod jwt.SigningMethod
+	if auth.Oauth2TokenExhange.JWTHeader.SignAlg != "" {
+		if !isSignAlgorithmSupported(auth.Oauth2TokenExhange.JWTHeader.SignAlg) {
+			return nil, fmt.Errorf(
+				"sign algorithm %s does not supported",
+				auth.Oauth2TokenExhange.JWTHeader.SignAlg,
+			)
+		}
+		signMethod = jwt.GetSigningMethod(auth.Oauth2TokenExhange.JWTHeader.SignAlg)
+	} else {
+		signMethod = jwt.SigningMethodRS256
+	}
+
+	return ydbCredentials.NewOauth2TokenExchangeCredentials(
+		ydbCredentials.WithTokenEndpoint(auth.Oauth2TokenExhange.Endpoint),
+		ydbCredentials.WithAudience(auth.Oauth2TokenExhange.JWTClaims.Audience),
+		ydbCredentials.WithJWTSubjectToken(
+			ydbCredentials.WithSigningMethod(signMethod),
+			ydbCredentials.WithPrivateKey(privateKeyPEM),
+			ydbCredentials.WithKeyID(auth.Oauth2TokenExhange.JWTHeader.KeyID),
+			ydbCredentials.WithAudience(auth.Oauth2TokenExhange.JWTClaims.Audience),
+			ydbCredentials.WithIssuer(auth.Oauth2TokenExhange.JWTClaims.Issuer),
+			ydbCredentials.WithSubject(auth.Oauth2TokenExhange.JWTClaims.Subject),
+			ydbCredentials.WithID(auth.Oauth2TokenExhange.JWTClaims.ID),
+		))
 }
 
 func GetYDBCredentials(
@@ -458,6 +521,10 @@ func GetYDBCredentials(
 
 	if auth.StaticCredentials != nil {
 		return getYDBStaticCredentials(ctx, storage, restConfig)
+	}
+
+	if auth.Oauth2TokenExhange != nil {
+		return getYDBOauth2Credentials(ctx, storage, restConfig)
 	}
 
 	return nil, errors.New("unsupported auth type for GetYDBCredentials")
@@ -549,4 +616,15 @@ func GetConfigurationChecksum(configuration string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(configuration))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func isSignAlgorithmSupported(alg string) bool {
+	supportedAlgs := jwt.GetAlgorithms()
+
+	for _, supportedAlg := range supportedAlgs {
+		if alg == supportedAlg {
+			return true
+		}
+	}
+	return false
 }
