@@ -40,10 +40,14 @@ const (
 	grpcTLSVolumeName         = "grpc-tls-volume"
 	interconnectTLSVolumeName = "interconnect-tls-volume"
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
+	statusTLSVolumeName       = "status-tls-volume"
+	statusOriginTLSVolumeName = "status-origin-tls-volume"
 
 	grpcTLSVolumeMountPath         = "/tls/grpc"
 	interconnectTLSVolumeMountPath = "/tls/interconnect"
 	datastreamsTLSVolumeMountPath  = "/tls/datastreams"
+	statusTLSVolumeMountPath       = "/tls/status"
+	statusOriginTLSVolumeMountPath = "/tls/status-origin"
 
 	InitJobNameFormat             = "%s-blobstorage-init"
 	OperatorTokenSecretNameFormat = "%s-operator-token"
@@ -63,6 +67,7 @@ const (
 	caBundleFileName        = "userCABundle.crt"
 	caCertificatesFileName  = "ca-certificates.crt"
 	updateCACertificatesBin = "update-ca-certificates"
+	statusBundleFileName    = "web.pem"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
@@ -503,6 +508,7 @@ func buildCAStorePatchingCommandArgs(
 	caBundle string,
 	grpcService api.GRPCService,
 	interconnectService api.InterconnectService,
+	statusService api.StatusService,
 ) ([]string, []string) {
 	command := []string{"/bin/bash", "-c"}
 
@@ -518,6 +524,16 @@ func buildCAStorePatchingCommandArgs(
 
 	if interconnectService.TLSConfiguration.Enabled {
 		arg += fmt.Sprintf("cp %s/%s %s/interconnectRoot.crt && ", interconnectTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
+	}
+
+	if statusService.TLSConfiguration != nil && statusService.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/%s %s/web.crt && ", statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
+		arg += fmt.Sprintf("cat %s/%s %s/%s %s/%s > %s/%s && ",
+			statusOriginTLSVolumeMountPath, wellKnownNameForTLSPrivateKey,
+			statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificate,
+			statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority,
+			statusTLSVolumeMountPath, statusBundleFileName,
+		)
 	}
 
 	if arg != "" {

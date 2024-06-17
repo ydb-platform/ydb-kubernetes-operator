@@ -1,8 +1,15 @@
 package tests
 
 import (
+	"bufio"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +30,7 @@ import (
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
 const (
@@ -177,6 +185,68 @@ func executeSimpleQuery(ctx context.Context, podName, podNamespace, storageEndpo
 		// └─────────┘
 		return strings.ReplaceAll(string(output), "\n", "")
 	}, Timeout, Interval).Should(MatchRegexp(".*column0.*1.*"))
+}
+
+func portForward(ctx context.Context, svcName string, svcNamespace string, port int, f func(int) error) {
+	Eventually(func(g Gomega) error {
+		args := []string{
+			"-n", svcNamespace,
+			"port-forward",
+			fmt.Sprintf("svc/%s", svcName),
+			fmt.Sprintf(":%d", port),
+		}
+
+		cmd := exec.CommandContext(ctx, "kubectl", args...)
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			return err
+		}
+
+		if err = cmd.Start(); err != nil {
+			return err
+		}
+
+		defer func() {
+			err := cmd.Process.Kill()
+			if err != nil {
+				_, _ = fmt.Fprintf(GinkgoWriter, "Unable to kill process: %s", err)
+			}
+		}()
+
+		localPort := 0
+
+		scanner := bufio.NewScanner(stdout)
+		portForwardRegex := regexp.MustCompile(`Forwarding from 127.0.0.1:(\d+) ->`)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			matches := portForwardRegex.FindStringSubmatch(line)
+			if matches != nil {
+				localPort, err = strconv.Atoi(matches[1])
+				if err != nil {
+					return err
+				}
+				break
+			}
+		}
+
+		if localPort != 0 {
+			if err = f(localPort); err != nil {
+				return err
+			}
+		} else {
+			content, _ := io.ReadAll(stderr)
+
+			return fmt.Errorf("kubectl port-forward stderr: %s", content)
+		}
+		return nil
+	}, 60*time.Second, Interval).Should(BeNil())
 }
 
 var _ = Describe("Operator smoke test", func() {
@@ -600,6 +670,103 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("checking that all the database pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+	})
+
+	It("TLS for status service", func() {
+		tlsHTTPCheck := func(port int) error {
+			url := fmt.Sprintf("https://localhost:%d/", port)
+			cert, err := os.ReadFile(filepath.Join(".", "data", "ca.crt"))
+			Expect(err).ShouldNot(HaveOccurred())
+
+			certPool := x509.NewCertPool()
+			ok := certPool.AppendCertsFromPEM(cert)
+			Expect(ok).To(BeTrue())
+
+			tlsConfig := &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				RootCAs:    certPool,
+				ServerName: "storage-grpc.ydb.svc.cluster.local",
+			}
+
+			transport := &http.Transport{TLSClientConfig: tlsConfig}
+			client := &http.Client{
+				Transport: transport,
+				Timeout:   10 * time.Second,
+			}
+			resp, err := client.Get(url)
+			if err != nil {
+				var netError net.Error
+				var opError *net.OpError
+
+				// for database: operator sets database ready status before the database is actually can server requests.
+				if errors.As(err, &netError) && netError.Timeout() || errors.As(err, &opError) || errors.Is(err, io.EOF) {
+					return err
+				}
+
+				Expect(err).ShouldNot(HaveOccurred())
+
+			}
+
+			Expect(resp).To(HaveHTTPStatus(http.StatusOK))
+
+			return nil
+		}
+
+		By("create secret...")
+		cert := testobjects.DefaultCertificate(
+			filepath.Join(".", "data", "tls.crt"),
+			filepath.Join(".", "data", "tls.key"),
+			filepath.Join(".", "data", "ca.crt"),
+		)
+		Expect(k8sClient.Create(ctx, cert)).Should(Succeed())
+
+		By("create storage...")
+		storageSample.Spec.Service.Status.TLSConfiguration = &v1alpha1.TLSConfiguration{
+			Enabled: true,
+			Certificate: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+				Key:                  "tls.crt",
+			},
+			Key: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+				Key:                  "tls.key",
+			},
+			CertificateAuthority: corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+				Key:                  "ca.crt",
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+
+		By("create database...")
+		databaseSample.Spec.Nodes = 1
+		databaseSample.Spec.Service.Status = *storageSample.Spec.Service.Status.DeepCopy()
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("forward storage status port and check that we can check TLS response")
+		portForward(ctx,
+			fmt.Sprintf(resources.StatusServiceNameFormat, storageSample.Name), storageSample.Namespace,
+			v1alpha1.StatusPort, tlsHTTPCheck,
+		)
+
+		By("waiting until database is ready...")
+		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the database pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		By("forward database status port and check that we can check TLS response")
+		portForward(ctx,
+			fmt.Sprintf(resources.StatusServiceNameFormat, databaseSample.Name), databaseSample.Namespace,
+			v1alpha1.StatusPort, tlsHTTPCheck,
+		)
 	})
 
 	AfterEach(func() {

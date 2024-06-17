@@ -156,6 +156,10 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 		storage.Spec.Service.Interconnect.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
+	if storage.Spec.Service.Status.TLSConfiguration == nil {
+		storage.Spec.Service.Status.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
+
 	if storage.Spec.Monitoring == nil {
 		storage.Spec.Monitoring = &MonitoringOptions{
 			Enabled: false,
