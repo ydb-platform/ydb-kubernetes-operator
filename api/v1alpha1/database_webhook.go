@@ -110,6 +110,10 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		database.Spec.Service.Datastreams.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
+	if database.Spec.Service.Status.TLSConfiguration == nil {
+		database.Spec.Service.Status.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
+
 	if database.Spec.Domain == "" {
 		database.Spec.Domain = DefaultDatabaseDomain
 	}

@@ -129,6 +129,14 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	return yaml.Marshal(config)
 }
 
+func ParseConfig(rawYamlConfiguration string) (schema.Configuration, error) {
+	config := schema.Configuration{}
+	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
+	dec.KnownFields(false)
+	err := dec.Decode(&config)
+	return config, err
+}
+
 func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
 	dynconfig := schema.Dynconfig{}
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
@@ -140,27 +148,27 @@ func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
 
 func ValidateDynconfig(dynConfig schema.Dynconfig) error {
 	if dynConfig.AllowedLabels == nil {
-		return errors.New("failed to parse mandatory `allowed_labels` field inside dynconfig")
+		return errors.New("failed to find mandatory `allowed_labels` field inside dynconfig")
 	}
 
 	if dynConfig.SelectorConfig == nil {
-		return errors.New("failed to parse mandatory `selector_config` field inside dynconfig")
+		return errors.New("failed to find mandatory `selector_config` field inside dynconfig")
 	}
 
 	if _, exist := dynConfig.Config["yaml_config_enabled"]; !exist {
-		return errors.New("failed to parse mandatory `yaml_config_enabled` field inside config")
+		return errors.New("failed to find mandatory `yaml_config_enabled` field inside config")
 	}
 
 	if _, exist := dynConfig.Config["static_erasure"]; !exist {
-		return errors.New("failed to parse mandatory `static_erasure` field inside config")
+		return errors.New("failed to find mandatory `static_erasure` field inside config")
 	}
 
 	if _, exist := dynConfig.Config["host_configs"]; !exist {
-		return errors.New("failed to parse mandatory `host_configs` field inside config")
+		return errors.New("failed to find mandatory `host_configs` field inside config")
 	}
 
 	if _, exist := dynConfig.Config["blob_storage_config"]; !exist {
-		return errors.New("failed to parse mandatory `blob_storage_config` field inside config")
+		return errors.New("failed to find mandatory `blob_storage_config` field inside config")
 	}
 
 	return nil
@@ -181,7 +189,7 @@ func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
 	delete(dynConfig.Config, "host_configs")
 	delete(dynConfig.Config, "nameservice_config")
 	delete(dynConfig.Config, "blob_storage_config")
-
 	delete(dynConfig.Config, "hosts")
+
 	return yaml.Marshal(dynConfig)
 }

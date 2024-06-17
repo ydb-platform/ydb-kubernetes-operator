@@ -6,14 +6,33 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gopkg.in/yaml.v2"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 )
 
+//nolint:all
 var configurationExample = `
 ---
+yaml_config_enabled: true
+domains_config:
+  domain:
+  - name: Root
+    storage_pool_types:
+    - kind: ssd
+      pool_config:
+        box_id: 1
+        erasure_species: block-4-2
+        kind: ssd
+        pdisk_filter:
+        - property:
+          - type: SSD
+        vdisk_kind: Default
+  state_storage:
+  - ring:
+      node: [1, 2, 3, 4, 5, 6, 7, 8]
+      nto_select: 5
+    ssid: 1
 hosts:
 - host: storage-0
   walle_location: {body: 0, data_center: 'dcExample', rack: '0'}
@@ -54,37 +73,8 @@ key_config:
     version: 1
 `
 
-var dynconfigExample = `
----
-metadata:
-  kind: MainConfig
-  version: 0
-  cluster: "unknown"
-  # comment1
-selector_config:
-- description: actor system config for dynnodes
-  selector:
-    node_type: slot
-  config:
-    actor_system_config:
-      cpu_count: 10
-      node_type: COMPUTE
-      use_auto_config: true
-allowed_labels:
-  node_id:
-    type: string
-  host:
-    type: string
-  tenant:
-    type: string
-config:
-  yaml_config_enabled: true
-selector_config: []
-allowed_labels: {}
-`
-
 //nolint:all
-var dynconfigValidExample = `
+var dynconfigExample = `
 ---
 metadata:
   version: 0
@@ -195,8 +185,22 @@ config:
       profile_id: 0
   grpc_config:
     port: 2135
-selector_config: []
-allowed_labels: {}
+selector_config:
+- description: actor system config for dynnodes
+  selector:
+    node_type: slot
+  config:
+    actor_system_config:
+      cpu_count: 10
+      node_type: COMPUTE
+      use_auto_config: true
+allowed_labels:
+  node_id:
+    type: string
+  host:
+    type: string
+  tenant:
+    type: string
 `
 
 func TestSchema(t *testing.T) {
@@ -217,16 +221,16 @@ var _ = Describe("Testing schema", func() {
 		Expect(dynconfig.SelectorConfig).ShouldNot(BeNil())
 		Expect(dynconfig.Config["yaml_config_enabled"]).Should(BeTrue())
 		err = v1alpha1.ValidateDynconfig(dynconfig)
-		Expect(err).Should(HaveOccurred())
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 
 	It("Validate dynconfig", func() {
-		dynconfig, err := v1alpha1.ParseDynconfig(dynconfigValidExample)
+		dynconfig, err := v1alpha1.ParseDynconfig(dynconfigExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
+			Kind:    "MainConfig",
 			Version: 0,
 			Cluster: "unknown",
-			Kind:    "MainConfig",
 		}))
 		err = v1alpha1.ValidateDynconfig(dynconfig)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -238,8 +242,7 @@ var _ = Describe("Testing schema", func() {
 	})
 
 	It("Parse static config", func() {
-		yamlConfig := schema.Configuration{}
-		err := yaml.Unmarshal([]byte(configurationExample), &yamlConfig)
+		yamlConfig, err := v1alpha1.ParseConfig(configurationExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		hosts := []schema.Host{}
 		for i := 0; i < 8; i++ {

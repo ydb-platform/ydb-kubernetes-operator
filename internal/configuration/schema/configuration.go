@@ -7,8 +7,9 @@ type Dynconfig struct {
 	SelectorConfig []SelectorConfig       `yaml:"selector_config"`
 }
 type Configuration struct {
-	Hosts     []Host     `yaml:"hosts"`
-	KeyConfig *KeyConfig `yaml:"key_config,omitempty"`
+	DomainsConfig *DomainsConfig `yaml:"domains_config"`
+	Hosts         []Host         `yaml:"hosts,omitempty"`
+	KeyConfig     *KeyConfig     `yaml:"key_config,omitempty"`
 }
 
 type Metadata struct {

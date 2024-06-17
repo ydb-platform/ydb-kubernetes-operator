@@ -17,6 +17,10 @@ type StorageClusterBuilder struct {
 func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	cr := ydbCr.DeepCopy()
 
+	if cr.Spec.Service.Status.TLSConfiguration == nil {
+		cr.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
+	}
+
 	return StorageClusterBuilder{cr}
 }
 
@@ -41,7 +45,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	dynConfig, err := api.ParseDynconfig(b.Spec.Configuration)
+	dynconfig, err := api.ParseDynconfig(b.Spec.Configuration)
 	if err != nil {
 		// YDBOPS-9722 backward compatibility
 		cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
@@ -53,10 +57,11 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 				Data: map[string]string{
 					api.ConfigFileName: string(cfg),
 				},
+				Labels: storageLabels,
 			},
 		)
 	} else {
-		cfg, _ := yaml.Marshal(dynConfig.Config)
+		cfg, _ := yaml.Marshal(dynconfig.Config)
 		optionalBuilders = append(
 			optionalBuilders,
 			&ConfigMapBuilder{

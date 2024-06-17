@@ -278,6 +278,7 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainer() corev1.Conta
 		b.Spec.CABundle,
 		b.Spec.Service.GRPC,
 		b.Spec.Service.Interconnect,
+		api.StatusService{TLSConfiguration: &api.TLSConfiguration{Enabled: false}},
 	)
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {
