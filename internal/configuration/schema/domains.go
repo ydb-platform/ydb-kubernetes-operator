@@ -1,9 +1,7 @@
 package schema
 
 type DomainsConfig struct {
-	Domain         map[string]interface{} `yaml:"domain"`
-	StateStorage   map[string]interface{} `yaml:"state_storage"`
-	SecurityConfig *SecurityConfig        `yaml:"security_config"`
+	SecurityConfig *SecurityConfig `yaml:"security_config"`
 }
 
 type SecurityConfig struct {

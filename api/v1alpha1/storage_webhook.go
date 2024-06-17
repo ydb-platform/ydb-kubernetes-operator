@@ -175,27 +175,28 @@ var _ webhook.Validator = &Storage{}
 func (r *Storage) ValidateCreate() error {
 	storagelog.Info("validate create", "name", r.Name)
 
-	configuration := make(map[string]interface{})
-	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
+	var configuration schema.Configuration
+
+	rawYamlConfiguration := r.Spec.Configuration
+	dynconfig, err := ParseDynconfig(r.Spec.Configuration)
+	if err == nil {
+		config, err := yaml.Marshal(dynconfig.Config)
+		if err != nil {
+			return fmt.Errorf("failed to parse .config from dynconfig, error: %w", err)
+		}
+		rawYamlConfiguration = string(config)
+	}
+
+	configuration, err = ParseConfig(rawYamlConfiguration)
 	if err != nil {
 		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
 	}
 
-	dynConfig, err := ParseDynconfig(r.Spec.Configuration)
-	if err == nil {
-		configuration = dynConfig.Config
-	}
-
-	hostsConfig, ok := configuration["hosts"].([]schema.Host)
-	if !ok {
-		return fmt.Errorf("failed to parse YAML to determine `hosts`")
-	}
-
 	var nodesNumber int32
-	if len(hostsConfig) == 0 {
+	if len(configuration.Hosts) == 0 {
 		nodesNumber = r.Spec.Nodes
 	} else {
-		nodesNumber = int32(len(hostsConfig))
+		nodesNumber = int32(len(configuration.Hosts))
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
@@ -207,13 +208,8 @@ func (r *Storage) ValidateCreate() error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
-	domainsConfig, ok := configuration["domains_config"].(schema.DomainsConfig)
-	if !ok {
-		return fmt.Errorf("failed to parse YAML to determine `domains_config`")
-	}
-
 	var authEnabled bool
-	if domainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+	if configuration.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
 		authEnabled = true
 	}
 
@@ -276,27 +272,28 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
 
-	configuration := make(map[string]interface{})
-	err := yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
+	var configuration schema.Configuration
+
+	rawYamlConfiguration := r.Spec.Configuration
+	dynconfig, err := ParseDynconfig(r.Spec.Configuration)
+	if err == nil {
+		config, err := yaml.Marshal(dynconfig.Config)
+		if err != nil {
+			return fmt.Errorf("failed to parse .config from dynconfig, error: %w", err)
+		}
+		rawYamlConfiguration = string(config)
+	}
+
+	configuration, err = ParseConfig(rawYamlConfiguration)
 	if err != nil {
 		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
 	}
 
-	dynConfig, err := ParseDynconfig(r.Spec.Configuration)
-	if err == nil {
-		configuration = dynConfig.Config
-	}
-
-	hostsConfig, ok := configuration["hosts"].([]schema.Host)
-	if !ok {
-		return fmt.Errorf("failed to parse YAML to determine `hosts`")
-	}
-
 	var nodesNumber int32
-	if len(hostsConfig) == 0 {
+	if len(configuration.Hosts) == 0 {
 		nodesNumber = r.Spec.Nodes
 	} else {
-		nodesNumber = int32(len(hostsConfig))
+		nodesNumber = int32(len(configuration.Hosts))
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
@@ -308,13 +305,8 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
-	domainsConfig, ok := configuration["domains_config"].(schema.DomainsConfig)
-	if !ok {
-		return fmt.Errorf("failed to parse YAML to determine `domains_config`")
-	}
-
 	var authEnabled bool
-	if domainsConfig.SecurityConfig.EnforceUserTokenRequirement {
+	if configuration.DomainsConfig.SecurityConfig.EnforceUserTokenRequirement {
 		authEnabled = true
 	}
 

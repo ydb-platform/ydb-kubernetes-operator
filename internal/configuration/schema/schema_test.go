@@ -6,7 +6,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gopkg.in/yaml.v2"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
@@ -14,6 +13,25 @@ import (
 
 var configurationExample = `
 ---
+yaml_config_enabled: true
+domains_config:
+  domain:
+  - name: Root
+    storage_pool_types:
+    - kind: ssd
+      pool_config:
+        box_id: 1
+        erasure_species: block-4-2
+        kind: ssd
+        pdisk_filter:
+        - property:
+          - type: SSD
+        vdisk_kind: Default
+  state_storage:
+  - ring:
+      node: [1, 2, 3, 4, 5, 6, 7, 8]
+      nto_select: 5
+    ssid: 1
 hosts:
 - host: storage-0
   walle_location: {body: 0, data_center: 'dcExample', rack: '0'}
@@ -104,8 +122,7 @@ var _ = Describe("Testing schema", func() {
 	})
 
 	It("Parse static config", func() {
-		yamlConfig := schema.Configuration{}
-		err := yaml.Unmarshal([]byte(configurationExample), &yamlConfig)
+		yamlConfig, err := v1alpha1.ParseConfig(configurationExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		hosts := []schema.Host{}
 		for i := 0; i < 8; i++ {
