@@ -18,6 +18,10 @@ type DatabaseBuilder struct {
 func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	cr := ydbCr.DeepCopy()
 
+	if cr.Spec.Service.Status.TLSConfiguration == nil {
+		cr.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
+	}
+
 	return DatabaseBuilder{Database: cr, Storage: nil}
 }
 

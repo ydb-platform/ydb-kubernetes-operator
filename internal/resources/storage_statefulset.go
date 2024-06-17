@@ -207,6 +207,18 @@ func (b *StorageStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumes = append(volumes,
+			buildTLSVolume(statusOriginTLSVolumeName, b.Spec.Service.Status.TLSConfiguration),
+			corev1.Volume{
+				Name: statusTLSVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		)
+	}
+
 	for _, secret := range b.Spec.Secrets {
 		volumes = append(volumes, corev1.Volume{
 			Name: secret.Name,
@@ -246,6 +258,7 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		b.Spec.CABundle,
 		b.Spec.Service.GRPC,
 		b.Spec.Service.Interconnect,
+		b.Spec.Service.Status,
 	)
 	containerResources := corev1.ResourceRequirements{}
 	if b.Spec.Resources != nil {
@@ -310,6 +323,20 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 			MountPath: interconnectTLSVolumeMountPath,
 		})
 	}
+
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusOriginTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: statusOriginTLSVolumeMountPath,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusTLSVolumeName,
+			MountPath: statusTLSVolumeMountPath,
+		})
+	}
+
 	return volumeMounts
 }
 
@@ -414,6 +441,14 @@ func (b *StorageStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: statusTLSVolumeMountPath,
+		})
+	}
+
 	if b.AnyCertificatesAdded() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      localCertsVolumeName,
@@ -465,6 +500,13 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		"--label",
 		fmt.Sprintf("%s=%s", api.LabelDeploymentKey, api.LabelDeploymentValueKubernetes),
 	)
+
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		args = append(args,
+			"--mon-cert",
+			fmt.Sprintf("%s/%s", statusTLSVolumeMountPath, statusBundleFileName),
+		)
+	}
 
 	for _, secret := range b.Spec.Secrets {
 		exist, err := CheckSecretKey(
