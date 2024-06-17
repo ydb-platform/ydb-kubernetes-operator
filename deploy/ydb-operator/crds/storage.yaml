@@ -4862,6 +4862,8 @@ spec:
                     properties:
                       audience:
                         type: string
+                      endpoint:
+                        type: string
                       id:
                         type: string
                       issuer:
@@ -4896,11 +4898,9 @@ spec:
                         type: string
                       subject:
                         type: string
-                      tokenEndpoint:
-                        type: string
                     required:
+                    - endpoint
                     - privateKey
-                    - tokenEndpoint
                     type: object
                   staticCredentials:
                     properties:

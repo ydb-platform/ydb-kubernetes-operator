@@ -20,10 +20,10 @@ type StaticCredentialsAuth struct {
 }
 
 type Oauth2TokenExchange struct {
-	TokenEndpoint string            `json:"tokenEndpoint"`
-	PrivateKey    *CredentialSource `json:"privateKey"`
-	JWTHeader     *JWTHeader        `json:",inline"`
-	JWTClaims     *JWTClaims        `json:",inline"`
+	Endpoint   string            `json:"endpoint"`
+	PrivateKey *CredentialSource `json:"privateKey"`
+	JWTHeader  *JWTHeader        `json:",inline"`
+	JWTClaims  *JWTClaims        `json:",inline"`
 }
 
 type JWTHeader struct {

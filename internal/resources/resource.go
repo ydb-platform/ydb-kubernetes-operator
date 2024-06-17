@@ -412,8 +412,7 @@ func getYDBStaticCredentials(
 				err)
 		}
 	}
-
-	storageEndpoint := storage.GetStorageEndpoint()
+	endpoint := storage.GetStorageEndpoint()
 
 	var caBundle []byte
 	if storage.IsStorageEndpointSecure() {
@@ -431,7 +430,7 @@ func getYDBStaticCredentials(
 	return ydbCredentials.NewStaticCredentials(
 		username,
 		password,
-		storageEndpoint,
+		endpoint,
 		ydbCredentials.WithGrpcDialOptions(dialOptions),
 	), nil
 }
@@ -458,17 +457,18 @@ func getYDBOauth2Credentials(
 	privateKeyPEM, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privateKey))
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to get parse RSA private key from secret: %s, key: %s, error: %w",
+			"failed to parse RSA private key for Oauth2TokenExchange from secret: %s, key: %s, error: %w",
 			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Name,
 			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Key,
-			err)
+			err,
+		)
 	}
 
 	var signMethod jwt.SigningMethod
 	if auth.Oauth2TokenExhange.JWTHeader.SignAlg != "" {
 		if !isSignAlgorithmSupported(auth.Oauth2TokenExhange.JWTHeader.SignAlg) {
 			return nil, fmt.Errorf(
-				"sign algorithm %s does not supported by jwt library",
+				"sign algorithm %s does not supported",
 				auth.Oauth2TokenExhange.JWTHeader.SignAlg,
 			)
 		}
@@ -478,7 +478,7 @@ func getYDBOauth2Credentials(
 	}
 
 	return ydbCredentials.NewOauth2TokenExchangeCredentials(
-		ydbCredentials.WithTokenEndpoint(auth.Oauth2TokenExhange.TokenEndpoint),
+		ydbCredentials.WithTokenEndpoint(auth.Oauth2TokenExhange.Endpoint),
 		ydbCredentials.WithAudience(auth.Oauth2TokenExhange.JWTClaims.Audience),
 		ydbCredentials.WithJWTSubjectToken(
 			ydbCredentials.WithSigningMethod(signMethod),
