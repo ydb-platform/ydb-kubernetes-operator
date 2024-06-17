@@ -16,6 +16,10 @@ type StorageClusterBuilder struct {
 func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	cr := ydbCr.DeepCopy()
 
+	if cr.Spec.Service.Status.TLSConfiguration == nil {
+		cr.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
+	}
+
 	return StorageClusterBuilder{cr}
 }
 
