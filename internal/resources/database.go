@@ -71,7 +71,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 				Name: b.GetName(),
 				Data: map[string]string{
-					api.ConfigFileName: cfg,
+					api.ConfigFileName: string(cfg),
 				},
 				Labels: databaseLabels,
 			},
