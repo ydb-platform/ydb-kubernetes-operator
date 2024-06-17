@@ -102,7 +102,7 @@ channel_profile_config:
 grpc_config:
   start_grpc_proxy: true
   ssl_port: 2135
-  ca: /tls/grpc/ca.crt
+  ca: /etc/ssl/certs/ca-certificates.crt
   cert: /tls/grpc/tls.crt
   key: /tls/grpc/tls.key
   grpc_memory_quota_bytes: '1073741824'
