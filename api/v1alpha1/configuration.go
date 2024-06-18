@@ -95,19 +95,19 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 		rawYamlConfiguration = cr.Spec.Configuration
 	}
 
-	dynConfig, err := ParseDynconfig(rawYamlConfiguration)
+	dynconfig, err := ParseDynconfig(rawYamlConfiguration)
 	if err == nil {
-		validErr := ValidateDynconfig(dynConfig)
+		validErr := ValidateDynconfig(dynconfig)
 		if validErr != nil {
 			return nil, validErr
 		}
 
-		if dynConfig.Config["hosts"] == nil {
+		if dynconfig.Config["hosts"] == nil {
 			hosts := generateHosts(cr)
-			dynConfig.Config["hosts"] = hosts
+			dynconfig.Config["hosts"] = hosts
 		}
 
-		return yaml.Marshal(dynConfig)
+		return yaml.Marshal(dynconfig)
 	}
 
 	err = yaml.Unmarshal([]byte(rawYamlConfiguration), &config)

@@ -77,9 +77,10 @@ key_config:
 var dynconfigExample = `
 ---
 metadata:
+  kind: MainConfig
   version: 0
   cluster: "unknown"
-  kind: MainConfig
+  # comment1
 config:
   yaml_config_enabled: true
   static_erasure: block-4-2

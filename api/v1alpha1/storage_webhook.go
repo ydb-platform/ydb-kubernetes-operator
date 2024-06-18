@@ -190,7 +190,7 @@ func (r *Storage) ValidateCreate() error {
 		}
 		config, err := yaml.Marshal(dynconfig.Config)
 		if err != nil {
-			return fmt.Errorf("failed to serialize to YAML configuration, error: %w", err)
+			return fmt.Errorf("failed to serialize config to YAML, error: %w", err)
 		}
 		rawYamlConfiguration = string(config)
 	}
@@ -237,7 +237,10 @@ func (r *Storage) ValidateCreate() error {
 		}
 	}
 
-	reservedSecretNames := []string{"datastreams"}
+	reservedSecretNames := []string{
+		"database_encryption",
+		"datastreams",
+	}
 
 	for _, secret := range r.Spec.Secrets {
 		if slices.Contains(reservedSecretNames, secret.Name) {

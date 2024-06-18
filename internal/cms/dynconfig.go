@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	GetConfigTimeoutSeconds = 10
+	GetConfigTimeoutSeconds     = 10
+	ReplaceConfigTimeoutSeconds = 30
 )
 
 func GetConfig(
@@ -100,6 +101,9 @@ func ReplaceConfig(
 	if err != nil {
 		return nil, err
 	}
+
+	cmsCtx, cancel := context.WithTimeout(ctx, ReplaceConfigTimeoutSeconds*time.Second)
+	defer cancel()
 	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
 	request := &Ydb_DynamicConfig.ReplaceConfigRequest{
 		Config:             string(config),
@@ -107,5 +111,5 @@ func ReplaceConfig(
 		AllowUnknownFields: true,
 	}
 	logger.Info(fmt.Sprintf("Sending CMS ReplaceConfigRequest: %s", request))
-	return client.ReplaceConfig(ctx, request)
+	return client.ReplaceConfig(cmsCtx, request)
 }
