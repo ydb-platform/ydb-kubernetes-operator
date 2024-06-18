@@ -27,7 +27,7 @@ func (r *Reconciler) handleConfigurationSync(
 		return r.pollOperation(ctx, storage, condition)
 	}
 	if condition == nil || condition.ObservedGeneration < storage.Generation || condition.Status == metav1.ConditionFalse {
-		return r.requestOperation(ctx, storage, ReplaceConfigOperationCondition, true)
+		return r.requestOperation(ctx, storage, ReplaceConfigDryRunOperationCondition, true)
 	}
 
 	// Exactly ReplaceConfig
