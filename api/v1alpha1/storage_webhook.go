@@ -179,25 +179,25 @@ var _ webhook.Validator = &Storage{}
 func (r *Storage) ValidateCreate() error {
 	storagelog.Info("validate create", "name", r.Name)
 
-	var configuration schema.Configuration
-
-	rawYamlConfiguration := r.Spec.Configuration
-	dynconfig, err := ParseDynconfig(r.Spec.Configuration)
-	if err == nil {
-		validErr := ValidateDynconfig(dynconfig)
-		if validErr != nil {
-			return fmt.Errorf("failed to validate dynconfig, error: %w", err)
+	var rawYamlConfiguration string
+	success, dynconfig, err := TryParseDynconfig(r.Spec.Configuration)
+	if success {
+		if err != nil {
+			return fmt.Errorf("failed to parse dynconfig, error: %w", err)
 		}
 		config, err := yaml.Marshal(dynconfig.Config)
 		if err != nil {
-			return fmt.Errorf("failed to serialize config to YAML, error: %w", err)
+			return fmt.Errorf("failed to serialize YAML config, error: %w", err)
 		}
 		rawYamlConfiguration = string(config)
+	} else {
+		rawYamlConfiguration = r.Spec.Configuration
 	}
 
-	configuration, err = ParseConfig(rawYamlConfiguration)
+	var configuration schema.Configuration
+	configuration, err = ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
-		return fmt.Errorf("failed to parse static configuration, error: %w", err)
+		return fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
 
 	var nodesNumber int32
@@ -282,21 +282,25 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
 
-	var configuration schema.Configuration
-
-	rawYamlConfiguration := r.Spec.Configuration
-	dynconfig, err := ParseDynconfig(r.Spec.Configuration)
-	if err == nil {
+	var rawYamlConfiguration string
+	success, dynconfig, err := TryParseDynconfig(r.Spec.Configuration)
+	if success {
+		if err != nil {
+			return fmt.Errorf("failed to parse dynconfig, error: %w", err)
+		}
 		config, err := yaml.Marshal(dynconfig.Config)
 		if err != nil {
-			return fmt.Errorf("failed to parse .config from dynconfig, error: %w", err)
+			return fmt.Errorf("failed to serialize YAML config, error: %w", err)
 		}
 		rawYamlConfiguration = string(config)
+	} else {
+		rawYamlConfiguration = r.Spec.Configuration
 	}
 
-	configuration, err = ParseConfig(rawYamlConfiguration)
+	var configuration schema.Configuration
+	configuration, err = ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
-		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
+		return fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
 
 	var nodesNumber int32

@@ -29,7 +29,6 @@ func GetConfig(
 	creds credentials.Credentials,
 	opts ...ydb.Option,
 ) (*Ydb_DynamicConfig.GetConfigResponse, error) {
-	logger := log.FromContext(ctx)
 	endpoint := fmt.Sprintf(
 		"%s/%s",
 		storage.GetStorageEndpointWithProto(),
@@ -41,8 +40,7 @@ func GetConfig(
 		ydb.MergeOptions(opts...),
 	)
 	if err != nil {
-		logger.Error(err, "Error connecting to YDB storage")
-		return nil, err
+		return nil, fmt.Errorf("Error connecting to YDB: %w", err)
 	}
 	defer func() {
 		connection.Close(ctx, conn)
@@ -90,8 +88,7 @@ func ReplaceConfig(
 		ydb.MergeOptions(opts...),
 	)
 	if err != nil {
-		logger.Error(err, "Error connecting to YDB storage")
-		return nil, err
+		return nil, fmt.Errorf("Error connecting to YDB: %w", err)
 	}
 	defer func() {
 		connection.Close(ctx, conn)

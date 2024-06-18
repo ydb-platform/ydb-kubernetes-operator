@@ -9,7 +9,6 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/credentials"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -22,7 +21,6 @@ func GetOperation(
 	creds credentials.Credentials,
 	opts ...ydb.Option,
 ) (*Ydb_Operations.GetOperationResponse, error) {
-	logger := log.FromContext(ctx)
 	endpoint := fmt.Sprintf(
 		"%s/%s",
 		storage.GetStorageEndpointWithProto(),
@@ -34,8 +32,7 @@ func GetOperation(
 		ydb.MergeOptions(opts...),
 	)
 	if err != nil {
-		logger.Error(err, "Error connecting to YDB storage")
-		return nil, err
+		return nil, fmt.Errorf("Error connecting to YDB: %w", err)
 	}
 	defer func() {
 		connection.Close(ctx, conn)

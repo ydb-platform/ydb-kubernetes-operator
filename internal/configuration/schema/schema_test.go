@@ -211,7 +211,8 @@ func TestSchema(t *testing.T) {
 
 var _ = Describe("Testing schema", func() {
 	It("Parse dynconfig", func() {
-		dynconfig, err := v1alpha1.ParseDynconfig(dynconfigExample)
+		success, dynconfig, err := v1alpha1.TryParseDynconfig(dynconfigExample)
+		Expect(success).Should(BeTrue())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
 			Kind:    "MainConfig",
@@ -221,29 +222,16 @@ var _ = Describe("Testing schema", func() {
 		Expect(dynconfig.AllowedLabels).ShouldNot(BeNil())
 		Expect(dynconfig.SelectorConfig).ShouldNot(BeNil())
 		Expect(dynconfig.Config["yaml_config_enabled"]).Should(BeTrue())
-		err = v1alpha1.ValidateDynconfig(dynconfig)
-		Expect(err).ShouldNot(HaveOccurred())
-	})
-
-	It("Validate dynconfig", func() {
-		dynconfig, err := v1alpha1.ParseDynconfig(dynconfigExample)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
-			Kind:    "MainConfig",
-			Version: 0,
-			Cluster: "unknown",
-		}))
-		err = v1alpha1.ValidateDynconfig(dynconfig)
-		Expect(err).ShouldNot(HaveOccurred())
 	})
 
 	It("Try parse static config as dynconfig", func() {
-		_, err := v1alpha1.ParseDynconfig(configurationExample)
+		success, _, err := v1alpha1.TryParseDynconfig(configurationExample)
+		Expect(success).ShouldNot(BeTrue())
 		Expect(err).Should(HaveOccurred())
 	})
 
 	It("Parse static config", func() {
-		yamlConfig, err := v1alpha1.ParseConfig(configurationExample)
+		schemaConfig, err := v1alpha1.ParseConfiguration(configurationExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		hosts := []schema.Host{}
 		for i := 0; i < 8; i++ {
@@ -258,8 +246,8 @@ var _ = Describe("Testing schema", func() {
 				},
 			})
 		}
-		Expect(yamlConfig.Hosts).Should(BeEquivalentTo(hosts))
-		Expect(*yamlConfig.KeyConfig).Should(BeEquivalentTo(schema.KeyConfig{
+		Expect(schemaConfig.Hosts).Should(BeEquivalentTo(hosts))
+		Expect(*schemaConfig.KeyConfig).Should(BeEquivalentTo(schema.KeyConfig{
 			Keys: []schema.Key{
 				{
 					ContainerPath: "/opt/ydb/secrets/database_encryption/key",

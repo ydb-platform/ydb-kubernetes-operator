@@ -39,13 +39,13 @@ func (r *Reconciler) handleConfigurationSync(
 		return r.requestOperation(ctx, storage, ReplaceConfigOperationCondition, false)
 	}
 
-	dynConfig, _ := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
+	_, dynconfig, _ := v1alpha1.TryParseDynconfig(storage.Spec.Configuration)
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 		Type:               ConfigurationSyncedCondition,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: storage.Generation,
 		Reason:             ReasonCompleted,
-		Message:            fmt.Sprintf("Configuration synced successfully to version %d", dynConfig.Metadata.Version),
+		Message:            fmt.Sprintf("Configuration synced successfully to version %d", dynconfig.Metadata.Version),
 	})
 	r.Log.Info("complete step handleConfigurationSync")
 	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
@@ -209,8 +209,8 @@ func (r *Reconciler) setConfigPipelineStatus(
 	storage *resources.StorageClusterBuilder,
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step setConfigPipelineStatus")
-	dynConfig, err := v1alpha1.ParseDynconfig(storage.Spec.Configuration)
-	if err != nil {
+	success, dynconfig, _ := v1alpha1.TryParseDynconfig(storage.Spec.Configuration)
+	if !success {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ConfigurationSyncedCondition,
 			Status:             metav1.ConditionTrue,
@@ -268,7 +268,7 @@ func (r *Reconciler) setConfigPipelineStatus(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	if dynConfig.Metadata.Version < cmsConfig.GetIdentity().GetVersion() {
+	if dynconfig.Metadata.Version < cmsConfig.GetIdentity().GetVersion() {
 		r.Log.Info("Configuration already synced", "metadata", cmsConfig.GetIdentity().String())
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ConfigurationSyncedCondition,
@@ -278,13 +278,13 @@ func (r *Reconciler) setConfigPipelineStatus(
 			Message:            fmt.Sprintf("Configuration already synced to version %d", cmsConfig.GetIdentity().GetVersion()),
 		})
 	} else {
-		r.Log.Info("Sync configuration", "metadata", dynConfig.Metadata)
+		r.Log.Info("Sync configuration", "metadata", dynconfig.Metadata)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ConfigurationSyncedCondition,
 			Status:             metav1.ConditionUnknown,
 			ObservedGeneration: storage.Generation,
 			Reason:             ReasonInProgress,
-			Message:            fmt.Sprintf("Sync configuration to version %d in progress", dynConfig.Metadata.Version),
+			Message:            fmt.Sprintf("Sync configuration to version %d in progress", dynconfig.Metadata.Version),
 		})
 	}
 
