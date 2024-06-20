@@ -40,7 +40,7 @@ func GetConfig(
 		ydb.MergeOptions(opts...),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Error connecting to YDB: %w", err)
+		return nil, fmt.Errorf("error connecting to YDB: %w", err)
 	}
 	defer func() {
 		connection.Close(ctx, conn)
@@ -88,7 +88,7 @@ func ReplaceConfig(
 		ydb.MergeOptions(opts...),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Error connecting to YDB: %w", err)
+		return nil, fmt.Errorf("error connecting to YDB: %w", err)
 	}
 	defer func() {
 		connection.Close(ctx, conn)
@@ -107,6 +107,6 @@ func ReplaceConfig(
 		DryRun:             dryRun,
 		AllowUnknownFields: true,
 	}
-	logger.Info(fmt.Sprintf("Sending CMS ReplaceConfigRequest: %s", request))
+	logger.Info("CMS ReplaceConfig", "request", request)
 	return client.ReplaceConfig(cmsCtx, request)
 }
