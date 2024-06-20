@@ -69,8 +69,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.StatefulSet{}).
 		WithEventFilter(predicate.Or(
 			predicate.GenerationChangedPredicate{},
-			resources.IgnoreDeletetionPredicate(),
 			resources.LastAppliedAnnotationPredicate()),
 		).
+		WithEventFilter(resources.IgnoreDeletetionPredicate()).
 		Complete(r)
 }
