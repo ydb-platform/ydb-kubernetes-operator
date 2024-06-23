@@ -25,11 +25,12 @@ const (
 	StoragePausedCondition      = "StoragePaused"
 	StorageReadyCondition       = "StorageReady"
 
-	DatabasePreparedCondition    = "DatabasePrepared"
-	DatabaseInitializedCondition = "DatabaseInitialized"
-	DatabaseProvisionedCondition = "DatabaseProvisioned"
-	DatabasePausedCondition      = "DatabasePaused"
-	DatabaseReadyCondition       = "DatabaseReady"
+	DatabasePreparedCondition        = "DatabasePrepared"
+	DatabaseInitializedCondition     = "DatabaseInitialized"
+	DatabaseProvisionedCondition     = "DatabaseProvisioned"
+	DatabasePausedCondition          = "DatabasePaused"
+	DatabaseReadyCondition           = "DatabaseReady"
+	CreateDatabaseOperationCondition = "CreateDatabaseOperation"
 
 	NodeSetPreparedCondition    = "NodeSetPrepared"
 	NodeSetProvisionedCondition = "NodeSetProvisioned"

@@ -172,11 +172,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		WithEventFilter(predicate.Or(
 			predicate.GenerationChangedPredicate{},
-			resources.IgnoreDeletetionPredicate(),
 			resources.LastAppliedAnnotationPredicate(),
 			resources.IsServicePredicate(),
 			resources.IsSecretPredicate(),
 		)).
+		WithEventFilter(resources.IgnoreDeletetionPredicate()).
 		Complete(r)
 }
 
