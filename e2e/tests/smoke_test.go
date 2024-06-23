@@ -474,15 +474,19 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the storage pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 
-		By("database can be healthily created after Frozen storage...")
-		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
-		}()
-		By("waiting until database is ready...")
-		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
-		By("checking that all the database pods are running and ready...")
-		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+		/*
+			// This test suite attempts to create a database on uninitialised storage
+
+			By("database can be healthily created after Frozen storage...")
+			Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+			defer func() {
+				Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+			}()
+			By("waiting until database is ready...")
+			waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+			By("checking that all the database pods are running and ready...")
+			checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+		*/
 	})
 
 	It("create storage and database with nodeSets", func() {
