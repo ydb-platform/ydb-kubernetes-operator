@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
@@ -63,6 +64,7 @@ func generateHosts(cr *Storage) []schema.Host {
 
 func generateKeyConfig(cr *Storage, crDB *Database) *schema.KeyConfig {
 	var keyConfig *schema.KeyConfig
+
 	if crDB != nil && crDB.Spec.Encryption != nil && crDB.Spec.Encryption.Enabled {
 		keyConfig = &schema.KeyConfig{
 			Keys: []schema.Key{
@@ -79,6 +81,18 @@ func generateKeyConfig(cr *Storage, crDB *Database) *schema.KeyConfig {
 	return keyConfig
 }
 
+func tryFillMissingSections(
+	resultConfig map[string]interface{},
+	generatedConfig schema.Configuration,
+) {
+	if resultConfig["hosts"] == nil {
+		resultConfig["hosts"] = generatedConfig.Hosts
+	}
+	if generatedConfig.KeyConfig != nil {
+		resultConfig["key_config"] = generatedConfig.KeyConfig
+	}
+}
+
 func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	config := make(map[string]interface{})
 
@@ -93,36 +107,32 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 		rawYamlConfiguration = cr.Spec.Configuration
 	}
 
-	dynconfig, err := ParseDynconfig(rawYamlConfiguration)
-	if err == nil {
-		if dynconfig.Config["hosts"] == nil {
-			hosts := generateHosts(cr)
-			dynconfig.Config["hosts"] = hosts
-		}
+	hosts := generateHosts(cr)
+	keyConfig := generateKeyConfig(cr, crDB)
+	generatedConfig := schema.Configuration{
+		Hosts:     hosts,
+		KeyConfig: keyConfig,
+	}
 
+	success, dynconfig, err := TryParseDynconfig(rawYamlConfiguration)
+	if success {
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse dynconfig, error: %w", err)
+		}
+		tryFillMissingSections(dynconfig.Config, generatedConfig)
 		return yaml.Marshal(dynconfig)
 	}
 
 	err = yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize YAML config, error: %w", err)
 	}
 
-	if config["hosts"] == nil {
-		hosts := generateHosts(cr)
-		config["hosts"] = hosts
-	}
-
-	// Will be removed by YDBOPS-9692
-	keyConfig := generateKeyConfig(cr, crDB)
-	if keyConfig != nil {
-		config["key_config"] = keyConfig
-	}
-
+	tryFillMissingSections(config, generatedConfig)
 	return yaml.Marshal(config)
 }
 
-func ParseConfig(rawYamlConfiguration string) (schema.Configuration, error) {
+func ParseConfiguration(rawYamlConfiguration string) (schema.Configuration, error) {
 	config := schema.Configuration{}
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(false)
@@ -130,10 +140,51 @@ func ParseConfig(rawYamlConfiguration string) (schema.Configuration, error) {
 	return config, err
 }
 
-func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
+func TryParseDynconfig(rawYamlConfiguration string) (bool, schema.Dynconfig, error) {
 	dynconfig := schema.Dynconfig{}
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(true)
 	err := dec.Decode(&dynconfig)
-	return dynconfig, err
+	if err != nil {
+		return false, dynconfig, err
+	}
+
+	err = validateDynconfig(dynconfig)
+	if err != nil {
+		return true, dynconfig, err
+	}
+
+	return true, dynconfig, nil
+}
+
+func validateDynconfig(dynConfig schema.Dynconfig) error {
+	if _, exist := dynConfig.Config["yaml_config_enabled"]; !exist {
+		return errors.New("failed to find mandatory `yaml_config_enabled` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["static_erasure"]; !exist {
+		return errors.New("failed to find mandatory `static_erasure` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["host_configs"]; !exist {
+		return errors.New("failed to find mandatory `host_configs` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["blob_storage_config"]; !exist {
+		return errors.New("failed to find mandatory `blob_storage_config` field inside config")
+	}
+
+	return nil
+}
+
+func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
+	_, dynconfig, _ := TryParseDynconfig(rawYamlConfiguration)
+
+	delete(dynconfig.Config, "static_erasure")
+	delete(dynconfig.Config, "host_configs")
+	delete(dynconfig.Config, "nameservice_config")
+	delete(dynconfig.Config, "blob_storage_config")
+	delete(dynconfig.Config, "hosts")
+
+	return yaml.Marshal(dynconfig)
 }

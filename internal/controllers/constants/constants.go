@@ -37,7 +37,11 @@ const (
 	NodeSetReadyCondition       = "NodeSetReady"
 	NodeSetPausedCondition      = "NodeSetPaused"
 
+	ConfigurationSyncedCondition  = "ConfigurationSynced"
 	RemoteResourceSyncedCondition = "ResourceSynced"
+
+	ReplaceConfigDryRunOperationCondition = "ydb.tech/ReplaceConfigDryRunOperation"
+	ReplaceConfigOperationCondition       = "ydb.tech/ReplaceConfigOperation"
 
 	Stop     = true
 	Continue = false
@@ -45,9 +49,11 @@ const (
 	ReasonInProgress  = "InProgress"
 	ReasonNotRequired = "NotRequired"
 	ReasonCompleted   = "Completed"
+	ReasonFailed      = "Failed"
 
 	DefaultRequeueDelay                = 10 * time.Second
 	StatusUpdateRequeueDelay           = 1 * time.Second
+	ReplaceConfigOperationRequeueDelay = 15 * time.Second
 	SelfCheckRequeueDelay              = 30 * time.Second
 	StorageInitializationRequeueDelay  = 30 * time.Second
 	DatabaseInitializationRequeueDelay = 30 * time.Second
