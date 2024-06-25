@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"reflect"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
 	"github.com/golang-jwt/jwt/v4"
@@ -175,10 +174,10 @@ func CreateOrUpdateOrMaybeIgnore(
 	}
 
 	// Prevent updating selectorLabels for StatefulSet
-	if _, ok := obj.(*appsv1.StatefulSet); ok {
-		existingMatchLabels := existing.(*appsv1.StatefulSet).Spec.Selector.MatchLabels
-		updatedMatchLabels := obj.(*appsv1.StatefulSet).Spec.Selector.MatchLabels
-		if !reflect.DeepEqual(existingMatchLabels, updatedMatchLabels) {
+	if updated, ok := obj.(*appsv1.StatefulSet); ok {
+		existingMatchLabels := CopyDict(existing.(*appsv1.StatefulSet).Spec.Selector.MatchLabels)
+		updatedMatchLabels := CopyDict(updated.Spec.Selector.MatchLabels)
+		if !CompareMaps(updatedMatchLabels, existingMatchLabels) {
 			obj.(*appsv1.StatefulSet).Spec.Selector.MatchLabels = existingMatchLabels
 		}
 	}
@@ -626,6 +625,18 @@ func GetConfigurationChecksum(configuration string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(configuration))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func CompareMaps(map1, map2 map[string]string) bool {
+	if len(map1) != len(map2) {
+		return false
+	}
+	for key1, value1 := range map1 {
+		if value2, ok := map2[key1]; !ok || value2 != value1 {
+			return false
+		}
+	}
+	return true
 }
 
 func isSignAlgorithmSupported(alg string) bool {
