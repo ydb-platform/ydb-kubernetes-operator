@@ -104,6 +104,10 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 }
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
+	dnsConfigSearches := []string{
+		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+	}
+
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
@@ -121,9 +125,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 			Volumes: b.buildVolumes(),
 
 			DNSConfig: &corev1.PodDNSConfig{
-				Searches: []string{
-					fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
-				},
+				Searches: dnsConfigSearches,
 			},
 		},
 	}

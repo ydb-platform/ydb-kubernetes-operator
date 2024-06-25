@@ -55,8 +55,12 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	statefulSetLabels := CopyDict(b.Labels)
-	statefulSetLabels[labels.StatefulsetComponent] = b.Name
+	ydbCr := api.RecastDatabaseNodeSet(b.Unwrap())
+	databaseLabels := labels.DatabaseLabels(ydbCr)
+
+	statefulSetLabels := databaseLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: b.Labels[labels.DatabaseNodeSetComponent]})
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)

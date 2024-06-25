@@ -55,8 +55,12 @@ func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	statefulSetLabels := CopyDict(b.Labels)
-	statefulSetLabels[labels.StatefulsetComponent] = b.Name
+	ydbCr := api.RecastStorageNodeSet(b.Unwrap())
+	storageLabels := labels.StorageLabels(ydbCr)
+
+	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: b.Labels[labels.DatabaseNodeSetComponent]})
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
