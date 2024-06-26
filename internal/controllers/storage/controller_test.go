@@ -20,6 +20,7 @@ import (
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
@@ -140,6 +141,49 @@ var _ = Describe("Storage controller medium tests", func() {
 			}
 			Expect(labelArgKey).Should(BeEquivalentTo(v1alpha1.LabelDeploymentKey))
 			Expect(labelArgValue).Should(BeEquivalentTo(v1alpha1.LabelDeploymentValueKubernetes))
+		})
+
+		By("Check that statefulset podTemplate labels remain immutable...", func() {
+			By("set additional labels to Storage...")
+			Eventually(func() error {
+				foundStorage := v1alpha1.Storage{}
+				Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundStorage))
+				additionalLabels := resources.CopyDict(foundStorage.Spec.AdditionalLabels)
+				additionalLabels["ydb-label"] = "test"
+				foundStorage.Spec.AdditionalLabels = additionalLabels
+				return k8sClient.Update(ctx, &foundStorage)
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("check that additional labels was added...")
+			foundStatefulSets := appsv1.StatefulSetList{}
+			Eventually(func() error {
+				err := k8sClient.List(ctx, &foundStatefulSets,
+					client.InNamespace(testobjects.YdbNamespace),
+				)
+				if err != nil {
+					return err
+				}
+				value, exist := foundStatefulSets.Items[0].Labels["ydb-label"]
+				if !exist {
+					return fmt.Errorf("label key `ydb-label` does not exist in StatefulSet. Current labels: %s", foundStatefulSets.Items[0].Labels)
+				}
+				if value != "test" {
+					return fmt.Errorf("label value `ydb-label` in StatefulSet does not equal `test`. Current labels: %s", foundStatefulSets.Items[0].Labels)
+				}
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("check that StatefulSet selector was not updated...")
+			Expect(*foundStatefulSets.Items[0].Spec.Selector).Should(BeEquivalentTo(
+				metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						labels.StatefulsetComponent: storageSample.Name,
+					},
+				},
+			))
 		})
 	})
 })
