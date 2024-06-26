@@ -144,6 +144,8 @@ var _ = Describe("Storage controller medium tests", func() {
 		})
 
 		By("Check that statefulset podTemplate labels remain immutable...", func() {
+			testLabelKey := "ydb-label"
+			testLabelValue := "test"
 			By("set additional labels to Storage...")
 			Eventually(func() error {
 				foundStorage := v1alpha1.Storage{}
@@ -152,7 +154,7 @@ var _ = Describe("Storage controller medium tests", func() {
 					Namespace: testobjects.YdbNamespace,
 				}, &foundStorage))
 				additionalLabels := resources.CopyDict(foundStorage.Spec.AdditionalLabels)
-				additionalLabels["ydb-label"] = "test"
+				additionalLabels[testLabelKey] = testLabelValue
 				foundStorage.Spec.AdditionalLabels = additionalLabels
 				return k8sClient.Update(ctx, &foundStorage)
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
@@ -166,11 +168,11 @@ var _ = Describe("Storage controller medium tests", func() {
 				if err != nil {
 					return err
 				}
-				value, exist := foundStatefulSets.Items[0].Labels["ydb-label"]
+				value, exist := foundStatefulSets.Items[0].Labels[testLabelKey]
 				if !exist {
 					return fmt.Errorf("label key `ydb-label` does not exist in StatefulSet. Current labels: %s", foundStatefulSets.Items[0].Labels)
 				}
-				if value != "test" {
+				if value != testLabelValue {
 					return fmt.Errorf("label value `ydb-label` in StatefulSet does not equal `test`. Current labels: %s", foundStatefulSets.Items[0].Labels)
 				}
 				return nil
