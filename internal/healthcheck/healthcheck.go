@@ -6,7 +6,7 @@ import (
 
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Monitoring_V1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Monitoring"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
+	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	"google.golang.org/protobuf/proto"
 	"sigs.k8s.io/controller-runtime/pkg/log"

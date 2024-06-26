@@ -19,6 +19,7 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -213,49 +214,40 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			r.Recorder.Event(
 				storageNodeSet,
 				corev1.EventTypeWarning,
-				"Syncing",
-				fmt.Sprintf("Failed to found StatefulSet: %s", err),
+				"ProvisioningFailed",
+				fmt.Sprintf("StatefulSet with name %s was not found: %s", storageNodeSet.Name, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 		r.Recorder.Event(
 			storageNodeSet,
 			corev1.EventTypeWarning,
-			"Syncing",
-			fmt.Sprintf("Failed to get StatefulSets: %s", err),
+			"ControllerError",
+			fmt.Sprintf("Failed to get StatefulSet: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	matchingLabels := client.MatchingLabels{}
-	for k, v := range storageNodeSet.Labels {
-		matchingLabels[k] = v
 	}
 
 	podList := &corev1.PodList{}
 	opts := []client.ListOption{
 		client.InNamespace(storageNodeSet.Namespace),
-		matchingLabels,
+		client.MatchingLabels{labels.StatefulsetComponent: storageNodeSet.Name},
 	}
-	if err = r.List(ctx, podList, opts...); err != nil {
+
+	err = r.List(ctx, podList, opts...)
+	if err != nil {
 		r.Recorder.Event(
 			storageNodeSet,
 			corev1.EventTypeWarning,
-			"Syncing",
-			fmt.Sprintf("Failed to list storageNodeSet pods: %s", err),
+			"ControllerError",
+			fmt.Sprintf("Failed to list StatefulSet pods: %s", err),
 		)
-		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisionedCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonInProgress,
-			Message: "Failed to check Pods .status.phase",
-		})
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	runningPods := 0
 	for _, e := range podList.Items {
-		if e.Status.Phase == "Running" {
+		if resources.PodIsReady(e) {
 			runningPods++
 		}
 	}
@@ -265,7 +257,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			storageNodeSet,
 			corev1.EventTypeNormal,
 			string(StorageNodeSetProvisioning),
-			fmt.Sprintf("Waiting for number of running storageNodeSet pods to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    NodeSetProvisionedCondition,
@@ -281,7 +273,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Scaled StorageNodeSet to %d successfully", storageNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", storageNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
 	}

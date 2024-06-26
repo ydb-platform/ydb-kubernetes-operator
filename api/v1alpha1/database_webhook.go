@@ -58,6 +58,10 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 	database := obj.(*Database)
 	databaselog.Info("default", "name", database.Name)
 
+	if !database.Spec.OperatorSync {
+		return nil
+	}
+
 	if database.Spec.StorageClusterRef.Namespace == "" {
 		database.Spec.StorageClusterRef.Namespace = database.Namespace
 	}
@@ -106,6 +110,10 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		database.Spec.Service.Datastreams.TLSConfiguration = &TLSConfiguration{Enabled: false}
 	}
 
+	if database.Spec.Service.Status.TLSConfiguration == nil {
+		database.Spec.Service.Status.TLSConfiguration = &TLSConfiguration{Enabled: false}
+	}
+
 	if database.Spec.Domain == "" {
 		database.Spec.Domain = DefaultDatabaseDomain
 	}
@@ -146,7 +154,7 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 		if err != nil {
 			return err
 		}
-		database.Spec.Configuration = configuration
+		database.Spec.Configuration = string(configuration)
 	}
 
 	return nil

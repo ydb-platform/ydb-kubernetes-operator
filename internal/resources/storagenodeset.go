@@ -8,6 +8,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
 
 type StorageNodeSetBuilder struct {
@@ -53,6 +55,16 @@ func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	ydbCr := api.RecastStorageNodeSet(b.Unwrap())
+	storageLabels := labels.StorageLabels(ydbCr)
+
+	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: b.Labels[labels.DatabaseNodeSetComponent]})
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+
+	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(
 		resourceBuilders,
@@ -60,8 +72,9 @@ func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []
 			Storage:    api.RecastStorageNodeSet(b.StorageNodeSet),
 			RestConfig: restConfig,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        b.Name,
+			Labels:      statefulSetLabels,
+			Annotations: statefulSetAnnotations,
 		},
 	)
 

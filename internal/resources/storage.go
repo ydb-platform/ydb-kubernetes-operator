@@ -1,10 +1,12 @@
 package resources
 
 import (
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -16,6 +18,10 @@ type StorageClusterBuilder struct {
 func NewCluster(ydbCr *api.Storage) StorageClusterBuilder {
 	cr := ydbCr.DeepCopy()
 
+	if cr.Spec.Service.Status.TLSConfiguration == nil {
+		cr.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
+	}
+
 	return StorageClusterBuilder{cr}
 }
 
@@ -25,6 +31,12 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	storageLabels := labels.StorageLabels(b.Unwrap())
+
+	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+
+	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
 
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -40,20 +52,35 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	// YDBOPS-9722 backward compatibility
-	cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
-
-	optionalBuilders = append(
-		optionalBuilders,
-		&ConfigMapBuilder{
-			Object: b,
-			Name:   b.Storage.GetName(),
-			Data: map[string]string{
-				api.ConfigFileName: cfg,
+	dynconfig, err := api.ParseDynconfig(b.Spec.Configuration)
+	if err != nil {
+		// YDBOPS-9722 backward compatibility
+		cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
+		optionalBuilders = append(
+			optionalBuilders,
+			&ConfigMapBuilder{
+				Object: b,
+				Name:   b.Storage.GetName(),
+				Data: map[string]string{
+					api.ConfigFileName: string(cfg),
+				},
+				Labels: storageLabels,
 			},
-			Labels: storageLabels,
-		},
-	)
+		)
+	} else {
+		cfg, _ := yaml.Marshal(dynconfig.Config)
+		optionalBuilders = append(
+			optionalBuilders,
+			&ConfigMapBuilder{
+				Object: b,
+				Name:   b.Storage.GetName(),
+				Data: map[string]string{
+					api.ConfigFileName: string(cfg),
+				},
+				Labels: storageLabels,
+			},
+		)
+	}
 
 	if b.Spec.Monitoring.Enabled {
 		optionalBuilders = append(optionalBuilders,
@@ -77,8 +104,9 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 				Storage:    b.Unwrap(),
 				RestConfig: restConfig,
 
-				Name:   b.Name,
-				Labels: storageLabels,
+				Name:        b.Name,
+				Labels:      statefulSetLabels,
+				Annotations: statefulSetAnnotations,
 			},
 		)
 	} else {

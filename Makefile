@@ -79,7 +79,7 @@ kind-load:
 
 .PHONY: unit-test
 unit-test: manifests generate fmt vet envtest ## Run unit tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use --arch=amd64 $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/controllers/... -ginkgo.v -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use --arch=amd64 $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 1800s -p 1 ./internal/... -ginkgo.v -coverprofile cover.out
 
 .PHONY: e2e-test
 e2e-test: manifests generate fmt vet docker-build kind-init kind-load ## Run e2e tests
