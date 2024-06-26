@@ -157,26 +157,16 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
-			"ProvisioningFailed",
-			fmt.Sprintf("Failed to get StatefulSets: %s", err),
+			"ControllerError",
+			fmt.Sprintf("Failed to get StatefulSet: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	podLabels := labels.Common(storage.Name, make(map[string]string))
-	podLabels.Merge(map[string]string{
-		labels.ComponentKey: labels.StorageComponent,
-	})
-
-	matchingLabels := client.MatchingLabels{}
-	for k, v := range podLabels {
-		matchingLabels[k] = v
 	}
 
 	podList := &corev1.PodList{}
 	opts := []client.ListOption{
 		client.InNamespace(storage.Namespace),
-		matchingLabels,
+		client.MatchingLabels{labels.StatefulsetComponent: storage.Name},
 	}
 
 	err = r.List(ctx, podList, opts...)
@@ -184,15 +174,15 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeWarning,
-			"ProvisioningFailed",
-			fmt.Sprintf("Failed to list cluster pods: %s", err),
+			"ControllerError",
+			fmt.Sprintf("Failed to list StatefulSet pods: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
 	runningPods := 0
 	for _, e := range podList.Items {
-		if e.Status.Phase == "Running" {
+		if resources.PodIsReady(e) {
 			runningPods++
 		}
 	}
@@ -202,7 +192,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			storage,
 			corev1.EventTypeNormal,
 			string(StorageProvisioning),
-			fmt.Sprintf("Waiting for number of running storage pods to match expected: %d != %d", runningPods, storage.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", runningPods, storage.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageProvisionedCondition,
@@ -218,7 +208,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Type:    StorageProvisionedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
-			Message: "Successfully scaled to desired number of nodes",
+			Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", storage.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}

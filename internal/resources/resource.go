@@ -173,6 +173,15 @@ func CreateOrUpdateOrMaybeIgnore(
 		return ctrlutil.OperationResultNone, nil
 	}
 
+	// Prevent updating selectorLabels for StatefulSet
+	if updated, ok := obj.(*appsv1.StatefulSet); ok {
+		existingMatchLabels := CopyDict(existing.(*appsv1.StatefulSet).Spec.Selector.MatchLabels)
+		updatedMatchLabels := CopyDict(updated.Spec.Selector.MatchLabels)
+		if !CompareMaps(updatedMatchLabels, existingMatchLabels) {
+			obj.(*appsv1.StatefulSet).Spec.Selector.MatchLabels = existingMatchLabels
+		}
+	}
+
 	changed, err := CheckObjectUpdatedIgnoreStatus(existing, obj)
 	if err != nil || !changed {
 		return ctrlutil.OperationResultNone, err
@@ -616,6 +625,29 @@ func GetConfigurationChecksum(configuration string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(configuration))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func CompareMaps(map1, map2 map[string]string) bool {
+	if len(map1) != len(map2) {
+		return false
+	}
+	for key1, value1 := range map1 {
+		if value2, ok := map2[key1]; !ok || value2 != value1 {
+			return false
+		}
+	}
+	return true
+}
+
+func PodIsReady(e corev1.Pod) bool {
+	if e.Status.Phase == corev1.PodRunning {
+		for _, condition := range e.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isSignAlgorithmSupported(alg string) bool {

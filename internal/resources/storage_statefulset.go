@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
@@ -28,8 +27,9 @@ type StorageStatefulSetBuilder struct {
 	*api.Storage
 	RestConfig *rest.Config
 
-	Name   string
-	Labels map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 func StringRJust(str, pad string, length int) string {
@@ -59,7 +59,8 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		sts.ObjectMeta.Name = b.Name
 	}
 	sts.ObjectMeta.Namespace = b.GetNamespace()
-	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
+	sts.ObjectMeta.Labels = b.Labels
+	sts.ObjectMeta.Annotations = b.Annotations
 
 	replicas := ptr.Int32(b.Spec.Nodes)
 	if b.Spec.Pause {
@@ -69,7 +70,9 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 	sts.Spec = appsv1.StatefulSetSpec{
 		Replicas: replicas,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: b.Labels,
+			MatchLabels: map[string]string{
+				labels.StatefulsetComponent: b.Name,
+			},
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
@@ -105,16 +108,10 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
 	}
 
-	podTemplateLabels := CopyDict(b.Labels)
-	podTemplateLabels[labels.StorageGeneration] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
-
-	podTemplateAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	podTemplateAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
-
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      podTemplateLabels,
-			Annotations: podTemplateAnnotations,
+			Labels:      b.Labels,
+			Annotations: b.Annotations,
 		},
 		Spec: corev1.PodSpec{
 			Containers:                    []corev1.Container{b.buildContainer()},
