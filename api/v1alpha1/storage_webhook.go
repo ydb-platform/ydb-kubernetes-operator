@@ -62,15 +62,12 @@ func (r *Storage) GetGRPCServiceEndpoint() string {
 }
 
 func (r *Storage) GetHostFromConfigEndpoint() string {
-	configuration := make(map[string]interface{})
+	var configuration schema.Configuration
 
 	// skip handle error because we already checked in webhook
-	_ = yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
-	hostsConfig := configuration["hosts"].([]schema.Host)
-
-	randNum := rand.Int31n(r.Spec.Nodes) // #nosec G404
-	host := hostsConfig[randNum].Host
-	return fmt.Sprintf("%s:%d", host, GRPCPort)
+	configuration, _ = ParseConfiguration(r.Spec.Configuration)
+	randNum := rand.Intn(len(configuration.Hosts)) // #nosec G404
+	return fmt.Sprintf("%s:%d", configuration.Hosts[randNum].Host, GRPCPort)
 }
 
 func (r *Storage) IsStorageEndpointSecure() bool {
@@ -197,7 +194,7 @@ func (r *Storage) ValidateCreate() error {
 	var configuration schema.Configuration
 	configuration, err = ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
-		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
+		return fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
 
 	var nodesNumber int32
@@ -300,7 +297,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	var configuration schema.Configuration
 	configuration, err = ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
-		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
+		return fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
 
 	var nodesNumber int32
