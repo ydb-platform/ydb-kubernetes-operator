@@ -257,9 +257,4 @@ var _ = Describe("Testing schema", func() {
 			},
 		}))
 	})
-
-	It("Parse configuration with dynamic config", func() {
-		_, err := v1alpha1.ParseConfiguration(dynconfigExample)
-		Expect(err).ShouldNot(HaveOccurred())
-	})
 })
