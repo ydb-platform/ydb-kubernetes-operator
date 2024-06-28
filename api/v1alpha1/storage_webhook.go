@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
@@ -62,15 +61,12 @@ func (r *Storage) GetGRPCServiceEndpoint() string {
 }
 
 func (r *Storage) GetHostFromConfigEndpoint() string {
-	configuration := make(map[string]interface{})
+	var configuration schema.Configuration
 
 	// skip handle error because we already checked in webhook
-	_ = yaml.Unmarshal([]byte(r.Spec.Configuration), &configuration)
-	hostsConfig := configuration["hosts"].([]schema.Host)
-
-	randNum := rand.Int31n(r.Spec.Nodes) // #nosec G404
-	host := hostsConfig[randNum].Host
-	return fmt.Sprintf("%s:%d", host, GRPCPort)
+	configuration, _ = ParseConfiguration(r.Spec.Configuration)
+	randNum := rand.Intn(len(configuration.Hosts)) // #nosec G404
+	return fmt.Sprintf("%s:%d", configuration.Hosts[randNum].Host, GRPCPort)
 }
 
 func (r *Storage) IsStorageEndpointSecure() bool {
@@ -179,21 +175,9 @@ var _ webhook.Validator = &Storage{}
 func (r *Storage) ValidateCreate() error {
 	storagelog.Info("validate create", "name", r.Name)
 
-	var configuration schema.Configuration
-
-	rawYamlConfiguration := r.Spec.Configuration
-	dynconfig, err := ParseDynconfig(r.Spec.Configuration)
-	if err == nil {
-		config, err := yaml.Marshal(dynconfig.Config)
-		if err != nil {
-			return fmt.Errorf("failed to parse .config from dynconfig, error: %w", err)
-		}
-		rawYamlConfiguration = string(config)
-	}
-
-	configuration, err = ParseConfig(rawYamlConfiguration)
+	configuration, err := ParseConfiguration(r.Spec.Configuration)
 	if err != nil {
-		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
+		return fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
 
 	var nodesNumber int32
@@ -278,21 +262,9 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
 
-	var configuration schema.Configuration
-
-	rawYamlConfiguration := r.Spec.Configuration
-	dynconfig, err := ParseDynconfig(r.Spec.Configuration)
-	if err == nil {
-		config, err := yaml.Marshal(dynconfig.Config)
-		if err != nil {
-			return fmt.Errorf("failed to parse .config from dynconfig, error: %w", err)
-		}
-		rawYamlConfiguration = string(config)
-	}
-
-	configuration, err = ParseConfig(rawYamlConfiguration)
+	configuration, err := ParseConfiguration(r.Spec.Configuration)
 	if err != nil {
-		return fmt.Errorf("failed to parse .spec.configuration, error: %w", err)
+		return fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
 
 	var nodesNumber int32
