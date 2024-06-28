@@ -133,20 +133,26 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 }
 
 func ParseConfiguration(rawYamlConfiguration string) (schema.Configuration, error) {
-	config := schema.Configuration{}
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(false)
-	err := dec.Decode(&config)
-	return config, err
+
+	var configuration schema.Configuration
+	err := dec.Decode(&configuration)
+	if err != nil {
+		return schema.Configuration{}, nil
+	}
+
+	return configuration, nil
 }
 
 func TryParseDynconfig(rawYamlConfiguration string) (bool, schema.Dynconfig, error) {
-	dynconfig := schema.Dynconfig{}
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(true)
+
+	var dynconfig schema.Dynconfig
 	err := dec.Decode(&dynconfig)
 	if err != nil {
-		return false, dynconfig, err
+		return false, schema.Dynconfig{}, err
 	}
 
 	err = validateDynconfig(dynconfig)
