@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -69,12 +70,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Log.Error(err, "unexpected Get error")
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
-	result, err := r.Sync(ctx, resource)
-	if err != nil {
-		r.Log.Error(err, "unexpected Sync error")
-	}
 
-	return result, err
+	return r.Sync(ctx, resource)
 }
 
 // Create FieldIndexer to usage for List requests in Reconcile
@@ -152,23 +149,31 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.
-		For(&v1alpha1.Database{}).
-		Owns(&v1alpha1.RemoteDatabaseNodeSet{}).
-		Owns(&v1alpha1.DatabaseNodeSet{}).
-		Owns(&appsv1.StatefulSet{}).
-		Owns(&corev1.ConfigMap{}).
-		Owns(&corev1.Service{}).
+		For(&v1alpha1.Database{},
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		Owns(&v1alpha1.RemoteDatabaseNodeSet{},
+			builder.WithPredicates(resources.LastAppliedAnnotationPredicate()), // TODO: YDBOPS-9194
+		).
+		Owns(&v1alpha1.DatabaseNodeSet{},
+			builder.WithPredicates(resources.LastAppliedAnnotationPredicate()), // TODO: YDBOPS-9194
+		).
+		Owns(&appsv1.StatefulSet{},
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		Owns(&corev1.ConfigMap{},
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
+		Owns(&corev1.Service{},
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
 			handler.EnqueueRequestsFromMapFunc(r.findDatabasesForSecret),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
-		WithEventFilter(predicate.Or(
-			predicate.GenerationChangedPredicate{},
-			resources.LastAppliedAnnotationPredicate(),
-			resources.IsServicePredicate(),
-			resources.IsSecretPredicate(),
-		)).
-		WithEventFilter(resources.IgnoreDeletetionPredicate()).
+		WithEventFilter(resources.IsDatabaseCreatePredicate()).
+		WithEventFilter(resources.IgnoreDeleteStateUnknownPredicate()).
 		Complete(r)
 }
 

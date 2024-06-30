@@ -16,7 +16,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -24,8 +23,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
@@ -351,50 +348,6 @@ func EqualRemoteResourceWithObject(
 		return true
 	}
 	return false
-}
-
-func LastAppliedAnnotationPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return !ydbannotations.CompareYdbTechAnnotations(
-				e.ObjectOld.GetAnnotations(),
-				e.ObjectNew.GetAnnotations(),
-			)
-		},
-	}
-}
-
-func IgnoreDeletetionPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Evaluates to false if the object has been confirmed deleted.
-			return !e.DeleteStateUnknown
-		},
-	}
-}
-
-func IsServicePredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			_, isService := e.ObjectOld.(*corev1.Service)
-			return isService
-		},
-	}
-}
-
-func IsSecretPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			_, isSecret := e.ObjectOld.(*corev1.Secret)
-			return isSecret
-		},
-	}
-}
-
-func LabelExistsPredicate(selector labels.Selector) predicate.Predicate {
-	return predicate.NewPredicateFuncs(func(o client.Object) bool {
-		return selector.Matches(labels.Set(o.GetLabels()))
-	})
 }
 
 func getYDBStaticCredentials(

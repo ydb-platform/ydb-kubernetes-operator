@@ -165,31 +165,30 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 		Watches(
 			source.NewKindWithCache(&v1alpha1.RemoteStorageNodeSet{}, cluster.GetCache()),
 			&handler.EnqueueRequestForObject{},
-			builder.WithPredicates(predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				resources.LastAppliedAnnotationPredicate(),
-			)),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		Watches(
 			&source.Kind{Type: &v1alpha1.StorageNodeSet{}},
 			&handler.EnqueueRequestForObject{},
-			builder.WithPredicates(
-				resources.LabelExistsPredicate(isNodeSetFromMgmt),
-			),
+			builder.WithPredicates(resources.LabelExistsPredicate(isNodeSetFromMgmt)),
 		).
 		Watches(
 			&source.Kind{Type: &corev1.Service{}},
 			handler.EnqueueRequestsFromMapFunc(annotationFilter),
-		).
-		Watches(
-			&source.Kind{Type: &corev1.Secret{}},
-			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Watches(
 			&source.Kind{Type: &corev1.ConfigMap{}},
 			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
-		WithEventFilter(resources.IgnoreDeletetionPredicate()).
+		Watches(
+			&source.Kind{Type: &corev1.Secret{}},
+			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
+		WithEventFilter(resources.IsRemoteStorageNodeSetCreatePredicate()).
+		WithEventFilter(resources.IgnoreDeleteStateUnknownPredicate()).
 		Complete(r)
 }
 
