@@ -29,7 +29,7 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
-	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/databasenodeset"
@@ -530,25 +530,25 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 					return err
 				}
 
-				primaryResourceStorage, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceStorageAnnotation]
+				primaryResourceStorage, exist := remoteSecret.Annotations[annotations.PrimaryResourceStorage]
 				if !exist {
-					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceStorageAnnotation, remoteSecret.Name)
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", annotations.PrimaryResourceStorage, remoteSecret.Name)
 				}
 				if primaryResourceStorage != foundRemoteStorageNodeSet.Spec.StorageRef.Name {
 					return fmt.Errorf("primaryResourceName %s does not equal storageRef name %s", primaryResourceStorage, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
 				}
 
-				primaryResourceDatabase, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+				primaryResourceDatabase, exist := remoteSecret.Annotations[annotations.PrimaryResourceDatabase]
 				if !exist {
-					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceDatabaseAnnotation, remoteSecret.Name)
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", annotations.PrimaryResourceDatabase, remoteSecret.Name)
 				}
 				if primaryResourceDatabase != foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name {
 					return fmt.Errorf("primaryResourceName %s does not equal databaseRef name %s", primaryResourceDatabase, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
 				}
 
-				remoteRV, exist := remoteSecret.Annotations[ydbannotations.RemoteResourceVersionAnnotation]
+				remoteRV, exist := remoteSecret.Annotations[annotations.RemoteResourceVersion]
 				if !exist {
-					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.RemoteResourceVersionAnnotation, remoteSecret.Name)
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", annotations.RemoteResourceVersion, remoteSecret.Name)
 				}
 				if localSecret.GetResourceVersion() != remoteRV {
 					return fmt.Errorf("localRV %s does not equal remoteRV %s", localSecret.GetResourceVersion(), remoteRV)
@@ -621,22 +621,22 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 					return err
 				}
 
-				_, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceStorageAnnotation]
+				_, exist := remoteSecret.Annotations[annotations.PrimaryResourceStorage]
 				if exist {
-					return fmt.Errorf("annotation %s still exist on remoteSecret %s", ydbannotations.PrimaryResourceStorageAnnotation, remoteSecret.Name)
+					return fmt.Errorf("annotation %s still exist on remoteSecret %s", annotations.PrimaryResourceStorage, remoteSecret.Name)
 				}
 
-				primaryResourceDatabase, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+				primaryResourceDatabase, exist := remoteSecret.Annotations[annotations.PrimaryResourceDatabase]
 				if !exist {
-					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceDatabaseAnnotation, remoteSecret.Name)
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", annotations.PrimaryResourceDatabase, remoteSecret.Name)
 				}
 				if primaryResourceDatabase != foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name {
 					return fmt.Errorf("primaryResourceName %s does not equal databaseRef name %s", primaryResourceDatabase, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
 				}
 
-				remoteRV, exist := remoteSecret.Annotations[ydbannotations.RemoteResourceVersionAnnotation]
+				remoteRV, exist := remoteSecret.Annotations[annotations.RemoteResourceVersion]
 				if !exist {
-					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.RemoteResourceVersionAnnotation, remoteSecret.Name)
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", annotations.RemoteResourceVersion, remoteSecret.Name)
 				}
 				if localSecret.GetResourceVersion() != remoteRV {
 					return fmt.Errorf("localRV %s does not equal remoteRV %s", localSecret.GetResourceVersion(), remoteRV)
@@ -687,17 +687,17 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 					return err
 				}
 
-				primaryResourceDatabase, exist := remoteSecret.Annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+				primaryResourceDatabase, exist := remoteSecret.Annotations[annotations.PrimaryResourceDatabase]
 				if !exist {
-					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.PrimaryResourceDatabaseAnnotation, remoteSecret.Name)
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", annotations.PrimaryResourceDatabase, remoteSecret.Name)
 				}
 				if primaryResourceDatabase != foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name {
 					return fmt.Errorf("primaryResourceName %s does not equal databaseRef name %s", primaryResourceDatabase, foundRemoteDatabaseNodeSet.Spec.DatabaseRef.Name)
 				}
 
-				remoteRV, exist := remoteSecret.Annotations[ydbannotations.RemoteResourceVersionAnnotation]
+				remoteRV, exist := remoteSecret.Annotations[annotations.RemoteResourceVersion]
 				if !exist {
-					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", ydbannotations.RemoteResourceVersionAnnotation, remoteSecret.Name)
+					return fmt.Errorf("annotation %s does not exist on remoteSecret %s", annotations.RemoteResourceVersion, remoteSecret.Name)
 				}
 				if localSecret.GetResourceVersion() != remoteRV {
 					return fmt.Errorf("localRV %s does not equal remoteRV %s", localSecret.GetResourceVersion(), remoteRV)
