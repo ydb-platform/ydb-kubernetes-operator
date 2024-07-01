@@ -123,7 +123,7 @@ func (r *Reconciler) initializeBlobstorage(
 			storage,
 			corev1.EventTypeNormal,
 			"InitializingStorage",
-			fmt.Sprintf("Successfuly created Job %s", fmt.Sprintf(resources.InitJobNameFormat, storage.Name)),
+			fmt.Sprintf("Successfully created Job %s", fmt.Sprintf(resources.InitJobNameFormat, storage.Name)),
 		)
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
