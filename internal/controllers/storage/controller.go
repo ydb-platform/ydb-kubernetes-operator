@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -160,23 +161,31 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.
-		For(&v1alpha1.Storage{}).
-		Owns(&v1alpha1.RemoteStorageNodeSet{}).
-		Owns(&v1alpha1.StorageNodeSet{}).
-		Owns(&appsv1.StatefulSet{}).
-		Owns(&corev1.ConfigMap{}).
-		Owns(&corev1.Service{}).
+		For(&v1alpha1.Storage{},
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		Owns(&v1alpha1.RemoteStorageNodeSet{},
+			builder.WithPredicates(resources.LastAppliedAnnotationPredicate()), // TODO: YDBOPS-9194
+		).
+		Owns(&v1alpha1.StorageNodeSet{},
+			builder.WithPredicates(resources.LastAppliedAnnotationPredicate()), // TODO: YDBOPS-9194
+		).
+		Owns(&appsv1.StatefulSet{},
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		Owns(&corev1.ConfigMap{},
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
+		Owns(&corev1.Service{},
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
 			handler.EnqueueRequestsFromMapFunc(r.findStoragesForSecret),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
-		WithEventFilter(predicate.Or(
-			predicate.GenerationChangedPredicate{},
-			resources.LastAppliedAnnotationPredicate(),
-			resources.IsServicePredicate(),
-			resources.IsSecretPredicate(),
-		)).
-		WithEventFilter(resources.IgnoreDeletetionPredicate()).
+		WithEventFilter(resources.IsStorageCreatePredicate()).
+		WithEventFilter(resources.IgnoreDeleteStateUnknownPredicate()).
 		Complete(r)
 }
 
