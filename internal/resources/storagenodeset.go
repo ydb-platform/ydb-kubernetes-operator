@@ -90,9 +90,11 @@ func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []
 func NewStorageNodeSet(storageNodeSet *api.StorageNodeSet) StorageNodeSetResource {
 	crStorageNodeSet := storageNodeSet.DeepCopy()
 
-	return StorageNodeSetResource{
-		StorageNodeSet: crStorageNodeSet,
+	if crStorageNodeSet.Spec.Service.Status.TLSConfiguration == nil {
+		crStorageNodeSet.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
 	}
+
+	return StorageNodeSetResource{StorageNodeSet: crStorageNodeSet}
 }
 
 func (b *StorageNodeSetResource) Unwrap() *api.StorageNodeSet {

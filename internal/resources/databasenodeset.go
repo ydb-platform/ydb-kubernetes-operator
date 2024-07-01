@@ -88,6 +88,10 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 func NewDatabaseNodeSet(databaseNodeSet *api.DatabaseNodeSet) DatabaseNodeSetResource {
 	crDatabaseNodeSet := databaseNodeSet.DeepCopy()
 
+	if crDatabaseNodeSet.Spec.Service.Status.TLSConfiguration == nil {
+		crDatabaseNodeSet.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
+	}
+
 	return DatabaseNodeSetResource{DatabaseNodeSet: crDatabaseNodeSet}
 }
 
