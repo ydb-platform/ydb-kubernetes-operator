@@ -1,8 +1,9 @@
 package annotations
 
 import (
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
 
 const (
@@ -21,14 +22,14 @@ var (
 		string(corev1.DNSNone),
 	}
 	UserAnnotations = map[string]struct{}{
-		v1alpha1.AnnotationSkipInitialization:     struct{}{},
-		v1alpha1.AnnotationUpdateStrategyOnDelete: struct{}{},
-		v1alpha1.AnnotationUpdateDNSPolicy:        struct{}{},
-		v1alpha1.AnnotationDisableLivenessProbe:   struct{}{},
-		v1alpha1.AnnotationDataCenter:             struct{}{},
-		v1alpha1.AnnotationGRPCPublicHost:         struct{}{},
-		v1alpha1.AnnotationNodeHost:               struct{}{},
-		v1alpha1.AnnotationNodeDomain:             struct{}{},
+		v1alpha1.AnnotationSkipInitialization:     {},
+		v1alpha1.AnnotationUpdateStrategyOnDelete: {},
+		v1alpha1.AnnotationUpdateDNSPolicy:        {},
+		v1alpha1.AnnotationDisableLivenessProbe:   {},
+		v1alpha1.AnnotationDataCenter:             {},
+		v1alpha1.AnnotationGRPCPublicHost:         {},
+		v1alpha1.AnnotationNodeHost:               {},
+		v1alpha1.AnnotationNodeDomain:             {},
 	}
 )
 
