@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -277,7 +277,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 
 		// Remove annotation if no one another StorageNodeSet
 		if !existInStorage {
-			patch := []byte(fmt.Sprintf(`{"metadata": {"annotations": {"%s": null}}}`, ydbannotations.PrimaryResourceStorageAnnotation))
+			patch := []byte(fmt.Sprintf(`{"metadata": {"annotations": {"%s": null}}}`, annotations.PrimaryResourceStorage))
 			updateErr := r.Client.Patch(ctx, localObj, client.RawPatch(types.StrategicMergePatchType, patch))
 			if updateErr != nil {
 				r.Recorder.Event(
@@ -297,7 +297,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 		}
 
 		// Delete resource if annotation `ydb.tech/primary-resource-database` does not exist
-		_, existInDatabase := localObj.GetAnnotations()[ydbannotations.PrimaryResourceDatabaseAnnotation]
+		_, existInDatabase := localObj.GetAnnotations()[annotations.PrimaryResourceDatabase]
 		if !existInDatabase {
 			// Try to delete unused resource from local cluster
 			deleteErr := r.Client.Delete(ctx, localObj)

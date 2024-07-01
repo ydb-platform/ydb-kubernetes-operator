@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -72,15 +72,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then lets add the finalizer and update the object. This is equivalent
 		// to registering our finalizer.
-		if !controllerutil.ContainsFinalizer(remoteStorageNodeSet, ydbannotations.RemoteFinalizerKey) {
-			controllerutil.AddFinalizer(remoteStorageNodeSet, ydbannotations.RemoteFinalizerKey)
+		if !controllerutil.ContainsFinalizer(remoteStorageNodeSet, v1alpha1.FinalizerRemote) {
+			controllerutil.AddFinalizer(remoteStorageNodeSet, v1alpha1.FinalizerRemote)
 			if err := r.RemoteClient.Update(ctx, remoteStorageNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 		}
 	} else {
 		// The object is being deleted
-		if controllerutil.ContainsFinalizer(remoteStorageNodeSet, ydbannotations.RemoteFinalizerKey) {
+		if controllerutil.ContainsFinalizer(remoteStorageNodeSet, v1alpha1.FinalizerRemote) {
 			// our finalizer is present, so lets handle any external dependency
 			if err := r.deleteExternalResources(ctx, remoteStorageNodeSet); err != nil {
 				// if fail to delete the external dependency here, return with error
@@ -89,7 +89,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(remoteStorageNodeSet, ydbannotations.RemoteFinalizerKey)
+			controllerutil.RemoveFinalizer(remoteStorageNodeSet, v1alpha1.FinalizerRemote)
 			if err := r.RemoteClient.Update(ctx, remoteStorageNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
@@ -118,8 +118,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 	annotationFilter := func(mapObj client.Object) []reconcile.Request {
 		requests := make([]reconcile.Request, 0)
 
-		annotations := mapObj.GetAnnotations()
-		primaryResourceName, exist := annotations[ydbannotations.PrimaryResourceStorageAnnotation]
+		an := mapObj.GetAnnotations()
+		primaryResourceName, exist := an[annotations.PrimaryResourceStorage]
 		if exist {
 			storageNodeSets := &v1alpha1.StorageNodeSetList{}
 			if err := r.Client.List(
