@@ -31,8 +31,9 @@ const (
 	StorageGeneration  = "ydb.tech/storage-generation"
 	DatabaseGeneration = "ydb.tech/database-generation"
 
-	StorageComponent = "storage-node"
-	DynamicComponent = "dynamic-node"
+	StorageComponent         = "storage-node"
+	DynamicComponent         = "dynamic-node"
+	BlobstorageInitComponent = "blobstorage-init"
 
 	GRPCComponent         = "grpc"
 	InterconnectComponent = "interconnect"

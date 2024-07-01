@@ -123,7 +123,7 @@ var _ = Describe("Storage controller medium tests", func() {
 			}, &foundStorage)).Should(Succeed())
 
 			foundConfigurationChecksumAnnotation := false
-			if podAnnotations[annotations.ConfigurationChecksum] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {
+			if podAnnotations[annotations.ConfigurationChecksum] == resources.GetSHA256Checksum(foundStorage.Spec.Configuration) {
 				foundConfigurationChecksumAnnotation = true
 			}
 			Expect(foundConfigurationChecksumAnnotation).To(BeTrue())
@@ -186,6 +186,15 @@ var _ = Describe("Storage controller medium tests", func() {
 					},
 				},
 			))
+
+			By("check that delete StatefulSet event was detected...")
+			Expect(k8sClient.List(ctx, &foundStatefulSets, client.InNamespace(testobjects.YdbNamespace))).ShouldNot(HaveOccurred())
+			Expect(len(foundStatefulSets.Items)).Should(Equal(1))
+			Expect(k8sClient.Delete(ctx, &foundStatefulSets.Items[0])).ShouldNot(HaveOccurred())
+			Eventually(func() int {
+				Expect(k8sClient.List(ctx, &foundStatefulSets, client.InNamespace(testobjects.YdbNamespace))).ShouldNot(HaveOccurred())
+				return len(foundStatefulSets.Items)
+			}, test.Timeout, test.Interval).Should(Equal(1))
 		})
 	})
 })

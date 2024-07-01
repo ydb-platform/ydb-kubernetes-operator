@@ -51,7 +51,7 @@ const (
 	AnnotationNodeHost               = "ydb.tech/node-host"
 	AnnotationNodeDomain             = "ydb.tech/node-domain"
 
-	AnnotationValueTrue = "true"
+	FinalizerRemote = "ydb.tech/remote-finalizer"
 
 	legacyTenantNameFormat = "/%s/%s"
 )

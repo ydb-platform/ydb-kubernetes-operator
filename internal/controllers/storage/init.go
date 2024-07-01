@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,15 +45,17 @@ func (r *Reconciler) setInitPipelineStatus(
 	}
 
 	// This block is special internal logic that skips all Storage initialization.
-	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		r.Log.Info("Storage initialization disabled (with annotation), proceed with caution")
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			"SkippingInit",
-			"Skipping initialization due to skip annotation present, be careful!",
-		)
-		return r.setInitStorageCompleted(ctx, storage, "Storage initialization not performed because initialization is skipped")
+	if value, ok := storage.Annotations[v1alpha1.AnnotationSkipInitialization]; ok {
+		if isTrue, _ := strconv.ParseBool(value); isTrue {
+			r.Log.Info("Storage initialization disabled (with annotation), proceed with caution")
+			r.Recorder.Event(
+				storage,
+				corev1.EventTypeWarning,
+				"SkippingInit",
+				"Skipping initialization due to skip annotation present, be careful!",
+			)
+			return r.setInitStorageCompleted(ctx, storage, "Storage initialization not performed because initialization is skipped")
+		}
 	}
 
 	if meta.IsStatusConditionTrue(storage.Status.Conditions, OldStorageInitializedCondition) {
@@ -119,6 +122,12 @@ func (r *Reconciler) initializeBlobstorage(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			"InitializingStorage",
+			fmt.Sprintf("Successfully created Job %s", fmt.Sprintf(resources.InitJobNameFormat, storage.Name)),
+		)
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
@@ -207,6 +216,12 @@ func (r *Reconciler) initializeBlobstorage(
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
+	r.Recorder.Event(
+		storage,
+		corev1.EventTypeNormal,
+		"InitializingStorage",
+		fmt.Sprintf("Waiting for Job %s status update", initJob.Name),
+	)
 	return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 }
 
@@ -291,7 +306,7 @@ func (r *Reconciler) createInitBlobstorageJob(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) error {
-	builder := resources.GetInitJobBuilder(storage.DeepCopy())
+	builder := storage.GetInitJobBuilder()
 	newResource := builder.Placeholder(storage)
 	_, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 		var err error

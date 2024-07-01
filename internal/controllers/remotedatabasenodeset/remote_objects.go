@@ -278,7 +278,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 		// Remove annotation if no one another DatabaseNodeSet
 		if !existInDatabase {
 			// Try to update existing object in local cluster by rawPatch
-			patch := []byte(fmt.Sprintf(`{"metadata": {"annotations": {"%s": null}}}`, ydbannotations.PrimaryResourceStorageAnnotation))
+			patch := []byte(fmt.Sprintf(`{"metadata": {"annotations": {"%s": null}}}`, ydbannotations.PrimaryResourceStorage))
 			updateErr := r.Client.Patch(ctx, localObj, client.RawPatch(types.StrategicMergePatchType, patch))
 			if updateErr != nil {
 				r.Recorder.Event(
@@ -298,7 +298,7 @@ func (r *Reconciler) removeUnusedRemoteObjects(
 		}
 
 		// Delete resource if annotation `ydb.tech/primary-resource-storage` does not exist
-		_, existInStorage := localObj.GetAnnotations()[ydbannotations.PrimaryResourceStorageAnnotation]
+		_, existInStorage := localObj.GetAnnotations()[ydbannotations.PrimaryResourceStorage]
 		if !existInStorage {
 			// Try to delete unused resource from local cluster
 			deleteErr := r.Client.Delete(ctx, localObj)

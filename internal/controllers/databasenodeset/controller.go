@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -66,12 +67,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	controller := ctrl.NewControllerManagedBy(mgr)
 
 	return controller.
-		For(&v1alpha1.DatabaseNodeSet{}).
-		Owns(&appsv1.StatefulSet{}).
-		WithEventFilter(predicate.Or(
-			predicate.GenerationChangedPredicate{},
-			resources.LastAppliedAnnotationPredicate()),
+		For(&v1alpha1.DatabaseNodeSet{},
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
-		WithEventFilter(resources.IgnoreDeletetionPredicate()).
+		Owns(&appsv1.StatefulSet{},
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
+		WithEventFilter(resources.IsDatabaseNodeSetCreatePredicate()).
+		WithEventFilter(resources.IgnoreDeleteStateUnknownPredicate()).
 		Complete(r)
 }

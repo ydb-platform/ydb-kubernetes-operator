@@ -1,6 +1,8 @@
 package resources
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
@@ -25,6 +27,28 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	return DatabaseBuilder{Database: cr, Storage: nil}
 }
 
+func (b *DatabaseBuilder) NewLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+
+	l.Merge(b.Spec.AdditionalLabels)
+	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
+
+	return l
+}
+
+func (b *DatabaseBuilder) NewAnnotations() map[string]string {
+	an := annotations.Common(b.Annotations)
+
+	an.Merge(b.Spec.AdditionalAnnotations)
+	if b.Spec.Configuration != "" {
+		an.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+	} else {
+		an.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
+	}
+
+	return an
+}
+
 func (b *DatabaseBuilder) Unwrap() *api.Database {
 	return b.DeepCopy()
 }
@@ -34,13 +58,11 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		return []ResourceBuilder{}
 	}
 
-	databaseLabels := labels.DatabaseLabels(b.Unwrap())
+	databaseLabels := b.NewLabels()
+	databaseAnnotations := b.NewAnnotations()
 
 	statefulSetLabels := databaseLabels.Copy()
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
-
-	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
 
 	grpcServiceLabels := databaseLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -183,20 +205,27 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 				Name:        b.Name,
 				Labels:      statefulSetLabels,
-				Annotations: statefulSetAnnotations,
+				Annotations: databaseAnnotations,
 			},
 		)
 	} else {
-		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(databaseLabels)...)
+		optionalBuilders = append(
+			optionalBuilders,
+			b.getNodeSetBuilders(databaseLabels, databaseAnnotations)...)
 	}
 
 	return optionalBuilders
 }
 
-func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []ResourceBuilder {
+func (b *DatabaseBuilder) getNodeSetBuilders(
+	databaseLabels labels.Labels,
+	databaseAnnotations annotations.Annotations,
+) []ResourceBuilder {
 	var nodeSetBuilders []ResourceBuilder
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
+		nodeSetName := fmt.Sprintf("%s-%s", b.Name, nodeSetSpecInline.Name)
+
 		nodeSetLabels := databaseLabels.Copy()
 		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
 		nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
@@ -204,12 +233,8 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 			nodeSetLabels.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
 		}
 
-		nodeSetAnnotations := CopyDict(b.Annotations)
-		if nodeSetSpecInline.Annotations != nil {
-			for k, v := range nodeSetSpecInline.Annotations {
-				nodeSetAnnotations[k] = v
-			}
-		}
+		nodeSetAnnotations := databaseAnnotations.Copy()
+		nodeSetAnnotations.Merge(nodeSetSpecInline.Annotations)
 
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {
@@ -218,7 +243,7 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 				&RemoteDatabaseNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 
@@ -231,7 +256,7 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 				&DatabaseNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 

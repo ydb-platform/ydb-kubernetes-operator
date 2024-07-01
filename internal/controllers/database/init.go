@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	corev1 "k8s.io/api/core/v1"
@@ -34,15 +35,17 @@ func (r *Reconciler) setInitPipelineStatus(
 	}
 
 	// This block is special internal logic that skips all Database initialization.
-	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok && value == v1alpha1.AnnotationValueTrue {
-		r.Log.Info("Database initialization disabled (with annotation), proceed with caution")
-		r.Recorder.Event(
-			database,
-			corev1.EventTypeWarning,
-			"SkippingInit",
-			"Skipping initialization due to skip annotation present, be careful!",
-		)
-		return r.setInitDatabaseCompleted(ctx, database, "Database initialization not performed because initialization is skipped")
+	if value, ok := database.Annotations[v1alpha1.AnnotationSkipInitialization]; ok {
+		if isTrue, _ := strconv.ParseBool(value); isTrue {
+			r.Log.Info("Database initialization disabled (with annotation), proceed with caution")
+			r.Recorder.Event(
+				database,
+				corev1.EventTypeWarning,
+				"SkippingInit",
+				"Skipping initialization due to skip annotation present, be careful!",
+			)
+			return r.setInitDatabaseCompleted(ctx, database, "Database initialization not performed because initialization is skipped")
+		}
 	}
 
 	if meta.IsStatusConditionTrue(database.Status.Conditions, OldDatabaseInitializedCondition) {
