@@ -58,9 +58,15 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 	ydbCr := api.RecastDatabaseNodeSet(b.Unwrap())
 	databaseLabels := labels.DatabaseLabels(ydbCr)
 
+	statefulSetName := b.Name
 	statefulSetLabels := databaseLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: b.Labels[labels.DatabaseNodeSetComponent]})
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
+
+	databaseNodeSetName := b.Labels[labels.DatabaseNodeSetComponent]
+	statefulSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: databaseNodeSetName})
+	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
+		statefulSetLabels.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
+	}
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
@@ -68,10 +74,10 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseStatefulSetBuilder{
-			Database:   api.RecastDatabaseNodeSet(b.DatabaseNodeSet),
+			Database:   ydbCr,
 			RestConfig: restConfig,
 
-			Name:        b.Name,
+			Name:        statefulSetName,
 			Labels:      statefulSetLabels,
 			Annotations: statefulSetAnnotations,
 		},
