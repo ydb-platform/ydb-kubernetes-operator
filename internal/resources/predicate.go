@@ -13,7 +13,7 @@ import (
 func LastAppliedAnnotationPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return !annotations.CompareYdbTechAnnotations(
+			return !annotations.CompareLastAppliedAnnotation(
 				e.ObjectOld.GetAnnotations(),
 				e.ObjectNew.GetAnnotations(),
 			)

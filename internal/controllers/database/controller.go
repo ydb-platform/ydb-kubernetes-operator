@@ -71,7 +71,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	return r.Sync(ctx, resource)
+	result, err := r.Sync(ctx, resource)
+	if err != nil {
+		r.Log.Error(err, "unexpected Sync error")
+	}
+
+	return result, err
 }
 
 // Create FieldIndexer to usage for List requests in Reconcile
