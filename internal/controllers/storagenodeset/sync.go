@@ -14,12 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -228,42 +226,18 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	podList := &corev1.PodList{}
-	opts := []client.ListOption{
-		client.InNamespace(storageNodeSet.Namespace),
-		client.MatchingLabels{labels.StatefulsetComponent: storageNodeSet.Name},
-	}
-
-	err = r.List(ctx, podList, opts...)
-	if err != nil {
-		r.Recorder.Event(
-			storageNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to list StatefulSet pods: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	runningPods := 0
-	for _, e := range podList.Items {
-		if resources.PodIsReady(e) {
-			runningPods++
-		}
-	}
-
-	if runningPods != int(storageNodeSet.Spec.Nodes) {
+	if foundStatefulSet.Status.ReadyReplicas != storageNodeSet.Spec.Nodes {
 		r.Recorder.Event(
 			storageNodeSet,
 			corev1.EventTypeNormal,
 			string(StorageNodeSetProvisioning),
-			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, storageNodeSet.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
 			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", runningPods, storageNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, storageNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
 	}

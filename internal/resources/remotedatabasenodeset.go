@@ -82,6 +82,10 @@ func (b *RemoteDatabaseNodeSetResource) GetResourceBuilders() []ResourceBuilder 
 func NewRemoteDatabaseNodeSet(remoteDatabaseNodeSet *api.RemoteDatabaseNodeSet) RemoteDatabaseNodeSetResource {
 	crRemoteDatabaseNodeSet := remoteDatabaseNodeSet.DeepCopy()
 
+	if crRemoteDatabaseNodeSet.Spec.Service.Status.TLSConfiguration == nil {
+		crRemoteDatabaseNodeSet.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
+	}
+
 	return RemoteDatabaseNodeSetResource{RemoteDatabaseNodeSet: crRemoteDatabaseNodeSet}
 }
 

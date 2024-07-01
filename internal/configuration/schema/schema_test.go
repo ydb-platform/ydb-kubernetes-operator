@@ -122,8 +122,8 @@ var _ = Describe("Testing schema", func() {
 		Expect(err).Should(HaveOccurred())
 	})
 
-	It("Parse static config", func() {
-		yamlConfig, err := v1alpha1.ParseConfig(configurationExample)
+	It("Parse configuration with static config", func() {
+		yamlConfig, err := v1alpha1.ParseConfiguration(configurationExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		hosts := []schema.Host{}
 		for i := 0; i < 8; i++ {
@@ -148,5 +148,10 @@ var _ = Describe("Testing schema", func() {
 				},
 			},
 		}))
+	})
+
+	It("Parse configuration with dynamic config", func() {
+		_, err := v1alpha1.ParseConfiguration(dynconfigExample)
+		Expect(err).ShouldNot(HaveOccurred())
 	})
 })

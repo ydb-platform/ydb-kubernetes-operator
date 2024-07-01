@@ -119,6 +119,12 @@ func (r *Reconciler) initializeBlobstorage(
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 		}
 
+		r.Recorder.Event(
+			storage,
+			corev1.EventTypeNormal,
+			"InitializingStorage",
+			fmt.Sprintf("Successfully created Job %s", fmt.Sprintf(resources.InitJobNameFormat, storage.Name)),
+		)
 		return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 	}
 
@@ -207,6 +213,12 @@ func (r *Reconciler) initializeBlobstorage(
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
+	r.Recorder.Event(
+		storage,
+		corev1.EventTypeNormal,
+		"InitializingStorage",
+		fmt.Sprintf("Waiting for Job %s status update", initJob.Name),
+	)
 	return Stop, ctrl.Result{RequeueAfter: StorageInitializationRequeueDelay}, nil
 }
 
