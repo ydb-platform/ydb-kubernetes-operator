@@ -21,7 +21,6 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/healthcheck"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -139,11 +138,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
 
-	found := &appsv1.StatefulSet{}
+	foundStatefulSet := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      storage.Name,
 		Namespace: storage.Namespace,
-	}, found)
+	}, foundStatefulSet)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
@@ -163,42 +162,18 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	podList := &corev1.PodList{}
-	opts := []client.ListOption{
-		client.InNamespace(storage.Namespace),
-		client.MatchingLabels{labels.StatefulsetComponent: storage.Name},
-	}
-
-	err = r.List(ctx, podList, opts...)
-	if err != nil {
-		r.Recorder.Event(
-			storage,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to list StatefulSet pods: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	runningPods := 0
-	for _, e := range podList.Items {
-		if resources.PodIsReady(e) {
-			runningPods++
-		}
-	}
-
-	if runningPods != int(storage.Spec.Nodes) {
+	if foundStatefulSet.Status.ReadyReplicas != storage.Spec.Nodes {
 		r.Recorder.Event(
 			storage,
 			corev1.EventTypeNormal,
 			string(StorageProvisioning),
-			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", runningPods, storage.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, storage.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    StorageProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", runningPods, storage.Spec.Nodes),
+			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, storage.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storage, DefaultRequeueDelay)
 	}

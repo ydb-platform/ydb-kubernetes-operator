@@ -200,6 +200,9 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 		nodeSetLabels := databaseLabels.Copy()
 		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
 		nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+		if nodeSetSpecInline.Remote != nil {
+			nodeSetLabels.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
+		}
 
 		nodeSetAnnotations := CopyDict(b.Annotations)
 		if nodeSetSpecInline.Annotations != nil {
@@ -210,9 +213,6 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {
-			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-				labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster,
-			})
 			nodeSetBuilders = append(
 				nodeSetBuilders,
 				&RemoteDatabaseNodeSetBuilder{

@@ -165,6 +165,9 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 		nodeSetLabels := storageLabels.Copy()
 		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
 		nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+		if nodeSetSpecInline.Remote != nil {
+			nodeSetLabels.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
+		}
 
 		nodeSetAnnotations := CopyDict(b.Annotations)
 		if nodeSetSpecInline.Annotations != nil {
@@ -175,9 +178,6 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 
 		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {
-			nodeSetLabels = nodeSetLabels.Merge(map[string]string{
-				labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster,
-			})
 			nodeSetBuilders = append(
 				nodeSetBuilders,
 				&RemoteStorageNodeSetBuilder{
