@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
@@ -62,7 +62,7 @@ func (b *RemoteDatabaseNodeSetResource) GetResourceBuilders() []ResourceBuilder 
 	var resourceBuilders []ResourceBuilder
 
 	nodeSetAnnotations := CopyDict(b.Annotations)
-	delete(nodeSetAnnotations, ydbannotations.LastAppliedAnnotation)
+	delete(nodeSetAnnotations, annotations.LastApplied)
 
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseNodeSetBuilder{
@@ -164,26 +164,26 @@ func (b *RemoteDatabaseNodeSetResource) GetRemoteObjects(
 }
 
 func (b *RemoteDatabaseNodeSetResource) SetPrimaryResourceAnnotations(obj client.Object) {
-	annotations := make(map[string]string)
+	an := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		annotations[key] = value
+		an[key] = value
 	}
 
-	if _, exist := annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]; !exist {
-		annotations[ydbannotations.PrimaryResourceDatabaseAnnotation] = b.Spec.DatabaseRef.Name
+	if _, exist := an[annotations.PrimaryResourceDatabase]; !exist {
+		an[annotations.PrimaryResourceDatabase] = b.Spec.DatabaseRef.Name
 	}
 
-	obj.SetAnnotations(annotations)
+	obj.SetAnnotations(an)
 }
 
 func (b *RemoteDatabaseNodeSetResource) UnsetPrimaryResourceAnnotations(obj client.Object) {
-	annotations := make(map[string]string)
+	an := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		if key != annotations[ydbannotations.PrimaryResourceDatabaseAnnotation] {
-			annotations[key] = value
+		if key != an[annotations.PrimaryResourceDatabase] {
+			an[key] = value
 		}
 	}
-	obj.SetAnnotations(annotations)
+	obj.SetAnnotations(an)
 }
 
 func (b *RemoteDatabaseNodeSetResource) CreateRemoteResourceStatus(

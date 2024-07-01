@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
@@ -62,7 +62,7 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
 	nodeSetAnnotations := CopyDict(b.Annotations)
-	delete(nodeSetAnnotations, ydbannotations.LastAppliedAnnotation)
+	delete(nodeSetAnnotations, annotations.LastApplied)
 
 	resourceBuilders = append(resourceBuilders,
 		&StorageNodeSetBuilder{
@@ -145,26 +145,26 @@ func (b *RemoteStorageNodeSetResource) GetRemoteObjects(
 }
 
 func (b *RemoteStorageNodeSetResource) SetPrimaryResourceAnnotations(obj client.Object) {
-	annotations := make(map[string]string)
+	an := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		annotations[key] = value
+		an[key] = value
 	}
 
-	if _, exist := annotations[ydbannotations.PrimaryResourceStorageAnnotation]; !exist {
-		annotations[ydbannotations.PrimaryResourceStorageAnnotation] = b.Spec.StorageRef.Name
+	if _, exist := an[annotations.PrimaryResourceStorage]; !exist {
+		an[annotations.PrimaryResourceStorage] = b.Spec.StorageRef.Name
 	}
 
-	obj.SetAnnotations(annotations)
+	obj.SetAnnotations(an)
 }
 
 func (b *RemoteStorageNodeSetResource) UnsetPrimaryResourceAnnotations(obj client.Object) {
-	annotations := make(map[string]string)
+	an := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		if key != annotations[ydbannotations.PrimaryResourceStorageAnnotation] {
-			annotations[key] = value
+		if key != an[annotations.PrimaryResourceStorage] {
+			an[key] = value
 		}
 	}
-	obj.SetAnnotations(annotations)
+	obj.SetAnnotations(an)
 }
 
 func (b *RemoteStorageNodeSetResource) CreateRemoteResourceStatus(remoteObj client.Object) {
