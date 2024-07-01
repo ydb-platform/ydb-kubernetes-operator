@@ -22,10 +22,6 @@ type DatabaseNodeSetBuilder struct {
 	DatabaseNodeSetSpec api.DatabaseNodeSetSpec
 }
 
-type DatabaseNodeSetResource struct {
-	*api.DatabaseNodeSet
-}
-
 func (b *DatabaseNodeSetBuilder) Build(obj client.Object) error {
 	dns, ok := obj.(*api.DatabaseNodeSet)
 	if !ok {
@@ -54,32 +50,50 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	}
 }
 
-func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	ydbCr := api.RecastDatabaseNodeSet(b.Unwrap())
-	databaseLabels := labels.DatabaseLabels(ydbCr)
+type DatabaseNodeSetResource struct {
+	*api.DatabaseNodeSet
+}
 
-	statefulSetName := b.Name
-	statefulSetLabels := databaseLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
+func (b *DatabaseNodeSetResource) NewLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+
+	l.Merge(b.Spec.AdditionalLabels)
+	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
 
 	databaseNodeSetName := b.Labels[labels.DatabaseNodeSetComponent]
-	statefulSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: databaseNodeSetName})
+	l.Merge(map[string]string{labels.DatabaseNodeSetComponent: databaseNodeSetName})
+
 	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
-		statefulSetLabels.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
+		l.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
 	}
 
-	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+	return l
+}
+
+func (b *DatabaseNodeSetResource) NewAnnotations() map[string]string {
+	an := annotations.Common(b.Annotations)
+
+	an.Merge(b.Spec.AdditionalAnnotations)
+
+	return an
+}
+
+func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	nodeSetLabels := b.NewLabels()
+	nodeSetAnnotations := b.NewAnnotations()
+
+	statefulSetLabels := nodeSetLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
 
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseStatefulSetBuilder{
-			Database:   ydbCr,
+			Database:   api.RecastDatabaseNodeSet(b.Unwrap()),
 			RestConfig: restConfig,
 
-			Name:        statefulSetName,
+			Name:        b.Name,
 			Labels:      statefulSetLabels,
-			Annotations: statefulSetAnnotations,
+			Annotations: nodeSetAnnotations,
 		},
 	)
 	return resourceBuilders

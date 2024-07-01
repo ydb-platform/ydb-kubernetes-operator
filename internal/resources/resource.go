@@ -574,7 +574,7 @@ func buildCAStorePatchingCommandArgs(
 	return command, args
 }
 
-func GetConfigurationChecksum(configuration string) string {
+func GetSHA256Checksum(configuration string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(configuration))
 	return hex.EncodeToString(hasher.Sum(nil))
@@ -590,17 +590,6 @@ func CompareMaps(map1, map2 map[string]string) bool {
 		}
 	}
 	return true
-}
-
-func PodIsReady(e corev1.Pod) bool {
-	if e.Status.Phase == corev1.PodRunning {
-		for _, condition := range e.Status.Conditions {
-			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func isSignAlgorithmSupported(alg string) bool {

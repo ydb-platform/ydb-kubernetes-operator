@@ -22,10 +22,6 @@ type StorageNodeSetBuilder struct {
 	StorageNodeSetSpec api.StorageNodeSetSpec
 }
 
-type StorageNodeSetResource struct {
-	*api.StorageNodeSet
-}
-
 func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
 	sns, ok := obj.(*api.StorageNodeSet)
 	if !ok {
@@ -54,33 +50,51 @@ func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	}
 }
 
-func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	ydbCr := api.RecastStorageNodeSet(b.Unwrap())
-	storageLabels := labels.StorageLabels(ydbCr)
+type StorageNodeSetResource struct {
+	*api.StorageNodeSet
+}
 
-	statefulSetName := b.Name
-	statefulSetLabels := storageLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
+func (b *StorageNodeSetResource) NewLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+
+	l.Merge(b.Spec.AdditionalLabels)
+	l.Merge(map[string]string{labels.ComponentKey: labels.StorageComponent})
 
 	storageNodeSetName := b.Labels[labels.StorageNodeSetComponent]
-	statefulSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: storageNodeSetName})
+	l.Merge(map[string]string{labels.StorageNodeSetComponent: storageNodeSetName})
+
 	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
-		statefulSetLabels.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
+		l.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
 	}
 
-	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+	return l
+}
+
+func (b *StorageNodeSetResource) NewAnnotations() map[string]string {
+	an := annotations.Common(b.Annotations)
+
+	an.Merge(b.Spec.AdditionalAnnotations)
+
+	return an
+}
+
+func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	nodeSetLabels := b.NewLabels()
+	nodeSetAnnotations := b.NewAnnotations()
+
+	statefulSetLabels := nodeSetLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
 
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(
 		resourceBuilders,
 		&StorageStatefulSetBuilder{
-			Storage:    ydbCr,
+			Storage:    api.RecastStorageNodeSet(b.StorageNodeSet),
 			RestConfig: restConfig,
 
-			Name:        statefulSetName,
+			Name:        b.Name,
 			Labels:      statefulSetLabels,
-			Annotations: statefulSetAnnotations,
+			Annotations: nodeSetAnnotations,
 		},
 	)
 
