@@ -14,12 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -204,11 +202,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 	}
 
-	found := &appsv1.StatefulSet{}
+	foundStatefulSet := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      databaseNodeSet.Name,
 		Namespace: databaseNodeSet.Namespace,
-	}, found)
+	}, foundStatefulSet)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
@@ -223,51 +221,23 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			databaseNodeSet,
 			corev1.EventTypeWarning,
 			"ControllerError",
-			fmt.Sprintf("Failed to get StatefulSets: %s", err),
+			fmt.Sprintf("Failed to get StatefulSet: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	matchingLabels := client.MatchingLabels{}
-	for k, v := range databaseNodeSet.Labels {
-		matchingLabels[k] = v
-	}
-
-	podList := &corev1.PodList{}
-	opts := []client.ListOption{
-		client.InNamespace(databaseNodeSet.Namespace),
-		client.MatchingLabels{labels.StatefulsetComponent: databaseNodeSet.Name},
-	}
-	err = r.List(ctx, podList, opts...)
-	if err != nil {
-		r.Recorder.Event(
-			databaseNodeSet,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to list StatefulSet pods: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	runningPods := 0
-	for _, e := range podList.Items {
-		if resources.PodIsReady(e) {
-			runningPods++
-		}
-	}
-
-	if runningPods != int(databaseNodeSet.Spec.Nodes) {
+	if foundStatefulSet.Status.ReadyReplicas != databaseNodeSet.Spec.Nodes {
 		r.Recorder.Event(
 			databaseNodeSet,
 			corev1.EventTypeNormal,
 			string(DatabaseNodeSetProvisioning),
-			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, databaseNodeSet.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, databaseNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, databaseNodeSet, DefaultRequeueDelay)
 	}

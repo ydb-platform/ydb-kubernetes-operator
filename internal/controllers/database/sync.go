@@ -20,7 +20,6 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -304,11 +303,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return Continue, ctrl.Result{Requeue: false}, nil
 	}
 
-	found := &appsv1.StatefulSet{}
+	foundStatefulSet := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      database.Name,
 		Namespace: database.Namespace,
-	}, found)
+	}, foundStatefulSet)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
@@ -328,42 +327,18 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	podList := &corev1.PodList{}
-	opts := []client.ListOption{
-		client.InNamespace(database.Namespace),
-		client.MatchingLabels{labels.StatefulsetComponent: database.Name},
-	}
-
-	err = r.List(ctx, podList, opts...)
-	if err != nil {
-		r.Recorder.Event(
-			database,
-			corev1.EventTypeWarning,
-			"ControllerError",
-			fmt.Sprintf("Failed to list StatefulSet pods: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	runningPods := 0
-	for _, e := range podList.Items {
-		if resources.PodIsReady(e) {
-			runningPods++
-		}
-	}
-
-	if runningPods != int(database.Spec.Nodes) {
+	if foundStatefulSet.Status.ReadyReplicas != database.Spec.Nodes {
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeNormal,
 			string(DatabaseProvisioning),
-			fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", runningPods, database.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running pods to match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, database.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:    DatabaseProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Number of running pods does not match expected: %d != %d", runningPods, database.Spec.Nodes),
+			Message: fmt.Sprintf("Number of running pods does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, database.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, database, DefaultRequeueDelay)
 	}
