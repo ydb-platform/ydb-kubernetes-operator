@@ -99,7 +99,7 @@ jobs:
       - code-format-check
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
     outputs:
-      result: ${{ steps.artifact-upload-step.outputs.artifact-url }}
+      result: ${{ steps.upload-test-log.outputs.artifact-url }}
     steps:
       - name: set-env-vars
         run: |
@@ -108,8 +108,6 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: '1.20'
-      - name: Setup gotestsum
-        uses: autero1/action-gotestsum@v2
       - name: setup-medium-test-class-binaries
         run: |
           # This installs kube-apiserver and etcd binaries for `medium`
@@ -117,11 +115,13 @@ jobs:
           make envtest
           KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
           echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
-      - name: run-unit-tests
+      - name: setup-gotestsum
+        run: |
+          go install gotest.tools/gotestsum@v1.12.0
+      - name: Run unit tests
         run: |
           gotestsum --format=pkgname --jsonfile="/tmp/gotest.log.json" --packages="./internal/..." -- -vv -timeout 900s -p 1 -ginkgo.vv
-      - name: Upload test log
-        id: artifact-upload-step
+      - name: upload-test-log
         uses: actions/upload-artifact@v2
         if: always()
         with:
@@ -140,7 +140,7 @@ jobs:
       - run-unit-tests
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
     outputs:
-      result: ${{ steps.artifact-upload-step.outputs.artifact-url }}
+      result: ${{ steps.upload-test-log.outputs.artifact-url }}
     steps:
       - name: set-env-vars
         run: |
@@ -149,8 +149,6 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: '1.20'
-      - name: Setup gotestsum
-        uses: autero1/action-gotestsum@v2
       - name: install-dependencies
         run: |
           sudo apt-get update
@@ -208,11 +206,13 @@ jobs:
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
           docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
           kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
+      - name: setup-gotestsum
+        run: |
+          go install gotest.tools/gotestsum@v1.12.0
       - name: run-e2e-tests
         run: |
           gotestsum --format=pkgname --jsonfile="/tmp/gotest.log.json" --packages="./e2e/..." -- -vv -timeout 3600s -p 1 -ginkgo.vv
-      - name: Upload test log
-        id: artifact-upload-step
+      - name: upload-test-log
         uses: actions/upload-artifact@v2
         if: always()
         with:
