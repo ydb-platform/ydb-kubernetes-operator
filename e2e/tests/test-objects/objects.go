@@ -18,6 +18,8 @@ const (
 	CertificateSecretName = "storage-crt"
 	DefaultDomain         = "Root"
 	ReadyStatus           = "Ready"
+	StorageGRPCService    = "storage-grpc.ydb.svc.cluster.local"
+	StorageGRPCPort       = 2135
 )
 
 func constructAntiAffinityFor(key, value string) *corev1.Affinity {
