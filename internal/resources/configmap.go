@@ -15,10 +15,10 @@ import (
 )
 
 const keyConfigTmpl = `Keys {
-	ContainerPath: "{{ .ContainerPath }}"
-	Pin: "{{ .Pin }}"
-	Id: "{{ .ID }}"
-	Version: "{{ .Version }}"
+    ContainerPath: "{{ .ContainerPath }}"
+    Pin: "{{ .Pin }}"
+    Id: "{{ .ID }}"
+    Version: {{ .Version }}
 }`
 
 type ConfigMapBuilder struct {
