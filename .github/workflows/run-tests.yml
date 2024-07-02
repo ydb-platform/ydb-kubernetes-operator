@@ -123,15 +123,16 @@ jobs:
           gotestsum --format pkgname --jsonfile log.json -- -v -timeout 900s -p 1 ./internal/... -ginkgo.vv -coverprofile cover.out
       - name: convert-to-human-readable
         run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
-      - name: upload-test-log
-        uses: actions/upload-artifact@v2
+      - name: artifact-upload-step
+        uses: actions/upload-artifact@v4
+        id: artifact-upload-step
         if: always()
         with:
           name: unit-tests-log
           path: log.txt
           if-no-files-found: error
       - name: echo-tests-log-url
-        run: echo 'Unit tests log URL is ${{ steps.upload-test-log.outputs.artifact-url }}'
+        run: echo 'Unit tests log URL is ${{ steps.artifact-upload-step.outputs.artifact-url }}'
   run-e2e-tests:
     concurrency:
       group: run-e2e-tests-${{ github.head_ref || github.ref_name }}
@@ -215,18 +216,19 @@ jobs:
           go install gotest.tools/gotestsum@v1.12.0
       - name: run-e2e-tests
         run: |
-          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 900s -p 1 ./internal/... -ginkgo.vv
+          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 900s -p 1 ./e2e/... -ginkgo.vv
       - name: convert-to-human-readable
         run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
-      - name: upload-test-log
-        uses: actions/upload-artifact@v2
+      - name: artifact-upload-step
+        uses: actions/upload-artifact@v4
+        id: artifact-upload-step
         if: always()
         with:
           name: e2e-tests-log
           path: log.txt
           if-no-files-found: error
       - name: echo-tests-log-url
-        run: echo 'E2E tests log URL is ${{ steps.upload-test-log.outputs.artifact-url }}'
+        run: echo 'Unit tests log URL is ${{ steps.artifact-upload-step.outputs.artifact-url }}'
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster
