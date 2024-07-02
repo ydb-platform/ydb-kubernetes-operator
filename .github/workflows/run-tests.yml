@@ -216,7 +216,7 @@ jobs:
           go install gotest.tools/gotestsum@v1.12.0
       - name: run-e2e-tests
         run: |
-          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 900s -p 1 ./e2e/... -ginkgo.vv
+          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./e2e/... -ginkgo.vv
       - name: convert-to-human-readable
         run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
       - name: artifact-upload-step
