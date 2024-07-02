@@ -2,6 +2,7 @@ package resources
 
 import (
 	"errors"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,8 +14,8 @@ import (
 type EncryptionSecretBuilder struct {
 	client.Object
 
-	Pin    string
 	Labels map[string]string
+	Pin    string
 }
 
 func (b *EncryptionSecretBuilder) Build(obj client.Object) error {
@@ -28,17 +29,17 @@ func (b *EncryptionSecretBuilder) Build(obj client.Object) error {
 	}
 	sec.ObjectMeta.Namespace = b.GetNamespace()
 
-	// Do not update already existing secret data
-	if (sec.StringData == nil || len(sec.StringData) == 0) && (sec.Data == nil || len(sec.Data) == 0) {
-		key, err := encryption.GenerateRSAKey(b.Pin)
-		if err != nil {
-			return err
-		}
-		sec.StringData = map[string]string{
-			defaultEncryptionSecretKey: key,
-		}
-	}
 	sec.Labels = b.Labels
+
+	key, err := encryption.GenerateRSAKey(b.Pin)
+	if err != nil {
+		return fmt.Errorf("failed to generate key for encryption: %w", err)
+	}
+
+	sec.StringData = map[string]string{
+		wellKnownNameForEncryptionKeySecret: key,
+	}
+
 	sec.Type = corev1.SecretTypeOpaque
 
 	return nil
@@ -47,7 +48,7 @@ func (b *EncryptionSecretBuilder) Build(obj client.Object) error {
 func (b *EncryptionSecretBuilder) Placeholder(cr client.Object) client.Object {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.GetName(),
+			Name:      b.GetName(),
 			Namespace: cr.GetNamespace(),
 		},
 	}

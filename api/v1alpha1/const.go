@@ -30,11 +30,20 @@ const (
 	ConfigDir      = "/opt/ydb/cfg"
 	ConfigFileName = "config.yaml"
 
+	DatabaseEncryptionKeySecretDir  = "encryption"
+	DatabaseEncryptionKeySecretFile = "key.pem"
+	DatabaseEncryptionKeyConfigFile = "key.txt"
+
+	DatastreamsIAMServiceAccountKeyDir  = "datastreams"
+	DatastreamsIAMServiceAccountKeyFile = "sa_key.json"
+
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	DefaultRootUsername = "root"
-	DefaultRootPassword = ""
+	DefaultRootUsername          = "root"
+	DefaultRootPassword          = ""
+	DefaultDatabaseDomain        = "Root"
+	DefaultDatabaseEncryptionPin = "EmptyPin"
 
 	LabelDeploymentKey             = "deployment"
 	LabelDeploymentValueKubernetes = "kubernetes"

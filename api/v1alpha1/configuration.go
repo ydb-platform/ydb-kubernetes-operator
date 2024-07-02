@@ -2,28 +2,13 @@ package v1alpha1
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"fmt"
-	"path"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 )
-
-const (
-	DatabaseEncryptionKeyPath           = "/opt/ydb/secrets/database_encryption"
-	DatabaseEncryptionKeyFile           = "key"
-	DatastreamsIAMServiceAccountKeyPath = "/opt/ydb/secrets/datastreams"
-	DatastreamsIAMServiceAccountKeyFile = "sa_key.json"
-)
-
-func hash(text string) string {
-	h := sha256.New()
-	h.Write([]byte(text))
-	return fmt.Sprintf("%x", h.Sum(nil))
-}
 
 func generateHosts(cr *Storage) []schema.Host {
 	var hosts []schema.Host
@@ -61,24 +46,6 @@ func generateHosts(cr *Storage) []schema.Host {
 	return hosts
 }
 
-func generateKeyConfig(cr *Storage, crDB *Database) *schema.KeyConfig {
-	var keyConfig *schema.KeyConfig
-	if crDB != nil && crDB.Spec.Encryption != nil && crDB.Spec.Encryption.Enabled {
-		keyConfig = &schema.KeyConfig{
-			Keys: []schema.Key{
-				{
-					ContainerPath: path.Join(DatabaseEncryptionKeyPath, DatabaseEncryptionKeyFile),
-					ID:            hash(cr.Name),
-					Pin:           crDB.Spec.Encryption.Pin,
-					Version:       1,
-				},
-			},
-		}
-	}
-
-	return keyConfig
-}
-
 func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	config := make(map[string]interface{})
 
@@ -111,12 +78,6 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	if config["hosts"] == nil {
 		hosts := generateHosts(cr)
 		config["hosts"] = hosts
-	}
-
-	// Will be removed by YDBOPS-9692
-	keyConfig := generateKeyConfig(cr, crDB)
-	if keyConfig != nil {
-		config["key_config"] = keyConfig
 	}
 
 	return yaml.Marshal(config)

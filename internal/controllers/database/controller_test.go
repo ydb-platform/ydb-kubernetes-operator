@@ -3,7 +3,9 @@ package database_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -142,5 +144,77 @@ var _ = Describe("Database controller medium tests", func() {
 				}
 			}
 		})
+
+		By("Check encryption for Database...")
+		foundDatabase := v1alpha1.Database{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &foundDatabase))
+
+		By("Update Database and enable encryption...")
+		foundDatabase.Spec.Encryption = &v1alpha1.EncryptionConfig{Enabled: true}
+		Expect(k8sClient.Update(ctx, &foundDatabase)).Should(Succeed())
+
+		By("Check that encryption secret was created...")
+		encryptionSecret := corev1.Secret{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &encryptionSecret)
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+		encryptionData := encryptionSecret.Data
+
+		By("Check that arg `--key-file` was added to StatefulSet...")
+		databaseStatefulSet = appsv1.StatefulSet{}
+		Eventually(func() error {
+			Expect(k8sClient.List(ctx,
+				&foundStatefulSets,
+				client.InNamespace(testobjects.YdbNamespace),
+			)).ShouldNot(HaveOccurred())
+			for idx, statefulSet := range foundStatefulSets.Items {
+				if statefulSet.Name == testobjects.DatabaseName {
+					databaseStatefulSet = foundStatefulSets.Items[idx]
+					break
+				}
+			}
+			podContainerArgs := databaseStatefulSet.Spec.Template.Spec.Containers[0].Args
+			encryptionKeyConfigPath := fmt.Sprintf("%s/%s", v1alpha1.ConfigDir, v1alpha1.DatabaseEncryptionKeyConfigFile)
+			for idx, arg := range podContainerArgs {
+				if arg == "--key-file" {
+					if podContainerArgs[idx+1] == encryptionKeyConfigPath {
+						return nil
+					}
+					return fmt.Errorf(
+						"Found arg `--key-file=%s` for encryption does not match with expected path: %s",
+						podContainerArgs[idx+1],
+						encryptionKeyConfigPath,
+					)
+				}
+			}
+			return errors.New("Failed to find arg `--key-file` for encryption in StatefulSet")
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		By("Update Database encryption pin...")
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &foundDatabase))
+		pin := "Ignore"
+		foundDatabase.Spec.Encryption = &v1alpha1.EncryptionConfig{
+			Enabled: true,
+			Pin:     &pin,
+		}
+		Expect(k8sClient.Update(ctx, &foundDatabase)).Should(Succeed())
+
+		By("Check that Secret for encryption was not changed...")
+		Consistently(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      databaseSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &encryptionSecret))
+			return reflect.DeepEqual(encryptionData, encryptionSecret.Data)
+		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 })
