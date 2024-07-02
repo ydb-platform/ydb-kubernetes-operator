@@ -830,7 +830,7 @@ var _ = Describe("Operator smoke test", func() {
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 		}()
 
 		By("create database...")
