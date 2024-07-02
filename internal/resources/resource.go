@@ -49,6 +49,7 @@ const (
 
 	InitJobNameFormat             = "%s-blobstorage-init"
 	OperatorTokenSecretNameFormat = "%s-operator-token"
+	EncryptionKeyConfigNameFormat = "%s-encryption-key"
 
 	systemCertsVolumeName   = "init-main-shared-certs-volume"
 	localCertsVolumeName    = "init-main-shared-source-dir-volume"
@@ -60,6 +61,7 @@ const (
 	wellKnownNameForTLSCertificateAuthority = "ca.crt"
 	wellKnownNameForTLSCertificate          = "tls.crt"
 	wellKnownNameForTLSPrivateKey           = "tls.key"
+	wellKnownNameForEncryptionKeySecret     = "key.pem"
 
 	caBundleEnvName         = "CA_BUNDLE"
 	caBundleFileName        = "userCABundle.crt"
@@ -70,10 +72,11 @@ const (
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
 
-	encryptionVolumeName                      = "encryption"
+	encryptionKeyConfigVolumeName             = "encryption-config"
+	encryptionKeySecretVolumeName             = "encryption-key"
 	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
-	defaultEncryptionSecretKey                = "key"
-	defaultPin                                = "EmptyPin"
+
+	defaultPin = "EmptyPin"
 )
 
 type ResourceBuilder interface {
@@ -590,17 +593,6 @@ func CompareMaps(map1, map2 map[string]string) bool {
 		}
 	}
 	return true
-}
-
-func PodIsReady(e corev1.Pod) bool {
-	if e.Status.Phase == corev1.PodRunning {
-		for _, condition := range e.Status.Conditions {
-			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func isSignAlgorithmSupported(alg string) bool {
