@@ -75,8 +75,6 @@ const (
 	encryptionKeyConfigVolumeName             = "encryption-config"
 	encryptionKeySecretVolumeName             = "encryption-key"
 	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
-
-	defaultPin = "EmptyPin"
 )
 
 type ResourceBuilder interface {

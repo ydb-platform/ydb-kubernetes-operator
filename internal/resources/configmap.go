@@ -72,13 +72,13 @@ func (b *EncryptionConfigBuilder) Build(obj client.Object) error {
 
 	t, err := template.New("keyConfig").Parse(keyConfigTmpl)
 	if err != nil {
-		return fmt.Errorf("failed to parse keyConfig template: %s", err)
+		return fmt.Errorf("failed to parse keyConfig template: %w", err)
 	}
 
 	var buf bytes.Buffer
 	err = t.Execute(&buf, b.KeyConfig.Keys[0])
 	if err != nil {
-		return fmt.Errorf("failed to execute keyConfig template: %s", err)
+		return fmt.Errorf("failed to execute keyConfig template: %w", err)
 	}
 
 	cm.Data = map[string]string{api.DatabaseEncryptionKeyConfigFile: buf.String()}

@@ -33,7 +33,7 @@ func (b *EncryptionSecretBuilder) Build(obj client.Object) error {
 
 	key, err := encryption.GenerateRSAKey(b.Pin)
 	if err != nil {
-		return fmt.Errorf("failed to generate key for encryption: %s", err)
+		return fmt.Errorf("failed to generate key for encryption: %w", err)
 	}
 
 	sec.StringData = map[string]string{
