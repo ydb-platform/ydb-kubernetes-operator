@@ -99,7 +99,7 @@ jobs:
       - code-format-check
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
     outputs:
-      result: ${{ steps.run-unit-tests.outputs.result }}
+      result: ${{ steps.artifact-upload-step.outputs.artifact-url }}
     steps:
       - name: set-env-vars
         run: |
@@ -108,8 +108,8 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: '1.20'
-      - name: Set up gotestfmt
-        uses: gotesttools/gotestfmt-action@v2
+      - name: Setup gotestsum
+        uses: autero1/action-gotestsum@v2
       - name: setup-medium-test-class-binaries
         run: |
           # This installs kube-apiserver and etcd binaries for `medium`
@@ -119,14 +119,14 @@ jobs:
           echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
       - name: run-unit-tests
         run: |
-          set -euo pipefail
-          go test -json -v -timeout 900s -p 1 ./internal/... -ginkgo.v 2>&1 | tee /tmp/gotest.log | gotestfmt
+          gotestsum --format=pkgname --jsonfile="/tmp/gotest.log.json" --packages="./internal/..." -- -vv -timeout 900s -p 1 -ginkgo.vv
       - name: Upload test log
+        id: artifact-upload-step
         uses: actions/upload-artifact@v2
         if: always()
         with:
           name: unit-tests-log
-          path: /tmp/gotest.log
+          path: /tmp/gotest.log.json
           if-no-files-found: error
   run-e2e-tests:
     concurrency:
@@ -140,7 +140,7 @@ jobs:
       - run-unit-tests
     runs-on: ${{ needs.start-runner.outputs.runner-label }}
     outputs:
-      result: ${{ steps.run-e2e-tests.outputs.result }}
+      result: ${{ steps.artifact-upload-step.outputs.artifact-url }}
     steps:
       - name: set-env-vars
         run: |
@@ -149,8 +149,8 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: '1.20'
-      - name: Set up gotestfmt
-        uses: gotesttools/gotestfmt-action@v2
+      - name: Setup gotestsum
+        uses: autero1/action-gotestsum@v2
       - name: install-dependencies
         run: |
           sudo apt-get update
@@ -210,14 +210,14 @@ jobs:
           kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
       - name: run-e2e-tests
         run: |
-          set -euo pipefail
-          go test -json -v -timeout 3600s -p 1 ./e2e/... -ginkgo.v 2>&1 | tee /tmp/gotest.log | gotestfmt
+          gotestsum --format=pkgname --jsonfile="/tmp/gotest.log.json" --packages="./e2e/..." -- -vv -timeout 3600s -p 1 -ginkgo.vv
       - name: Upload test log
+        id: artifact-upload-step
         uses: actions/upload-artifact@v2
         if: always()
         with:
           name: e2e-tests-log
-          path: /tmp/gotest.log
+          path: /tmp/gotest.log.json
           if-no-files-found: error
       - name: teardown-k8s-cluster
         run: |
