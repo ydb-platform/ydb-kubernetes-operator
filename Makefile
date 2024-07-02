@@ -83,7 +83,7 @@ unit-test: manifests generate fmt vet envtest ## Run unit tests
 
 .PHONY: e2e-test
 e2e-test: manifests generate fmt vet docker-build kind-init kind-load ## Run e2e tests
-	go test -v -timeout 3600s -p 1 ./e2e/... -args -ginkgo.v
+	go test -v -timeout 3600s -p 1 ./e2e/... -ginkgo.v
 
 .PHONY: test
 test: unit-test e2e-test ## Run all tests
