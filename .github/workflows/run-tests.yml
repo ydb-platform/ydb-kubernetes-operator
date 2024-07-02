@@ -122,7 +122,7 @@ jobs:
         run: |
           gotestsum --format pkgname --jsonfile log.json -- -v -timeout 900s -p 1 ./internal/... -ginkgo.vv -coverprofile cover.out
       - name: convert-to-human-readable
-        run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt
+        run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
       - name: upload-test-log
         uses: actions/upload-artifact@v2
         if: always()
@@ -217,7 +217,7 @@ jobs:
         run: |
           gotestsum --format pkgname --jsonfile log.json -- -v -timeout 900s -p 1 ./internal/... -ginkgo.vv
       - name: convert-to-human-readable
-        run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt
+        run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
       - name: upload-test-log
         uses: actions/upload-artifact@v2
         if: always()
