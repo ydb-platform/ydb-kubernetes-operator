@@ -210,7 +210,7 @@ jobs:
       - name: run-e2e-tests
         run: |
           set -euo pipefail
-          go test -json-v -timeout 3600s -p 1 ./e2e/... -ginkgo.v 2>&1 | tee /tmp/gotest.log | gotestfmt
+          go test -json -v -timeout 3600s -p 1 ./e2e/... -ginkgo.v 2>&1 | tee /tmp/gotest.log | gotestfmt
       - name: Upload test log
         uses: actions/upload-artifact@v2
         if: always()
