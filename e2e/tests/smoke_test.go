@@ -828,13 +828,18 @@ var _ = Describe("Operator smoke test", func() {
 				Key:                  "ca.crt",
 			},
 		}
-
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
 
 		By("create database...")
 		databaseSample.Spec.Nodes = 1
 		databaseSample.Spec.Service.Status = *storageSample.Spec.Service.Status.DeepCopy()
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
