@@ -118,7 +118,8 @@ jobs:
       - name: setup-gotestsum
         run: |
           go install gotest.tools/gotestsum@v1.12.0
-      - name: Run unit tests
+      - name: run-unit-tests
+        id: run-unit-tests
         run: |
           gotestsum --format pkgname --jsonfile log.json -- -v -timeout 900s -p 1 ./internal/... -ginkgo.vv -coverprofile cover.out
       - name: convert-to-human-readable
@@ -203,11 +204,17 @@ jobs:
       - name: load-and-deploy-operator
         run: |
           kind load docker-image kind/ydb-operator:current
-      - name: pull-and-load-other-images
+      - name: pull-and-load-kube-webhook-certgen-image
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          retry_wait_seconds: 20
+          max_attempts: 3
+          command: |
+            docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+            kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+      - name: pull-and-load-ydb-image
         run: |
-          docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
-          kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
-
           # TODO would be cool to parse YDB image from manifests to avoid duplicating information
           docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
           kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
@@ -215,6 +222,7 @@ jobs:
         run: |
           go install gotest.tools/gotestsum@v1.12.0
       - name: run-e2e-tests
+        id: run-e2e-tests
         run: |
           gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./e2e/... -ginkgo.vv
       - name: convert-to-human-readable
