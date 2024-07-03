@@ -11,7 +11,7 @@ spec:
         requests:
           storage: 80Gi
   image:
-    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
   nodes: 9
   erasure: mirror-3-dc
   configuration: |-
