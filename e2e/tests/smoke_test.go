@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -31,6 +32,7 @@ import (
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
 
 const (
@@ -158,7 +160,7 @@ func bringYdbCliToPod(podName, podNamespace string) {
 	}, Timeout, Interval).Should(BeNil())
 }
 
-func executeSimpleQuery(ctx context.Context, podName, podNamespace, storageEndpoint string) {
+func executeSimpleQuery(podName, podNamespace, storageEndpoint string) {
 	Eventually(func(g Gomega) string {
 		args := []string{
 			"-n",
@@ -345,7 +347,7 @@ var _ = Describe("Operator smoke test", func() {
 		bringYdbCliToPod(podName, testobjects.YdbNamespace)
 
 		By("execute simple query inside ydb database pod...")
-		executeSimpleQuery(ctx, podName, testobjects.YdbNamespace, storageEndpoint)
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	It("pause and un-pause Storage, should destroy and bring up Pods", func() {
@@ -492,7 +494,6 @@ var _ = Describe("Operator smoke test", func() {
 	It("create storage and database with nodeSets", func() {
 		By("issuing create commands...")
 		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config-nodeSets.yaml"))
-		databaseSample = testobjects.DefaultDatabase()
 		testNodeSetName := "nodeset"
 		for idx := 1; idx <= 2; idx++ {
 			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
@@ -572,7 +573,7 @@ var _ = Describe("Operator smoke test", func() {
 		bringYdbCliToPod(podName, testobjects.YdbNamespace)
 
 		By("execute simple query inside ydb database pod...")
-		executeSimpleQuery(ctx, podName, testobjects.YdbNamespace, storageEndpoint)
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	It("operatorConnection check, create storage with default staticCredentials", func() {
@@ -652,15 +653,9 @@ var _ = Describe("Operator smoke test", func() {
 			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
 			Key:                  "ca.crt",
 		}
-
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
-		By("create database...")
-		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
 		}()
 
 		By("waiting until Storage is ready...")
@@ -669,11 +664,104 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the storage pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 
+		By("create database...")
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.crt",
+		}
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Key = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.key",
+		}
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.CertificateAuthority = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "ca.crt",
+		}
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+
 		By("waiting until database is ready...")
 		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
 
 		By("checking that all the database pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		storagePods := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &storagePods,
+			client.InNamespace(testobjects.YdbNamespace),
+			client.MatchingLabels{
+				"ydb-cluster": "kind-database",
+			})).Should(Succeed())
+		podName := storagePods.Items[0].Name
+
+		By("bring YDB CLI inside ydb storage pod...")
+		bringYdbCliToPod(podName, testobjects.YdbNamespace)
+
+		By("execute simple query inside ydb storage pod...")
+		storageEndpoint := fmt.Sprintf("grpcs://%s:%d", testobjects.StorageGRPCService, testobjects.StorageGRPCPort)
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
+	})
+
+	It("Check that Storage deleted after Database...", func() {
+		By("create storage...")
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+
+		By("create database...")
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("waiting until Database is ready...")
+		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the database pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		By("delete Storage...")
+		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+
+		By("checking that Storage deletionTimestamp is not nil...")
+		Eventually(func() bool {
+			foundStorage := v1alpha1.Storage{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage)
+			if err != nil {
+				return false
+			}
+			return !foundStorage.DeletionTimestamp.IsZero()
+		}, test.Timeout, test.Interval).Should(BeTrue())
+
+		By("checking that Storage is present in cluster...")
+		Consistently(func() error {
+			foundStorage := v1alpha1.Storage{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage)
+			return err
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		By("delete Database...")
+		Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+
+		By("checking that Storage deleted from cluster...")
+		Eventually(func() bool {
+			foundStorage := v1alpha1.Storage{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage)
+			return apierrors.IsNotFound(err)
+		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 
 	It("check storage with dynconfig", func() {
@@ -811,13 +899,18 @@ var _ = Describe("Operator smoke test", func() {
 				Key:                  "ca.crt",
 			},
 		}
-
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
 
 		By("create database...")
 		databaseSample.Spec.Nodes = 1
 		databaseSample.Spec.Service.Status = *storageSample.Spec.Service.Status.DeepCopy()
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
