@@ -347,6 +347,8 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 	})
 
 	AfterEach(func() {
+		Expect(localClient.Delete(ctx, databaseSample)).Should(Succeed())
+		Expect(localClient.Delete(ctx, storageSample)).Should(Succeed())
 		deleteAll(localEnv, localClient, &localNamespace)
 		deleteAll(remoteEnv, remoteClient, &localNamespace)
 	})

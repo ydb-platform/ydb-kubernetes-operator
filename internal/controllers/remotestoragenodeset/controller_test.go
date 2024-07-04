@@ -279,6 +279,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 	})
 
 	AfterEach(func() {
+		Expect(localClient.Delete(ctx, storageSample)).Should(Succeed())
 		deleteAll(localEnv, localClient, &localNamespace)
 		deleteAll(remoteEnv, remoteClient, &localNamespace)
 	})
