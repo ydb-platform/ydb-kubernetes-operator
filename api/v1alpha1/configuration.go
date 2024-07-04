@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"path"
@@ -24,7 +25,7 @@ func hash(text string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
+func generateHosts(cr *Storage) []schema.Host {
 	var hosts []schema.Host
 
 	for i := 0; i < int(cr.Spec.Nodes); i++ {
@@ -57,6 +58,10 @@ func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
 		}
 	}
 
+	return hosts
+}
+
+func generateKeyConfig(cr *Storage, crDB *Database) *schema.KeyConfig {
 	var keyConfig *schema.KeyConfig
 	if crDB != nil && crDB.Spec.Encryption != nil && crDB.Spec.Encryption.Enabled {
 		keyConfig = &schema.KeyConfig{
@@ -71,25 +76,10 @@ func generateSomeDefaults(cr *Storage, crDB *Database) schema.Configuration {
 		}
 	}
 
-	return schema.Configuration{
-		Hosts:     hosts,
-		KeyConfig: keyConfig,
-	}
+	return keyConfig
 }
 
-func tryFillMissingSections(
-	resultConfig map[string]interface{},
-	generatedConfig schema.Configuration,
-) {
-	if resultConfig["hosts"] == nil {
-		resultConfig["hosts"] = generatedConfig.Hosts
-	}
-	if generatedConfig.KeyConfig != nil {
-		resultConfig["key_config"] = generatedConfig.KeyConfig
-	}
-}
-
-func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
+func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	config := make(map[string]interface{})
 
 	// If any kind of configuration exists on Database object, then
@@ -103,18 +93,58 @@ func buildConfiguration(cr *Storage, crDB *Database) (string, error) {
 		rawYamlConfiguration = cr.Spec.Configuration
 	}
 
-	err := yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
-	if err != nil {
-		return "", err
+	dynconfig, err := ParseDynconfig(rawYamlConfiguration)
+	if err == nil {
+		if dynconfig.Config["hosts"] == nil {
+			hosts := generateHosts(cr)
+			dynconfig.Config["hosts"] = hosts
+		}
+
+		return yaml.Marshal(dynconfig)
 	}
 
-	generatedConfig := generateSomeDefaults(cr, crDB)
-	tryFillMissingSections(config, generatedConfig)
-
-	data, err := yaml.Marshal(config)
+	err = yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return string(data), nil
+	if config["hosts"] == nil {
+		hosts := generateHosts(cr)
+		config["hosts"] = hosts
+	}
+
+	// Will be removed by YDBOPS-9692
+	keyConfig := generateKeyConfig(cr, crDB)
+	if keyConfig != nil {
+		config["key_config"] = keyConfig
+	}
+
+	return yaml.Marshal(config)
+}
+
+func ParseConfiguration(rawYamlConfiguration string) (schema.Configuration, error) {
+	configuration := schema.Configuration{}
+
+	dynconfig, err := ParseDynconfig(rawYamlConfiguration)
+	if err == nil {
+		config, err := yaml.Marshal(dynconfig.Config)
+		if err != nil {
+			return configuration, err
+		}
+		rawYamlConfiguration = string(config)
+	}
+
+	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
+	dec.KnownFields(false)
+	err = dec.Decode(&configuration)
+
+	return configuration, err
+}
+
+func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
+	dynconfig := schema.Dynconfig{}
+	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
+	dec.KnownFields(true)
+	err := dec.Decode(&dynconfig)
+	return dynconfig, err
 }

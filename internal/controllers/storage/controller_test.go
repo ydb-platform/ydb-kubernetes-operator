@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -114,8 +113,7 @@ var _ = Describe("Storage controller medium tests", func() {
 		}
 		Expect(foundVolume).To(BeTrue())
 
-		By("Check that label and annotation propagated to pods...", func() {
-			podLabels := storageSS.Spec.Template.Labels
+		By("Check that configuration checksum annotation propagated to pods...", func() {
 			podAnnotations := storageSS.Spec.Template.Annotations
 
 			foundStorage := v1alpha1.Storage{}
@@ -123,12 +121,6 @@ var _ = Describe("Storage controller medium tests", func() {
 				Name:      testobjects.StorageName,
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage)).Should(Succeed())
-
-			foundStorageGenerationLabel := false
-			if podLabels[labels.StorageGeneration] == strconv.FormatInt(foundStorage.ObjectMeta.Generation, 10) {
-				foundStorageGenerationLabel = true
-			}
-			Expect(foundStorageGenerationLabel).To(BeTrue())
 
 			foundConfigurationChecksumAnnotation := false
 			if podAnnotations[annotations.ConfigurationChecksum] == resources.GetConfigurationChecksum(foundStorage.Spec.Configuration) {
@@ -149,6 +141,60 @@ var _ = Describe("Storage controller medium tests", func() {
 			}
 			Expect(labelArgKey).Should(BeEquivalentTo(v1alpha1.LabelDeploymentKey))
 			Expect(labelArgValue).Should(BeEquivalentTo(v1alpha1.LabelDeploymentValueKubernetes))
+		})
+
+		By("Check that statefulset podTemplate labels remain immutable...", func() {
+			testLabelKey := "ydb-label"
+			testLabelValue := "test"
+			By("set additional labels to Storage...")
+			Eventually(func() error {
+				foundStorage := v1alpha1.Storage{}
+				Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundStorage))
+				additionalLabels := resources.CopyDict(foundStorage.Spec.AdditionalLabels)
+				additionalLabels[testLabelKey] = testLabelValue
+				foundStorage.Spec.AdditionalLabels = additionalLabels
+				return k8sClient.Update(ctx, &foundStorage)
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("check that additional labels was added...")
+			foundStatefulSets := appsv1.StatefulSetList{}
+			Eventually(func() error {
+				err := k8sClient.List(ctx, &foundStatefulSets,
+					client.InNamespace(testobjects.YdbNamespace),
+				)
+				if err != nil {
+					return err
+				}
+				value, exist := foundStatefulSets.Items[0].Labels[testLabelKey]
+				if !exist {
+					return fmt.Errorf("label key `ydb-label` does not exist in StatefulSet. Current labels: %s", foundStatefulSets.Items[0].Labels)
+				}
+				if value != testLabelValue {
+					return fmt.Errorf("label value `ydb-label` in StatefulSet does not equal `test`. Current labels: %s", foundStatefulSets.Items[0].Labels)
+				}
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("check that StatefulSet selector was not updated...")
+			Expect(*foundStatefulSets.Items[0].Spec.Selector).Should(BeEquivalentTo(
+				metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						labels.StatefulsetComponent: storageSample.Name,
+					},
+				},
+			))
+
+			By("check that delete StatefulSet event was detected...")
+			Expect(k8sClient.List(ctx, &foundStatefulSets, client.InNamespace(testobjects.YdbNamespace))).ShouldNot(HaveOccurred())
+			Expect(len(foundStatefulSets.Items)).Should(Equal(1))
+			Expect(k8sClient.Delete(ctx, &foundStatefulSets.Items[0])).ShouldNot(HaveOccurred())
+			Eventually(func() int {
+				Expect(k8sClient.List(ctx, &foundStatefulSets, client.InNamespace(testobjects.YdbNamespace))).ShouldNot(HaveOccurred())
+				return len(foundStatefulSets.Items)
+			}, test.Timeout, test.Interval).Should(Equal(1))
 		})
 	})
 })

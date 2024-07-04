@@ -192,7 +192,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				Cluster: testRemoteCluster,
 			},
 			StorageNodeSpec: v1alpha1.StorageNodeSpec{
-				Nodes: 8,
+				Nodes: 2,
 			},
 		})
 		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
@@ -201,7 +201,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				Cluster: testRemoteCluster,
 			},
 			StorageNodeSpec: v1alpha1.StorageNodeSpec{
-				Nodes: 4,
+				Nodes: 2,
 			},
 		})
 
@@ -279,6 +279,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 	})
 
 	AfterEach(func() {
+		Expect(localClient.Delete(ctx, storageSample)).Should(Succeed())
 		deleteAll(localEnv, localClient, &localNamespace)
 		deleteAll(remoteEnv, remoteClient, &localNamespace)
 	})
@@ -568,7 +569,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					{
 						Name: testNodeSetName + "-local",
 						StorageNodeSpec: v1alpha1.StorageNodeSpec{
-							Nodes: 4,
+							Nodes: 6,
 						},
 					},
 					{
@@ -577,7 +578,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 							Cluster: testRemoteCluster,
 						},
 						StorageNodeSpec: v1alpha1.StorageNodeSpec{
-							Nodes: 8,
+							Nodes: 2,
 						},
 					},
 				}

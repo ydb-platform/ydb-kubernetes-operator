@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
@@ -25,8 +24,9 @@ type DatabaseStatefulSetBuilder struct {
 	*api.Database
 	RestConfig *rest.Config
 
-	Name   string
-	Labels map[string]string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 var annotationDataCenterPattern = regexp.MustCompile("^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$")
@@ -41,7 +41,9 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		sts.ObjectMeta.Name = b.Name
 	}
 	sts.ObjectMeta.Namespace = b.GetNamespace()
-	sts.ObjectMeta.Annotations = CopyDict(b.Spec.AdditionalAnnotations)
+
+	sts.ObjectMeta.Labels = b.Labels
+	sts.ObjectMeta.Annotations = b.Annotations
 
 	replicas := ptr.Int32(b.Spec.Nodes)
 	if b.Spec.Pause {
@@ -51,7 +53,9 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 	sts.Spec = appsv1.StatefulSetSpec{
 		Replicas: replicas,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: b.Labels,
+			MatchLabels: map[string]string{
+				labels.StatefulsetComponent: b.Name,
+			},
 		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
@@ -85,16 +89,10 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
-	podTemplateLabels := CopyDict(b.Labels)
-	podTemplateLabels[labels.DatabaseGeneration] = strconv.FormatInt(b.ObjectMeta.Generation, 10)
-
-	podTemplateAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	podTemplateAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
-
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      podTemplateLabels,
-			Annotations: podTemplateAnnotations,
+			Labels:      b.Labels,
+			Annotations: b.Annotations,
 		},
 		Spec: corev1.PodSpec{
 			Containers:                    []corev1.Container{b.buildContainer()},
@@ -168,6 +166,18 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
 	}
 
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumes = append(volumes,
+			buildTLSVolume(statusOriginTLSVolumeName, b.Spec.Service.Status.TLSConfiguration),
+			corev1.Volume{
+				Name: statusTLSVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		)
+	}
+
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumes = append(volumes, b.buildEncryptionVolume())
 	}
@@ -218,6 +228,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 		b.Spec.CABundle,
 		b.Spec.Service.GRPC,
 		b.Spec.Service.Interconnect,
+		b.Spec.Service.Status,
 	)
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {
@@ -292,6 +303,19 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMoun
 			MountPath: datastreamsTLSVolumeMountPath,
 		})
 	}
+
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusOriginTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: statusOriginTLSVolumeMountPath,
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusTLSVolumeName,
+			MountPath: statusTLSVolumeMountPath,
+		})
+	}
+
 	return volumeMounts
 }
 
@@ -448,6 +472,14 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      statusTLSVolumeName,
+			ReadOnly:  true,
+			MountPath: statusTLSVolumeMountPath,
+		})
+	}
+
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      encryptionVolumeName,
@@ -546,6 +578,13 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 			fmt.Sprintf("%s/%s", grpcTLSVolumeMountPath, wellKnownNameForTLSPrivateKey),
 			"--grpc-ca",
 			fmt.Sprintf("%s/%s", systemCertsDir, caCertificatesFileName),
+		)
+	}
+
+	if b.Spec.Service.Status.TLSConfiguration.Enabled {
+		args = append(args,
+			"--mon-cert",
+			fmt.Sprintf("%s/%s", statusTLSVolumeMountPath, statusBundleFileName),
 		)
 	}
 

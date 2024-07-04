@@ -8,14 +8,14 @@ import (
 	"fmt"
 
 	"github.com/banzaicloud/k8s-objectmatcher/patch"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/golang-jwt/jwt/v4"
+	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
 	ydbCredentials "github.com/ydb-platform/ydb-go-sdk/v3/credentials"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -23,8 +23,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
@@ -40,10 +38,14 @@ const (
 	grpcTLSVolumeName         = "grpc-tls-volume"
 	interconnectTLSVolumeName = "interconnect-tls-volume"
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
+	statusTLSVolumeName       = "status-tls-volume"
+	statusOriginTLSVolumeName = "status-origin-tls-volume"
 
 	grpcTLSVolumeMountPath         = "/tls/grpc"
 	interconnectTLSVolumeMountPath = "/tls/interconnect"
 	datastreamsTLSVolumeMountPath  = "/tls/datastreams"
+	statusTLSVolumeMountPath       = "/tls/status"
+	statusOriginTLSVolumeMountPath = "/tls/status-origin"
 
 	InitJobNameFormat             = "%s-blobstorage-init"
 	OperatorTokenSecretNameFormat = "%s-operator-token"
@@ -63,6 +65,7 @@ const (
 	caBundleFileName        = "userCABundle.crt"
 	caCertificatesFileName  = "ca-certificates.crt"
 	updateCACertificatesBin = "update-ca-certificates"
+	statusBundleFileName    = "web.pem"
 
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
@@ -165,6 +168,15 @@ func CreateOrUpdateOrMaybeIgnore(
 
 	if shouldIgnoreChange(existing, obj) {
 		return ctrlutil.OperationResultNone, nil
+	}
+
+	// Prevent updating selectorLabels for StatefulSet
+	if updated, ok := obj.(*appsv1.StatefulSet); ok {
+		existingMatchLabels := CopyDict(existing.(*appsv1.StatefulSet).Spec.Selector.MatchLabels)
+		updatedMatchLabels := CopyDict(updated.Spec.Selector.MatchLabels)
+		if !CompareMaps(updatedMatchLabels, existingMatchLabels) {
+			obj.(*appsv1.StatefulSet).Spec.Selector.MatchLabels = existingMatchLabels
+		}
 	}
 
 	changed, err := CheckObjectUpdatedIgnoreStatus(existing, obj)
@@ -338,50 +350,6 @@ func EqualRemoteResourceWithObject(
 	return false
 }
 
-func LastAppliedAnnotationPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			return !ydbannotations.CompareYdbTechAnnotations(
-				e.ObjectOld.GetAnnotations(),
-				e.ObjectNew.GetAnnotations(),
-			)
-		},
-	}
-}
-
-func IgnoreDeletetionPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Evaluates to false if the object has been confirmed deleted.
-			return !e.DeleteStateUnknown
-		},
-	}
-}
-
-func IsServicePredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			_, isService := e.ObjectOld.(*corev1.Service)
-			return isService
-		},
-	}
-}
-
-func IsSecretPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			_, isSecret := e.ObjectOld.(*corev1.Secret)
-			return isSecret
-		},
-	}
-}
-
-func LabelExistsPredicate(selector labels.Selector) predicate.Predicate {
-	return predicate.NewPredicateFuncs(func(o client.Object) bool {
-		return selector.Matches(labels.Set(o.GetLabels()))
-	})
-}
-
 func getYDBStaticCredentials(
 	ctx context.Context,
 	storage *api.Storage,
@@ -420,7 +388,69 @@ func getYDBStaticCredentials(
 	if err != nil {
 		return nil, err
 	}
-	return ydbCredentials.NewStaticCredentials(username, password, endpoint, dialOptions), nil
+
+	return ydbCredentials.NewStaticCredentials(
+		username,
+		password,
+		endpoint,
+		ydbCredentials.WithGrpcDialOptions(dialOptions),
+	), nil
+}
+
+func getYDBOauth2Credentials(
+	ctx context.Context,
+	storage *api.Storage,
+	restConfig *rest.Config,
+) (ydbCredentials.Credentials, error) {
+	auth := storage.Spec.OperatorConnection
+	privateKey, err := GetSecretKey(
+		ctx,
+		storage.Namespace,
+		restConfig,
+		auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get RSA private key for Oauth2TokenExchange from secret: %s, key: %s, error: %w",
+			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Name,
+			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Key,
+			err)
+	}
+	privateKeyPEM, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privateKey))
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to parse RSA private key for Oauth2TokenExchange from secret: %s, key: %s, error: %w",
+			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Name,
+			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Key,
+			err,
+		)
+	}
+
+	var signMethod jwt.SigningMethod
+	if auth.Oauth2TokenExhange.JWTHeader.SignAlg != "" {
+		if !isSignAlgorithmSupported(auth.Oauth2TokenExhange.JWTHeader.SignAlg) {
+			return nil, fmt.Errorf(
+				"sign algorithm %s does not supported",
+				auth.Oauth2TokenExhange.JWTHeader.SignAlg,
+			)
+		}
+		signMethod = jwt.GetSigningMethod(auth.Oauth2TokenExhange.JWTHeader.SignAlg)
+	} else {
+		signMethod = jwt.SigningMethodRS256
+	}
+
+	return ydbCredentials.NewOauth2TokenExchangeCredentials(
+		ydbCredentials.WithTokenEndpoint(auth.Oauth2TokenExhange.Endpoint),
+		ydbCredentials.WithAudience(auth.Oauth2TokenExhange.JWTClaims.Audience),
+		ydbCredentials.WithJWTSubjectToken(
+			ydbCredentials.WithSigningMethod(signMethod),
+			ydbCredentials.WithPrivateKey(privateKeyPEM),
+			ydbCredentials.WithKeyID(auth.Oauth2TokenExhange.JWTHeader.KeyID),
+			ydbCredentials.WithAudience(auth.Oauth2TokenExhange.JWTClaims.Audience),
+			ydbCredentials.WithIssuer(auth.Oauth2TokenExhange.JWTClaims.Issuer),
+			ydbCredentials.WithSubject(auth.Oauth2TokenExhange.JWTClaims.Subject),
+			ydbCredentials.WithID(auth.Oauth2TokenExhange.JWTClaims.ID),
+		))
 }
 
 func GetYDBCredentials(
@@ -453,6 +483,10 @@ func GetYDBCredentials(
 
 	if auth.StaticCredentials != nil {
 		return getYDBStaticCredentials(ctx, storage, restConfig)
+	}
+
+	if auth.Oauth2TokenExhange != nil {
+		return getYDBOauth2Credentials(ctx, storage, restConfig)
 	}
 
 	return nil, errors.New("unsupported auth type for GetYDBCredentials")
@@ -503,6 +537,7 @@ func buildCAStorePatchingCommandArgs(
 	caBundle string,
 	grpcService api.GRPCService,
 	interconnectService api.InterconnectService,
+	statusService api.StatusService,
 ) ([]string, []string) {
 	command := []string{"/bin/bash", "-c"}
 
@@ -520,6 +555,16 @@ func buildCAStorePatchingCommandArgs(
 		arg += fmt.Sprintf("cp %s/%s %s/interconnectRoot.crt && ", interconnectTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
 	}
 
+	if statusService.TLSConfiguration != nil && statusService.TLSConfiguration.Enabled {
+		arg += fmt.Sprintf("cp %s/%s %s/web.crt && ", statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority, localCertsDir)
+		arg += fmt.Sprintf("cat %s/%s %s/%s %s/%s > %s/%s && ",
+			statusOriginTLSVolumeMountPath, wellKnownNameForTLSPrivateKey,
+			statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificate,
+			statusOriginTLSVolumeMountPath, wellKnownNameForTLSCertificateAuthority,
+			statusTLSVolumeMountPath, statusBundleFileName,
+		)
+	}
+
 	if arg != "" {
 		arg += updateCACertificatesBin
 	}
@@ -533,4 +578,38 @@ func GetConfigurationChecksum(configuration string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(configuration))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func CompareMaps(map1, map2 map[string]string) bool {
+	if len(map1) != len(map2) {
+		return false
+	}
+	for key1, value1 := range map1 {
+		if value2, ok := map2[key1]; !ok || value2 != value1 {
+			return false
+		}
+	}
+	return true
+}
+
+func PodIsReady(e corev1.Pod) bool {
+	if e.Status.Phase == corev1.PodRunning {
+		for _, condition := range e.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isSignAlgorithmSupported(alg string) bool {
+	supportedAlgs := jwt.GetAlgorithms()
+
+	for _, supportedAlg := range supportedAlgs {
+		if alg == supportedAlg {
+			return true
+		}
+	}
+	return false
 }

@@ -82,6 +82,10 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 func NewRemoteStorageNodeSet(remoteStorageNodeSet *api.RemoteStorageNodeSet) RemoteStorageNodeSetResource {
 	crRemoteStorageNodeSet := remoteStorageNodeSet.DeepCopy()
 
+	if crRemoteStorageNodeSet.Spec.Service.Status.TLSConfiguration == nil {
+		crRemoteStorageNodeSet.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
+	}
+
 	return RemoteStorageNodeSetResource{RemoteStorageNodeSet: crRemoteStorageNodeSet}
 }
 

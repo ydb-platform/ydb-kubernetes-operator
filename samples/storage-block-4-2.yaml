@@ -11,7 +11,7 @@ spec:
         storage: 93Gi
     volumeMode: Block
   image:
-    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:22.4.44
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
   nodes: 8
   erasure: block-4-2
   configuration: |-

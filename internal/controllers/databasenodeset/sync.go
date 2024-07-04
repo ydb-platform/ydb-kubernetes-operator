@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -203,69 +202,42 @@ func (r *Reconciler) waitForStatefulSetToScale(
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 	}
 
-	found := &appsv1.StatefulSet{}
+	foundStatefulSet := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{
 		Name:      databaseNodeSet.Name,
 		Namespace: databaseNodeSet.Namespace,
-	}, found)
+	}, foundStatefulSet)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			r.Recorder.Event(
 				databaseNodeSet,
 				corev1.EventTypeWarning,
-				"Syncing",
-				fmt.Sprintf("Failed to found StatefulSet: %s", err),
+				"ProvisioningFailed",
+				fmt.Sprintf("StatefulSet with name %s was not found: %s", databaseNodeSet.Name, err),
 			)
 			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, nil
 		}
 		r.Recorder.Event(
 			databaseNodeSet,
 			corev1.EventTypeWarning,
-			"Syncing",
-			fmt.Sprintf("Failed to get StatefulSets: %s", err),
+			"ControllerError",
+			fmt.Sprintf("Failed to get StatefulSet: %s", err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	matchingLabels := client.MatchingLabels{}
-	for k, v := range databaseNodeSet.Labels {
-		matchingLabels[k] = v
-	}
-
-	podList := &corev1.PodList{}
-	opts := []client.ListOption{
-		client.InNamespace(databaseNodeSet.Namespace),
-		matchingLabels,
-	}
-	if err = r.List(ctx, podList, opts...); err != nil {
-		r.Recorder.Event(
-			databaseNodeSet,
-			corev1.EventTypeWarning,
-			"Syncing",
-			fmt.Sprintf("Failed to list databaseNodeSet pods: %s", err),
-		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
-	}
-
-	runningPods := 0
-	for _, e := range podList.Items {
-		if e.Status.Phase == "Running" {
-			runningPods++
-		}
-	}
-
-	if runningPods != int(databaseNodeSet.Spec.Nodes) {
+	if foundStatefulSet.Status.ReadyReplicas != databaseNodeSet.Spec.Nodes {
 		r.Recorder.Event(
 			databaseNodeSet,
 			corev1.EventTypeNormal,
 			string(DatabaseNodeSetProvisioning),
-			fmt.Sprintf("Waiting for number of running databaseNodeSet pods to match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes),
+			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, databaseNodeSet.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
 			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", runningPods, databaseNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, databaseNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, databaseNodeSet, DefaultRequeueDelay)
 	}
@@ -275,7 +247,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Scaled DatabaseNodeSet to %d successfully", databaseNodeSet.Spec.Nodes),
+			Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", databaseNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 	}

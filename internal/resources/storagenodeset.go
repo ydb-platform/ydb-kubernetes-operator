@@ -8,6 +8,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
 
 type StorageNodeSetBuilder struct {
@@ -53,15 +55,32 @@ func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	ydbCr := api.RecastStorageNodeSet(b.Unwrap())
+	storageLabels := labels.StorageLabels(ydbCr)
+
+	statefulSetName := b.Name
+	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
+
+	storageNodeSetName := b.Labels[labels.StorageNodeSetComponent]
+	statefulSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: storageNodeSetName})
+	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
+		statefulSetLabels.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
+	}
+
+	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(
 		resourceBuilders,
 		&StorageStatefulSetBuilder{
-			Storage:    api.RecastStorageNodeSet(b.StorageNodeSet),
+			Storage:    ydbCr,
 			RestConfig: restConfig,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        statefulSetName,
+			Labels:      statefulSetLabels,
+			Annotations: statefulSetAnnotations,
 		},
 	)
 
@@ -71,9 +90,11 @@ func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []
 func NewStorageNodeSet(storageNodeSet *api.StorageNodeSet) StorageNodeSetResource {
 	crStorageNodeSet := storageNodeSet.DeepCopy()
 
-	return StorageNodeSetResource{
-		StorageNodeSet: crStorageNodeSet,
+	if crStorageNodeSet.Spec.Service.Status.TLSConfiguration == nil {
+		crStorageNodeSet.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
 	}
+
+	return StorageNodeSetResource{StorageNodeSet: crStorageNodeSet}
 }
 
 func (b *StorageNodeSetResource) Unwrap() *api.StorageNodeSet {

@@ -8,6 +8,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
 
 type DatabaseNodeSetBuilder struct {
@@ -53,14 +55,31 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	ydbCr := api.RecastDatabaseNodeSet(b.Unwrap())
+	databaseLabels := labels.DatabaseLabels(ydbCr)
+
+	statefulSetName := b.Name
+	statefulSetLabels := databaseLabels.Copy()
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
+
+	databaseNodeSetName := b.Labels[labels.DatabaseNodeSetComponent]
+	statefulSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: databaseNodeSetName})
+	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
+		statefulSetLabels.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
+	}
+
+	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseStatefulSetBuilder{
-			Database:   api.RecastDatabaseNodeSet(b.DatabaseNodeSet),
+			Database:   ydbCr,
 			RestConfig: restConfig,
 
-			Name:   b.Name,
-			Labels: b.Labels,
+			Name:        statefulSetName,
+			Labels:      statefulSetLabels,
+			Annotations: statefulSetAnnotations,
 		},
 	)
 	return resourceBuilders
@@ -68,6 +87,10 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 
 func NewDatabaseNodeSet(databaseNodeSet *api.DatabaseNodeSet) DatabaseNodeSetResource {
 	crDatabaseNodeSet := databaseNodeSet.DeepCopy()
+
+	if crDatabaseNodeSet.Spec.Service.Status.TLSConfiguration == nil {
+		crDatabaseNodeSet.Spec.Service.Status.TLSConfiguration = &api.TLSConfiguration{Enabled: false}
+	}
 
 	return DatabaseNodeSetResource{DatabaseNodeSet: crDatabaseNodeSet}
 }
