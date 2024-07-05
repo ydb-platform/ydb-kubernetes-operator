@@ -203,9 +203,10 @@ func (b *RemoteDatabaseNodeSetResource) CreateRemoteResourceStatus(
 	meta.SetStatusCondition(
 		&b.Status.RemoteResources[len(b.Status.RemoteResources)-1].Conditions,
 		metav1.Condition{
-			Type:   RemoteResourceSyncedCondition,
-			Status: "Unknown",
-			Reason: ReasonInProgress,
+			Type:               RemoteResourceSyncedCondition,
+			Status:             "Unknown",
+			Reason:             ReasonInProgress,
+			ObservedGeneration: b.Generation,
 		},
 	)
 }
@@ -218,10 +219,11 @@ func (b *RemoteDatabaseNodeSetResource) UpdateRemoteResourceStatus(
 	if status == metav1.ConditionFalse {
 		meta.SetStatusCondition(&remoteResource.Conditions,
 			metav1.Condition{
-				Type:    RemoteResourceSyncedCondition,
-				Status:  metav1.ConditionFalse,
-				Reason:  ReasonInProgress,
-				Message: fmt.Sprintf("Failed to sync remoteObject to resourceVersion %s", resourceVersion),
+				Type:               RemoteResourceSyncedCondition,
+				Status:             metav1.ConditionFalse,
+				Reason:             ReasonInProgress,
+				ObservedGeneration: b.Generation,
+				Message:            fmt.Sprintf("Failed to sync remoteObject to resourceVersion %s", resourceVersion),
 			})
 		remoteResource.State = ResourceSyncPending
 	}
@@ -229,10 +231,11 @@ func (b *RemoteDatabaseNodeSetResource) UpdateRemoteResourceStatus(
 	if status == metav1.ConditionTrue {
 		meta.SetStatusCondition(&remoteResource.Conditions,
 			metav1.Condition{
-				Type:    RemoteResourceSyncedCondition,
-				Status:  metav1.ConditionTrue,
-				Reason:  ReasonCompleted,
-				Message: fmt.Sprintf("Successfully synced remoteObject to resourceVersion %s", resourceVersion),
+				Type:               RemoteResourceSyncedCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: b.Generation,
+				Message:            fmt.Sprintf("Successfully synced remoteObject to resourceVersion %s", resourceVersion),
 			})
 		remoteResource.State = ResourceSyncSuccess
 	}

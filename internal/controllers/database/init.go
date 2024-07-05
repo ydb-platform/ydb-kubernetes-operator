@@ -79,16 +79,17 @@ func (r *Reconciler) checkCreateTenantOperation(
 	ydbOptions ydb.Option,
 ) (bool, ctrl.Result, error) {
 	condition := meta.FindStatusCondition(database.Status.Conditions, CreateDatabaseOperationCondition)
-	if condition == nil || len(condition.Message) == 0 {
+	if len(condition.Message) == 0 {
 		// Something is wrong with the condition where we save operation id
 		// retry create tenant
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:   CreateDatabaseOperationCondition,
-			Status: metav1.ConditionTrue,
-			Reason: ReasonNotRequired,
+			Status: metav1.ConditionFalse,
+			Reason: ReasonFailed,
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
+
 	operationID := condition.Message
 	finished, operationErr, err := tenant.CheckCreateOperation(ctx, operationID, ydbOptions)
 	if err != nil {
@@ -96,7 +97,7 @@ func (r *Reconciler) checkCreateTenantOperation(
 			database,
 			corev1.EventTypeWarning,
 			"InitializingFailed",
-			fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, err),
+			fmt.Sprintf("Failed to check creation operation, operationID %s: %s", operationID, err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DatabaseInitializationRequeueDelay}, err
 	}
@@ -106,20 +107,21 @@ func (r *Reconciler) checkCreateTenantOperation(
 			database,
 			corev1.EventTypeWarning,
 			"InitializingFailed",
-			fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, operationErr),
+			fmt.Sprintf("Failed to create tenant %s: %s", tenant.Path, operationErr),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:   CreateDatabaseOperationCondition,
-			Status: metav1.ConditionTrue,
-			Reason: ReasonNotRequired,
+			Type:    CreateDatabaseOperationCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  ReasonFailed,
+			Message: fmt.Sprintf("Failed to create tenant %s", tenant.Path),
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
 	if !finished {
 		r.Recorder.Event(
 			database,
-			corev1.EventTypeWarning,
-			"Pending",
+			corev1.EventTypeNormal,
+			string(DatabaseInitializing),
 			fmt.Sprintf("Tenant creation operation is not completed, operationID: %s", operationID),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DatabaseInitializationRequeueDelay}, nil
@@ -127,7 +129,7 @@ func (r *Reconciler) checkCreateTenantOperation(
 	r.Recorder.Event(
 		database,
 		corev1.EventTypeNormal,
-		"Initialized",
+		string(DatabaseInitializing),
 		fmt.Sprintf("Tenant %s created", tenant.Path),
 	)
 	return r.setInitDatabaseCompleted(ctx, database, "Database initialized successfully")
@@ -238,7 +240,7 @@ func (r *Reconciler) initializeTenant(
 	}
 	ydbOpts := ydb.MergeOptions(ydb.WithCredentials(creds), tlsOptions)
 
-	if meta.IsStatusConditionFalse(database.Status.Conditions, CreateDatabaseOperationCondition) {
+	if meta.IsStatusConditionPresentAndEqual(database.Status.Conditions, CreateDatabaseOperationCondition, metav1.ConditionUnknown) {
 		return r.checkCreateTenantOperation(ctx, database, tenant, ydbOpts)
 	}
 	operationID, err := tenant.Create(ctx, ydb.WithCredentials(creds), tlsOptions)
@@ -254,13 +256,13 @@ func (r *Reconciler) initializeTenant(
 	if len(operationID) > 0 {
 		r.Recorder.Event(
 			database,
-			corev1.EventTypeWarning,
-			"Pending",
+			corev1.EventTypeNormal,
+			string(DatabaseInitializing),
 			fmt.Sprintf("Tenant creation operation in progress, operationID: %s", operationID),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:    CreateDatabaseOperationCondition,
-			Status:  metav1.ConditionFalse,
+			Status:  metav1.ConditionUnknown,
 			Reason:  ReasonInProgress,
 			Message: operationID,
 		})
@@ -269,7 +271,7 @@ func (r *Reconciler) initializeTenant(
 	r.Recorder.Event(
 		database,
 		corev1.EventTypeNormal,
-		"Initialized",
+		string(DatabaseInitializing),
 		fmt.Sprintf("Tenant %s created", tenant.Path),
 	)
 
