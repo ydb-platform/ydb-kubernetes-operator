@@ -193,7 +193,7 @@ func (b *RemoteStorageNodeSetResource) CreateRemoteResourceStatus(remoteObj clie
 func (b *RemoteStorageNodeSetResource) UpdateRemoteResourceStatus(
 	remoteResource *api.RemoteResource,
 	status metav1.ConditionStatus,
-	resourceVersion string,
+	message string,
 ) {
 	if status == metav1.ConditionFalse {
 		meta.SetStatusCondition(&remoteResource.Conditions,
@@ -202,7 +202,7 @@ func (b *RemoteStorageNodeSetResource) UpdateRemoteResourceStatus(
 				Status:             metav1.ConditionFalse,
 				Reason:             ReasonInProgress,
 				ObservedGeneration: b.Generation,
-				Message:            fmt.Sprintf("Failed to sync remoteObject to resourceVersion %s", resourceVersion),
+				Message:            fmt.Sprintf("Failed to sync remoteObject to resourceVersion %s", message),
 			})
 		remoteResource.State = ResourceSyncPending
 	}
@@ -214,7 +214,7 @@ func (b *RemoteStorageNodeSetResource) UpdateRemoteResourceStatus(
 				Status:             metav1.ConditionTrue,
 				Reason:             ReasonCompleted,
 				ObservedGeneration: b.Generation,
-				Message:            fmt.Sprintf("Successfully synced remoteObject to resourceVersion %s", resourceVersion),
+				Message:            fmt.Sprintf("Successfully synced remoteObject to resourceVersion %s", message),
 			})
 		remoteResource.State = ResourceSyncSuccess
 	}
