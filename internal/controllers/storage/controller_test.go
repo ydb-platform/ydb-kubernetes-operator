@@ -195,6 +195,9 @@ var _ = Describe("Storage controller medium tests", func() {
 				Expect(k8sClient.List(ctx, &foundStatefulSets, client.InNamespace(testobjects.YdbNamespace))).ShouldNot(HaveOccurred())
 				return len(foundStatefulSets.Items)
 			}, test.Timeout, test.Interval).Should(Equal(1))
+
+			test.RunAdditionalLabelsTest(ctx, k8sClient, testobjects.YdbNamespace, storageSample.GetUID(),
+				storageSample.Spec.AdditionalLabels, storageSS)
 		})
 	})
 })

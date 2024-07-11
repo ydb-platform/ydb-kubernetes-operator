@@ -142,5 +142,20 @@ var _ = Describe("Database controller medium tests", func() {
 				}
 			}
 		})
+
+		By("Check that Services were created...")
+		allFoundServices := corev1.ServiceList{}
+
+		Eventually(func() error {
+			err := k8sClient.List(ctx, &allFoundServices, client.InNamespace(testobjects.YdbNamespace))
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		test.RunAdditionalLabelsTest(ctx, k8sClient, testobjects.YdbNamespace, databaseSample.GetUID(),
+			databaseSample.Spec.AdditionalLabels, databaseStatefulSet)
 	})
 })

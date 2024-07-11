@@ -51,24 +51,35 @@ func Common(name string, defaultLabels Labels) Labels {
 }
 
 func StorageLabels(cluster *v1alpha1.Storage) Labels {
-	l := Common(cluster.Name, cluster.Labels)
+	l := StorageSelectorLabels(cluster)
 
 	l.Merge(cluster.Spec.AdditionalLabels)
-	l.Merge(map[string]string{
-		ComponentKey: StorageComponent,
-	})
 
 	return l
 }
 
 func DatabaseLabels(database *v1alpha1.Database) Labels {
-	l := Common(database.Name, database.Labels)
+	l := DatabaseSelectorLabels(database)
 
 	l.Merge(database.Spec.AdditionalLabels)
+
+	return l
+}
+
+func DatabaseSelectorLabels(database *v1alpha1.Database) Labels {
+	l := Common(database.Name, database.Labels)
 	l.Merge(map[string]string{
 		ComponentKey: DynamicComponent,
 	})
+	return l
+}
 
+func StorageSelectorLabels(cluster *v1alpha1.Storage) Labels {
+	l := Common(cluster.Name, cluster.Labels)
+
+	l.Merge(map[string]string{
+		ComponentKey: StorageComponent,
+	})
 	return l
 }
 

@@ -35,6 +35,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 	}
 
 	databaseLabels := labels.DatabaseLabels(b.Unwrap())
+	databaseSelectorLabels := labels.DatabaseSelectorLabels(b.Unwrap())
 
 	statefulSetLabels := databaseLabels.Copy()
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
@@ -87,8 +88,8 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				MetricsServices: metrics.GetDatabaseMetricsServices(),
 				Options:         b.Spec.Monitoring,
 
-				Labels:         databaseLabels,
-				SelectorLabels: statusServiceLabels,
+				Labels:         statusServiceLabels,
+				SelectorLabels: databaseSelectorLabels,
 			},
 		)
 	}
@@ -117,7 +118,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: databaseSelectorLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
@@ -130,7 +131,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: databaseSelectorLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			Ports: []corev1.ServicePort{{
@@ -144,7 +145,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: databaseSelectorLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
@@ -162,7 +163,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				Object:         b,
 				NameFormat:     DatastreamsServiceNameFormat,
 				Labels:         datastreamsServiceLabels,
-				SelectorLabels: databaseLabels,
+				SelectorLabels: databaseSelectorLabels,
 				Annotations:    b.Spec.Service.Datastreams.AdditionalAnnotations,
 				Ports: []corev1.ServicePort{{
 					Name: api.DatastreamsServicePortName,

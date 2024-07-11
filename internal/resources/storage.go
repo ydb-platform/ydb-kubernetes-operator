@@ -31,6 +31,7 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	storageLabels := labels.StorageLabels(b.Unwrap())
+	storageSelectorLabels := labels.StorageSelectorLabels(b.Unwrap())
 
 	statefulSetLabels := storageLabels.Copy()
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
@@ -91,8 +92,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 				MetricsServices: metrics.GetStorageMetricsServices(),
 				Options:         b.Spec.Monitoring,
 
-				Labels:         storageLabels,
-				SelectorLabels: statusServiceLabels,
+				Labels:         statusServiceLabels,
+				SelectorLabels: storageSelectorLabels,
 			},
 		)
 	}
@@ -119,7 +120,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			Object:         b,
 			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
-			SelectorLabels: storageLabels,
+			SelectorLabels: storageSelectorLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
@@ -132,7 +133,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			Object:         b,
 			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
-			SelectorLabels: storageLabels,
+			SelectorLabels: storageSelectorLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			Ports: []corev1.ServicePort{{
@@ -146,7 +147,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			Object:         b,
 			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
-			SelectorLabels: storageLabels,
+			SelectorLabels: storageSelectorLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
