@@ -227,15 +227,13 @@ func (r *Storage) ValidateCreate() error {
 		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
-	if r.Spec.OperatorConnection != nil {
-		if r.Spec.OperatorConnection.Oauth2TokenExchange != nil {
-			auth := r.Spec.OperatorConnection.Oauth2TokenExchange
-			if auth.KeyID == nil {
-				return fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
-			}
-			if !isSignAlgorithmSupported(auth.SignAlg) {
-				return fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
-			}
+	if r.Spec.OperatorConnection != nil && r.Spec.OperatorConnection.Oauth2TokenExchange != nil {
+		auth := r.Spec.OperatorConnection.Oauth2TokenExchange
+		if auth.KeyID == nil {
+			return fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
+		}
+		if !isSignAlgorithmSupported(auth.SignAlg) {
+			return fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
 		}
 	}
 
@@ -326,15 +324,13 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
-	if r.Spec.OperatorConnection != nil {
-		if r.Spec.OperatorConnection.Oauth2TokenExchange != nil {
-			auth := r.Spec.OperatorConnection.Oauth2TokenExchange
-			if auth.KeyID == nil {
-				return fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
-			}
-			if !isSignAlgorithmSupported(auth.SignAlg) {
-				return fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
-			}
+	if r.Spec.OperatorConnection != nil && r.Spec.OperatorConnection.Oauth2TokenExchange != nil {
+		auth := r.Spec.OperatorConnection.Oauth2TokenExchange
+		if auth.KeyID == nil {
+			return fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
+		}
+		if !isSignAlgorithmSupported(auth.SignAlg) {
+			return fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
 		}
 	}
 
