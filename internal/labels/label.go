@@ -1,9 +1,5 @@
 package labels
 
-import (
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-)
-
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/
 const (
 	// NameKey The name of a higher level application this one is part of
@@ -51,28 +47,6 @@ func Common(name string, defaultLabels Labels) Labels {
 	return l
 }
 
-func StorageLabels(cluster *v1alpha1.Storage) Labels {
-	l := Common(cluster.Name, cluster.Labels)
-
-	l.Merge(cluster.Spec.AdditionalLabels)
-	l.Merge(map[string]string{
-		ComponentKey: StorageComponent,
-	})
-
-	return l
-}
-
-func DatabaseLabels(database *v1alpha1.Database) Labels {
-	l := Common(database.Name, database.Labels)
-
-	l.Merge(database.Spec.AdditionalLabels)
-	l.Merge(map[string]string{
-		ComponentKey: DynamicComponent,
-	})
-
-	return l
-}
-
 func (l Labels) AsMap() map[string]string {
 	return l
 }
@@ -97,16 +71,6 @@ func (l Labels) Merge(other map[string]string) map[string]string {
 	}
 
 	return l
-}
-
-func (l Labels) MergeInPlace(other map[string]string) map[string]string {
-	result := l.Copy()
-
-	for k, v := range other {
-		result[k] = v
-	}
-
-	return result
 }
 
 func makeCommonLabels(other map[string]string, instance string) map[string]string {

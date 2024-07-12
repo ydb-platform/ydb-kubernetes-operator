@@ -56,8 +56,6 @@ type DatabaseNodeSetResource struct {
 
 func (b *DatabaseNodeSetResource) NewLabels() labels.Labels {
 	l := labels.Common(b.Name, b.Labels)
-
-	l.Merge(b.Spec.AdditionalLabels)
 	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
 
 	databaseNodeSetName := b.Labels[labels.DatabaseNodeSetComponent]
@@ -70,10 +68,8 @@ func (b *DatabaseNodeSetResource) NewLabels() labels.Labels {
 	return l
 }
 
-func (b *DatabaseNodeSetResource) NewAnnotations() map[string]string {
+func (b *DatabaseNodeSetResource) NewAnnotations() annotations.Annotations {
 	an := annotations.Common(b.Annotations)
-
-	an.Merge(b.Spec.AdditionalAnnotations)
 
 	return an
 }
@@ -83,7 +79,11 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 	nodeSetAnnotations := b.NewAnnotations()
 
 	statefulSetLabels := nodeSetLabels.Copy()
+	statefulSetLabels.Merge(b.Spec.AdditionalLabels)
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+
+	statefulSetAnnotations := nodeSetAnnotations.Copy()
+	statefulSetAnnotations.Merge(b.Spec.AdditionalAnnotations)
 
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
@@ -93,7 +93,7 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 
 			Name:        b.Name,
 			Labels:      statefulSetLabels,
-			Annotations: nodeSetAnnotations,
+			Annotations: statefulSetAnnotations,
 		},
 	)
 	return resourceBuilders

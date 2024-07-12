@@ -33,17 +33,13 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 
 func (b *StorageClusterBuilder) NewLabels() labels.Labels {
 	l := labels.Common(b.Name, b.Labels)
-
-	l.Merge(b.Spec.AdditionalLabels)
 	l.Merge(map[string]string{labels.ComponentKey: labels.StorageComponent})
 
 	return l
 }
 
-func (b *StorageClusterBuilder) NewAnnotations() map[string]string {
+func (b *StorageClusterBuilder) NewAnnotations() annotations.Annotations {
 	an := annotations.Common(b.Annotations)
-
-	an.Merge(b.Spec.AdditionalAnnotations)
 	an.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
 
 	return an
@@ -60,7 +56,7 @@ func (b *StorageClusterBuilder) NewInitJobLabels() labels.Labels {
 	return l
 }
 
-func (b *StorageClusterBuilder) NewInitJobAnnotations() map[string]string {
+func (b *StorageClusterBuilder) NewInitJobAnnotations() annotations.Annotations {
 	an := annotations.Common(b.Annotations)
 
 	if b.Spec.InitJob != nil {
@@ -90,7 +86,11 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	storageAnnotations := b.NewAnnotations()
 
 	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels.Merge(b.Spec.AdditionalLabels)
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+
+	statefulSetAnnotations := storageAnnotations.Copy()
+	statefulSetAnnotations.Merge(b.Spec.AdditionalAnnotations)
 
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -160,7 +160,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 				Name:        b.Name,
 				Labels:      statefulSetLabels,
-				Annotations: storageAnnotations,
+				Annotations: statefulSetAnnotations,
 			},
 		)
 	} else {

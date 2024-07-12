@@ -29,22 +29,13 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 
 func (b *DatabaseBuilder) NewLabels() labels.Labels {
 	l := labels.Common(b.Name, b.Labels)
-
-	l.Merge(b.Spec.AdditionalLabels)
 	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
 
 	return l
 }
 
-func (b *DatabaseBuilder) NewAnnotations() map[string]string {
+func (b *DatabaseBuilder) NewAnnotations() annotations.Annotations {
 	an := annotations.Common(b.Annotations)
-
-	an.Merge(b.Spec.AdditionalAnnotations)
-	if b.Spec.Configuration != "" {
-		an.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
-	} else {
-		an.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
-	}
 
 	return an
 }
@@ -62,7 +53,16 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 	databaseAnnotations := b.NewAnnotations()
 
 	statefulSetLabels := databaseLabels.Copy()
+	statefulSetLabels.Merge(b.Spec.AdditionalLabels)
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+
+	statefulSetAnnotations := databaseAnnotations.Copy()
+	statefulSetAnnotations.Merge(b.Spec.AdditionalAnnotations)
+	if b.Spec.Configuration != "" {
+		statefulSetAnnotations.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+	} else {
+		statefulSetAnnotations.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
+	}
 
 	grpcServiceLabels := databaseLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -205,7 +205,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 				Name:        b.Name,
 				Labels:      statefulSetLabels,
-				Annotations: databaseAnnotations,
+				Annotations: statefulSetAnnotations,
 			},
 		)
 	} else {
@@ -235,6 +235,11 @@ func (b *DatabaseBuilder) getNodeSetBuilders(
 
 		nodeSetAnnotations := databaseAnnotations.Copy()
 		nodeSetAnnotations.Merge(nodeSetSpecInline.Annotations)
+		if b.Spec.Configuration != "" {
+			nodeSetAnnotations.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+		} else {
+			nodeSetAnnotations.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
+		}
 
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {

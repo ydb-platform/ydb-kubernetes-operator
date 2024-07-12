@@ -56,8 +56,6 @@ type StorageNodeSetResource struct {
 
 func (b *StorageNodeSetResource) NewLabels() labels.Labels {
 	l := labels.Common(b.Name, b.Labels)
-
-	l.Merge(b.Spec.AdditionalLabels)
 	l.Merge(map[string]string{labels.ComponentKey: labels.StorageComponent})
 
 	storageNodeSetName := b.Labels[labels.StorageNodeSetComponent]
@@ -70,10 +68,8 @@ func (b *StorageNodeSetResource) NewLabels() labels.Labels {
 	return l
 }
 
-func (b *StorageNodeSetResource) NewAnnotations() map[string]string {
+func (b *StorageNodeSetResource) NewAnnotations() annotations.Annotations {
 	an := annotations.Common(b.Annotations)
-
-	an.Merge(b.Spec.AdditionalAnnotations)
 
 	return an
 }
@@ -83,7 +79,11 @@ func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []
 	nodeSetAnnotations := b.NewAnnotations()
 
 	statefulSetLabels := nodeSetLabels.Copy()
+	statefulSetLabels.Merge(b.Spec.AdditionalLabels)
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+
+	statefulSetAnnotations := nodeSetAnnotations.Copy()
+	statefulSetAnnotations.Merge(b.Spec.AdditionalAnnotations)
 
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(
@@ -94,7 +94,7 @@ func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []
 
 			Name:        b.Name,
 			Labels:      statefulSetLabels,
-			Annotations: nodeSetAnnotations,
+			Annotations: statefulSetAnnotations,
 		},
 	)
 
