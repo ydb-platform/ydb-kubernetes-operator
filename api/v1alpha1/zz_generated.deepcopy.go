@@ -505,6 +505,13 @@ func (in *DatabaseNodeSpec) DeepCopyInto(out *DatabaseNodeSpec) {
 			(*out)[key] = val
 		}
 	}
+	if in.AdditionalPodLabels != nil {
+		in, out := &in.AdditionalPodLabels, &out.AdditionalPodLabels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.AdditionalAnnotations != nil {
 		in, out := &in.AdditionalAnnotations, &out.AdditionalAnnotations
 		*out = make(map[string]string, len(*in))
@@ -1610,6 +1617,13 @@ func (in *StorageNodeSpec) DeepCopyInto(out *StorageNodeSpec) {
 	}
 	if in.AdditionalLabels != nil {
 		in, out := &in.AdditionalLabels, &out.AdditionalLabels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
+	if in.AdditionalPodLabels != nil {
+		in, out := &in.AdditionalPodLabels, &out.AdditionalPodLabels
 		*out = make(map[string]string, len(*in))
 		for key, val := range *in {
 			(*out)[key] = val
