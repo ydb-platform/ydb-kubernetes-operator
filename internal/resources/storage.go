@@ -166,7 +166,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(storageLabels)...)
+		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders()...)
 	}
 
 	return append(
@@ -214,7 +214,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	)
 }
 
-func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) []ResourceBuilder {
+func (b *StorageClusterBuilder) getNodeSetBuilders() []ResourceBuilder {
 	var nodeSetBuilders []ResourceBuilder
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {

@@ -212,13 +212,13 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			},
 		)
 	} else {
-		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(databaseLabels)...)
+		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders()...)
 	}
 
 	return optionalBuilders
 }
 
-func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []ResourceBuilder {
+func (b *DatabaseBuilder) getNodeSetBuilders() []ResourceBuilder {
 	var nodeSetBuilders []ResourceBuilder
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
