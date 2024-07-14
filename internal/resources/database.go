@@ -1,6 +1,8 @@
 package resources
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
@@ -29,15 +31,38 @@ func (b *DatabaseBuilder) Unwrap() *api.Database {
 	return b.DeepCopy()
 }
 
+func (b *DatabaseBuilder) buildSelectorLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
+
+	return l
+}
+
+func (b *DatabaseBuilder) buildLabels() labels.Labels {
+	l := b.buildSelectorLabels()
+	l.Merge(b.Spec.AdditionalLabels)
+
+	return l
+}
+
+func (b *DatabaseBuilder) buildNodeSetLabels(nodeSetSpecInline api.DatabaseNodeSetSpecInline) labels.Labels {
+	l := b.buildLabels()
+	l.Merge(nodeSetSpecInline.Labels)
+	l.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
+	if nodeSetSpecInline.Remote != nil {
+		l.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
+	}
+
+	return l
+}
+
 func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	if b.Spec.ServerlessResources != nil {
 		return []ResourceBuilder{}
 	}
 
-	databaseLabels := labels.DatabaseLabels(b.Unwrap())
-
-	statefulSetLabels := databaseLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+	databaseLabels := b.buildLabels()
+	databaseSelectorLabels := b.buildSelectorLabels()
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
@@ -117,7 +142,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: databaseSelectorLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
@@ -130,7 +155,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: databaseSelectorLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			Ports: []corev1.ServicePort{{
@@ -144,7 +169,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			Object:         b,
 			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
-			SelectorLabels: databaseLabels,
+			SelectorLabels: databaseSelectorLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
@@ -162,7 +187,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				Object:         b,
 				NameFormat:     DatastreamsServiceNameFormat,
 				Labels:         datastreamsServiceLabels,
-				SelectorLabels: databaseLabels,
+				SelectorLabels: databaseSelectorLabels,
 				Annotations:    b.Spec.Service.Datastreams.AdditionalAnnotations,
 				Ports: []corev1.ServicePort{{
 					Name: api.DatastreamsServicePortName,
@@ -182,7 +207,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 				RestConfig: restConfig,
 
 				Name:        b.Name,
-				Labels:      statefulSetLabels,
+				Labels:      databaseLabels,
 				Annotations: statefulSetAnnotations,
 			},
 		)
@@ -197,12 +222,8 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 	var nodeSetBuilders []ResourceBuilder
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
-		nodeSetLabels := databaseLabels.Copy()
-		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
-		nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
-		if nodeSetSpecInline.Remote != nil {
-			nodeSetLabels.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
-		}
+		nodeSetName := fmt.Sprintf("%s-%s", b.Name, nodeSetSpecInline.Name)
+		nodeSetLabels := b.buildNodeSetLabels(nodeSetSpecInline)
 
 		nodeSetAnnotations := CopyDict(b.Annotations)
 		if nodeSetSpecInline.Annotations != nil {
@@ -218,7 +239,7 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 				&RemoteDatabaseNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 
@@ -231,7 +252,7 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 				&DatabaseNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 

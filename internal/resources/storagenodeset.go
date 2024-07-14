@@ -54,19 +54,27 @@ func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	}
 }
 
+func (b *StorageNodeSetResource) buildLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+	l.Merge(b.Spec.AdditionalLabels)
+	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
+	if nodeSetName, exist := b.Labels[labels.StorageNodeSetComponent]; exist {
+		l.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetName})
+	}
+	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
+		l.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
+	}
+
+	return l
+}
+
 func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	ydbCr := api.RecastStorageNodeSet(b.Unwrap())
-	storageLabels := labels.StorageLabels(ydbCr)
+	storageNodeSetLabels := b.buildLabels()
 
 	statefulSetName := b.Name
-	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels := storageNodeSetLabels.Copy()
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
-
-	storageNodeSetName := b.Labels[labels.StorageNodeSetComponent]
-	statefulSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: storageNodeSetName})
-	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
-		statefulSetLabels.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
-	}
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)

@@ -303,7 +303,7 @@ func (r *Reconciler) createInitBlobstorageJob(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
 ) error {
-	builder := resources.GetInitJobBuilder(storage.DeepCopy())
+	builder := storage.GetInitJobBuilder()
 	newResource := builder.Placeholder(storage)
 	_, err := resources.CreateOrUpdateOrMaybeIgnore(ctx, r.Client, newResource, func() error {
 		var err error

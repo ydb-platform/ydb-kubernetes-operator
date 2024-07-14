@@ -1,6 +1,8 @@
 package resources
 
 import (
+	"fmt"
+
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
@@ -29,11 +31,65 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 	return b.DeepCopy()
 }
 
-func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	storageLabels := labels.StorageLabels(b.Unwrap())
+func (b *StorageClusterBuilder) buildSelectorLabels(component string) labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+	l.Merge(map[string]string{labels.ComponentKey: component})
 
-	statefulSetLabels := storageLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+	return l
+}
+
+func (b *StorageClusterBuilder) buildLabels() labels.Labels {
+	l := b.buildSelectorLabels(labels.StorageComponent)
+	l.Merge(b.Spec.AdditionalLabels)
+
+	return l
+}
+
+func (b *StorageClusterBuilder) buildInitJobLabels() labels.Labels {
+	l := b.buildSelectorLabels(labels.BlobstorageInitComponent)
+	l.Merge(b.Spec.AdditionalLabels)
+
+	if b.Spec.InitJob != nil {
+		l.Merge(b.Spec.InitJob.AdditionalLabels)
+	}
+
+	return l
+}
+
+func (b *StorageClusterBuilder) buildNodeSetLabels(nodeSetSpecInline api.StorageNodeSetSpecInline) labels.Labels {
+	l := b.buildLabels()
+	l.Merge(nodeSetSpecInline.Labels)
+	l.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
+	if nodeSetSpecInline.Remote != nil {
+		l.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
+	}
+
+	return l
+}
+
+func (b *StorageClusterBuilder) GetInitJobBuilder() ResourceBuilder {
+	jobName := fmt.Sprintf(InitJobNameFormat, b.Name)
+	jobLabels := b.buildInitJobLabels()
+
+	jobAnnotations := CopyDict(b.Annotations)
+	if b.Spec.InitJob != nil {
+		for k, v := range b.Spec.InitJob.AdditionalAnnotations {
+			jobAnnotations[k] = v
+		}
+	}
+
+	return &StorageInitJobBuilder{
+		Storage: b.Unwrap(),
+
+		Name:        jobName,
+		Labels:      jobLabels,
+		Annotations: jobAnnotations,
+	}
+}
+
+func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	storageLabels := b.buildLabels()
+	storageSelectorLabels := b.buildSelectorLabels(labels.StorageComponent)
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
@@ -105,7 +161,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 				RestConfig: restConfig,
 
 				Name:        b.Name,
-				Labels:      statefulSetLabels,
+				Labels:      storageLabels,
 				Annotations: statefulSetAnnotations,
 			},
 		)
@@ -119,7 +175,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			Object:         b,
 			NameFormat:     GRPCServiceNameFormat,
 			Labels:         grpcServiceLabels,
-			SelectorLabels: storageLabels,
+			SelectorLabels: storageSelectorLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.GRPCServicePortName,
@@ -132,7 +188,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			Object:         b,
 			NameFormat:     InterconnectServiceNameFormat,
 			Labels:         interconnectServiceLabels,
-			SelectorLabels: storageLabels,
+			SelectorLabels: storageSelectorLabels,
 			Annotations:    b.Spec.Service.Interconnect.AdditionalAnnotations,
 			Headless:       true,
 			Ports: []corev1.ServicePort{{
@@ -146,7 +202,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			Object:         b,
 			NameFormat:     StatusServiceNameFormat,
 			Labels:         statusServiceLabels,
-			SelectorLabels: storageLabels,
+			SelectorLabels: storageSelectorLabels,
 			Annotations:    b.Spec.Service.Status.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
 				Name: api.StatusServicePortName,
@@ -162,12 +218,8 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 	var nodeSetBuilders []ResourceBuilder
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
-		nodeSetLabels := storageLabels.Copy()
-		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
-		nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
-		if nodeSetSpecInline.Remote != nil {
-			nodeSetLabels.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
-		}
+		nodeSetName := fmt.Sprintf("%s-%s", b.Name, nodeSetSpecInline.Name)
+		nodeSetLabels := b.buildNodeSetLabels(nodeSetSpecInline)
 
 		nodeSetAnnotations := CopyDict(b.Annotations)
 		if nodeSetSpecInline.Annotations != nil {
@@ -183,7 +235,7 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 				&RemoteStorageNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 
@@ -196,7 +248,7 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 				&StorageNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 
