@@ -93,9 +93,9 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 				Nodes:     8,
 				DataStore: []corev1.PersistentVolumeClaimSpec{},
 
-				Resources:        &corev1.ResourceRequirements{},
-				AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
-				Affinity:         storageAntiAffinity,
+				Resources:           &corev1.ResourceRequirements{},
+				AdditionalPodLabels: map[string]string{"ydb-cluster": "kind-storage"},
+				Affinity:            storageAntiAffinity,
 			},
 		},
 	}
@@ -165,8 +165,8 @@ func DefaultDatabase() *v1alpha1.Database {
 						},
 					},
 				},
-				AdditionalLabels: map[string]string{"ydb-cluster": "kind-database"},
-				Affinity:         databaseAntiAffinity,
+				AdditionalPodLabels: map[string]string{"ydb-cluster": "kind-database"},
+				Affinity:            databaseAntiAffinity,
 			},
 		},
 	}
