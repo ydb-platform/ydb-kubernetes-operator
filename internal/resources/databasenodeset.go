@@ -55,7 +55,7 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *DatabaseNodeSetResource) buildLabels() labels.Labels {
-	l := labels.Common(b.Name, b.Labels)
+	l := labels.Common(b.Spec.DatabaseRef.Name, b.Labels)
 	l.Merge(b.Spec.AdditionalLabels)
 	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
 	if nodeSetName, exist := b.Labels[labels.DatabaseNodeSetComponent]; exist {
@@ -70,12 +70,9 @@ func (b *DatabaseNodeSetResource) buildLabels() labels.Labels {
 
 func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	ydbCr := api.RecastDatabaseNodeSet(b.Unwrap())
-	databaseNodeSetLabels := b.buildLabels()
-
 	statefulSetName := b.Name
-	statefulSetLabels := databaseNodeSetLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
 
+	statefulSetLabels := b.buildLabels()
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
 

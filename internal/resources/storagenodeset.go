@@ -55,9 +55,9 @@ func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 }
 
 func (b *StorageNodeSetResource) buildLabels() labels.Labels {
-	l := labels.Common(b.Name, b.Labels)
+	l := labels.Common(b.Spec.StorageRef.Name, b.Labels)
 	l.Merge(b.Spec.AdditionalLabels)
-	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
+	l.Merge(map[string]string{labels.ComponentKey: labels.StorageComponent})
 	if nodeSetName, exist := b.Labels[labels.StorageNodeSetComponent]; exist {
 		l.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetName})
 	}
@@ -70,12 +70,9 @@ func (b *StorageNodeSetResource) buildLabels() labels.Labels {
 
 func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	ydbCr := api.RecastStorageNodeSet(b.Unwrap())
-	storageNodeSetLabels := b.buildLabels()
 
 	statefulSetName := b.Name
-	statefulSetLabels := storageNodeSetLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
-
+	statefulSetLabels := b.buildLabels()
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
 

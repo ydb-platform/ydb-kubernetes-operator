@@ -92,8 +92,8 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateLabels() labels.Labels {
 	podTemplateLabels := labels.Labels{}
 
 	podTemplateLabels.Merge(b.Labels)
-	podTemplateLabels.Merge(b.Spec.AdditionalPodLabels)
 	podTemplateLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+	podTemplateLabels.Merge(b.Spec.AdditionalPodLabels)
 
 	return podTemplateLabels
 }
