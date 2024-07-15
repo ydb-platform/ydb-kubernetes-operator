@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Cms_V1"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Cms"
@@ -29,7 +30,7 @@ type Tenant struct {
 	SharedDatabasePath string
 }
 
-func (t *Tenant) Create(
+func (t *Tenant) CreateDatabase(
 	ctx context.Context,
 	opts ...ydb.Option,
 ) (*Ydb_Cms.CreateDatabaseResponse, error) {
@@ -40,8 +41,7 @@ func (t *Tenant) Create(
 	defer ydbCtxCancel()
 	conn, err := connection.Open(ydbCtx, endpoint, opts...)
 	if err != nil {
-		logger.Error(err, "Error connecting to YDB")
-		return nil, err
+		return nil, fmt.Errorf("error connecting to YDB: %w", err)
 	}
 	defer func() {
 		connection.Close(ydbCtx, conn)
@@ -51,14 +51,14 @@ func (t *Tenant) Create(
 	defer cmsCtxCancel()
 	client := Ydb_Cms_V1.NewCmsServiceClient(ydb.GRPCConn(conn))
 	request := t.makeCreateDatabaseRequest()
-	logger.Info("CMS CreateDatabase request", "endpoint", endpoint, "request", request)
+	logger.Info("CMS CreateDatabase", "endpoint", endpoint, "request", request)
 	return client.CreateDatabase(cmsCtx, request)
 }
 
 func (t *Tenant) CheckCreateDatabaseResponse(ctx context.Context, response *Ydb_Cms.CreateDatabaseResponse) (bool, string, error) {
 	logger := log.FromContext(ctx)
 
-	logger.Info("CMS GetOperation response", "response", response)
+	logger.Info("CMS CreateDatabase", "response", response)
 	return CheckOperationStatus(response.GetOperation())
 }
 
