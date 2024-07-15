@@ -31,6 +31,7 @@ const (
 	DatabasePausedCondition          = "DatabasePaused"
 	DatabaseReadyCondition           = "DatabaseReady"
 	CreateDatabaseOperationCondition = "CreateDatabaseOperation"
+	ReplaceConfigOperationCondition  = "ReplaceConfigOperation"
 
 	NodeSetPreparedCondition    = "NodeSetPrepared"
 	NodeSetProvisionedCondition = "NodeSetProvisioned"
@@ -39,12 +40,8 @@ const (
 
 	ConfigurationSyncedCondition  = "ConfigurationSynced"
 	RemoteResourceSyncedCondition = "ResourceSynced"
-
-	ReplaceConfigDryRunOperationCondition = "ydb.tech/ReplaceConfigDryRunOperation"
-	ReplaceConfigOperationCondition       = "ydb.tech/ReplaceConfigOperation"
-
-	Stop     = true
-	Continue = false
+	Stop                          = true
+	Continue                      = false
 
 	ReasonInProgress  = "InProgress"
 	ReasonNotRequired = "NotRequired"

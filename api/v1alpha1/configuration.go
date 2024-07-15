@@ -64,7 +64,6 @@ func generateHosts(cr *Storage) []schema.Host {
 
 func generateKeyConfig(cr *Storage, crDB *Database) *schema.KeyConfig {
 	var keyConfig *schema.KeyConfig
-
 	if crDB != nil && crDB.Spec.Encryption != nil && crDB.Spec.Encryption.Enabled {
 		keyConfig = &schema.KeyConfig{
 			Keys: []schema.Key{
@@ -152,12 +151,12 @@ func TryParseDynconfig(rawYamlConfiguration string) (bool, schema.Dynconfig, err
 	var dynconfig schema.Dynconfig
 	err := dec.Decode(&dynconfig)
 	if err != nil {
-		return false, schema.Dynconfig{}, err
+		return false, schema.Dynconfig{}, fmt.Errorf("error unmarshal yaml to dynconfig: %w", err)
 	}
 
 	err = validateDynconfig(dynconfig)
 	if err != nil {
-		return true, dynconfig, err
+		return true, dynconfig, fmt.Errorf("error validate dynconfig: %w", err)
 	}
 
 	return true, dynconfig, nil
@@ -183,9 +182,7 @@ func validateDynconfig(dynConfig schema.Dynconfig) error {
 	return nil
 }
 
-func GetConfigForCMS(rawYamlConfiguration string) ([]byte, error) {
-	_, dynconfig, _ := TryParseDynconfig(rawYamlConfiguration)
-
+func GetConfigForCMS(dynconfig schema.Dynconfig) ([]byte, error) {
 	delete(dynconfig.Config, "static_erasure")
 	delete(dynconfig.Config, "host_configs")
 	delete(dynconfig.Config, "nameservice_config")
