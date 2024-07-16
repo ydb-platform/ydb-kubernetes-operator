@@ -119,3 +119,8 @@ webhook:
     # issuerRef:
     #   name: "issuer"
     #   kind: "ClusterIssuer"
+
+extraVolumes: []
+extraVolumeMounts: []
+extraInitContainers: []
+extraEnvs: []
