@@ -656,18 +656,16 @@ func (r *Reconciler) handlePauseResume(
 	if database.Status.State == DatabaseProvisioning {
 		if database.Spec.Pause {
 			meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-				Type:               DatabasePausedCondition,
-				Status:             metav1.ConditionTrue,
-				Reason:             ReasonCompleted,
-				ObservedGeneration: database.Generation,
+				Type:   DatabasePausedCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
 			})
 			database.Status.State = DatabasePaused
 		} else {
 			meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-				Type:               DatabaseReadyCondition,
-				Status:             metav1.ConditionTrue,
-				Reason:             ReasonCompleted,
-				ObservedGeneration: database.Generation,
+				Type:   DatabaseReadyCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
 			})
 			database.Status.State = DatabaseReady
 		}

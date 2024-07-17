@@ -348,18 +348,16 @@ func (r *Reconciler) handlePauseResume(
 	if databaseNodeSet.Status.State == DatabaseNodeSetProvisioning {
 		if databaseNodeSet.Spec.Pause {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:               NodeSetPausedCondition,
-				Status:             metav1.ConditionTrue,
-				ObservedGeneration: databaseNodeSet.Generation,
-				Reason:             ReasonCompleted,
+				Type:   NodeSetPausedCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
 			})
 			databaseNodeSet.Status.State = DatabaseNodeSetPaused
 		} else {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:               NodeSetReadyCondition,
-				Status:             metav1.ConditionTrue,
-				ObservedGeneration: databaseNodeSet.Generation,
-				Reason:             ReasonCompleted,
+				Type:   NodeSetReadyCondition,
+				Status: metav1.ConditionTrue,
+				Reason: ReasonCompleted,
 			})
 			databaseNodeSet.Status.State = DatabaseNodeSetReady
 		}
@@ -399,7 +397,6 @@ func (r *Reconciler) handlePauseResume(
 				Status:             metav1.ConditionTrue,
 				Reason:             ReasonCompleted,
 				ObservedGeneration: databaseNodeSet.Generation,
-				Message:            "TODO",
 			})
 			return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 		}
@@ -410,7 +407,6 @@ func (r *Reconciler) handlePauseResume(
 				Status:             metav1.ConditionTrue,
 				Reason:             ReasonCompleted,
 				ObservedGeneration: databaseNodeSet.Generation,
-				Message:            "TODO",
 			})
 			return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 		}
