@@ -204,9 +204,10 @@ func (b *RemoteDatabaseNodeSetResource) CreateRemoteResourceStatus(
 		&b.Status.RemoteResources[len(b.Status.RemoteResources)-1].Conditions,
 		metav1.Condition{
 			Type:               RemoteResourceSyncedCondition,
-			Status:             "Unknown",
+			Status:             metav1.ConditionUnknown,
 			Reason:             ReasonInProgress,
 			ObservedGeneration: b.Generation,
+			Message:            "Sync remoteObject in progress",
 		},
 	)
 }

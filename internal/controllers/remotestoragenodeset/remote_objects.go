@@ -103,8 +103,7 @@ func (r *Reconciler) syncRemoteObjects(
 					fmt.Sprintf("Failed to get resource %s with name %s: %s", remoteObjKind, remoteObjName, remoteGetErr),
 				)
 			}
-			remoteStorageNodeSet.UpdateRemoteResourceStatus(remoteResource, metav1.ConditionFalse, remoteGetErr.Error())
-			return r.updateStatusRemoteObjects(ctx, remoteStorageNodeSet, DefaultRequeueDelay)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, remoteGetErr
 		}
 
 		// Check object existence in local cluster
