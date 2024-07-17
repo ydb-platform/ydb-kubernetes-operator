@@ -51,41 +51,41 @@ actor_system_config:
 blob_storage_config:
   service_set:
     groups:
-      - erasure_species: block-4-2
-        rings:
-          - fail_domains:
-              - vdisk_locations:
-                  - node_id: storage-0
-                    pdisk_category: SSD
-                    path: SectorMap:1:1
-              - vdisk_locations:
-                  - node_id: storage-1
-                    pdisk_category: SSD
-                    path: SectorMap:1:1
-              - vdisk_locations:
-                  - node_id: storage-2
-                    pdisk_category: SSD
-                    path: SectorMap:1:1
-              - vdisk_locations:
-                  - node_id: storage-3
-                    pdisk_category: SSD
-                    path: SectorMap:1:1
-              - vdisk_locations:
-                  - node_id: storage-4
-                    pdisk_category: SSD
-                    path: SectorMap:1:1
-              - vdisk_locations:
-                  - node_id: storage-5
-                    pdisk_category: SSD
-                    path: SectorMap:1:1
-              - vdisk_locations:
-                  - node_id: storage-6
-                    pdisk_category: SSD
-                    path: SectorMap:1:1
-              - vdisk_locations:
-                  - node_id: storage-7
-                    pdisk_category: SSD
-                    path: SectorMap:1:1
+    - erasure_species: block-4-2
+      rings:
+      - fail_domains:
+        - vdisk_locations:
+          - node_id: 1
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: 2
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: 3
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: 4
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: 5
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: 6
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: 7
+            pdisk_category: SSD
+            path: SectorMap:1:1
+        - vdisk_locations:
+          - node_id: 8
+            pdisk_category: SSD
+            path: SectorMap:1:1
 channel_profile_config:
   profile:
     - channel:

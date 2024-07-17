@@ -57,35 +57,35 @@ blob_storage_config:
       rings:
       - fail_domains:
         - vdisk_locations:
-          - node_id: storage-0
+          - node_id: 1
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: storage-1
+          - node_id: 2
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: storage-2
+          - node_id: 3
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: storage-3
+          - node_id: 4
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: storage-4
+          - node_id: 5
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: storage-5
+          - node_id: 6
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: storage-6
+          - node_id: 7
             pdisk_category: SSD
             path: SectorMap:1:1
         - vdisk_locations:
-          - node_id: storage-7
+          - node_id: 8
             pdisk_category: SSD
             path: SectorMap:1:1
 channel_profile_config:
