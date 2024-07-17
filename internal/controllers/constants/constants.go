@@ -42,7 +42,6 @@ const (
 	Stop     = true
 	Continue = false
 
-	ReasonFailed      = "Failed"
 	ReasonInProgress  = "InProgress"
 	ReasonNotRequired = "NotRequired"
 	ReasonCompleted   = "Completed"

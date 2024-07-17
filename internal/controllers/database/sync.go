@@ -244,8 +244,8 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 			nodeSetConditions = nodeSetObject.(*v1alpha1.DatabaseNodeSet).Status.Conditions
 		}
 
-		// TODO: also check observedGeneration to guarantee that compare with updated object
-		if !meta.IsStatusConditionTrue(nodeSetConditions, NodeSetProvisionedCondition) {
+		condition := meta.FindStatusCondition(nodeSetConditions, NodeSetProvisionedCondition)
+		if condition == nil || condition.ObservedGeneration != nodeSetObject.GetGeneration() || condition.Status != metav1.ConditionTrue {
 			r.Recorder.Event(
 				database,
 				corev1.EventTypeNormal,
@@ -277,7 +277,7 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 			Status:             metav1.ConditionTrue,
 			Reason:             ReasonCompleted,
 			ObservedGeneration: database.Generation,
-			Message:            fmt.Sprintf("Successfully scaled to desired number of nodes: %d", database.Spec.Nodes),
+			Message:            "Successfully scaled to desired number of nodes",
 		})
 		return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
 	}
@@ -343,7 +343,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Status:             metav1.ConditionFalse,
 			Reason:             ReasonInProgress,
 			ObservedGeneration: database.Generation,
-			Message:            fmt.Sprintf("Number of running pods does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, database.Spec.Nodes),
+			Message:            "Number of running nodes does not match expected",
 		})
 		return r.updateStatus(ctx, database, DefaultRequeueDelay)
 	}
@@ -354,7 +354,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Status:             metav1.ConditionTrue,
 			Reason:             ReasonCompleted,
 			ObservedGeneration: database.Generation,
-			Message:            fmt.Sprintf("Successfully scaled to desired number of nodes: %d", database.Spec.Nodes),
+			Message:            "Successfully scaled to desired number of nodes",
 		})
 		return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
 	}

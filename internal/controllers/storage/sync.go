@@ -158,7 +158,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Type:    StorageProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, storage.Spec.Nodes),
+			Message: "Number of running nodes does not match expected",
 		})
 		return r.updateStatus(ctx, storage, DefaultRequeueDelay)
 	}
@@ -168,7 +168,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Type:    StorageProvisionedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", storage.Spec.Nodes),
+			Message: "Successfully scaled to desired number of nodes",
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
@@ -235,8 +235,8 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 			nodeSetConditions = nodeSetObject.(*v1alpha1.StorageNodeSet).Status.Conditions
 		}
 
-		// TODO: also check observedGeneration to guarantee that compare with updated object
-		if !meta.IsStatusConditionTrue(nodeSetConditions, NodeSetProvisionedCondition) {
+		condition := meta.FindStatusCondition(nodeSetConditions, NodeSetProvisionedCondition)
+		if condition == nil || condition.ObservedGeneration != nodeSetObject.GetGeneration() || condition.Status != metav1.ConditionTrue {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeNormal,
