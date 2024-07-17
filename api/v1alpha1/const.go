@@ -44,6 +44,7 @@ const (
 	DefaultRootPassword          = ""
 	DefaultDatabaseDomain        = "Root"
 	DefaultDatabaseEncryptionPin = "EmptyPin"
+  DefaultSignAlgorithm         = "RS256"
 
 	LabelDeploymentKey             = "deployment"
 	LabelDeploymentValueKubernetes = "kubernetes"

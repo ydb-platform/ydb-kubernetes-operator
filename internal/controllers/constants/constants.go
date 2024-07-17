@@ -45,6 +45,7 @@ const (
 	ReasonInProgress  = "InProgress"
 	ReasonNotRequired = "NotRequired"
 	ReasonCompleted   = "Completed"
+	ReasonFailed      = "Failed"
 
 	DefaultRequeueDelay                = 10 * time.Second
 	StatusUpdateRequeueDelay           = 1 * time.Second

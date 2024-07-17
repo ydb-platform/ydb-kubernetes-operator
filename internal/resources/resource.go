@@ -408,49 +408,39 @@ func getYDBOauth2Credentials(
 		ctx,
 		storage.Namespace,
 		restConfig,
-		auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef,
+		auth.Oauth2TokenExchange.PrivateKey.SecretKeyRef,
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to get RSA private key for Oauth2TokenExchange from secret: %s, key: %s, error: %w",
-			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Name,
-			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Key,
+			auth.Oauth2TokenExchange.PrivateKey.SecretKeyRef.Name,
+			auth.Oauth2TokenExchange.PrivateKey.SecretKeyRef.Key,
 			err)
 	}
+
+	keyID := *auth.Oauth2TokenExchange.KeyID
+	signMethod := jwt.GetSigningMethod(auth.Oauth2TokenExchange.SignAlg)
 	privateKeyPEM, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privateKey))
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to parse RSA private key for Oauth2TokenExchange from secret: %s, key: %s, error: %w",
-			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Name,
-			auth.Oauth2TokenExhange.PrivateKey.SecretKeyRef.Key,
+			auth.Oauth2TokenExchange.PrivateKey.SecretKeyRef.Name,
+			auth.Oauth2TokenExchange.PrivateKey.SecretKeyRef.Key,
 			err,
 		)
 	}
 
-	var signMethod jwt.SigningMethod
-	if auth.Oauth2TokenExhange.JWTHeader.SignAlg != "" {
-		if !isSignAlgorithmSupported(auth.Oauth2TokenExhange.JWTHeader.SignAlg) {
-			return nil, fmt.Errorf(
-				"sign algorithm %s does not supported",
-				auth.Oauth2TokenExhange.JWTHeader.SignAlg,
-			)
-		}
-		signMethod = jwt.GetSigningMethod(auth.Oauth2TokenExhange.JWTHeader.SignAlg)
-	} else {
-		signMethod = jwt.SigningMethodRS256
-	}
-
 	return ydbCredentials.NewOauth2TokenExchangeCredentials(
-		ydbCredentials.WithTokenEndpoint(auth.Oauth2TokenExhange.Endpoint),
-		ydbCredentials.WithAudience(auth.Oauth2TokenExhange.JWTClaims.Audience),
+		ydbCredentials.WithTokenEndpoint(auth.Oauth2TokenExchange.Endpoint),
+		ydbCredentials.WithAudience(auth.Oauth2TokenExchange.Audience),
 		ydbCredentials.WithJWTSubjectToken(
+			ydbCredentials.WithKeyID(keyID),
 			ydbCredentials.WithSigningMethod(signMethod),
 			ydbCredentials.WithPrivateKey(privateKeyPEM),
-			ydbCredentials.WithKeyID(auth.Oauth2TokenExhange.JWTHeader.KeyID),
-			ydbCredentials.WithAudience(auth.Oauth2TokenExhange.JWTClaims.Audience),
-			ydbCredentials.WithIssuer(auth.Oauth2TokenExhange.JWTClaims.Issuer),
-			ydbCredentials.WithSubject(auth.Oauth2TokenExhange.JWTClaims.Subject),
-			ydbCredentials.WithID(auth.Oauth2TokenExhange.JWTClaims.ID),
+			ydbCredentials.WithIssuer(auth.Oauth2TokenExchange.Issuer),
+			ydbCredentials.WithSubject(auth.Oauth2TokenExchange.Subject),
+			ydbCredentials.WithID(auth.Oauth2TokenExchange.ID),
+			ydbCredentials.WithAudience(auth.Oauth2TokenExchange.Audience),
 		))
 }
 
@@ -486,7 +476,7 @@ func GetYDBCredentials(
 		return getYDBStaticCredentials(ctx, storage, restConfig)
 	}
 
-	if auth.Oauth2TokenExhange != nil {
+	if auth.Oauth2TokenExchange != nil {
 		return getYDBOauth2Credentials(ctx, storage, restConfig)
 	}
 
@@ -591,15 +581,4 @@ func CompareMaps(map1, map2 map[string]string) bool {
 		}
 	}
 	return true
-}
-
-func isSignAlgorithmSupported(alg string) bool {
-	supportedAlgs := jwt.GetAlgorithms()
-
-	for _, supportedAlg := range supportedAlgs {
-		if alg == supportedAlg {
-			return true
-		}
-	}
-	return false
 }
