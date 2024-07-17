@@ -237,7 +237,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Type:    NodeSetProvisionedCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonInProgress,
-			Message: "Number of running nodes does not match expected",
+			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, storageNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storageNodeSet, DefaultRequeueDelay)
 	}
@@ -248,7 +248,7 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			Status:             metav1.ConditionTrue,
 			Reason:             ReasonCompleted,
 			ObservedGeneration: storageNodeSet.Generation,
-			Message:            "Successfully scaled to desired number of nodes",
+			Message:            fmt.Sprintf("Successfully scaled to desired number of nodes: %d", storageNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
 	}

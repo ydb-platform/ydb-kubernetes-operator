@@ -57,8 +57,7 @@ func (r *Reconciler) syncRemoteObjects(
 ) (bool, ctrl.Result, error) {
 	r.Log.Info("running step syncRemoteObjects")
 
-	for idx := range remoteObjects {
-		remoteObj := remoteObjects[idx]
+	for _, remoteObj := range remoteObjects {
 		remoteObjName := remoteObj.GetName()
 		remoteObjKind := remoteObj.GetObjectKind().GroupVersionKind().Kind
 		var remoteResource *v1alpha1.RemoteResource
@@ -145,7 +144,7 @@ func (r *Reconciler) syncRemoteObjects(
 				"Provisioning",
 				fmt.Sprintf("RemoteSync CREATE resource %s with name %s", remoteObjKind, remoteObjName),
 			)
-			remoteStorageNodeSet.UpdateRemoteResourceStatus(remoteResource, metav1.ConditionFalse, remoteObjRV)
+			remoteStorageNodeSet.UpdateRemoteResourceStatus(remoteResource, metav1.ConditionTrue, remoteObjRV)
 			return r.updateStatusRemoteObjects(ctx, remoteStorageNodeSet, StatusUpdateRequeueDelay)
 		}
 
