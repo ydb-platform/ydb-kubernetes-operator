@@ -911,7 +911,7 @@ var _ = Describe("Operator smoke test", func() {
 		bringYdbCliToPod(podName, testobjects.YdbNamespace)
 
 		By("execute simple query inside ydb database pod...")
-		executeSimpleQuery(ctx, podName, testobjects.YdbNamespace, storageEndpoint)
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	AfterEach(func() {
