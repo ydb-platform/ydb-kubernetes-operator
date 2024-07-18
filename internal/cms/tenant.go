@@ -41,8 +41,7 @@ func (t *Tenant) CreateDatabase(
 	defer ydbCtxCancel()
 	conn, err := connection.Open(ydbCtx, endpoint, opts...)
 	if err != nil {
-		logger.Error(err, "Error connecting to YDB")
-		return nil, err
+		return nil, fmt.Errorf("error connecting to YDB: %w", err)
 	}
 	defer func() {
 		connection.Close(ydbCtx, conn)

@@ -33,8 +33,9 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	DefaultRootUsername = "root"
-	DefaultRootPassword = ""
+	DefaultRootUsername  = "root"
+	DefaultRootPassword  = ""
+	DefaultSignAlgorithm = "RS256"
 
 	LabelDeploymentKey             = "deployment"
 	LabelDeploymentValueKubernetes = "kubernetes"

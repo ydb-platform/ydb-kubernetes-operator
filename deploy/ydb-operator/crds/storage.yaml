@@ -4912,6 +4912,7 @@ spec:
                         type: string
                     required:
                     - endpoint
+                    - keyID
                     - privateKey
                     type: object
                   staticCredentials:

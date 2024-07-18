@@ -82,18 +82,18 @@ func (r *Reconciler) checkCreateDatabaseOperation(
 	if len(condition.Message) == 0 {
 		// Something is wrong with the condition where we save operation id
 		// retry create tenant
-		message := fmt.Sprintf("Something is wrong with the condition, retry creating tenant %s", tenant.Path)
+		errMessage := fmt.Sprintf("Something is wrong with the condition, retry creating tenant %s", tenant.Path)
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
 			"InitializingFailed",
-			message,
+			errMessage,
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:    CreateDatabaseOperationCondition,
 			Status:  metav1.ConditionFalse,
 			Reason:  ReasonFailed,
-			Message: message,
+			Message: errMessage,
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
@@ -116,17 +116,18 @@ func (r *Reconciler) checkCreateDatabaseOperation(
 
 	finished, operationID, err := operation.CheckGetOperationResponse(ctx, response)
 	if err != nil {
+		errMessage := fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, err)
 		r.Recorder.Event(
 			database,
 			corev1.EventTypeWarning,
 			"InitializingFailed",
-			fmt.Sprintf("Error creating tenant %s: %s", tenant.Path, err),
+			errMessage,
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:    CreateDatabaseOperationCondition,
 			Status:  metav1.ConditionFalse,
-			Reason:  ReasonFailed,
-			Message: fmt.Sprintf("Failed to create tenant %s", tenant.Path),
+			Reason:  ReasonCompleted,
+			Message: errMessage,
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
@@ -282,7 +283,7 @@ func (r *Reconciler) initializeTenant(
 			database,
 			corev1.EventTypeWarning,
 			"InitializingFailed",
-			fmt.Sprintf("Failed %s: %s", tenant.Path, err),
+			fmt.Sprintf("Error checking operation for tenant %s: %s", tenant.Path, err),
 		)
 		return Stop, ctrl.Result{RequeueAfter: DatabaseInitializationRequeueDelay}, err
 	}
