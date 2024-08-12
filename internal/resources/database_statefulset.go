@@ -183,7 +183,6 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	}
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
-		volumes = append(volumes, b.buildDatastreamsIAMServiceAccountKeyVolume())
 		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumes = append(volumes, buildTLSVolume(datastreamsTLSVolumeName, b.Spec.Service.Datastreams.TLSConfiguration))
 		}
@@ -385,23 +384,6 @@ func (b *DatabaseStatefulSetBuilder) buildEncryptionVolumes() []corev1.Volume {
 	return []corev1.Volume{encryptionKeySecret, encryptionKeyConfig}
 }
 
-func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume() corev1.Volume {
-	return corev1.Volume{
-		Name: datastreamsIAMServiceAccountKeyVolumeName,
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: b.Spec.Datastreams.IAMServiceAccountKey.Name,
-				Items: []corev1.KeyToPath{
-					{
-						Key:  b.Spec.Datastreams.IAMServiceAccountKey.Key,
-						Path: api.DatastreamsIAMServiceAccountKeyFile,
-					},
-				},
-			},
-		},
-	}
-}
-
 func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 	command, args := b.buildContainerArgs()
 	imagePullPolicy := corev1.PullIfNotPresent
@@ -509,11 +491,6 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 	}
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      datastreamsIAMServiceAccountKeyVolumeName,
-			ReadOnly:  true,
-			MountPath: api.DatastreamsIAMServiceAccountKeyDir,
-		})
 		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
 				Name:      datastreamsTLSVolumeName,
