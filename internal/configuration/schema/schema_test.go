@@ -202,6 +202,8 @@ allowed_labels:
     type: string
   tenant:
     type: string
+config:
+  yaml_config_enabled: true
 `
 
 func TestSchema(t *testing.T) {
@@ -211,7 +213,7 @@ func TestSchema(t *testing.T) {
 
 var _ = Describe("Testing schema", func() {
 	It("Parse dynconfig", func() {
-		success, dynconfig, err := v1alpha1.TryParseDynconfig(dynconfigExample)
+		success, dynconfig, err := v1alpha1.ParseDynConfig(dynconfigExample)
 		Expect(success).Should(BeTrue())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(*dynconfig.Metadata).Should(BeEquivalentTo(schema.Metadata{
@@ -225,13 +227,13 @@ var _ = Describe("Testing schema", func() {
 	})
 
 	It("Try parse static config as dynconfig", func() {
-		success, _, err := v1alpha1.TryParseDynconfig(configurationExample)
+		success, _, err := v1alpha1.ParseDynConfig(configurationExample)
 		Expect(success).ShouldNot(BeTrue())
 		Expect(err).Should(HaveOccurred())
 	})
 
-	It("Parse static config", func() {
-		schemaConfig, err := v1alpha1.ParseConfiguration(configurationExample)
+	It("Parse configuration with static config", func() {
+		yamlConfig, err := v1alpha1.ParseConfiguration(configurationExample)
 		Expect(err).ShouldNot(HaveOccurred())
 		hosts := []schema.Host{}
 		for i := 0; i < 8; i++ {
@@ -246,8 +248,8 @@ var _ = Describe("Testing schema", func() {
 				},
 			})
 		}
-		Expect(schemaConfig.Hosts).Should(BeEquivalentTo(hosts))
-		Expect(*schemaConfig.KeyConfig).Should(BeEquivalentTo(schema.KeyConfig{
+		Expect(yamlConfig.Hosts).Should(BeEquivalentTo(hosts))
+		Expect(*yamlConfig.KeyConfig).Should(BeEquivalentTo(schema.KeyConfig{
 			Keys: []schema.Key{
 				{
 					ContainerPath: "/opt/ydb/secrets/database_encryption/key",

@@ -789,21 +789,6 @@ var _ = Describe("Operator smoke test", func() {
 			return false
 		}, Timeout, Interval).Should(BeTrue())
 
-		By("waiting until ReplaceConfigDryRun condition is true...")
-		Eventually(func(g Gomega) bool {
-			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      storageSample.Name,
-				Namespace: testobjects.YdbNamespace,
-			}, &storage)).Should(Succeed())
-
-			condition := meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigDryRunOperationCondition)
-			if condition != nil && condition.ObservedGeneration == storage.Generation {
-				return condition.Status == metav1.ConditionTrue
-			}
-
-			return false
-		}, Timeout, Interval).Should(BeTrue())
-
 		By("waiting until ReplaceConfig condition is true...")
 		Eventually(func(g Gomega) bool {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
@@ -935,6 +920,54 @@ var _ = Describe("Operator smoke test", func() {
 			fmt.Sprintf(resources.StatusServiceNameFormat, databaseSample.Name), databaseSample.Namespace,
 			v1alpha1.StatusPort, tlsHTTPCheck,
 		)
+	})
+
+	It("Check encryption for Database", func() {
+		By("create storage...")
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
+		By("create database...")
+		databaseSample.Spec.Encryption = &v1alpha1.EncryptionConfig{
+			Enabled: true,
+		}
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("waiting until database is ready...")
+		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the database pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		database := v1alpha1.Database{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &database)).Should(Succeed())
+		storageEndpoint := database.Spec.StorageEndpoint
+
+		databasePods := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &databasePods,
+			client.InNamespace(testobjects.YdbNamespace),
+			client.MatchingLabels{"ydb-cluster": "kind-database"}),
+		).Should(Succeed())
+		podName := databasePods.Items[0].Name
+
+		By("bring YDB CLI inside ydb database pod...")
+		bringYdbCliToPod(podName, testobjects.YdbNamespace)
+
+		By("execute simple query inside ydb database pod...")
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	AfterEach(func() {

@@ -36,14 +36,12 @@ func (c *Config) GetConfig(
 	logger := log.FromContext(ctx)
 
 	endpoint := fmt.Sprintf("%s/%s", c.StorageEndpoint, c.Domain)
-	ydbCtx, ydbCtxCancel := context.WithTimeout(ctx, time.Second)
-	defer ydbCtxCancel()
-	conn, err := connection.Open(ydbCtx, endpoint, ydb.MergeOptions(opts...))
+	conn, err := connection.Open(ctx, endpoint, ydb.MergeOptions(opts...))
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to YDB: %w", err)
 	}
 	defer func() {
-		connection.Close(ydbCtx, conn)
+		connection.Close(ctx, conn)
 	}()
 
 	cmsCtx, cmsCtxCancel := context.WithTimeout(ctx, GetConfigTimeoutSeconds*time.Second)
@@ -51,11 +49,14 @@ func (c *Config) GetConfig(
 	client := Ydb_DynamicConfig_V1.NewDynamicConfigServiceClient(ydb.GRPCConn(conn))
 	request := c.makeGetConfigRequest()
 
-	logger.Info("CMS GetConfig", "endpoint", endpoint, "request", request)
+	logger.Info("CMS GetConfig request", "endpoint", endpoint, "request", request)
 	return client.GetConfig(cmsCtx, request)
 }
 
-func (c *Config) ProcessConfigResponse(response *Ydb_DynamicConfig.GetConfigResponse) error {
+func (c *Config) ProcessConfigResponse(ctx context.Context, response *Ydb_DynamicConfig.GetConfigResponse) error {
+	logger := log.FromContext(ctx)
+	logger.Info("CMS GetConfig response", "response", response)
+
 	configResult := &Ydb_DynamicConfig.GetConfigResult{}
 	err := response.GetOperation().GetResult().UnmarshalTo(configResult)
 	if err != nil {
@@ -74,14 +75,12 @@ func (c *Config) ReplaceConfig(
 	logger := log.FromContext(ctx)
 
 	endpoint := fmt.Sprintf("%s/%s", c.StorageEndpoint, c.Domain)
-	ydbCtx, ydbCtxCancel := context.WithTimeout(ctx, time.Second)
-	defer ydbCtxCancel()
-	conn, err := connection.Open(ydbCtx, endpoint, ydb.MergeOptions(opts...))
+	conn, err := connection.Open(ctx, endpoint, ydb.MergeOptions(opts...))
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to YDB: %w", err)
 	}
 	defer func() {
-		connection.Close(ydbCtx, conn)
+		connection.Close(ctx, conn)
 	}()
 
 	cmsCtx, cmsCtxCancel := context.WithTimeout(ctx, ReplaceConfigTimeoutSeconds*time.Second)
@@ -93,7 +92,7 @@ func (c *Config) ReplaceConfig(
 		AllowUnknownFields: c.AllowUnknownFields,
 	}
 
-	logger.Info("CMS ReplaceConfig", "endpoint", endpoint, "request", request)
+	logger.Info("CMS ReplaceConfig request", "endpoint", endpoint, "request", request)
 	return client.ReplaceConfig(cmsCtx, request)
 }
 

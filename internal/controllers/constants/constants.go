@@ -25,23 +25,25 @@ const (
 	StoragePausedCondition      = "StoragePaused"
 	StorageReadyCondition       = "StorageReady"
 
-	DatabasePreparedCondition        = "DatabasePrepared"
-	DatabaseInitializedCondition     = "DatabaseInitialized"
-	DatabaseProvisionedCondition     = "DatabaseProvisioned"
-	DatabasePausedCondition          = "DatabasePaused"
-	DatabaseReadyCondition           = "DatabaseReady"
-	CreateDatabaseOperationCondition = "CreateDatabaseOperation"
-	ReplaceConfigOperationCondition  = "ReplaceConfigOperation"
+	DatabasePreparedCondition    = "DatabasePrepared"
+	DatabaseInitializedCondition = "DatabaseInitialized"
+	DatabaseProvisionedCondition = "DatabaseProvisioned"
+	DatabasePausedCondition      = "DatabasePaused"
+	DatabaseReadyCondition       = "DatabaseReady"
 
 	NodeSetPreparedCondition    = "NodeSetPrepared"
 	NodeSetProvisionedCondition = "NodeSetProvisioned"
 	NodeSetReadyCondition       = "NodeSetReady"
 	NodeSetPausedCondition      = "NodeSetPaused"
 
+	CreateDatabaseOperationCondition = "CreateDatabaseOperation"
+	ReplaceConfigOperationCondition  = "ReplaceConfigOperation"
+
 	ConfigurationSyncedCondition  = "ConfigurationSynced"
 	RemoteResourceSyncedCondition = "ResourceSynced"
-	Stop                          = true
-	Continue                      = false
+
+	Stop     = true
+	Continue = false
 
 	ReasonInProgress  = "InProgress"
 	ReasonNotRequired = "NotRequired"

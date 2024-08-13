@@ -37,15 +37,12 @@ func (t *Tenant) CreateDatabase(
 	logger := log.FromContext(ctx)
 
 	endpoint := fmt.Sprintf("%s/%s", t.StorageEndpoint, t.Domain)
-	ydbCtx, ydbCtxCancel := context.WithTimeout(ctx, time.Second)
-	defer ydbCtxCancel()
-	conn, err := connection.Open(ydbCtx, endpoint, opts...)
+	conn, err := connection.Open(ctx, endpoint, opts...)
 	if err != nil {
-		logger.Error(err, "Error connecting to YDB")
-		return nil, err
+		return nil, fmt.Errorf("error connecting to YDB: %w", err)
 	}
 	defer func() {
-		connection.Close(ydbCtx, conn)
+		connection.Close(ctx, conn)
 	}()
 
 	cmsCtx, cmsCtxCancel := context.WithTimeout(ctx, CreateDatabaseTimeoutSeconds*time.Second)
@@ -59,7 +56,7 @@ func (t *Tenant) CreateDatabase(
 func (t *Tenant) CheckCreateDatabaseResponse(ctx context.Context, response *Ydb_Cms.CreateDatabaseResponse) (bool, string, error) {
 	logger := log.FromContext(ctx)
 
-	logger.Info("CMS GetOperation response", "response", response)
+	logger.Info("CMS CreateDatabase response", "response", response)
 	return CheckOperationStatus(response.GetOperation())
 }
 

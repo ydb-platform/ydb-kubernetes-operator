@@ -5,9 +5,9 @@ import (
 )
 
 type ConnectionOptions struct {
-	AccessToken        *AccessTokenAuth       `json:"accessToken,omitempty"`
-	StaticCredentials  *StaticCredentialsAuth `json:"staticCredentials,omitempty"`
-	Oauth2TokenExhange *Oauth2TokenExchange   `json:"oauth2TokenExchange,omitempty"`
+	AccessToken         *AccessTokenAuth       `json:"accessToken,omitempty"`
+	StaticCredentials   *StaticCredentialsAuth `json:"staticCredentials,omitempty"`
+	Oauth2TokenExchange *Oauth2TokenExchange   `json:"oauth2TokenExchange,omitempty"`
 }
 
 type AccessTokenAuth struct {
@@ -22,13 +22,13 @@ type StaticCredentialsAuth struct {
 type Oauth2TokenExchange struct {
 	Endpoint   string            `json:"endpoint"`
 	PrivateKey *CredentialSource `json:"privateKey"`
-	JWTHeader  *JWTHeader        `json:",inline"`
-	JWTClaims  *JWTClaims        `json:",inline"`
+	JWTHeader  `json:",inline"`
+	JWTClaims  `json:",inline"`
 }
 
 type JWTHeader struct {
-	KeyID   string `json:"keyID,omitempty"`
-	SignAlg string `json:"signAlg,omitempty"`
+	KeyID   *string `json:"keyID"`
+	SignAlg string  `json:"signAlg,omitempty"`
 }
 type JWTClaims struct {
 	Issuer   string `json:"issuer,omitempty"`

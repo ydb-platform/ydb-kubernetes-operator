@@ -3,11 +3,12 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"math/rand"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
@@ -108,6 +109,14 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 		return nil
 	}
 
+	if storage.Spec.OperatorConnection != nil {
+		if storage.Spec.OperatorConnection.Oauth2TokenExchange != nil {
+			if storage.Spec.OperatorConnection.Oauth2TokenExchange.SignAlg == "" {
+				storage.Spec.OperatorConnection.Oauth2TokenExchange.SignAlg = DefaultSignAlgorithm
+			}
+		}
+	}
+
 	if storage.Spec.Image == nil {
 		storage.Spec.Image = &PodImage{}
 	}
@@ -172,17 +181,28 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 
 var _ webhook.Validator = &Storage{}
 
+func isSignAlgorithmSupported(alg string) bool {
+	supportedAlgs := jwt.GetAlgorithms()
+
+	for _, supportedAlg := range supportedAlgs {
+		if alg == supportedAlg {
+			return true
+		}
+	}
+	return false
+}
+
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *Storage) ValidateCreate() error {
 	storagelog.Info("validate create", "name", r.Name)
 
 	var rawYamlConfiguration string
-	success, dynconfig, err := TryParseDynconfig(r.Spec.Configuration)
+	success, dynConfig, err := ParseDynConfig(r.Spec.Configuration)
 	if success {
 		if err != nil {
 			return fmt.Errorf("failed to parse dynconfig, error: %w", err)
 		}
-		config, err := yaml.Marshal(dynconfig.Config)
+		config, err := yaml.Marshal(dynConfig.Config)
 		if err != nil {
 			return fmt.Errorf("failed to serialize YAML config, error: %w", err)
 		}
@@ -222,6 +242,16 @@ func (r *Storage) ValidateCreate() error {
 
 	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
 		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+	}
+
+	if r.Spec.OperatorConnection != nil && r.Spec.OperatorConnection.Oauth2TokenExchange != nil {
+		auth := r.Spec.OperatorConnection.Oauth2TokenExchange
+		if auth.KeyID == nil {
+			return fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
+		}
+		if !isSignAlgorithmSupported(auth.SignAlg) {
+			return fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
+		}
 	}
 
 	if r.Spec.NodeSets != nil {
@@ -280,12 +310,12 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
 
 	var rawYamlConfiguration string
-	success, dynconfig, err := TryParseDynconfig(r.Spec.Configuration)
+	success, dynConfig, err := ParseDynConfig(r.Spec.Configuration)
 	if success {
 		if err != nil {
 			return fmt.Errorf("failed to parse dynconfig, error: %w", err)
 		}
-		config, err := yaml.Marshal(dynconfig.Config)
+		config, err := yaml.Marshal(dynConfig.Config)
 		if err != nil {
 			return fmt.Errorf("failed to serialize YAML config, error: %w", err)
 		}
@@ -325,6 +355,16 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 
 	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
 		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
+	}
+
+	if r.Spec.OperatorConnection != nil && r.Spec.OperatorConnection.Oauth2TokenExchange != nil {
+		auth := r.Spec.OperatorConnection.Oauth2TokenExchange
+		if auth.KeyID == nil {
+			return fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
+		}
+		if !isSignAlgorithmSupported(auth.SignAlg) {
+			return fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
+		}
 	}
 
 	if !r.Spec.OperatorSync {

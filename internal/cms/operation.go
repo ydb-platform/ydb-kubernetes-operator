@@ -21,7 +21,7 @@ const (
 type Operation struct {
 	StorageEndpoint string
 	Domain          string
-	Id              string
+	ID              string
 }
 
 func (op *Operation) GetOperation(
@@ -31,26 +31,24 @@ func (op *Operation) GetOperation(
 	logger := log.FromContext(ctx)
 
 	endpoint := fmt.Sprintf("%s/%s", op.StorageEndpoint, op.Domain)
-	ydbCtx, ydbCtxCancel := context.WithTimeout(ctx, time.Second)
-	defer ydbCtxCancel()
-	conn, err := connection.Open(ydbCtx, endpoint, ydb.MergeOptions(opts...))
+	conn, err := connection.Open(ctx, endpoint, ydb.MergeOptions(opts...))
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to YDB: %w", err)
 	}
 	defer func() {
-		connection.Close(ydbCtx, conn)
+		connection.Close(ctx, conn)
 	}()
 
 	cmsCtx, cmsCtxCancel := context.WithTimeout(ctx, GetOperationTimeoutSeconds*time.Second)
 	defer cmsCtxCancel()
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(conn))
-	request := &Ydb_Operations.GetOperationRequest{Id: op.Id}
+	request := &Ydb_Operations.GetOperationRequest{Id: op.ID}
 
 	logger.Info("CMS GetOperation request", "endpoint", endpoint, "request", request)
 	return client.GetOperation(cmsCtx, request)
 }
 
-func (op *Operation) CheckOperationResponse(ctx context.Context, response *Ydb_Operations.GetOperationResponse) (bool, string, error) {
+func (op *Operation) CheckGetOperationResponse(ctx context.Context, response *Ydb_Operations.GetOperationResponse) (bool, string, error) {
 	logger := log.FromContext(ctx)
 
 	logger.Info("CMS GetOperation response", "response", response)
