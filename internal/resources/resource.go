@@ -61,7 +61,7 @@ const (
 	wellKnownNameForTLSCertificateAuthority = "ca.crt"
 	wellKnownNameForTLSCertificate          = "tls.crt"
 	wellKnownNameForTLSPrivateKey           = "tls.key"
-	wellKnownNameForEncryptionKeySecret     = "key.pem"
+	wellKnownNameForEncryptionKeySecret     = "key"
 
 	caBundleEnvName         = "CA_BUNDLE"
 	caBundleFileName        = "userCABundle.crt"
