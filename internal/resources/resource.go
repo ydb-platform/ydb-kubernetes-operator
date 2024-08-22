@@ -72,9 +72,8 @@ const (
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
 
-	encryptionKeyConfigVolumeName             = "encryption-config"
-	encryptionKeySecretVolumeName             = "encryption-key"
-	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
+	encryptionKeyConfigVolumeName = "encryption-config"
+	encryptionKeySecretVolumeName = "encryption-key"
 )
 
 type ResourceBuilder interface {

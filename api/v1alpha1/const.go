@@ -34,9 +34,6 @@ const (
 	DatabaseEncryptionKeySecretFile = "key.pem"
 	DatabaseEncryptionKeyConfigFile = "key.txt"
 
-	DatastreamsIAMServiceAccountKeyDir  = "datastreams"
-	DatastreamsIAMServiceAccountKeyFile = "sa_key.json"
-
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
