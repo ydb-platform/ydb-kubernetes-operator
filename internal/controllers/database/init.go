@@ -306,7 +306,7 @@ func (r *Reconciler) initializeTenant(
 	r.Recorder.Event(
 		database,
 		corev1.EventTypeNormal,
-		string(DatabaseInitializing),
+		"Initialized",
 		fmt.Sprintf("Tenant %s created", tenant.Path),
 	)
 
