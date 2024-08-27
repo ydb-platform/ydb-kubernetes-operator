@@ -10,7 +10,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -53,29 +52,6 @@ func (b *StorageInitJobBuilder) Placeholder(cr client.Object) client.Object {
 			Name:      b.Name,
 			Namespace: cr.GetNamespace(),
 		},
-	}
-}
-
-func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
-	jobName := fmt.Sprintf(InitJobNameFormat, storage.Name)
-	jobLabels := labels.Common(storage.Name, make(map[string]string))
-	jobAnnotations := make(map[string]string)
-
-	if storage.Spec.InitJob != nil {
-		if storage.Spec.InitJob.AdditionalLabels != nil {
-			jobLabels.Merge(storage.Spec.InitJob.AdditionalLabels)
-		}
-		if storage.Spec.InitJob.AdditionalAnnotations != nil {
-			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
-		}
-	}
-
-	return &StorageInitJobBuilder{
-		Storage: storage,
-
-		Name:        jobName,
-		Labels:      jobLabels,
-		Annotations: jobAnnotations,
 	}
 }
 
