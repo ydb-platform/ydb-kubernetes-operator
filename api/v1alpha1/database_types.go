@@ -253,9 +253,6 @@ type EncryptionConfig struct {
 type DatastreamsConfig struct {
 	// +required
 	Enabled bool `json:"enabled"`
-
-	// +required
-	IAMServiceAccountKey *corev1.SecretKeySelector `json:"iam_service_account_key,omitempty"`
 }
 
 type DatabaseServices struct {

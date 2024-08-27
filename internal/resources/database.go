@@ -8,6 +8,7 @@ import (
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -118,20 +119,49 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		)
 	}
 
-	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled && b.Spec.Encryption.Key == nil {
-		var pin string
+	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
+		// backward compatibility
 		if b.Spec.Encryption.Pin == nil || len(*b.Spec.Encryption.Pin) == 0 {
-			pin = defaultPin
-		} else {
-			pin = *b.Spec.Encryption.Pin
+			encryptionPin := api.DefaultDatabaseEncryptionPin
+			b.Spec.Encryption.Pin = &encryptionPin
 		}
+
+		if b.Spec.Encryption.Key == nil {
+			optionalBuilders = append(
+				optionalBuilders,
+				&EncryptionSecretBuilder{
+					Object: b,
+
+					Labels: databaseLabels,
+					Pin:    *b.Spec.Encryption.Pin,
+				},
+			)
+		}
+
+		keyConfig := schema.KeyConfig{
+			Keys: []schema.Key{
+				{
+					ContainerPath: fmt.Sprintf("%s/%s/%s",
+						wellKnownDirForAdditionalSecrets,
+						api.DatabaseEncryptionKeySecretDir,
+						api.DatabaseEncryptionKeySecretFile,
+					),
+					ID:      b.Name,
+					Pin:     b.Spec.Encryption.Pin,
+					Version: 1,
+				},
+			},
+		}
+
 		optionalBuilders = append(
 			optionalBuilders,
-			&EncryptionSecretBuilder{
+			&EncryptionConfigBuilder{
 				Object: b,
 
-				Pin:    pin,
+				Name:   fmt.Sprintf(EncryptionKeyConfigNameFormat, b.GetName()),
 				Labels: databaseLabels,
+
+				KeyConfig: keyConfig,
 			},
 		)
 	}
