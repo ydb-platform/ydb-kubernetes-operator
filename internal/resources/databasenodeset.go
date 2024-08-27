@@ -9,7 +9,6 @@ import (
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
 
 type DatabaseNodeSetBuilder struct {
@@ -54,25 +53,12 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	}
 }
 
-func (b *DatabaseNodeSetResource) buildLabels() labels.Labels {
-	l := labels.Common(b.Spec.DatabaseRef.Name, b.Labels)
-	l.Merge(b.Spec.AdditionalLabels)
-	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
-	if nodeSetName, exist := b.Labels[labels.DatabaseNodeSetComponent]; exist {
-		l.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetName})
-	}
-	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
-		l.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
-	}
-
-	return l
-}
-
 func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	ydbCr := api.RecastDatabaseNodeSet(b.Unwrap())
-	statefulSetName := b.Name
+	databaseBuilder := NewDatabase(ydbCr)
 
-	statefulSetLabels := b.buildLabels()
+	statefulSetName := b.Name
+	statefulSetLabels := databaseBuilder.buildLabels()
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
 

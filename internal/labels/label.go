@@ -24,9 +24,6 @@ const (
 	// RemoteClusterKey The specialization of a remote k8s cluster
 	RemoteClusterKey = "ydb.tech/remote-cluster"
 
-	StorageGeneration  = "ydb.tech/storage-generation"
-	DatabaseGeneration = "ydb.tech/database-generation"
-
 	StorageComponent         = "storage-node"
 	DynamicComponent         = "dynamic-node"
 	BlobstorageInitComponent = "blobstorage-init"
@@ -86,6 +83,18 @@ func makeCommonLabels(other map[string]string, instance string) map[string]strin
 	common[InstanceKey] = instance
 
 	common[ManagedByKey] = "ydb-operator"
+
+	if storageNodeSetName, exist := other[StorageNodeSetComponent]; exist {
+		common[StorageNodeSetComponent] = storageNodeSetName
+	}
+
+	if databaseNodeSetName, exist := other[DatabaseNodeSetComponent]; exist {
+		common[DatabaseNodeSetComponent] = databaseNodeSetName
+	}
+
+	if remoteCluster, exist := other[RemoteClusterKey]; exist {
+		common[RemoteClusterKey] = remoteCluster
+	}
 
 	return common
 }
