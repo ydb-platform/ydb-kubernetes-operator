@@ -564,9 +564,9 @@ func buildCAStorePatchingCommandArgs(
 	return command, args
 }
 
-func GetConfigurationChecksum(configuration string) string {
+func SHAChecksum(text string) string {
 	hasher := sha256.New()
-	hasher.Write([]byte(configuration))
+	hasher.Write([]byte(text))
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 

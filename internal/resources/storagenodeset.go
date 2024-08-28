@@ -69,7 +69,7 @@ func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []
 	}
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(b.Spec.Configuration)
 
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(
