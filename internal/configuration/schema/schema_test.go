@@ -14,7 +14,6 @@ import (
 //nolint:all
 var configurationExample = `
 ---
-yaml_config_enabled: true
 domains_config:
   domain:
   - name: Root
@@ -202,8 +201,6 @@ allowed_labels:
     type: string
   tenant:
     type: string
-config:
-  yaml_config_enabled: true
 `
 
 func TestSchema(t *testing.T) {
