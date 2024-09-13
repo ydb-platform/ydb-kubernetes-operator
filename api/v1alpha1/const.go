@@ -30,12 +30,9 @@ const (
 	ConfigDir      = "/opt/ydb/cfg"
 	ConfigFileName = "config.yaml"
 
-	DatabaseEncryptionKeySecretDir  = "encryption"
-	DatabaseEncryptionKeySecretFile = "key.pem"
+	DatabaseEncryptionKeySecretDir  = "database_encryption"
+	DatabaseEncryptionKeySecretFile = "key"
 	DatabaseEncryptionKeyConfigFile = "key.txt"
-
-	DatastreamsIAMServiceAccountKeyDir  = "datastreams"
-	DatastreamsIAMServiceAccountKeyFile = "sa_key.json"
 
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"

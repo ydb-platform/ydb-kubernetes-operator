@@ -70,7 +70,7 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 		}
 		if storage.Spec.InitJob.AdditionalAnnotations != nil {
 			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
-			jobAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(storage.Spec.Configuration)
+			jobAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(storage.Spec.Configuration)
 		}
 	}
 

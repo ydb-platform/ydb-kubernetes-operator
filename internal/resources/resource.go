@@ -61,7 +61,7 @@ const (
 	wellKnownNameForTLSCertificateAuthority = "ca.crt"
 	wellKnownNameForTLSCertificate          = "tls.crt"
 	wellKnownNameForTLSPrivateKey           = "tls.key"
-	wellKnownNameForEncryptionKeySecret     = "key.pem"
+	wellKnownNameForEncryptionKeySecret     = "key"
 
 	caBundleEnvName         = "CA_BUNDLE"
 	caBundleFileName        = "userCABundle.crt"
@@ -72,9 +72,8 @@ const (
 	localCertsDir  = "/usr/local/share/ca-certificates"
 	systemCertsDir = "/etc/ssl/certs"
 
-	encryptionKeyConfigVolumeName             = "encryption-config"
-	encryptionKeySecretVolumeName             = "encryption-key"
-	datastreamsIAMServiceAccountKeyVolumeName = "datastreams-iam-sa-key"
+	encryptionKeyConfigVolumeName = "encryption-config"
+	encryptionKeySecretVolumeName = "encryption-key"
 )
 
 type ResourceBuilder interface {
@@ -565,9 +564,9 @@ func buildCAStorePatchingCommandArgs(
 	return command, args
 }
 
-func GetConfigurationChecksum(configuration string) string {
+func SHAChecksum(text string) string {
 	hasher := sha256.New()
-	hasher.Write([]byte(configuration))
+	hasher.Write([]byte(text))
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
