@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ydb-platform/ydb-go-sdk/v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/cms"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
@@ -83,7 +83,7 @@ func (r *Reconciler) checkReplaceConfigOperation(
 ) (bool, ctrl.Result, error) {
 	condition := meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigOperationCondition)
 	if len(condition.Message) == 0 {
-		// retry create tenant
+		// retry replace config
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:    ReplaceConfigOperationCondition,
 			Status:  metav1.ConditionFalse,
