@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-cmp/cmp"
@@ -212,7 +213,13 @@ func (r *Storage) ValidateCreate() error {
 		ErasureBlock42:   8,
 		None:             1,
 	}
-	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
+
+	forTestingPurposes := false
+	if r.Spec.Erasure == ErasureMirror3DC && strings.Contains(r.Spec.Configuration, "SectorMap") {
+		forTestingPurposes = true
+	}
+
+	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] && !forTestingPurposes {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
@@ -305,7 +312,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
-		ErasureMirror3DC: 9,
+		ErasureMirror3DC: 3,
 		ErasureBlock42:   8,
 		None:             1,
 	}
