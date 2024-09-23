@@ -214,12 +214,12 @@ func (r *Storage) ValidateCreate() error {
 		None:             1,
 	}
 
-	forTestingPurposes := false
 	if r.Spec.Erasure == ErasureMirror3DC && strings.Contains(r.Spec.Configuration, "SectorMap") {
-		forTestingPurposes = true
+		// The configuration is clearly for testing purposes, three node mirror-3-dc setup is allowed
+		minNodesPerErasure[ErasureMirror3DC] = 3
 	}
 
-	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] && !forTestingPurposes {
+	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
 
@@ -312,10 +312,16 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
-		ErasureMirror3DC: 3,
+		ErasureMirror3DC: 9,
 		ErasureBlock42:   8,
 		None:             1,
 	}
+
+	if r.Spec.Erasure == ErasureMirror3DC && strings.Contains(r.Spec.Configuration, "SectorMap") {
+		// The configuration is clearly for testing purposes, three node mirror-3-dc setup is allowed
+		minNodesPerErasure[ErasureMirror3DC] = 3
+	}
+
 	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
