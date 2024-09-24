@@ -208,10 +208,11 @@ func (r *Storage) ValidateCreate() error {
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
-		ErasureMirror3DC: 9,
+		ErasureMirror3DC: 3,
 		ErasureBlock42:   8,
 		None:             1,
 	}
+
 	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
@@ -305,10 +306,11 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
-		ErasureMirror3DC: 9,
+		ErasureMirror3DC: 3,
 		ErasureBlock42:   8,
 		None:             1,
 	}
+
 	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
 		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
 	}
