@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-cmp/cmp"
@@ -209,14 +208,9 @@ func (r *Storage) ValidateCreate() error {
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
-		ErasureMirror3DC: 9,
+		ErasureMirror3DC: 3,
 		ErasureBlock42:   8,
 		None:             1,
-	}
-
-	if r.Spec.Erasure == ErasureMirror3DC && strings.Contains(r.Spec.Configuration, "SectorMap") {
-		// The configuration is clearly for testing purposes, three node mirror-3-dc setup is allowed
-		minNodesPerErasure[ErasureMirror3DC] = 3
 	}
 
 	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
@@ -312,14 +306,9 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	}
 
 	minNodesPerErasure := map[ErasureType]int32{
-		ErasureMirror3DC: 9,
+		ErasureMirror3DC: 3,
 		ErasureBlock42:   8,
 		None:             1,
-	}
-
-	if r.Spec.Erasure == ErasureMirror3DC && strings.Contains(r.Spec.Configuration, "SectorMap") {
-		// The configuration is clearly for testing purposes, three node mirror-3-dc setup is allowed
-		minNodesPerErasure[ErasureMirror3DC] = 3
 	}
 
 	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
