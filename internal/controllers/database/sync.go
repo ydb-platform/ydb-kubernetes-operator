@@ -377,6 +377,13 @@ func shouldIgnoreDatabaseChange(database *resources.DatabaseBuilder) resources.I
 				return true
 			}
 		}
+
+		if sec, ok := oldObj.(*corev1.Secret); ok {
+			// Do not update already existing secret data for encryption
+			if (len(sec.StringData) > 0) || (len(sec.Data) > 0) {
+				return true
+			}
+		}
 		return false
 	}
 }
