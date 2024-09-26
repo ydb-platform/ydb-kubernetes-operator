@@ -236,7 +236,7 @@ func (r *Reconciler) setConfigPipelineStatus(
 		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 	}
 
-	if dynConfig.Metadata.Version <= cmsConfig.Version {
+	if cmsConfig.Version > dynConfig.Metadata.Version {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               ConfigurationSyncedCondition,
 			Status:             metav1.ConditionTrue,
