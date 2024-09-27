@@ -773,7 +773,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("check storage with dynconfig", func() {
 		By("create storage...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-dynconfig.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-dynconfig.yaml"))
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
