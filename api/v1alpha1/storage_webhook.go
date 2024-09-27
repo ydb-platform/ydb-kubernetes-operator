@@ -241,7 +241,7 @@ func (r *Storage) ValidateCreate() error {
 		}
 	}
 
-	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+	if (authEnabled && r.Spec.OperatorConnection == nil) {
 		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
@@ -355,7 +355,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		}
 	}
 
-	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+	if (authEnabled && r.Spec.OperatorConnection == nil) {
 		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
