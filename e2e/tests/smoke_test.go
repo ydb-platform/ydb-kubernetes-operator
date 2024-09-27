@@ -37,7 +37,7 @@ import (
 
 const (
 	Timeout  = time.Second * 600
-	Interval = time.Second * 5
+	Interval = time.Second * 2
 )
 
 func podIsReady(conditions []corev1.PodCondition) bool {
@@ -143,7 +143,7 @@ func checkPodsRunningAndReady(ctx context.Context, podLabelKey, podLabelValue st
 			g.Expect(podIsReady(pod.Status.Conditions)).Should(BeTrue())
 		}
 		return true
-	}, 30*time.Second, Interval).Should(BeTrue())
+	}, test.Timeout, test.Interval).Should(BeTrue())
 }
 
 func bringYdbCliToPod(podName, podNamespace string) {
@@ -152,6 +152,7 @@ func bringYdbCliToPod(podName, podNamespace string) {
 			"-n",
 			podNamespace,
 			"cp",
+			// This implicitly relies on 'ydb' cli binary installed in your system
 			fmt.Sprintf("%v/ydb/bin/ydb", os.ExpandEnv("$HOME")),
 			fmt.Sprintf("%v:/tmp/ydb", podName),
 		}
@@ -248,7 +249,7 @@ func portForward(ctx context.Context, svcName string, svcNamespace string, port 
 			return fmt.Errorf("kubectl port-forward stderr: %s", content)
 		}
 		return nil
-	}, 60*time.Second, Interval).Should(BeNil())
+	}, Timeout, test.Interval).Should(BeNil())
 }
 
 var _ = Describe("Operator smoke test", func() {
@@ -259,7 +260,7 @@ var _ = Describe("Operator smoke test", func() {
 	var databaseSample *v1alpha1.Database
 
 	BeforeEach(func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config.yaml"))
 		databaseSample = testobjects.DefaultDatabase()
 
 		ctx = context.Background()
@@ -431,7 +432,7 @@ var _ = Describe("Operator smoke test", func() {
 			})).Should(Succeed())
 
 			return len(storagePods.Items) == int(storageSample.Spec.Nodes)
-		}, 20*time.Second, Interval).Should(BeTrue())
+		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("deleting a StatefulSet...")
 		statefulSet := v1.StatefulSet{}
@@ -458,7 +459,7 @@ var _ = Describe("Operator smoke test", func() {
 			})).Should(Succeed())
 
 			return len(storagePods.Items) == 0
-		}, 20*time.Second, Interval).Should(BeTrue())
+		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("setting storage freeze back to Running...")
 		storage = v1alpha1.Storage{}
@@ -493,19 +494,19 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("create storage and database with nodeSets", func() {
 		By("issuing create commands...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config-nodeSets.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-nodeSets.yaml"))
 		testNodeSetName := "nodeset"
-		for idx := 1; idx <= 2; idx++ {
+		for idx := 1; idx <= 3; idx++ {
 			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
 				Name: testNodeSetName + "-" + strconv.Itoa(idx),
 				StorageNodeSpec: v1alpha1.StorageNodeSpec{
-					Nodes: 4,
+					Nodes: 1,
 				},
 			})
 			databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 				Name: testNodeSetName + "-" + strconv.Itoa(idx),
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-					Nodes: 4,
+					Nodes: 1,
 				},
 			})
 		}
@@ -532,18 +533,24 @@ var _ = Describe("Operator smoke test", func() {
 
 		database := v1alpha1.Database{}
 		databasePods := corev1.PodList{}
-		By("delete nodeSetSpec inline to check inheritance...")
+		By("modify nodeSetSpec inline to check inheritance...")
 		Eventually(func(g Gomega) error {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      databaseSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &database)).Should(Succeed())
-			database.Spec.Nodes = 4
+			database.Spec.Nodes = 2
 			database.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
 				{
 					Name: testNodeSetName + "-" + strconv.Itoa(1),
 					DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-						Nodes: 4,
+						Nodes: 1,
+					},
+				},
+				{
+					Name: testNodeSetName + "-" + strconv.Itoa(2),
+					DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+						Nodes: 1,
 					},
 				},
 			}
@@ -578,7 +585,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("operatorConnection check, create storage with default staticCredentials", func() {
 		By("issuing create commands...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config-staticCreds.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-staticCreds.yaml"))
 		storageSample.Spec.OperatorConnection = &v1alpha1.ConnectionOptions{
 			StaticCredentials: &v1alpha1.StaticCredentialsAuth{
 				Username: "root",
@@ -639,7 +646,7 @@ var _ = Describe("Operator smoke test", func() {
 		}()
 
 		By("create storage...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config-tls.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-tls.yaml"))
 		storageSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
 		storageSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
@@ -738,7 +745,7 @@ var _ = Describe("Operator smoke test", func() {
 				return false
 			}
 			return !foundStorage.DeletionTimestamp.IsZero()
-		}, test.Timeout, test.Interval).Should(BeTrue())
+		}, Timeout, test.Interval).Should(BeTrue())
 
 		By("checking that Storage is present in cluster...")
 		Consistently(func() error {
@@ -761,7 +768,7 @@ var _ = Describe("Operator smoke test", func() {
 				Namespace: testobjects.YdbNamespace,
 			}, &foundStorage)
 			return apierrors.IsNotFound(err)
-		}, test.Timeout, test.Interval).Should(BeTrue())
+		}, Timeout, test.Interval).Should(BeTrue())
 	})
 
 	It("check storage with dynconfig", func() {
@@ -839,7 +846,7 @@ var _ = Describe("Operator smoke test", func() {
 			transport := &http.Transport{TLSClientConfig: tlsConfig}
 			client := &http.Client{
 				Transport: transport,
-				Timeout:   10 * time.Second,
+				Timeout:   test.Timeout,
 			}
 			resp, err := client.Get(url)
 			if err != nil {

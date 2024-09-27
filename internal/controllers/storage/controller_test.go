@@ -62,7 +62,7 @@ var _ = Describe("Storage controller medium tests", func() {
 	})
 
 	It("Checking field propagation to objects", func() {
-		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 
 		tmpFilesDir := "/tmp/mounted_volume"
 		testVolumeName := "sample-volume"

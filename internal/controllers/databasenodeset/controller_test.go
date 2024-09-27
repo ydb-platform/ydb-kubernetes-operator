@@ -71,7 +71,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 		}
 		Expect(k8sClient.Create(ctx, &namespace)).Should(Succeed())
 
-		storageSample = *testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+		storageSample = *testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		Expect(k8sClient.Create(ctx, &storageSample)).Should(Succeed())
 
 		By("checking that Storage created on local cluster...")
@@ -103,7 +103,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 			Name: testNodeSetName,
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 4,
+				Nodes: 1,
 			},
 		})
 
@@ -160,7 +160,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 					testNodeSetLabel: "true",
 				},
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-					Nodes: 2,
+					Nodes: 1,
 				},
 			})
 
@@ -170,7 +170,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 					v1alpha1.AnnotationDataCenter: "envtest",
 				},
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-					Nodes: 2,
+					Nodes: 1,
 				},
 			})
 
