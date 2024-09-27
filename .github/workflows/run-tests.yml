@@ -19,7 +19,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
-          version: v1.52.2
+          version: v1.58.1
   code-format-check:
     concurrency:
       group: lint-autoformat-${{ github.head_ref || github.ref_name }}
