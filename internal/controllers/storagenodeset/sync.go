@@ -244,10 +244,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if !meta.IsStatusConditionTrue(storageNodeSet.Status.Conditions, NodeSetProvisionedCondition) {
 		meta.SetStatusCondition(&storageNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisionedCondition,
-			Status:  metav1.ConditionTrue,
-			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", storageNodeSet.Spec.Nodes),
+			Type:               NodeSetProvisionedCondition,
+			Status:             metav1.ConditionTrue,
+			Reason:             ReasonCompleted,
+			ObservedGeneration: storageNodeSet.Generation,
+			Message:            fmt.Sprintf("Successfully scaled to desired number of nodes: %d", storageNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storageNodeSet, StatusUpdateRequeueDelay)
 	}
@@ -322,8 +323,8 @@ func (r *Reconciler) updateStatus(
 
 func shouldIgnoreStorageNodeSetChange(storageNodeSet *resources.StorageNodeSetResource) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
-		if _, ok := newObj.(*appsv1.StatefulSet); ok {
-			if storageNodeSet.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
+		if statefulSet, ok := oldObj.(*appsv1.StatefulSet); ok {
+			if storageNodeSet.Spec.Pause && *statefulSet.Spec.Replicas == 0 {
 				return true
 			}
 		}

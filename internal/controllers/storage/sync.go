@@ -250,8 +250,8 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 			nodeSetConditions = nodeSetObject.(*v1alpha1.StorageNodeSet).Status.Conditions
 		}
 
-		// TODO: also check observedGeneration to guarantee that compare with updated object
-		if !meta.IsStatusConditionTrue(nodeSetConditions, NodeSetProvisionedCondition) {
+		condition := meta.FindStatusCondition(nodeSetConditions, NodeSetProvisionedCondition)
+		if condition == nil || condition.ObservedGeneration != nodeSetObject.GetGeneration() || condition.Status != metav1.ConditionTrue {
 			r.Recorder.Event(
 				storage,
 				corev1.EventTypeNormal,
@@ -281,7 +281,7 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 			Type:    StorageProvisionedCondition,
 			Status:  metav1.ConditionTrue,
 			Reason:  ReasonCompleted,
-			Message: "Successfully scaled to desired number of nodes",
+			Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", storage.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 	}
@@ -292,8 +292,8 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 
 func shouldIgnoreStorageChange(storage *resources.StorageClusterBuilder) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
-		if _, ok := newObj.(*appsv1.StatefulSet); ok {
-			if storage.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
+		if statefulSet, ok := oldObj.(*appsv1.StatefulSet); ok {
+			if storage.Spec.Pause && *statefulSet.Spec.Replicas == 0 {
 				return true
 			}
 		}
