@@ -206,12 +206,12 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 	var databaseSample *v1alpha1.Database
 
 	BeforeEach(func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		databaseSample = testobjects.DefaultDatabase()
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 			Name: testNodeSetName + "-local",
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 4,
+				Nodes: 1,
 			},
 		})
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
@@ -220,7 +220,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 				Cluster: testRemoteCluster,
 			},
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 4,
+				Nodes: 1,
 			},
 		})
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
@@ -229,7 +229,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 				Cluster: testRemoteCluster,
 			},
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 4,
+				Nodes: 1,
 			},
 		})
 
@@ -445,7 +445,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 						Cluster: testRemoteCluster,
 					},
 					StorageNodeSpec: v1alpha1.StorageNodeSpec{
-						Nodes: 4,
+						Nodes: 1,
 					},
 				})
 
@@ -570,7 +570,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 					{
 						Name: testNodeSetName + "-local",
 						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-							Nodes: 4,
+							Nodes: 2,
 						},
 					},
 					{
@@ -579,7 +579,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 							Cluster: testRemoteCluster,
 						},
 						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-							Nodes: 4,
+							Nodes: 1,
 						},
 					},
 				}
@@ -823,7 +823,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 					{
 						Name: testNodeSetName + "-local",
 						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-							Nodes: 4,
+							Nodes: 2,
 						},
 					},
 					{
@@ -832,7 +832,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 							Cluster: testRemoteCluster,
 						},
 						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-							Nodes: 4,
+							Nodes: 1,
 						},
 					},
 				}
