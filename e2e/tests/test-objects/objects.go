@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	YdbImage              = "cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17" // anchor_for_fetching_image_from_workflow
+	YdbImage              = "cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7" // anchor_for_fetching_image_from_workflow
 	YdbNamespace          = "ydb"
 	StorageName           = "storage"
 	DatabaseName          = "database"
