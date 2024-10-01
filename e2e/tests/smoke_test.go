@@ -308,6 +308,53 @@ var _ = Describe("Operator smoke test", func() {
 		}()
 	})
 
+	It("Check webhook defaulter with dynconfig and nodeSets", func() {
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-dynconfig.yaml"))
+
+		storageSample.Spec.Image = nil
+		storageSample.Spec.Resources = nil
+		storageSample.Spec.Service = nil
+		storageSample.Spec.Monitoring = nil
+		storageSample.Spec.NodeSets = []v1alpha1.StorageNodeSetSpecInline{
+			{
+				Name:            "storage-nodeset-1",
+				StorageNodeSpec: v1alpha1.StorageNodeSpec{Nodes: 1},
+			},
+			{
+				Name:            "storage-nodeset-2",
+				StorageNodeSpec: v1alpha1.StorageNodeSpec{Nodes: 2},
+			},
+		}
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+		}()
+
+		databaseSample.Spec.StorageClusterRef.Namespace = ""
+		databaseSample.Spec.Image = nil
+		databaseSample.Spec.Service = nil
+		databaseSample.Spec.Domain = ""
+		databaseSample.Spec.Path = ""
+		databaseSample.Spec.Encryption = nil
+		databaseSample.Spec.Datastreams = nil
+		databaseSample.Spec.Monitoring = nil
+		databaseSample.Spec.StorageEndpoint = ""
+		databaseSample.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
+			{
+				Name:             "database-nodeset-1",
+				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{Nodes: 1},
+			},
+			{
+				Name:             "database-nodeset-2",
+				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{Nodes: 2},
+			},
+		}
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+	})
+
 	It("general smoke pipeline, create storage + database", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
