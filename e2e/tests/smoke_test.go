@@ -252,6 +252,25 @@ func portForward(ctx context.Context, svcName string, svcNamespace string, port 
 	}, Timeout, test.Interval).Should(BeNil())
 }
 
+func emptyStorageDefaultFields(storage *v1alpha1.Storage) {
+	storage.Spec.Image = nil
+	storage.Spec.Resources = nil
+	storage.Spec.Service = nil
+	storage.Spec.Monitoring = nil
+}
+
+func emptyDatabaseDefaultFields(database *v1alpha1.Database) {
+	database.Spec.StorageClusterRef.Namespace = ""
+	database.Spec.Image = nil
+	database.Spec.Service = nil
+	database.Spec.Domain = ""
+	database.Spec.Path = ""
+	database.Spec.Encryption = nil
+	database.Spec.Datastreams = nil
+	database.Spec.Monitoring = nil
+	database.Spec.StorageEndpoint = ""
+}
+
 var _ = Describe("Operator smoke test", func() {
 	var ctx context.Context
 	var namespace corev1.Namespace
@@ -284,24 +303,13 @@ var _ = Describe("Operator smoke test", func() {
 	})
 
 	It("Check webhook defaulter", func() {
-		storageSample.Spec.Image = nil
-		storageSample.Spec.Resources = nil
-		storageSample.Spec.Service = nil
-		storageSample.Spec.Monitoring = nil
+		emptyStorageDefaultFields(storageSample)
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
 		}()
 
-		databaseSample.Spec.StorageClusterRef.Namespace = ""
-		databaseSample.Spec.Image = nil
-		databaseSample.Spec.Service = nil
-		databaseSample.Spec.Domain = ""
-		databaseSample.Spec.Path = ""
-		databaseSample.Spec.Encryption = nil
-		databaseSample.Spec.Datastreams = nil
-		databaseSample.Spec.Monitoring = nil
-		databaseSample.Spec.StorageEndpoint = ""
+		emptyDatabaseDefaultFields(databaseSample)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
@@ -309,12 +317,8 @@ var _ = Describe("Operator smoke test", func() {
 	})
 
 	It("Check webhook defaulter with dynconfig and nodeSets", func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-dynconfig.yaml"))
-
-		storageSample.Spec.Image = nil
-		storageSample.Spec.Resources = nil
-		storageSample.Spec.Service = nil
-		storageSample.Spec.Monitoring = nil
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-dynconfig.yaml"))
+		emptyStorageDefaultFields(storageSample)
 		storageSample.Spec.NodeSets = []v1alpha1.StorageNodeSetSpecInline{
 			{
 				Name:            "storage-nodeset-1",
@@ -328,30 +332,6 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
-
-		databaseSample.Spec.StorageClusterRef.Namespace = ""
-		databaseSample.Spec.Image = nil
-		databaseSample.Spec.Service = nil
-		databaseSample.Spec.Domain = ""
-		databaseSample.Spec.Path = ""
-		databaseSample.Spec.Encryption = nil
-		databaseSample.Spec.Datastreams = nil
-		databaseSample.Spec.Monitoring = nil
-		databaseSample.Spec.StorageEndpoint = ""
-		databaseSample.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
-			{
-				Name:             "database-nodeset-1",
-				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{Nodes: 1},
-			},
-			{
-				Name:             "database-nodeset-2",
-				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{Nodes: 2},
-			},
-		}
-		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
 		}()
 	})
 
@@ -541,7 +521,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("create storage and database with nodeSets", func() {
 		By("issuing create commands...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-nodeSets.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config.yaml"))
 		testNodeSetName := "nodeset"
 		for idx := 1; idx <= 3; idx++ {
 			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
