@@ -63,10 +63,17 @@ func (r *Storage) GetGRPCServiceEndpoint() string {
 }
 
 func (r *Storage) GetHostFromConfigEndpoint() string {
-	var configuration schema.Configuration
-
+	var rawYamlConfiguration string
 	// skip handle error because we already checked in webhook
-	configuration, _ = ParseConfiguration(r.Spec.Configuration)
+	success, dynConfig, _ := ParseDynConfig(r.Spec.Configuration)
+	if success {
+		config, _ := yaml.Marshal(dynConfig.Config)
+		rawYamlConfiguration = string(config)
+	} else {
+		rawYamlConfiguration = r.Spec.Configuration
+	}
+
+	configuration, _ := ParseConfiguration(rawYamlConfiguration)
 	randNum := rand.Intn(len(configuration.Hosts)) // #nosec G404
 	return fmt.Sprintf("%s:%d", configuration.Hosts[randNum].Host, GRPCPort)
 }
