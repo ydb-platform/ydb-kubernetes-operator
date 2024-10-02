@@ -6,10 +6,14 @@ allowed_labels: {}
 selector_config: []
 config:
   yaml_config_enabled: true
-  static_erasure: block-4-2
+  static_erasure: mirror-3-dc
   host_configs:
     - drive:
         - path: SectorMap:1:1
+          type: SSD
+        - path: SectorMap:2:1
+          type: SSD
+        - path: SectorMap:3:1
           type: SSD
       host_config_id: 1
   domains_config:
@@ -19,16 +23,21 @@ config:
       - kind: ssd
         pool_config:
           box_id: 1
-          erasure_species: block-4-2
+          erasure_species: mirror-3-dc
           kind: ssd
+          geometry:
+            realm_level_begin: 10
+            realm_level_end: 20
+            domain_level_begin: 10
+            domain_level_end: 256
           pdisk_filter:
           - property:
-            - type: SSD
+            - type: SSD # device type to match host_configs.drive.type
           vdisk_kind: Default
     state_storage:
     - ring:
-        node: [1, 2, 3, 4, 5, 6, 7, 8]
-        nto_select: 5
+        node: [1, 2, 3]
+        nto_select: 3
       ssid: 1
   table_service_config:
     sql_version: 1
@@ -56,55 +65,61 @@ config:
       progress_threshold: 10000
       resolution: 256
       spin_threshold: 0
-  blob_storage_config:
+  blob_storage_config:    # configuration of static blobstorage group.
     service_set:
       groups:
-      - erasure_species: block-4-2
+      - erasure_species: mirror-3-dc
         rings:
         - fail_domains:
           - vdisk_locations:
-            - node_id: storage-0
+            - node_id: 1
               pdisk_category: SSD
               path: SectorMap:1:1
           - vdisk_locations:
-            - node_id: storage-1
+            - node_id: 1
+              pdisk_category: SSD
+              path: SectorMap:2:1
+          - vdisk_locations:
+            - node_id: 1
+              pdisk_category: SSD
+              path: SectorMap:3:1
+        - fail_domains:
+          - vdisk_locations:
+            - node_id: 2
               pdisk_category: SSD
               path: SectorMap:1:1
           - vdisk_locations:
-            - node_id: storage-2
+            - node_id: 2
+              pdisk_category: SSD
+              path: SectorMap:2:1
+          - vdisk_locations:
+            - node_id: 2
+              pdisk_category: SSD
+              path: SectorMap:3:1
+        - fail_domains:
+          - vdisk_locations:
+            - node_id: 3
               pdisk_category: SSD
               path: SectorMap:1:1
           - vdisk_locations:
-            - node_id: storage-3
+            - node_id: 3
               pdisk_category: SSD
-              path: SectorMap:1:1
+              path: SectorMap:2:1
           - vdisk_locations:
-            - node_id: storage-4
+            - node_id: 3
               pdisk_category: SSD
-              path: SectorMap:1:1
-          - vdisk_locations:
-            - node_id: storage-5
-              pdisk_category: SSD
-              path: SectorMap:1:1
-          - vdisk_locations:
-            - node_id: storage-6
-              pdisk_category: SSD
-              path: SectorMap:1:1
-          - vdisk_locations:
-            - node_id: storage-7
-              pdisk_category: SSD
-              path: SectorMap:1:1
+              path: SectorMap:3:1
   channel_profile_config:
     profile:
     - channel:
-      - erasure_species: block-4-2
-        pdisk_category: 1
+      - erasure_species: mirror-3-dc
+        pdisk_category: 0
         storage_pool_kind: ssd
-      - erasure_species: block-4-2
-        pdisk_category: 1
+      - erasure_species: mirror-3-dc
+        pdisk_category: 0
         storage_pool_kind: ssd
-      - erasure_species: block-4-2
-        pdisk_category: 1
+      - erasure_species: mirror-3-dc
+        pdisk_category: 0
         storage_pool_kind: ssd
       profile_id: 0
   grpc_config:

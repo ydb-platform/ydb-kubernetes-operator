@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	YdbImage              = "cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17"
+	YdbImage              = "cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7" // anchor_for_fetching_image_from_workflow
 	YdbNamespace          = "ydb"
 	StorageName           = "storage"
 	DatabaseName          = "database"
@@ -59,7 +59,7 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 			StorageClusterSpec: v1alpha1.StorageClusterSpec{
 				Domain:       DefaultDomain,
 				OperatorSync: true,
-				Erasure:      "block-4-2",
+				Erasure:      "mirror-3-dc",
 				Image: &v1alpha1.PodImage{
 					Name:           YdbImage,
 					PullPolicyName: &defaultPolicy,
@@ -90,7 +90,7 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 				},
 			},
 			StorageNodeSpec: v1alpha1.StorageNodeSpec{
-				Nodes:     8,
+				Nodes:     3,
 				DataStore: []corev1.PersistentVolumeClaimSpec{},
 
 				Resources:        &corev1.ResourceRequirements{},
@@ -156,7 +156,7 @@ func DefaultDatabase() *v1alpha1.Database {
 				},
 			},
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 8,
+				Nodes: 3,
 				Resources: &v1alpha1.DatabaseResources{
 					StorageUnits: []v1alpha1.StorageUnit{
 						{

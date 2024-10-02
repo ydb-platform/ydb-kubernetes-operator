@@ -1,6 +1,3 @@
-# Implicit requirements
-# runner must have `docker` and `curl` installed (true on github-runners)
-
 name: upload-artifacts
 on:
   push:
