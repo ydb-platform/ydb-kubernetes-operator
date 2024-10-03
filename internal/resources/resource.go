@@ -20,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -85,8 +84,6 @@ var (
 	annotator  = patch.NewAnnotator(ydbannotations.LastAppliedAnnotation)
 	patchMaker = patch.NewPatchMaker(annotator)
 )
-
-var CreateOrUpdate = ctrl.CreateOrUpdate
 
 func mutate(f ctrlutil.MutateFn, key client.ObjectKey, obj client.Object) error {
 	if err := f(); err != nil {
@@ -564,9 +561,9 @@ func buildCAStorePatchingCommandArgs(
 	return command, args
 }
 
-func GetConfigurationChecksum(configuration string) string {
+func SHAChecksum(text string) string {
 	hasher := sha256.New()
-	hasher.Write([]byte(configuration))
+	hasher.Write([]byte(text))
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 

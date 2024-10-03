@@ -66,7 +66,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 	databaseSelectorLabels := b.buildSelectorLabels()
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(b.Spec.Configuration)
 
 	grpcServiceLabels := databaseLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -146,7 +146,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 						api.DatabaseEncryptionKeySecretDir,
 						api.DatabaseEncryptionKeySecretFile,
 					),
-					ID:      b.Name,
+					ID:      SHAChecksum(b.Spec.StorageClusterRef.Name),
 					Pin:     b.Spec.Encryption.Pin,
 					Version: 1,
 				},

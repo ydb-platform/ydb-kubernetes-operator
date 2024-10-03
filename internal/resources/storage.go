@@ -92,7 +92,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	storageSelectorLabels := b.buildSelectorLabels(labels.StorageComponent)
 
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(b.Spec.Configuration)
 
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -108,8 +108,8 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 	var optionalBuilders []ResourceBuilder
 
-	dynconfig, err := api.ParseDynconfig(b.Spec.Configuration)
-	if err != nil {
+	success, dynconfig, _ := api.ParseDynConfig(b.Spec.Configuration)
+	if !success {
 		// YDBOPS-9722 backward compatibility
 		cfg, _ := api.BuildConfiguration(b.Unwrap(), nil)
 		optionalBuilders = append(

@@ -30,14 +30,13 @@ const (
 	ConfigDir      = "/opt/ydb/cfg"
 	ConfigFileName = "config.yaml"
 
-	DatabaseEncryptionKeySecretDir  = "encryption"
-	DatabaseEncryptionKeySecretFile = "key.pem"
+	DatabaseEncryptionKeySecretDir  = "database_encryption"
+	DatabaseEncryptionKeySecretFile = "key"
 	DatabaseEncryptionKeyConfigFile = "key.txt"
 
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	DefaultRootUsername          = "root"
 	DefaultRootPassword          = ""
 	DefaultDatabaseDomain        = "Root"
 	DefaultDatabaseEncryptionPin = "EmptyPin"

@@ -179,11 +179,11 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 	var storageSample *v1alpha1.Storage
 
 	BeforeEach(func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
 			Name: testNodeSetName + "-local",
 			StorageNodeSpec: v1alpha1.StorageNodeSpec{
-				Nodes: 4,
+				Nodes: 1,
 			},
 		})
 		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
@@ -192,7 +192,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				Cluster: testRemoteCluster,
 			},
 			StorageNodeSpec: v1alpha1.StorageNodeSpec{
-				Nodes: 2,
+				Nodes: 1,
 			},
 		})
 		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
@@ -201,7 +201,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 				Cluster: testRemoteCluster,
 			},
 			StorageNodeSpec: v1alpha1.StorageNodeSpec{
-				Nodes: 2,
+				Nodes: 1,
 			},
 		})
 
@@ -569,7 +569,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 					{
 						Name: testNodeSetName + "-local",
 						StorageNodeSpec: v1alpha1.StorageNodeSpec{
-							Nodes: 6,
+							Nodes: 2,
 						},
 					},
 					{
@@ -578,7 +578,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 							Cluster: testRemoteCluster,
 						},
 						StorageNodeSpec: v1alpha1.StorageNodeSpec{
-							Nodes: 2,
+							Nodes: 1,
 						},
 					},
 				}
@@ -706,10 +706,10 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 					return client.IgnoreNotFound(err)
 				}
 				// remove `kubernetes` finalizer
-				const kubernetes = "kubernetes"
+				const finalizer = "kubernetes"
 				finalizers := []corev1.FinalizerName{}
 				for _, f := range ns.Spec.Finalizers {
-					if f != kubernetes {
+					if f != finalizer {
 						finalizers = append(finalizers, f)
 					}
 				}

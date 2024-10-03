@@ -60,7 +60,7 @@ func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) [
 	statefulSetName := b.Name
 	statefulSetLabels := databaseBuilder.buildLabels()
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = GetConfigurationChecksum(b.Spec.Configuration)
+	statefulSetAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(b.Spec.Configuration)
 
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(resourceBuilders,
