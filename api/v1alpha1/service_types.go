@@ -22,6 +22,7 @@ type GRPCService struct {
 
 	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
 	ExternalHost     string            `json:"externalHost,omitempty"` // TODO implementation
+	IPDiscovery      *IPDiscovery      `json:"ipDiscovery,omitempty"`
 }
 
 type InterconnectService struct {
@@ -40,4 +41,9 @@ type DatastreamsService struct {
 	Service `json:""`
 
 	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
+}
+
+type IPDiscovery struct {
+	Enabled  bool            `json:"enabled"`
+	IPFamily corev1.IPFamily `json:"ipFamily,omitempty"`
 }

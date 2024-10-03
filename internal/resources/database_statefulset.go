@@ -75,15 +75,26 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 	var envVars []corev1.EnvVar
 
-	envVars = append(envVars, corev1.EnvVar{
-		Name: "NODE_NAME", // for `--grpc-public-host` flag
-		ValueFrom: &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				APIVersion: "v1",
-				FieldPath:  "metadata.name",
+	envVars = append(envVars,
+		corev1.EnvVar{
+			Name: "NODE_NAME", // for `--grpc-public-host` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.name",
+				},
 			},
 		},
-	})
+		corev1.EnvVar{
+			Name: "POD_IP", // for `--grpc-public-address-<ip-family>` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "status.podIP",
+				},
+			},
+		},
+	)
 
 	return envVars
 }
@@ -621,23 +632,45 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		}
 	}
 
-	publicHostOption := "--grpc-public-host"
 	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace()) // FIXME .svc.cluster.local
+
 	if b.Spec.Service.GRPC.ExternalHost != "" {
 		publicHost = b.Spec.Service.GRPC.ExternalHost
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
 		publicHost = value
 	}
+
+	if b.Spec.Service.GRPC.IPDiscovery != nil && b.Spec.Service.GRPC.IPDiscovery.Enabled == true {
+
+		ipFamilyArg := "--grpc-public-address-v4"
+
+		if b.Spec.Service.GRPC.IPDiscovery.IPFamily == corev1.IPv6Protocol {
+			ipFamilyArg = "--grpc-public-address-v6"
+		}
+
+		args = append(
+			args,
+			"--grpc-public-target-name-override",
+			fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost),
+
+			ipFamilyArg,
+			"$(POD_IP)",
+		)
+	} else {
+		publicHostOption := "--grpc-public-host"
+		args = append(
+			args,
+			publicHostOption,
+			fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
+		)
+	}
+
 	publicPortOption := "--grpc-public-port"
 	publicPort := api.GRPCPort
 
 	args = append(
 		args,
-
-		publicHostOption,
-		fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
-
 		publicPortOption,
 		strconv.Itoa(publicPort),
 	)
