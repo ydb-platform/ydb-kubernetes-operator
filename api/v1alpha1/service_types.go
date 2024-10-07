@@ -44,6 +44,7 @@ type DatastreamsService struct {
 }
 
 type IPDiscovery struct {
-	Enabled  bool            `json:"enabled"`
-	IPFamily corev1.IPFamily `json:"ipFamily,omitempty"`
+	Enabled            bool            `json:"enabled"`
+	TargetNameOverride string          `json:"targetNameOverride,omitempty"`
+	IPFamily           corev1.IPFamily `json:"ipFamily,omitempty"`
 }

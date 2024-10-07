@@ -632,6 +632,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		}
 	}
 
+	publicHostOption := "--grpc-public-host"
 	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace()) // FIXME .svc.cluster.local
 
 	if b.Spec.Service.GRPC.ExternalHost != "" {
@@ -642,7 +643,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	if b.Spec.Service.GRPC.IPDiscovery != nil && b.Spec.Service.GRPC.IPDiscovery.Enabled == true {
-
+		targetNameOverride := b.Spec.Service.GRPC.IPDiscovery.TargetNameOverride
 		ipFamilyArg := "--grpc-public-address-v4"
 
 		if b.Spec.Service.GRPC.IPDiscovery.IPFamily == corev1.IPv6Protocol {
@@ -651,19 +652,18 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 		args = append(
 			args,
-			"--grpc-public-target-name-override",
-			fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost),
 
 			ipFamilyArg,
 			"$(POD_IP)",
 		)
-	} else {
-		publicHostOption := "--grpc-public-host"
-		args = append(
-			args,
-			publicHostOption,
-			fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
-		)
+		if targetNameOverride != "" {
+			args = append(
+				args,
+				"--grpc-public-target-name-override",
+				fmt.Sprintf("%s.%s", "$(NODE_NAME)", targetNameOverride),
+			)
+		}
+
 	}
 
 	publicPortOption := "--grpc-public-port"
@@ -671,6 +671,10 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 	args = append(
 		args,
+
+		publicHostOption,
+		fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
+
 		publicPortOption,
 		strconv.Itoa(publicPort),
 	)
