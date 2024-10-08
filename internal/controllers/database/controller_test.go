@@ -247,11 +247,15 @@ var _ = Describe("Database controller medium tests", func() {
 		}
 		getDB := func() v1alpha1.Database {
 			found := v1alpha1.Database{}
-			Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name:      testobjects.DatabaseName,
-				Namespace: testobjects.YdbNamespace,
-			}, &found)).Should(Succeed())
-
+			Eventually(func() error {
+				return k8sClient.Get(ctx,
+					types.NamespacedName{
+						Name:      testobjects.DatabaseName,
+						Namespace: testobjects.YdbNamespace,
+					},
+					&found,
+				)
+			}, test.Timeout, test.Interval).Should(Succeed())
 			return found
 		}
 
