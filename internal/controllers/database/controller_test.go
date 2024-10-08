@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -30,12 +31,13 @@ import (
 var (
 	k8sClient client.Client
 	ctx       context.Context
+	env       *envtest.Environment
 )
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	test.SetupK8STestManager(&ctx, &k8sClient, func(mgr *manager.Manager) []test.Reconciler {
+	env = test.SetupK8STestManager(&ctx, &k8sClient, func(mgr *manager.Manager) []test.Reconciler {
 		return []test.Reconciler{
 			&storage.Reconciler{
 				Client: k8sClient,
@@ -94,6 +96,7 @@ var _ = Describe("Database controller medium tests", func() {
 	AfterEach(func() {
 		Expect(k8sClient.Delete(ctx, &storageSample)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
+		test.DeleteAllObjects(env, k8sClient, &namespace)
 	})
 
 	It("Checking field propagation to objects", func() {
@@ -216,5 +219,79 @@ var _ = Describe("Database controller medium tests", func() {
 			}, &encryptionSecret))
 			return reflect.DeepEqual(encryptionData, encryptionSecret.Data)
 		}, test.Timeout, test.Interval).Should(BeTrue())
+	})
+
+	It("Check iPDiscovery flag works", func() {
+		getDBSts := func(generation int64) appsv1.StatefulSet {
+			sts := appsv1.StatefulSet{}
+
+			Eventually(
+				func() error {
+					objectKey := types.NamespacedName{
+						Name:      testobjects.DatabaseName,
+						Namespace: testobjects.YdbNamespace,
+					}
+					err := k8sClient.Get(ctx, objectKey, &sts)
+					if err != nil {
+						return err
+					}
+
+					if sts.Generation <= generation {
+						return fmt.Errorf("sts is too old (generation=%d)", sts.Generation)
+					}
+					return nil
+				},
+			).WithTimeout(test.Timeout).WithPolling(test.Interval).Should(Succeed())
+
+			return sts
+		}
+		getDB := func() v1alpha1.Database {
+			found := v1alpha1.Database{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.DatabaseName,
+				Namespace: testobjects.YdbNamespace,
+			}, &found)).Should(Succeed())
+
+			return found
+		}
+
+		db := *testobjects.DefaultDatabase()
+
+		Expect(k8sClient.Create(ctx, &db)).Should(Succeed())
+
+		sts := getDBSts(0)
+		args := sts.Spec.Template.Spec.Containers[0].Args
+
+		Expect(args).To(ContainElements([]string{"--grpc-public-host"}))
+		Expect(args).ToNot(ContainElements([]string{"--grpc-public-address-v6", "--grpc-public-address-v4", "--grpc-public-target-name-override"}))
+
+		db = getDB()
+		db.Spec.Service.GRPC.IPDiscovery = &v1alpha1.IPDiscovery{
+			Enabled:  true,
+			IPFamily: corev1.IPv6Protocol,
+		}
+
+		Expect(k8sClient.Update(ctx, &db)).Should(Succeed())
+
+		sts = getDBSts(sts.Generation)
+		args = sts.Spec.Template.Spec.Containers[0].Args
+
+		Expect(args).To(ContainElements([]string{"--grpc-public-address-v6"}))
+		Expect(args).ToNot(ContainElements([]string{"--grpc-public-target-name-override"}))
+
+		db = getDB()
+
+		db.Spec.Service.GRPC.IPDiscovery = &v1alpha1.IPDiscovery{
+			Enabled:            true,
+			IPFamily:           corev1.IPv4Protocol,
+			TargetNameOverride: "a.b.c.d",
+		}
+
+		Expect(k8sClient.Update(ctx, &db)).Should(Succeed())
+
+		sts = getDBSts(sts.Generation)
+		args = sts.Spec.Template.Spec.Containers[0].Args
+
+		Expect(args).To(ContainElements([]string{"--grpc-public-address-v4", "--grpc-public-target-name-override"}))
 	})
 })

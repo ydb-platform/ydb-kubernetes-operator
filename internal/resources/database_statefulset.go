@@ -642,7 +642,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		publicHost = value
 	}
 
-	if b.Spec.Service.GRPC.IPDiscovery != nil && b.Spec.Service.GRPC.IPDiscovery.Enabled == true {
+	if b.Spec.Service.GRPC.IPDiscovery != nil && b.Spec.Service.GRPC.IPDiscovery.Enabled {
 		targetNameOverride := b.Spec.Service.GRPC.IPDiscovery.TargetNameOverride
 		ipFamilyArg := "--grpc-public-address-v4"
 
@@ -663,7 +663,6 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 				fmt.Sprintf("%s.%s", "$(NODE_NAME)", targetNameOverride),
 			)
 		}
-
 	}
 
 	publicPortOption := "--grpc-public-port"
