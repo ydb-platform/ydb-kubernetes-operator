@@ -9,7 +9,6 @@ import (
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
 
 type DatabaseNodeSetBuilder struct {
@@ -56,18 +55,10 @@ func (b *DatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 
 func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
 	ydbCr := api.RecastDatabaseNodeSet(b.Unwrap())
-	databaseLabels := labels.DatabaseLabels(ydbCr)
+	databaseBuilder := NewDatabase(ydbCr)
 
 	statefulSetName := b.Name
-	statefulSetLabels := databaseLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
-
-	databaseNodeSetName := b.Labels[labels.DatabaseNodeSetComponent]
-	statefulSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: databaseNodeSetName})
-	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
-		statefulSetLabels.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
-	}
-
+	statefulSetLabels := databaseBuilder.buildLabels()
 	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
 	statefulSetAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(b.Spec.Configuration)
 

@@ -37,7 +37,6 @@ const (
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	DefaultRootUsername          = "root"
 	DefaultRootPassword          = ""
 	DefaultDatabaseDomain        = "Root"
 	DefaultDatabaseEncryptionPin = "EmptyPin"

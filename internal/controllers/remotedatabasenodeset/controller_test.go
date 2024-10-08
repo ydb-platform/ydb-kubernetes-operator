@@ -963,10 +963,10 @@ func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client
 					return client.IgnoreNotFound(err)
 				}
 				// remove `kubernetes` finalizer
-				const kubernetes = "kubernetes"
+				const finalizer = "kubernetes"
 				finalizers := []corev1.FinalizerName{}
 				for _, f := range ns.Spec.Finalizers {
-					if f != kubernetes {
+					if f != finalizer {
 						finalizers = append(finalizers, f)
 					}
 				}
