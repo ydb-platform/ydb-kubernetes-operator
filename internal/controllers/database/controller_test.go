@@ -259,16 +259,18 @@ var _ = Describe("Database controller medium tests", func() {
 			return found
 		}
 
+		By("Create test database")
 		db := *testobjects.DefaultDatabase()
-
 		Expect(k8sClient.Create(ctx, &db)).Should(Succeed())
 
+		By("Check container args")
 		sts := getDBSts(0)
 		args := sts.Spec.Template.Spec.Containers[0].Args
 
 		Expect(args).To(ContainElements([]string{"--grpc-public-host"}))
 		Expect(args).ToNot(ContainElements([]string{"--grpc-public-address-v6", "--grpc-public-address-v4", "--grpc-public-target-name-override"}))
 
+		By("Enabling ip discovery using ipv6")
 		db = getDB()
 		db.Spec.Service.GRPC.IPDiscovery = &v1alpha1.IPDiscovery{
 			Enabled:  true,
@@ -277,6 +279,7 @@ var _ = Describe("Database controller medium tests", func() {
 
 		Expect(k8sClient.Update(ctx, &db)).Should(Succeed())
 
+		By("Check container args")
 		sts = getDBSts(sts.Generation)
 		args = sts.Spec.Template.Spec.Containers[0].Args
 
@@ -285,6 +288,7 @@ var _ = Describe("Database controller medium tests", func() {
 
 		db = getDB()
 
+		By("Enabling ip discovery using ipv4 and target name override")
 		db.Spec.Service.GRPC.IPDiscovery = &v1alpha1.IPDiscovery{
 			Enabled:            true,
 			IPFamily:           corev1.IPv4Protocol,
@@ -292,6 +296,8 @@ var _ = Describe("Database controller medium tests", func() {
 		}
 
 		Expect(k8sClient.Update(ctx, &db)).Should(Succeed())
+
+		By("Check container args")
 
 		sts = getDBSts(sts.Generation)
 		args = sts.Spec.Template.Spec.Containers[0].Args
