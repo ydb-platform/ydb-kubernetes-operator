@@ -1,0 +1,13 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  # We propagate /tmp of the host to all the nodes,
+  # so we can create files directly on kind runner and propagate them
+  # into k8s pods through `hostPath` volume, for example.
+  # Necessary for testing.
+  - role: worker
+    extraMounts:
+      - hostPath: /tmp/worker-1-
+        containerPath: /home/tmp
+        readOnly: true
