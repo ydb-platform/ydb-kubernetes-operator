@@ -1,7 +1,7 @@
 apiVersion: ydb.tech/v1alpha1
 kind: Storage
 metadata:
-  name: storage
+  name: storage-kind-sample
 spec:
   monitoring:
     enabled: false
