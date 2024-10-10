@@ -985,7 +985,8 @@ spec:
                           description: "Claims lists the names of resources, defined
                             in spec.resourceClaims, that are used by this container.
                             \n This is an alpha field and requires enabling the DynamicResourceAllocation
-                            feature gate. \n This field is immutable."
+                            feature gate. \n This field is immutable. It can only
+                            be set for containers."
                           items:
                             description: ResourceClaim references one entry in PodSpec.ResourceClaims.
                             properties:
@@ -1372,7 +1373,9 @@ spec:
                                       to be used in HTTP probes
                                     properties:
                                       name:
-                                        description: The header field name
+                                        description: The header field name. This will
+                                          be canonicalized upon output, so case-variant
+                                          names will be understood as the same header.
                                         type: string
                                       value:
                                         description: The header field value
@@ -1468,7 +1471,9 @@ spec:
                                       to be used in HTTP probes
                                     properties:
                                       name:
-                                        description: The header field name
+                                        description: The header field name. This will
+                                          be canonicalized upon output, so case-variant
+                                          names will be understood as the same header.
                                         type: string
                                       value:
                                         description: The header field value
@@ -1581,7 +1586,9 @@ spec:
                                   to be used in HTTP probes
                                 properties:
                                   name:
-                                    description: The header field name
+                                    description: The header field name. This will
+                                      be canonicalized upon output, so case-variant
+                                      names will be understood as the same header.
                                     type: string
                                   value:
                                     description: The header field value
@@ -1783,7 +1790,9 @@ spec:
                                   to be used in HTTP probes
                                 properties:
                                   name:
-                                    description: The header field name
+                                    description: The header field name. This will
+                                      be canonicalized upon output, so case-variant
+                                      names will be understood as the same header.
                                     type: string
                                   value:
                                     description: The header field value
@@ -1880,7 +1889,8 @@ spec:
                           description: "Claims lists the names of resources, defined
                             in spec.resourceClaims, that are used by this container.
                             \n This is an alpha field and requires enabling the DynamicResourceAllocation
-                            feature gate. \n This field is immutable."
+                            feature gate. \n This field is immutable. It can only
+                            be set for containers."
                           items:
                             description: ResourceClaim references one entry in PodSpec.ResourceClaims.
                             properties:
@@ -2164,7 +2174,9 @@ spec:
                                   to be used in HTTP probes
                                 properties:
                                   name:
-                                    description: The header field name
+                                    description: The header field name. This will
+                                      be canonicalized upon output, so case-variant
+                                      names will be understood as the same header.
                                     type: string
                                   value:
                                     description: The header field value
@@ -2458,7 +2470,8 @@ spec:
                     description: "Claims lists the names of resources, defined in
                       spec.resourceClaims, that are used by this container. \n This
                       is an alpha field and requires enabling the DynamicResourceAllocation
-                      feature gate. \n This field is immutable."
+                      feature gate. \n This field is immutable. It can only be set
+                      for containers."
                     items:
                       description: ResourceClaim references one entry in PodSpec.ResourceClaims.
                       properties:
@@ -2526,6 +2539,20 @@ spec:
                         type: object
                       externalHost:
                         type: string
+                      ipDiscovery:
+                        properties:
+                          enabled:
+                            type: boolean
+                          ipFamily:
+                            description: IPFamily represents the IP Family (IPv4 or
+                              IPv6). This type is used to express the family of an
+                              IP expressed by a type (e.g. service.spec.ipFamilies).
+                            type: string
+                          targetNameOverride:
+                            type: string
+                        required:
+                        - enabled
+                        type: object
                       ipFamilies:
                         items:
                           description: IPFamily represents the IP Family (IPv4 or
@@ -3564,7 +3591,8 @@ spec:
                                         defined in spec.resourceClaims, that are used
                                         by this container. \n This is an alpha field
                                         and requires enabling the DynamicResourceAllocation
-                                        feature gate. \n This field is immutable."
+                                        feature gate. \n This field is immutable.
+                                        It can only be set for containers."
                                       items:
                                         description: ResourceClaim references one
                                           entry in PodSpec.ResourceClaims.
