@@ -3,8 +3,6 @@ kind: Storage
 metadata:
   name: storage-kind-sample
 spec:
-  monitoring:
-    enabled: false
   image:
     name: cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7
   domain: Root
