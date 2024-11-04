@@ -12,15 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v3
-      - name: setup-go
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.20'
+        uses: actions/checkout@v4
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.58.1
+          version: v1.61.0
   run-unit-tests:
     concurrency:
       group: run-unit-tests-${{ github.head_ref || github.ref_name }}
