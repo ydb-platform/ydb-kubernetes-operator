@@ -1,29 +1,45 @@
 name: upload-artifacts
+
 on:
   push:
     branches:
       - master
+    paths:
+      - 'CHANGELOG.md'
+  workflow_dispatch:
+
 jobs:
-  tag-job:
+  tag-and-release:
     runs-on: ubuntu-latest
-    outputs:
-      tagcreated: ${{steps.tag-step.outputs.tagcreated}}
     steps:
-    - uses: actions/checkout@v3
-    - id: tag-step
-      uses: butlerlogic/action-autotag@1.1.2
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v4
+
+    - name: get-latest-version
+      uses: miniscruff/changie-action@v2
       with:
-        strategy: regex
-        root: "./deploy/ydb-operator/Chart.yaml"
-        regex_pattern: 'version:[\s]*(["]?[0-9\.]{3,}["]?)'
-  upload-artifacts:
-    runs-on: ubuntu-latest
-    needs: tag-job
-    if: ${{ needs.tag-job.outputs.tagcreated == 'yes' }}
-    steps:
-    - uses: actions/checkout@v3
+        version: latest
+        args: latest
+    - name: get-latest-no-v-version
+      uses: miniscruff/changie-action@v2
+      with:
+        version: latest
+        # Echoes the same version as previous step, but without "v" prefix. 
+        # Is used as a docker image tag in the release step.
+        # E.g. "v0.5.31" -> "0.5.31"
+        args: latest --remove-prefix
+
+    - name: update-chart-version-with-release-version
+      run: |
+        RELEASE_VERSION=${{ steps.get-latest-no-v-version.outputs.output }}
+        sed -i 's/<IS_SUBSTITUTED_IN_CI_RELEASE_JOB>/'"$RELEASE_VERSION"'/g' ./deploy/ydb-operator/Chart.yaml
+
+    - name: create-tag
+      uses: mathieudutour/github-tag-action@v6.2
+      with:
+        tag_prefix: ""
+        custom_tag: ${{ steps.get-latest-version.outputs.output }}
+        github_token: ${{ github.token }}
+
     - name: install-dependencies
       run: |
         HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
@@ -96,3 +112,22 @@ jobs:
 
         aws s3 --endpoint-url=https://storage.yandexcloud.net \
           cp ./charts/index.yaml s3://charts.ydb.tech/index.yaml
+
+    - name: add-dockerhub-info-to-release
+      run: |
+        echo "\nDocker image has been uploaded to:\n" >> .changes/${{ steps.get-latest-version.outputs.output }}.md
+        echo "- ydbplatform/ydb-kubernetes-operator:${{ steps.get-latest-no-v-version.outputs.output }} on Dockerhub" >> .changes/${{ steps.get-latest-version.outputs.output }}.md
+        echo "- cr.yandex/yc/ydb-kubernetes-operator:${{ steps.get-latest-no-v-version.outputs.output }} on YDB public registry" >> .changes/${{ steps.get-latest-version.outputs.output }}.md
+      with:
+        body_path: .changes/${{ steps.get-latest-version.outputs.output }}.md
+        tag_name: ${{ steps.get-latest-version.outputs.output }} 
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: create-github-release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: .changes/${{ steps.get-latest-version.outputs.output }}.md
+        tag_name: ${{ steps.get-latest-version.outputs.output }} 
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
