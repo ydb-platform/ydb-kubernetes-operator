@@ -112,22 +112,3 @@ jobs:
 
         aws s3 --endpoint-url=https://storage.yandexcloud.net \
           cp ./charts/index.yaml s3://charts.ydb.tech/index.yaml
-
-    - name: add-dockerhub-info-to-release
-      run: |
-        echo "\nDocker image has been uploaded to:\n" >> .changes/${{ steps.get-latest-version.outputs.output }}.md
-        echo "- ydbplatform/ydb-kubernetes-operator:${{ steps.get-latest-no-v-version.outputs.output }} on Dockerhub" >> .changes/${{ steps.get-latest-version.outputs.output }}.md
-        echo "- cr.yandex/yc/ydb-kubernetes-operator:${{ steps.get-latest-no-v-version.outputs.output }} on YDB public registry" >> .changes/${{ steps.get-latest-version.outputs.output }}.md
-      with:
-        body_path: .changes/${{ steps.get-latest-version.outputs.output }}.md
-        tag_name: ${{ steps.get-latest-version.outputs.output }} 
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-
-    - name: create-github-release
-      uses: softprops/action-gh-release@v1
-      with:
-        body_path: .changes/${{ steps.get-latest-version.outputs.output }}.md
-        tag_name: ${{ steps.get-latest-version.outputs.output }} 
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
