@@ -5,32 +5,6 @@ on:
   - workflow_dispatch
 
 jobs:
-  check-chart-bumped:
-    concurrency:
-      group: check-chart-bumped-${{ github.head_ref || github.ref_name }}
-      cancel-in-progress: true
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: print the latest version without "v"
-        id: latest-no-v
-        uses: miniscruff/changie-action@v2
-        with:
-          version: latest
-          args: latest --remove-prefix
-      - name: check-chart-version
-        run: |
-          VERSION=${{ steps.latest-no-v.outputs.output }}
-          APP_VERSION=$(grep '^appVersion:' ./deploy/ydb-operator/Chart.yaml | awk '{print $2}' | tr -d '"')
-          CHART_VERSION=$(grep '^version:' ./deploy/ydb-operator/Chart.yaml | awk '{print $2}' | tr -d '"')
-
-          if [ "$APP_VERSION" != "$VERSION" ] || [ "$CHART_VERSION" != "$VERSION" ]; then
-            echo "Version mismatch: appVersion ($APP_VERSION) or version ($CHART_VERSION) does not match expected version ($VERSION). You most likely forgot to bump the version in Chart.yaml, please do so."
-            exit 1
-          else
-            echo "Version matches: appVersion ($APP_VERSION) and version ($CHART_VERSION) are both $VERSION."
-          fi
   lint:
     concurrency:
       group: lint-golangci-${{ github.head_ref || github.ref_name }}

@@ -29,6 +29,19 @@ jobs:
         version: latest
         args: latest
 
+    - name: print the latest version without "v"
+      id: latest-no-v
+      uses: miniscruff/changie-action@v2
+      with:
+        version: latest
+        args: latest --remove-prefix
+
+    - name: bump-chart-version
+      run: |
+        VERSION=${{ steps.latest-no-v.outputs.output }}
+        sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" ./deploy/ydb-operator/Chart.yaml
+        sed -i "s/^version:.*/version: \"$VERSION\"/" ./deploy/ydb-operator/Chart.yaml
+
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v7
       with:
