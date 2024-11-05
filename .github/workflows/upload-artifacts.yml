@@ -28,11 +28,6 @@ jobs:
         # E.g. "v0.5.31" -> "0.5.31"
         args: latest --remove-prefix
 
-    - name: update-chart-version-with-release-version
-      run: |
-        RELEASE_VERSION=${{ steps.get-latest-no-v-version.outputs.output }}
-        sed -i 's/<IS_SUBSTITUTED_IN_CI_RELEASE_JOB>/'"$RELEASE_VERSION"'/g' ./deploy/ydb-operator/Chart.yaml
-
     - name: create-tag
       uses: mathieudutour/github-tag-action@v6.2
       with:
