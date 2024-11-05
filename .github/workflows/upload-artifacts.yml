@@ -94,3 +94,20 @@ jobs:
 
         aws s3 --endpoint-url=https://storage.yandexcloud.net \
           cp ./charts/index.yaml s3://charts.ydb.tech/index.yaml
+
+    - name: append-artifacts-info-to-release-notes
+      run: |
+        echo "New docker images are available from:" >> .changes/v$VERSION.md
+        echo "- ydbplatform/ydb-kubernetes-operator:$VERSION" >> .changes/v$VERSION.md
+        echo "- cr.yandex/yc/ydb-kubernetes-operator:$VERSION" >> .changes/v$VERSION.md
+        echo "" >> .changes/v$VERSION.md
+
+        echo "New helm chart `ydb-operator`, version $VERSION is available from charts.ydb.tech." >> .changes/v$VERSION.md
+
+    - name: create-github-release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: .changes/v${{ env.VERSION }}.md
+        tag_name: ${{ env.VERSION }} 
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
