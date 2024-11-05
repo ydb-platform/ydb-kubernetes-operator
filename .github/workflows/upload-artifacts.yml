@@ -97,12 +97,16 @@ jobs:
 
     - name: append-artifacts-info-to-release-notes
       run: |
+        echo "" >> .changes/v$VERSION.md
+
+        echo "### Docker images" >> .changes/v$VERSION.md
         echo "New docker images are available from:" >> .changes/v$VERSION.md
         echo "- ydbplatform/ydb-kubernetes-operator:$VERSION" >> .changes/v$VERSION.md
         echo "- cr.yandex/yc/ydb-kubernetes-operator:$VERSION" >> .changes/v$VERSION.md
         echo "" >> .changes/v$VERSION.md
 
-        echo "New helm chart `ydb-operator`, version $VERSION is available from charts.ydb.tech." >> .changes/v$VERSION.md
+        echo "### Helm charts" >> .changes/v$VERSION.md
+        echo "New helm chart 'ydb-operator', version $VERSION is available from https://charts.ydb.tech" >> .changes/v$VERSION.md
 
     - name: create-github-release
       uses: softprops/action-gh-release@v1
