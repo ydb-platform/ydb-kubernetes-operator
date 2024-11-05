@@ -43,7 +43,7 @@ jobs:
         CHART_VERSION=$(grep '^version:' ./deploy/ydb-operator/Chart.yaml | awk '{print $2}' | tr -d '"')
 
         if [ "$APP_VERSION" != "$VERSION" ] || [ "$CHART_VERSION" != "$VERSION" ]; then
-          echo "Version mismatch: appVersion ($APP_VERSION) or version ($CHART_VERSION) does not match expected version ($VERSION)."
+          echo "Version mismatch: appVersion ($APP_VERSION) or version ($CHART_VERSION) does not match expected version ($VERSION). You most likely forgot to bump the version in Chart.yaml, please do so."
           exit 1
         else
           echo "Version matches: appVersion ($APP_VERSION) and version ($CHART_VERSION) are both $VERSION."
