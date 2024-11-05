@@ -14,25 +14,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: get-latest-version
-      uses: miniscruff/changie-action@v2
-      with:
-        version: latest
-        args: latest
-    - name: get-latest-no-v-version
-      uses: miniscruff/changie-action@v2
-      with:
-        version: latest
-        # Echoes the same version as previous step, but without "v" prefix. 
-        # Is used as a docker image tag in the release step.
-        # E.g. "v0.5.31" -> "0.5.31"
-        args: latest --remove-prefix
+    - name: parse-version-from-chart
+      run: |
+        VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p')
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
 
     - name: create-tag
       uses: mathieudutour/github-tag-action@v6.2
       with:
-        tag_prefix: ""
-        custom_tag: ${{ steps.get-latest-version.outputs.output }}
+        tag_prefix: "v"
+        custom_tag: "$VERSION"
         github_token: ${{ github.token }}
 
     - name: install-dependencies
@@ -67,10 +58,6 @@ jobs:
         yc config --profile private-docker-helm-public-docker set service-account-key sa-key.json
       env:
         SA_KEYS_FOR_PRIVATE_DOCKER_HELM_AND_PUBLIC_DOCKER: ${{ secrets.SA_KEYS_FOR_PRIVATE_DOCKER_HELM_AND_PUBLIC_DOCKER }}
-    - name: parse-version-from-chart
-      run: |
-        VERSION=$(cat ./deploy/ydb-operator/Chart.yaml | sed -n 's/^version: //p')
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
     - name: login-to-registries
       run: |
         cat sa-key.json | docker login --username json_key --password-stdin cr.yandex
