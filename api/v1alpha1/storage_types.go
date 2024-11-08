@@ -165,6 +165,8 @@ type StorageNodeSpec struct {
 	// (Optional) Additional custom resource annotations that are added to all resources
 	// +optional
 	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`
+
+	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
 }
 
 type StorageInitJobSpec struct {
