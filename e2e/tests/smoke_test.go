@@ -146,6 +146,19 @@ func checkPodsRunningAndReady(ctx context.Context, podLabelKey, podLabelValue st
 	}, test.Timeout, test.Interval).Should(BeTrue())
 }
 
+func deleteStorageSafely(ctx context.Context, storageSample *v1alpha1.Storage) {
+	Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+
+	Eventually(func() bool {
+		fetched := v1alpha1.Storage{}
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      storageSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &fetched)
+		return apierrors.IsNotFound(err)
+	}, Timeout, Interval).Should(BeTrue())
+}
+
 func bringYdbCliToPod(podName, podNamespace string) {
 	Eventually(func(g Gomega) error {
 		args := []string{
@@ -305,9 +318,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("Check webhook defaulter", func() {
 		emptyStorageDefaultFields(storageSample)
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		emptyDatabaseDefaultFields(databaseSample)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
@@ -330,17 +341,13 @@ var _ = Describe("Operator smoke test", func() {
 			},
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 	})
 
 	It("general smoke pipeline, create storage + database", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
@@ -381,9 +388,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("pause and un-pause Storage, should destroy and bring up Pods", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -431,9 +436,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("freeze + delete StatefulSet + un-freeze Storage", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -503,20 +506,6 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("checking that all the storage pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
-
-		/*
-			// This test suite attempts to create a database on uninitialised storage
-
-			By("database can be healthily created after Frozen storage...")
-			Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
-			defer func() {
-				Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
-			}()
-			By("waiting until database is ready...")
-			waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
-			By("checking that all the database pods are running and ready...")
-			checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
-		*/
 	})
 
 	It("create storage and database with nodeSets", func() {
@@ -538,9 +527,7 @@ var _ = Describe("Operator smoke test", func() {
 			})
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
@@ -619,9 +606,7 @@ var _ = Describe("Operator smoke test", func() {
 			},
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -632,9 +617,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("storage.State goes Pending -> Preparing -> Initializing -> Provisioning -> Ready", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -688,9 +671,7 @@ var _ = Describe("Operator smoke test", func() {
 			Key:                  "ca.crt",
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -742,6 +723,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("Check that Storage deleted after Database...", func() {
 		By("create storage...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("create database...")
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
@@ -803,9 +785,7 @@ var _ = Describe("Operator smoke test", func() {
 		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-dynconfig.yaml"))
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		storage := v1alpha1.Storage{}
 		By("waiting until StorageInitialized condition is true...")
@@ -919,9 +899,7 @@ var _ = Describe("Operator smoke test", func() {
 			},
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("create database...")
 		databaseSample.Spec.Nodes = 1
@@ -959,9 +937,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("Check encryption for Database", func() {
 		By("create storage...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 		By("create database...")
 		databaseSample.Spec.Encryption = &v1alpha1.EncryptionConfig{
 			Enabled: true,
