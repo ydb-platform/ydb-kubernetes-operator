@@ -147,7 +147,10 @@ func checkPodsRunningAndReady(ctx context.Context, podLabelKey, podLabelValue st
 }
 
 func deleteStorageSafely(ctx context.Context, storageSample *v1alpha1.Storage) {
-	Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+	// not checking that deletion completed successfully
+	// because some tests delete storage themselves and
+	// it may already be deleted.
+	_ = k8sClient.Delete(ctx, storageSample)
 
 	Eventually(func() bool {
 		fetched := v1alpha1.Storage{}
