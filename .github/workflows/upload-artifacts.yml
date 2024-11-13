@@ -67,6 +67,7 @@ jobs:
         # Public:
         docker build -t cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION" .
         docker push cr.yandex/crpl7ipeu79oseqhcgn2/ydb-operator:"$VERSION"
+
         # Private:
         # no rebuild will happen, docker will fetch from cache and just retag:
         docker build -t cr.yandex/crpsjg1coh47p81vh2lc/ydb-kubernetes-operator:"$VERSION" .
@@ -94,6 +95,16 @@ jobs:
 
         aws s3 --endpoint-url=https://storage.yandexcloud.net \
           cp ./charts/index.yaml s3://charts.ydb.tech/index.yaml
+
+    - name: login-to-dockerhub
+      uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+      with:
+        username: ydbplatform
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+    - name: retag-and-push-operator-image-to-dockerhub
+      run: |
+        docker build -t ydbplatform/ydb-kubernetes-operator:"$VERSION" .
+        docker push ydbplatform/ydb-kubernetes-operator:"$VERSION"
 
     - name: append-artifacts-info-to-release-notes
       run: |

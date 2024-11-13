@@ -56,6 +56,7 @@ func TestAPIs(t *testing.T) {
 var _ = Describe("Database controller medium tests", func() {
 	var namespace corev1.Namespace
 	var storageSample v1alpha1.Storage
+	var databaseSample v1alpha1.Database
 
 	BeforeEach(func() {
 		namespace = corev1.Namespace{
@@ -94,6 +95,7 @@ var _ = Describe("Database controller medium tests", func() {
 	})
 
 	AfterEach(func() {
+		Expect(k8sClient.Delete(ctx, &databaseSample)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, &storageSample)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
 		test.DeleteAllObjects(env, k8sClient, &namespace)
@@ -101,7 +103,7 @@ var _ = Describe("Database controller medium tests", func() {
 
 	It("Checking field propagation to objects", func() {
 		By("Check that Shared Database was created...")
-		databaseSample := *testobjects.DefaultDatabase()
+		databaseSample = *testobjects.DefaultDatabase()
 		databaseSample.Spec.SharedResources = &v1alpha1.DatabaseResources{
 			StorageUnits: []v1alpha1.StorageUnit{
 				{
