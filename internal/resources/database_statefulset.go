@@ -101,7 +101,7 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
 	domain := api.DefaultDomainName
-	if dnsAnnotation, ok := b.GetAnnotations()[api.DnsDomainAnnotation]; ok {
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
 		domain = dnsAnnotation
 	}
 	podTemplate := corev1.PodTemplateSpec{
@@ -546,7 +546,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	domain := api.DefaultDomainName
-	if dnsAnnotation, ok := b.GetAnnotations()[api.DnsDomainAnnotation]; ok {
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
 		domain = dnsAnnotation
 	}
 	command := []string{fmt.Sprintf("%s/%s", api.BinariesDir, api.DaemonBinaryName)}

@@ -85,7 +85,7 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 
 func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplateSpec {
 	domain := api.DefaultDomainName
-	if dnsAnnotation, ok := b.GetAnnotations()[api.DnsDomainAnnotation]; ok {
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
 		domain = dnsAnnotation
 	}
 	dnsConfigSearches := []string{

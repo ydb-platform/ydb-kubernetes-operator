@@ -7,7 +7,7 @@ const (
 	ImagePathFormat = "%s:%s"
 
 	DefaultDomainName   = "cluster.local"
-	DnsDomainAnnotation = "dns.domain"
+	DNSDomainAnnotation = "dns.domain"
 
 	GRPCPort              = 2135
 	GRPCServicePortName   = "grpc"
