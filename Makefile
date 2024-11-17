@@ -106,7 +106,7 @@ docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
-CONTROLLER_GEN_VERSION ?= v0.6.1
+CONTROLLER_GEN_VERSION ?= v0.16.5
 controller-gen: ## Download controller-gen locally if necessary.
 	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION))
 
