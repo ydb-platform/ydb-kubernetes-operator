@@ -6,15 +6,18 @@ const (
 
 	ImagePathFormat = "%s:%s"
 
+	DefaultDomainName = "cluster.local"
+	DnsDomainAnnotation = "dns.domain"
+
 	GRPCPort              = 2135
 	GRPCServicePortName   = "grpc"
 	GRPCProto             = "grpc://"
 	GRPCSProto            = "grpcs://"
-	GRPCServiceFQDNFormat = "%s-grpc.%s.svc.cluster.local"
+	GRPCServiceFQDNFormat = "%s-grpc.%s.svc.%s"
 
 	InterconnectPort              = 19001
 	InterconnectServicePortName   = "interconnect"
-	InterconnectServiceFQDNFormat = "%s-interconnect.%s.svc.cluster.local"
+	InterconnectServiceFQDNFormat = "%s-interconnect.%s.svc.%s"
 
 	StatusPort            = 8765
 	StatusServicePortName = "status"
