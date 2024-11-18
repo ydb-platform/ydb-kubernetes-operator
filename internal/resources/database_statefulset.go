@@ -100,6 +100,10 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
+	domain := api.DefaultDomainName
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
@@ -118,7 +122,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: []string{
-					fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace),
+					fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace, domain),
 				},
 			},
 		},
@@ -541,6 +545,10 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
+	domain := api.DefaultDomainName
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
 	command := []string{fmt.Sprintf("%s/%s", api.BinariesDir, api.DaemonBinaryName)}
 
 	args := []string{
@@ -633,7 +641,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	publicHostOption := "--grpc-public-host"
-	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace()) // FIXME .svc.cluster.local
+	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace(), domain) // FIXME .svc.cluster.local
 
 	if b.Spec.Service.GRPC.ExternalHost != "" {
 		publicHost = b.Spec.Service.GRPC.ExternalHost

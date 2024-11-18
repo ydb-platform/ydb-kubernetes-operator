@@ -106,7 +106,7 @@ docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
-CONTROLLER_GEN_VERSION ?= v0.6.1
+CONTROLLER_GEN_VERSION ?= v0.16.5
 controller-gen: ## Download controller-gen locally if necessary.
 	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION))
 
@@ -114,7 +114,7 @@ controller-gen: ## Download controller-gen locally if necessary.
 # Version pinning is needed due to version incompatibility between controller-runtime and setup-envtest.
 # For more information: https://github.com/kubernetes-sigs/controller-runtime/issues/2744
 ENVTEST = $(shell pwd)/bin/setup-envtest
-ENVTEST_VERSION ?= release-0.16
+ENVTEST_VERSION ?= release-0.17
 envtest: ## Download envtest-setup locally if necessary.
 	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION))
 

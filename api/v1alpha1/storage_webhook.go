@@ -54,7 +54,11 @@ func (r *Storage) GetStorageEndpoint() string {
 }
 
 func (r *Storage) GetGRPCServiceEndpoint() string {
-	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace)
+	domain := DefaultDomainName
+	if dnsAnnotation, ok := r.GetAnnotations()[DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
+	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace, domain)
 	if r.Spec.Service.GRPC.ExternalHost != "" {
 		host = r.Spec.Service.GRPC.ExternalHost
 	}
