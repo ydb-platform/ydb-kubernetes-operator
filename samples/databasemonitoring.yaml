@@ -3,7 +3,7 @@ kind: DatabaseMonitoring
 metadata:
   name: database-sample
   labels:
-    release: prom
+    release: kube-prom-stack
 spec:
   databaseRef:
     name: database-sample
