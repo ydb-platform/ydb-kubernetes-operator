@@ -74,6 +74,8 @@ jobs:
         docker push cr.yandex/crpsjg1coh47p81vh2lc/ydb-kubernetes-operator:"$VERSION"
     - name: package-and-push-helm-chart
       run: |
+        make manifests
+
         helm package ./deploy/ydb-operator
 
         # Push into internal oci-based registry
