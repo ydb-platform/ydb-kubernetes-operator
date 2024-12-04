@@ -1,0 +1,3 @@
+kind: Fixed
+body: additional kind worker to maintain affinity rules for blobstorage init job
+time: 2024-12-04T12:27:36.97703+07:00
