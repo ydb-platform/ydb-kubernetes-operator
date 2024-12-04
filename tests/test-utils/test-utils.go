@@ -205,6 +205,8 @@ func BringYdbCliToPod(podName, podNamespace string) {
 func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, databasePath string) {
 	tablePath := "testfolder/testtable"
 
+	tableCreatingInterval := time.Second * 10
+
 	Eventually(func(g Gomega) {
 		args := []string{
 			"-n", podNamespace,
@@ -219,7 +221,7 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 		}
 		output, _ := exec.Command("kubectl", args...).CombinedOutput()
 		fmt.Println(string(output))
-	}, Timeout, time.Second*10).Should(Succeed())
+	}, Timeout, tableCreatingInterval).Should(Succeed())
 
 	argsInsert := []string{
 		"-n", podNamespace,
