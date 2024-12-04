@@ -25,18 +25,21 @@ const (
 	StoragePausedCondition      = "StoragePaused"
 	StorageReadyCondition       = "StorageReady"
 
-	DatabasePreparedCondition        = "DatabasePrepared"
-	DatabaseInitializedCondition     = "DatabaseInitialized"
-	DatabaseProvisionedCondition     = "DatabaseProvisioned"
-	DatabasePausedCondition          = "DatabasePaused"
-	DatabaseReadyCondition           = "DatabaseReady"
-	CreateDatabaseOperationCondition = "CreateDatabaseOperation"
+	DatabasePreparedCondition    = "DatabasePrepared"
+	DatabaseInitializedCondition = "DatabaseInitialized"
+	DatabaseProvisionedCondition = "DatabaseProvisioned"
+	DatabasePausedCondition      = "DatabasePaused"
+	DatabaseReadyCondition       = "DatabaseReady"
 
 	NodeSetPreparedCondition    = "NodeSetPrepared"
 	NodeSetProvisionedCondition = "NodeSetProvisioned"
 	NodeSetReadyCondition       = "NodeSetReady"
 	NodeSetPausedCondition      = "NodeSetPaused"
 
+	CreateDatabaseOperationCondition = "CreateDatabaseOperation"
+	ReplaceConfigOperationCondition  = "ReplaceConfigOperation"
+
+	ConfigurationSyncedCondition  = "ConfigurationSynced"
 	RemoteResourceSyncedCondition = "ResourceSynced"
 
 	Stop     = true
@@ -49,6 +52,7 @@ const (
 
 	DefaultRequeueDelay                = 10 * time.Second
 	StatusUpdateRequeueDelay           = 1 * time.Second
+	ReplaceConfigOperationRequeueDelay = 15 * time.Second
 	SelfCheckRequeueDelay              = 30 * time.Second
 	StorageInitializationRequeueDelay  = 30 * time.Second
 	DatabaseInitializationRequeueDelay = 30 * time.Second

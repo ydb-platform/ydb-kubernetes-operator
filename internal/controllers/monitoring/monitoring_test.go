@@ -119,7 +119,7 @@ func createMockDBAndSvc() {
 func createMockStorageAndSvc() {
 	GinkgoHelper()
 
-	stor := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+	stor := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 	Expect(k8sClient.Create(ctx, stor)).Should(Succeed())
 
 	stor.Status.State = StorageReady

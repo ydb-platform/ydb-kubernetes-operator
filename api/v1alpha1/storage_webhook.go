@@ -8,6 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
@@ -53,7 +54,11 @@ func (r *Storage) GetStorageEndpoint() string {
 }
 
 func (r *Storage) GetGRPCServiceEndpoint() string {
-	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace)
+	domain := DefaultDomainName
+	if dnsAnnotation, ok := r.GetAnnotations()[DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
+	host := fmt.Sprintf(GRPCServiceFQDNFormat, r.Name, r.Namespace, domain)
 	if r.Spec.Service.GRPC.ExternalHost != "" {
 		host = r.Spec.Service.GRPC.ExternalHost
 	}
@@ -62,10 +67,17 @@ func (r *Storage) GetGRPCServiceEndpoint() string {
 }
 
 func (r *Storage) GetHostFromConfigEndpoint() string {
-	var configuration schema.Configuration
-
+	var rawYamlConfiguration string
 	// skip handle error because we already checked in webhook
-	configuration, _ = ParseConfiguration(r.Spec.Configuration)
+	success, dynConfig, _ := ParseDynConfig(r.Spec.Configuration)
+	if success {
+		config, _ := yaml.Marshal(dynConfig.Config)
+		rawYamlConfiguration = string(config)
+	} else {
+		rawYamlConfiguration = r.Spec.Configuration
+	}
+
+	configuration, _ := ParseConfiguration(rawYamlConfiguration)
 	randNum := rand.Intn(len(configuration.Hosts)) // #nosec G404
 	return fmt.Sprintf("%s:%d", configuration.Hosts[randNum].Host, GRPCPort)
 }
@@ -195,7 +207,23 @@ func isSignAlgorithmSupported(alg string) bool {
 func (r *Storage) ValidateCreate() error {
 	storagelog.Info("validate create", "name", r.Name)
 
-	configuration, err := ParseConfiguration(r.Spec.Configuration)
+	var rawYamlConfiguration string
+	success, dynConfig, err := ParseDynConfig(r.Spec.Configuration)
+	if success {
+		if err != nil {
+			return fmt.Errorf("failed to parse dynconfig, error: %w", err)
+		}
+		config, err := yaml.Marshal(dynConfig.Config)
+		if err != nil {
+			return fmt.Errorf("failed to serialize YAML config, error: %w", err)
+		}
+		rawYamlConfiguration = string(config)
+	} else {
+		rawYamlConfiguration = r.Spec.Configuration
+	}
+
+	var configuration schema.Configuration
+	configuration, err = ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
 		return fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
@@ -224,7 +252,7 @@ func (r *Storage) ValidateCreate() error {
 		}
 	}
 
-	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+	if authEnabled && r.Spec.OperatorConnection == nil {
 		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
@@ -293,7 +321,23 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	storagelog.Info("validate update", "name", r.Name)
 
-	configuration, err := ParseConfiguration(r.Spec.Configuration)
+	var rawYamlConfiguration string
+	success, dynConfig, err := ParseDynConfig(r.Spec.Configuration)
+	if success {
+		if err != nil {
+			return fmt.Errorf("failed to parse dynconfig, error: %w", err)
+		}
+		config, err := yaml.Marshal(dynConfig.Config)
+		if err != nil {
+			return fmt.Errorf("failed to serialize YAML config, error: %w", err)
+		}
+		rawYamlConfiguration = string(config)
+	} else {
+		rawYamlConfiguration = r.Spec.Configuration
+	}
+
+	var configuration schema.Configuration
+	configuration, err = ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
 		return fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
@@ -322,7 +366,7 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		}
 	}
 
-	if (authEnabled && r.Spec.OperatorConnection == nil) || (!authEnabled && r.Spec.OperatorConnection != nil) {
+	if authEnabled && r.Spec.OperatorConnection == nil {
 		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 

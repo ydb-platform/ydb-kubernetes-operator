@@ -1,6 +1,6 @@
 package schema
 
-type Dynconfig struct {
+type DynConfig struct {
 	Metadata       *Metadata              `yaml:"metadata"`
 	Config         map[string]interface{} `yaml:"config"`
 	AllowedLabels  map[string]interface{} `yaml:"allowed_labels"`

@@ -1,109 +1,30 @@
-# Implicit requirements
-# runner must have `docker` and `curl` installed (true on github-runners)
-
 name: run-tests
 
 on:
-  workflow_call:
-  workflow_dispatch:
+  - pull_request
+  - workflow_dispatch
 
 jobs:
-  start-runner:
-    runs-on: ubuntu-latest
-    outputs:
-      runner-label: ${{ steps.start-yc-runner.outputs.label }}
-      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
-    steps:
-      - name: start-yc-runner
-        id: start-yc-runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: start
-          yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          folder-id: b1gmgbhccra2qca8v5g6
-          image-id: fd80o2eikcn22b229tsa
-          cores: 16
-          disk-type: network-ssd-nonreplicated
-          disk-size: 465GB
-          memory: 32GB
-          core-fraction: 100
-          subnet-id: e9bu12i8ocv6q8kl83ru
-          user: yc-admin
-          ssh-public-key: ${{ secrets.CI_RUNNER_DEBUG_SHH_PUBLIC_KEY }}
-  smart-checkout:
-    needs:
-      - start-runner
-    runs-on: ${{ needs.start-runner.outputs.runner-label }}
-    steps:
-      - name: checkout-when-fork-source
-        uses: actions/checkout@v3
-        if: github.event.pull_request.head.sha != ''
-        with:
-            ref: ${{ github.event.pull_request.head.sha }}
-      - name: checkout-when-this-repo-source
-        uses: actions/checkout@v3
-        if: github.event.pull_request.head.sha == ''
   lint:
     concurrency:
       group: lint-golangci-${{ github.head_ref || github.ref_name }}
       cancel-in-progress: true
-    needs:
-      - start-runner
-      - smart-checkout
-    runs-on: ${{ needs.start-runner.outputs.runner-label }}
+    runs-on: ubuntu-latest
     steps:
-      - name: set-env-vars
-        run: |
-          echo "HOME=/actions-runner" >> $GITHUB_ENV
-      - name: setup-go
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.20'
+      - name: checkout
+        uses: actions/checkout@v4
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.52.2
-  code-format-check:
-    concurrency:
-      group: lint-autoformat-${{ github.head_ref || github.ref_name }}
-      cancel-in-progress: true
-    needs:
-      - start-runner
-      - smart-checkout
-    runs-on: ${{ needs.start-runner.outputs.runner-label }}
-    steps:
-      - name: set-env-vars
-        run: |
-          echo "HOME=/actions-runner" >> $GITHUB_ENV
-      - name: setup-go
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.20'
-      - name: Install utilities
-        run: |
-          go install mvdan.cc/gofumpt@v0.5.0
-          go install github.com/rinchsan/gosimports/cmd/gosimports@v0.3.8
-      - name: format all files with auto-formatter
-        run: bash ./.github/scripts/format-all-go-code.sh "$PWD"
-      - name: Check repository diff
-        run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "auto-format broken"
+          version: v1.61.0
   run-unit-tests:
     concurrency:
       group: run-unit-tests-${{ github.head_ref || github.ref_name }}
       cancel-in-progress: true
-    needs:
-      - start-runner
-      - smart-checkout
-      - lint
-      - code-format-check
-    runs-on: ${{ needs.start-runner.outputs.runner-label }}
-    outputs:
-      result: ${{ steps.run-unit-tests.outputs.result }}
+    runs-on: ubuntu-latest
     steps:
-      - name: set-env-vars
-        run: |
-          echo "HOME=/actions-runner" >> $GITHUB_ENV
+      - name: checkout
+        uses: actions/checkout@v3
       - name: setup-go
         uses: actions/setup-go@v3
         with:
@@ -139,18 +60,19 @@ jobs:
       group: run-e2e-tests-${{ github.head_ref || github.ref_name }}
       cancel-in-progress: true
     needs:
-      - start-runner
-      - smart-checkout
-      - lint
-      - code-format-check
       - run-unit-tests
-    runs-on: ${{ needs.start-runner.outputs.runner-label }}
-    outputs:
-      result: ${{ steps.run-e2e-tests.outputs.result }}
+    runs-on: ubuntu-latest
     steps:
-      - name: set-env-vars
-        run: |
-          echo "HOME=/actions-runner" >> $GITHUB_ENV
+      - name: maximize-build-space
+        uses: AdityaGarg8/remove-unwanted-software@v4.1
+        with:
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-dotnet: 'true'
+          remove-swapfile: 'true'
+      - name: checkout
+        uses: actions/checkout@v3
       - name: setup-go
         uses: actions/setup-go@v3
         with:
@@ -175,10 +97,6 @@ jobs:
           echo "$(pwd)" >> $GITHUB_PATH
           echo "$HOME/ydb/bin" >> $GITHUB_PATH
           echo "$HOME/go/bin" >> $GITHUB_PATH
-      - name: configure-system
-        run: |
-          sudo sysctl fs.inotify.max_user_instances=1280
-          sudo sysctl fs.inotify.max_user_watches=655360
       - name: check-dependencies
         run: |
           gcc --version
@@ -192,7 +110,12 @@ jobs:
           kind create cluster \
           --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
           --config=./e2e/kind-cluster-config.yaml
+
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
+
+          kubectl label --overwrite node kind-worker topology.kubernetes.io/zone=fakeZone1
+          kubectl label --overwrite node kind-worker2 topology.kubernetes.io/zone=fakeZone2
+          kubectl label --overwrite node kind-worker3 topology.kubernetes.io/zone=fakeZone3
       - name: build-operator-image
         uses: docker/build-push-action@v3
         with:
@@ -203,7 +126,7 @@ jobs:
           tags: kind/ydb-operator:current
       - name: load-and-deploy-operator
         run: |
-          kind load docker-image kind/ydb-operator:current
+          kind load docker-image kind/ydb-operator:current --nodes kind-worker,kind-worker2,kind-worker3
       - name: pull-and-load-kube-webhook-certgen-image
         uses: nick-fields/retry@v3
         with:
@@ -212,12 +135,13 @@ jobs:
           max_attempts: 3
           command: |
             docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
-            kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+            kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3
       - name: pull-and-load-ydb-image
         run: |
-          # TODO would be cool to parse YDB image from manifests to avoid duplicating information
-          docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
-          kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
+          YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./e2e/tests/**/*.go | grep -o -E '"cr\.yandex.*"')
+          YDB_IMAGE=${YDB_IMAGE:1:-1} # strip ""
+          docker pull $YDB_IMAGE
+          kind load docker-image $YDB_IMAGE --nodes kind-worker,kind-worker2,kind-worker3
       - name: setup-gotestsum
         run: |
           go install gotest.tools/gotestsum@v1.12.0
@@ -225,7 +149,7 @@ jobs:
         id: run-e2e-tests
         run: |
           gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./e2e/... -ginkgo.vv
-      - name: convert-to-human-readable
+      - name: convert-json-log-to-human-readable
         run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
       - name: artifact-upload-step
         uses: actions/upload-artifact@v4
@@ -240,21 +164,4 @@ jobs:
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster
-  stop-runner:
-    needs:
-      - start-runner
-      - lint
-      - code-format-check
-      - run-unit-tests
-      - run-e2e-tests
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: stop-yc-runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: stop
-          yc-sa-json-credentials: ${{ secrets.CI_RUNNER_CREATOR_KEY }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-runner.outputs.runner-label }}
-          instance-id: ${{ needs.start-runner.outputs.instance-id }}
+

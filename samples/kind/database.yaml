@@ -1,0 +1,14 @@
+apiVersion: ydb.tech/v1alpha1
+kind: Database
+metadata:
+  name: database-kind-sample
+spec:
+  image:
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7
+  nodes: 1
+  resources:
+    storageUnits:
+      - count: 1
+        unitKind: ssd
+  storageClusterRef:
+    name: storage-kind-sample

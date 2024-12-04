@@ -1,0 +1,51 @@
+name: create-release-pr
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+
+    - name: batch-changes
+      uses: miniscruff/changie-action@v2
+      with:
+        version: latest
+        args: batch patch
+
+    - name: merge-changes
+      uses: miniscruff/changie-action@v2
+      with:
+        version: latest
+        args: merge
+
+    - name: print the latest version
+      id: latest
+      uses: miniscruff/changie-action@v2
+      with:
+        version: latest
+        args: latest
+
+    - name: print the latest version without "v"
+      id: latest-no-v
+      uses: miniscruff/changie-action@v2
+      with:
+        version: latest
+        args: latest --remove-prefix
+
+    - name: bump-chart-version
+      run: |
+        VERSION=${{ steps.latest-no-v.outputs.output }}
+        sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" ./deploy/ydb-operator/Chart.yaml
+        sed -i "s/^version:.*/version: \"$VERSION\"/" ./deploy/ydb-operator/Chart.yaml
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v7
+      with:
+        title: Release ${{ steps.latest.outputs.output }}
+        branch: release/${{ steps.latest.outputs.output }}
+        commit-message: Release ${{ steps.latest.outputs.output }}
+        token: ${{ github.token }}
