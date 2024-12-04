@@ -219,7 +219,7 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 		}
 		output, _ := exec.Command("kubectl", args...).CombinedOutput()
 		fmt.Println(string(output))
-	}, Timeout, time.Second * 10).Should(Succeed())
+	}, Timeout, time.Second*10).Should(Succeed())
 
 	argsInsert := []string{
 		"-n", podNamespace,

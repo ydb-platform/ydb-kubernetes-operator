@@ -84,6 +84,7 @@ linters-settings:
     excludes:
      - G101
      - G115
+     - G601 # no longer actual since 1.22
   fieldalignment:
     # print struct with more effective memory layout or not, false by default
     suggest-new: true

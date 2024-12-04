@@ -321,8 +321,8 @@ var _ = AfterSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 })
 
-// This was the fastest way to implement restart without bringing rolling 
-// restart to operator itself or using ydbops. If you read this and 
+// This was the fastest way to implement restart without bringing rolling
+// restart to operator itself or using ydbops. If you read this and
 // operator already can do rolling restart natively, please rewrite
 // this function!
 func RestartPodsNoRollingRestart(
