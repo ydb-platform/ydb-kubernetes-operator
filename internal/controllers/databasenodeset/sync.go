@@ -62,17 +62,19 @@ func (r *Reconciler) setInitialStatus(
 
 		if databaseNodeSet.Spec.Pause {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:    NodeSetPausedCondition,
-				Status:  metav1.ConditionUnknown,
-				Reason:  ReasonInProgress,
-				Message: "Transitioning to state Paused",
+				Type:               NodeSetPausedCondition,
+				Status:             metav1.ConditionUnknown,
+				Reason:             ReasonInProgress,
+				ObservedGeneration: databaseNodeSet.Generation,
+				Message:            "Transitioning to state Paused",
 			})
 		} else {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:    NodeSetReadyCondition,
-				Status:  metav1.ConditionUnknown,
-				Reason:  ReasonInProgress,
-				Message: "Transitioning to state Ready",
+				Type:               NodeSetReadyCondition,
+				Status:             metav1.ConditionUnknown,
+				Reason:             ReasonInProgress,
+				ObservedGeneration: databaseNodeSet.Generation,
+				Message:            "Transitioning to state Ready",
 			})
 		}
 
@@ -102,10 +104,11 @@ func (r *Reconciler) handleResourcesSync(
 
 	if databaseNodeSet.Status.State == DatabaseNodeSetPending {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetPreparedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Waiting for sync resources for generation %d", databaseNodeSet.Generation),
+			Type:               NodeSetPreparedCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            "Waiting for sync resources",
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetPreparing
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
@@ -155,10 +158,11 @@ func (r *Reconciler) handleResourcesSync(
 				eventMessage+fmt.Sprintf(", failed to sync, error: %s", err),
 			)
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:    NodeSetPreparedCondition,
-				Status:  metav1.ConditionFalse,
-				Reason:  ReasonInProgress,
-				Message: fmt.Sprintf("Failed to sync resources for generation %d", databaseNodeSet.Generation),
+				Type:               NodeSetPreparedCondition,
+				Status:             metav1.ConditionFalse,
+				Reason:             ReasonInProgress,
+				ObservedGeneration: databaseNodeSet.Generation,
+				Message:            "Failed to sync resources",
 			})
 			return r.updateStatus(ctx, databaseNodeSet, DefaultRequeueDelay)
 		} else if result == controllerutil.OperationResultCreated || result == controllerutil.OperationResultUpdated {
@@ -173,10 +177,11 @@ func (r *Reconciler) handleResourcesSync(
 
 	if !meta.IsStatusConditionTrue(databaseNodeSet.Status.Conditions, NodeSetPreparedCondition) {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetPreparedCondition,
-			Status:  metav1.ConditionTrue,
-			Reason:  ReasonCompleted,
-			Message: "Successfully synced resources",
+			Type:               NodeSetPreparedCondition,
+			Status:             metav1.ConditionTrue,
+			Reason:             ReasonCompleted,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            "Successfully synced resources",
 		})
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 	}
@@ -193,10 +198,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if databaseNodeSet.Status.State == DatabaseNodeSetPreparing {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisionedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Waiting for scale to desired nodes: %d", databaseNodeSet.Spec.Nodes),
+			Type:               NodeSetProvisionedCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            fmt.Sprintf("Waiting for scale to desired nodes: %d", databaseNodeSet.Spec.Nodes),
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetProvisioning
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
@@ -234,20 +240,22 @@ func (r *Reconciler) waitForStatefulSetToScale(
 			fmt.Sprintf("Waiting for number of running nodes to match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, databaseNodeSet.Spec.Nodes),
 		)
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisionedCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Number of running nodes does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, databaseNodeSet.Spec.Nodes),
+			Type:               NodeSetProvisionedCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            fmt.Sprintf("Number of running nodes does not match expected: %d != %d", foundStatefulSet.Status.ReadyReplicas, databaseNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, databaseNodeSet, DefaultRequeueDelay)
 	}
 
 	if !meta.IsStatusConditionTrue(databaseNodeSet.Status.Conditions, NodeSetProvisionedCondition) {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisionedCondition,
-			Status:  metav1.ConditionTrue,
-			Reason:  ReasonCompleted,
-			Message: fmt.Sprintf("Successfully scaled to desired number of nodes: %d", databaseNodeSet.Spec.Nodes),
+			Type:               NodeSetProvisionedCondition,
+			Status:             metav1.ConditionTrue,
+			Reason:             ReasonCompleted,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            fmt.Sprintf("Successfully scaled to desired number of nodes: %d", databaseNodeSet.Spec.Nodes),
 		})
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 	}
@@ -267,15 +275,17 @@ func (r *Reconciler) updateStatus(
 		meta.IsStatusConditionFalse(databaseNodeSet.Status.Conditions, NodeSetProvisionedCondition) {
 		if databaseNodeSet.Spec.Pause {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetPausedCondition,
-				Status: metav1.ConditionFalse,
-				Reason: ReasonInProgress,
+				Type:               NodeSetPausedCondition,
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: databaseNodeSet.Generation,
+				Reason:             ReasonInProgress,
 			})
 		} else {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetReadyCondition,
-				Status: metav1.ConditionFalse,
-				Reason: ReasonInProgress,
+				Type:               NodeSetReadyCondition,
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: databaseNodeSet.Generation,
+				Reason:             ReasonInProgress,
 			})
 		}
 	}
@@ -340,16 +350,18 @@ func (r *Reconciler) handlePauseResume(
 	if databaseNodeSet.Status.State == DatabaseNodeSetProvisioning {
 		if databaseNodeSet.Spec.Pause {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetPausedCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
+				Type:               NodeSetPausedCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: databaseNodeSet.Generation,
 			})
 			databaseNodeSet.Status.State = DatabaseNodeSetPaused
 		} else {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetReadyCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
+				Type:               NodeSetReadyCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: databaseNodeSet.Generation,
 			})
 			databaseNodeSet.Status.State = DatabaseNodeSetReady
 		}
@@ -359,10 +371,11 @@ func (r *Reconciler) handlePauseResume(
 	if databaseNodeSet.Status.State == DatabaseNodeSetReady && databaseNodeSet.Spec.Pause {
 		r.Log.Info("`pause: true` was noticed, moving DatabaseNodeSet to state `Paused`")
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetReadyCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonNotRequired,
-			Message: "Transitioning to state Paused",
+			Type:               NodeSetReadyCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonNotRequired,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            "Transitioning to state Paused",
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetPaused
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
@@ -371,10 +384,11 @@ func (r *Reconciler) handlePauseResume(
 	if databaseNodeSet.Status.State == DatabaseNodeSetPaused && !databaseNodeSet.Spec.Pause {
 		r.Log.Info("`pause: false` was noticed, moving DatabaseNodeSet to state `Ready`")
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetPausedCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonNotRequired,
-			Message: "Transitioning to state Ready",
+			Type:               NodeSetPausedCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonNotRequired,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            "Transitioning to state Ready",
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetReady
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
@@ -383,18 +397,20 @@ func (r *Reconciler) handlePauseResume(
 	if databaseNodeSet.Spec.Pause {
 		if !meta.IsStatusConditionTrue(databaseNodeSet.Status.Conditions, NodeSetPausedCondition) {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetPausedCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
+				Type:               NodeSetPausedCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: databaseNodeSet.Generation,
 			})
 			return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 		}
 	} else {
 		if !meta.IsStatusConditionTrue(databaseNodeSet.Status.Conditions, NodeSetReadyCondition) {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetReadyCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
+				Type:               NodeSetReadyCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: databaseNodeSet.Generation,
 			})
 			return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
 		}
