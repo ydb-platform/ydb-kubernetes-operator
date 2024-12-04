@@ -60,7 +60,6 @@ func (r *Reconciler) syncRemoteObjects(
 	for _, remoteObj := range remoteObjects {
 		remoteObjName := remoteObj.GetName()
 		remoteObjKind := remoteObj.GetObjectKind().GroupVersionKind().Kind
-		remoteObjRV := remoteObj.GetResourceVersion()
 		var remoteResource *v1alpha1.RemoteResource
 		for idx := range remoteDatabaseNodeSet.Status.RemoteResources {
 			if resources.EqualRemoteResourceWithObject(&remoteDatabaseNodeSet.Status.RemoteResources[idx], remoteObj) {
@@ -103,11 +102,11 @@ func (r *Reconciler) syncRemoteObjects(
 					fmt.Sprintf("Failed to get resource %s with name %s: %s", remoteObjKind, remoteObjName, remoteGetErr),
 				)
 			}
-			remoteDatabaseNodeSet.UpdateRemoteResourceStatus(remoteResource, metav1.ConditionFalse, remoteObjRV)
-			return r.updateStatusRemoteObjects(ctx, remoteDatabaseNodeSet, DefaultRequeueDelay)
+			return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, remoteGetErr
 		}
 
 		// Check object existence in local cluster
+		remoteObjRV := remoteObj.GetResourceVersion()
 		localObj := resources.CreateResource(remoteObj)
 		getErr := r.Client.Get(ctx, types.NamespacedName{
 			Name:      localObj.GetName(),
@@ -145,7 +144,7 @@ func (r *Reconciler) syncRemoteObjects(
 				"Provisioning",
 				fmt.Sprintf("RemoteSync CREATE resource %s with name %s", remoteObjKind, remoteObjName),
 			)
-			remoteDatabaseNodeSet.UpdateRemoteResourceStatus(remoteResource, metav1.ConditionFalse, remoteObjRV)
+			remoteDatabaseNodeSet.UpdateRemoteResourceStatus(remoteResource, metav1.ConditionTrue, remoteObjRV)
 			return r.updateStatusRemoteObjects(ctx, remoteDatabaseNodeSet, StatusUpdateRequeueDelay)
 		}
 
