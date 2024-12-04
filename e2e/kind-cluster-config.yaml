@@ -11,3 +11,6 @@ nodes:
 - role: worker
   labels:
     worker: true
+- role: worker
+  labels:
+    worker: true
