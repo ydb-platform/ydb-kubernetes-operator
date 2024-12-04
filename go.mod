@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/banzaicloud/k8s-objectmatcher v1.7.0
 	github.com/go-logr/logr v1.2.4
-	github.com/golang-jwt/jwt/v4 v4.4.1
+	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-cmp v0.5.9
 	github.com/onsi/ginkgo/v2 v2.9.4
 	github.com/onsi/gomega v1.27.6

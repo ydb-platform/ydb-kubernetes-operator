@@ -115,8 +115,13 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateLabels() labels.Labels {
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
 	podTemplateLabels := b.buildPodTemplateLabels()
+
+	domain := api.DefaultDomainName
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
 	dnsConfigSearches := []string{
-		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace(), domain),
 	}
 
 	podTemplate := corev1.PodTemplateSpec{

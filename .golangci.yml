@@ -4,7 +4,7 @@ run:
   concurrency: 4
 
   # timeout for analysis, e.g. 30s, 5m, default is 1m
-  deadline: 5m
+  timeout: 5m
 
   # exit code when at least one issue was found, default is 1
   issues-exit-code: 1
@@ -56,7 +56,7 @@ linters-settings:
     check-blank: false
   govet:
     # report about shadowed variables
-    check-shadowing: true
+    shadow: true
     fieldalignment: true
   golint:
     # minimal confidence for issues, default is 0.8
@@ -76,6 +76,7 @@ linters-settings:
   gosec:
     excludes:
      - G101
+     - G115
   fieldalignment:
     # print struct with more effective memory layout or not, false by default
     suggest-new: true
@@ -129,6 +130,8 @@ linters-settings:
 linters:
   disable-all: true
   enable:
+#    - cyclop
+    # - depguardgolang
     - dogsled
     - errcheck
     - errorlint
