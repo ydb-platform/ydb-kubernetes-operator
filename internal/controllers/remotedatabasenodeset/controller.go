@@ -6,7 +6,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
+	apilabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,7 +25,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
-	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 )
 
@@ -72,15 +72,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then lets add the finalizer and update the object. This is equivalent
 		// to registering our finalizer.
-		if !controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey) {
-			controllerutil.AddFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey)
+		if !controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, v1alpha1.RemoteFinalizerKey) {
+			controllerutil.AddFinalizer(remoteDatabaseNodeSet, v1alpha1.RemoteFinalizerKey)
 			if err := r.RemoteClient.Update(ctx, remoteDatabaseNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 		}
 	} else {
 		// The object is being deleted
-		if controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey) {
+		if controllerutil.ContainsFinalizer(remoteDatabaseNodeSet, v1alpha1.RemoteFinalizerKey) {
 			// our finalizer is present, so lets handle any external dependency
 			if err := r.deleteExternalResources(ctx, remoteDatabaseNodeSet); err != nil {
 				// if fail to delete the external dependency here, return with error
@@ -89,7 +89,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(remoteDatabaseNodeSet, ydbannotations.RemoteFinalizerKey)
+			controllerutil.RemoveFinalizer(remoteDatabaseNodeSet, v1alpha1.RemoteFinalizerKey)
 			if err := r.RemoteClient.Update(ctx, remoteDatabaseNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
@@ -119,7 +119,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 		requests := make([]reconcile.Request, 0)
 
 		annotations := mapObj.GetAnnotations()
-		primaryResourceName, exist := annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]
+		primaryResourceName, exist := annotations[ydbannotations.PrimaryResourceDatabase]
 		if exist {
 			databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 			if err := r.Client.List(
@@ -192,10 +192,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 		Complete(r)
 }
 
-func buildLocalSelector() (labels.Selector, error) {
-	labelRequirements := []labels.Requirement{}
-	localClusterRequirement, err := labels.NewRequirement(
-		ydblabels.RemoteClusterKey,
+func buildLocalSelector() (apilabels.Selector, error) {
+	labelRequirements := []apilabels.Requirement{}
+	localClusterRequirement, err := apilabels.NewRequirement(
+		labels.RemoteClusterKey,
 		selection.Exists,
 		[]string{},
 	)
@@ -203,13 +203,13 @@ func buildLocalSelector() (labels.Selector, error) {
 		return nil, err
 	}
 	labelRequirements = append(labelRequirements, *localClusterRequirement)
-	return labels.NewSelector().Add(labelRequirements...), nil
+	return apilabels.NewSelector().Add(labelRequirements...), nil
 }
 
-func BuildRemoteSelector(remoteCluster string) (labels.Selector, error) {
-	labelRequirements := []labels.Requirement{}
-	remoteClusterRequirement, err := labels.NewRequirement(
-		ydblabels.RemoteClusterKey,
+func BuildRemoteSelector(remoteCluster string) (apilabels.Selector, error) {
+	labelRequirements := []apilabels.Requirement{}
+	remoteClusterRequirement, err := apilabels.NewRequirement(
+		labels.RemoteClusterKey,
 		selection.Equals,
 		[]string{remoteCluster},
 	)
@@ -217,7 +217,7 @@ func BuildRemoteSelector(remoteCluster string) (labels.Selector, error) {
 		return nil, err
 	}
 	labelRequirements = append(labelRequirements, *remoteClusterRequirement)
-	return labels.NewSelector().Add(labelRequirements...), nil
+	return apilabels.NewSelector().Add(labelRequirements...), nil
 }
 
 func (r *Reconciler) deleteExternalResources(

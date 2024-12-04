@@ -61,16 +61,13 @@ func (b *RemoteDatabaseNodeSetBuilder) Placeholder(cr client.Object) client.Obje
 func (b *RemoteDatabaseNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
-	nodeSetAnnotations := CopyDict(b.Annotations)
-	delete(nodeSetAnnotations, ydbannotations.LastAppliedAnnotation)
-
 	resourceBuilders = append(resourceBuilders,
 		&DatabaseNodeSetBuilder{
 			Object: b,
 
 			Name:        b.Name,
 			Labels:      b.Labels,
-			Annotations: nodeSetAnnotations,
+			Annotations: b.Annotations,
 
 			DatabaseNodeSetSpec: b.Spec,
 		},
@@ -169,8 +166,8 @@ func (b *RemoteDatabaseNodeSetResource) SetPrimaryResourceAnnotations(obj client
 		annotations[key] = value
 	}
 
-	if _, exist := annotations[ydbannotations.PrimaryResourceDatabaseAnnotation]; !exist {
-		annotations[ydbannotations.PrimaryResourceDatabaseAnnotation] = b.Spec.DatabaseRef.Name
+	if _, exist := annotations[ydbannotations.PrimaryResourceDatabase]; !exist {
+		annotations[ydbannotations.PrimaryResourceDatabase] = b.Spec.DatabaseRef.Name
 	}
 
 	obj.SetAnnotations(annotations)
@@ -179,7 +176,7 @@ func (b *RemoteDatabaseNodeSetResource) SetPrimaryResourceAnnotations(obj client
 func (b *RemoteDatabaseNodeSetResource) UnsetPrimaryResourceAnnotations(obj client.Object) {
 	annotations := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		if key != annotations[ydbannotations.PrimaryResourceDatabaseAnnotation] {
+		if key != annotations[ydbannotations.PrimaryResourceDatabase] {
 			annotations[key] = value
 		}
 	}

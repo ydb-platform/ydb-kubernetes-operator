@@ -18,7 +18,7 @@ import (
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -123,7 +123,7 @@ var _ = Describe("Storage controller medium tests", func() {
 			}, &foundStorage)).Should(Succeed())
 
 			foundConfigurationChecksumAnnotation := false
-			if podAnnotations[annotations.ConfigurationChecksum] == resources.SHAChecksum(foundStorage.Spec.Configuration) {
+			if podAnnotations[ydbannotations.ConfigurationChecksum] == resources.GetSHA256Checksum(foundStorage.Spec.Configuration) {
 				foundConfigurationChecksumAnnotation = true
 			}
 			Expect(foundConfigurationChecksumAnnotation).To(BeTrue())

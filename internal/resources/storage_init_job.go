@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
@@ -23,6 +23,16 @@ type StorageInitJobBuilder struct {
 
 	Labels      map[string]string
 	Annotations map[string]string
+}
+
+func NewInitJob(ydbCr *api.Storage) StorageInitJobBuilder {
+	cr := ydbCr.DeepCopy()
+
+	return StorageInitJobBuilder{Storage: cr}
+}
+
+func (b *StorageInitJobBuilder) Unwrap() *api.Storage {
+	return b.DeepCopy()
 }
 
 func (b *StorageInitJobBuilder) Build(obj client.Object) error {
@@ -70,7 +80,7 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 		}
 		if storage.Spec.InitJob.AdditionalAnnotations != nil {
 			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
-			jobAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(storage.Spec.Configuration)
+			jobAnnotations[ydbannotations.ConfigurationChecksum] = GetSHA256Checksum(storage.Spec.Configuration)
 		}
 	}
 
@@ -93,8 +103,8 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      b.Labels,
-			Annotations: b.Annotations,
+			Labels:      CopyDict(b.Labels),
+			Annotations: CopyDict(b.Annotations),
 		},
 		Spec: corev1.PodSpec{
 			Containers:    []corev1.Container{b.buildInitJobContainer()},
@@ -138,12 +148,10 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateDNSPolicy]; ok {
-		switch value {
-		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
-			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
-		case "":
-			podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirst
-		default:
+		for _, acceptedPolicy := range ydbannotations.AcceptedDNSPolicy {
+			if value == acceptedPolicy {
+				podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
+			}
 		}
 	}
 

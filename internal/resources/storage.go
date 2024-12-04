@@ -1,12 +1,14 @@
 package resources
 
 import (
+	"fmt"
+
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -29,14 +31,66 @@ func (b *StorageClusterBuilder) Unwrap() *api.Storage {
 	return b.DeepCopy()
 }
 
+func (b *StorageClusterBuilder) NewLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+	l.Merge(map[string]string{labels.ComponentKey: labels.StorageComponent})
+
+	return l
+}
+
+func (b *StorageClusterBuilder) NewAnnotations() ydbannotations.Annotations {
+	annotations := ydbannotations.Common(b.Annotations)
+	annotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+
+	return annotations
+}
+
+func (b *StorageClusterBuilder) NewInitJobLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+
+	if b.Spec.InitJob != nil {
+		l.Merge(b.Spec.InitJob.AdditionalLabels)
+	}
+	l.Merge(map[string]string{labels.ComponentKey: labels.BlobstorageInitComponent})
+
+	return l
+}
+
+func (b *StorageClusterBuilder) NewInitJobAnnotations() ydbannotations.Annotations {
+	annotations := ydbannotations.Common(b.Annotations)
+
+	if b.Spec.InitJob != nil {
+		annotations.Merge(b.Spec.InitJob.AdditionalLabels)
+	}
+	annotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+
+	return annotations
+}
+
+func (b *StorageClusterBuilder) GetInitJobBuilder() ResourceBuilder {
+	jobName := fmt.Sprintf(InitJobNameFormat, b.Name)
+	jobLabels := b.NewInitJobLabels()
+	jobAnnotations := b.NewInitJobAnnotations()
+
+	return &StorageInitJobBuilder{
+		Storage: b.Unwrap(),
+
+		Name:        jobName,
+		Labels:      jobLabels,
+		Annotations: jobAnnotations,
+	}
+}
+
 func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	storageLabels := labels.StorageLabels(b.Unwrap())
+	storageLabels := b.NewLabels()
+	storageAnnotations := b.NewAnnotations()
 
 	statefulSetLabels := storageLabels.Copy()
+	statefulSetLabels.Merge(b.Spec.AdditionalLabels)
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
 
-	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(b.Spec.Configuration)
+	statefulSetAnnotations := storageAnnotations.Copy()
+	statefulSetAnnotations.Merge(b.Spec.AdditionalAnnotations)
 
 	grpcServiceLabels := storageLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -110,7 +164,10 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			},
 		)
 	} else {
-		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(storageLabels)...)
+		optionalBuilders = append(
+			optionalBuilders,
+			b.getNodeSetBuilders(storageLabels, storageAnnotations)...,
+		)
 	}
 
 	return append(
@@ -158,10 +215,15 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 	)
 }
 
-func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) []ResourceBuilder {
+func (b *StorageClusterBuilder) getNodeSetBuilders(
+	storageLabels labels.Labels,
+	storageAnnotations ydbannotations.Annotations,
+) []ResourceBuilder {
 	var nodeSetBuilders []ResourceBuilder
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
+		nodeSetName := fmt.Sprintf("%s-%s", b.Name, nodeSetSpecInline.Name)
+
 		nodeSetLabels := storageLabels.Copy()
 		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
 		nodeSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: nodeSetSpecInline.Name})
@@ -169,12 +231,8 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 			nodeSetLabels.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
 		}
 
-		nodeSetAnnotations := CopyDict(b.Annotations)
-		if nodeSetSpecInline.Annotations != nil {
-			for k, v := range nodeSetSpecInline.Annotations {
-				nodeSetAnnotations[k] = v
-			}
-		}
+		nodeSetAnnotations := storageAnnotations.Copy()
+		nodeSetAnnotations.Merge(nodeSetSpecInline.Annotations)
 
 		storageNodeSetSpec := b.recastStorageNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
 		if nodeSetSpecInline.Remote != nil {
@@ -183,7 +241,7 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 				&RemoteStorageNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 
@@ -196,7 +254,7 @@ func (b *StorageClusterBuilder) getNodeSetBuilders(storageLabels labels.Labels) 
 				&StorageNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 

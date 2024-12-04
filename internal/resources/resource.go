@@ -82,7 +82,7 @@ type ResourceBuilder interface {
 }
 
 var (
-	annotator  = patch.NewAnnotator(ydbannotations.LastAppliedAnnotation)
+	annotator  = patch.NewAnnotator(ydbannotations.LastApplied)
 	patchMaker = patch.NewPatchMaker(annotator)
 )
 
@@ -265,8 +265,8 @@ func UpdateResource(oldObj, newObj client.Object) client.Object {
 func CopyPrimaryResourceObjectAnnotation(obj client.Object, oldAnnotations map[string]string) {
 	annotations := CopyDict(obj.GetAnnotations())
 	for key, value := range oldAnnotations {
-		if key == ydbannotations.PrimaryResourceDatabaseAnnotation ||
-			key == ydbannotations.PrimaryResourceStorageAnnotation {
+		if key == ydbannotations.PrimaryResourceDatabase ||
+			key == ydbannotations.PrimaryResourceStorage {
 			annotations[key] = value
 		}
 	}
@@ -278,7 +278,7 @@ func SetRemoteResourceVersionAnnotation(obj client.Object, resourceVersion strin
 	for key, value := range obj.GetAnnotations() {
 		annotations[key] = value
 	}
-	annotations[ydbannotations.RemoteResourceVersionAnnotation] = resourceVersion
+	annotations[ydbannotations.RemoteResourceVersion] = resourceVersion
 	obj.SetAnnotations(annotations)
 }
 
@@ -564,7 +564,7 @@ func buildCAStorePatchingCommandArgs(
 	return command, args
 }
 
-func SHAChecksum(text string) string {
+func GetSHA256Checksum(text string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(text))
 	return hex.EncodeToString(hasher.Sum(nil))
@@ -580,4 +580,15 @@ func CompareMaps(map1, map2 map[string]string) bool {
 		}
 	}
 	return true
+}
+
+func isSignAlgorithmSupported(alg string) bool {
+	supportedAlgs := jwt.GetAlgorithms()
+
+	for _, supportedAlg := range supportedAlgs {
+		if alg == supportedAlg {
+			return true
+		}
+	}
+	return false
 }

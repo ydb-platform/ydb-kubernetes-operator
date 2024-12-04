@@ -7,7 +7,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
@@ -28,6 +28,19 @@ func NewDatabase(ydbCr *api.Database) DatabaseBuilder {
 	return DatabaseBuilder{Database: cr, Storage: nil}
 }
 
+func (b *DatabaseBuilder) NewLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+	l.Merge(map[string]string{labels.ComponentKey: labels.DynamicComponent})
+
+	return l
+}
+
+func (b *DatabaseBuilder) NewAnnotations() ydbannotations.Annotations {
+	annotations := ydbannotations.Common(b.Annotations)
+
+	return annotations
+}
+
 func (b *DatabaseBuilder) Unwrap() *api.Database {
 	return b.DeepCopy()
 }
@@ -37,13 +50,20 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 		return []ResourceBuilder{}
 	}
 
-	databaseLabels := labels.DatabaseLabels(b.Unwrap())
+	databaseLabels := b.NewLabels()
+	databaseAnnotations := b.NewAnnotations()
 
 	statefulSetLabels := databaseLabels.Copy()
+	statefulSetLabels.Merge(b.Spec.AdditionalLabels)
 	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
 
-	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(b.Spec.Configuration)
+	statefulSetAnnotations := databaseAnnotations.Copy()
+	statefulSetAnnotations.Merge(b.Spec.AdditionalAnnotations)
+	if b.Spec.Configuration != "" {
+		statefulSetAnnotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+	} else {
+		statefulSetAnnotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
+	}
 
 	grpcServiceLabels := databaseLabels.Copy()
 	grpcServiceLabels.Merge(b.Spec.Service.GRPC.AdditionalLabels)
@@ -123,7 +143,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 						api.DatabaseEncryptionKeySecretDir,
 						api.DatabaseEncryptionKeySecretFile,
 					),
-					ID:      SHAChecksum(b.Spec.StorageClusterRef.Name),
+					ID:      GetSHA256Checksum(b.Spec.StorageClusterRef.Name),
 					Pin:     b.Spec.Encryption.Pin,
 					Version: 1,
 				},
@@ -219,16 +239,23 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			},
 		)
 	} else {
-		optionalBuilders = append(optionalBuilders, b.getNodeSetBuilders(databaseLabels)...)
+		optionalBuilders = append(
+			optionalBuilders,
+			b.getNodeSetBuilders(databaseLabels, databaseAnnotations)...)
 	}
 
 	return optionalBuilders
 }
 
-func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []ResourceBuilder {
+func (b *DatabaseBuilder) getNodeSetBuilders(
+	databaseLabels labels.Labels,
+	databaseAnnotations ydbannotations.Annotations,
+) []ResourceBuilder {
 	var nodeSetBuilders []ResourceBuilder
 
 	for _, nodeSetSpecInline := range b.Spec.NodeSets {
+		nodeSetName := fmt.Sprintf("%s-%s", b.Name, nodeSetSpecInline.Name)
+
 		nodeSetLabels := databaseLabels.Copy()
 		nodeSetLabels.Merge(nodeSetSpecInline.Labels)
 		nodeSetLabels.Merge(map[string]string{labels.DatabaseNodeSetComponent: nodeSetSpecInline.Name})
@@ -236,11 +263,12 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 			nodeSetLabels.Merge(map[string]string{labels.RemoteClusterKey: nodeSetSpecInline.Remote.Cluster})
 		}
 
-		nodeSetAnnotations := CopyDict(b.Annotations)
-		if nodeSetSpecInline.Annotations != nil {
-			for k, v := range nodeSetSpecInline.Annotations {
-				nodeSetAnnotations[k] = v
-			}
+		nodeSetAnnotations := databaseAnnotations.Copy()
+		nodeSetAnnotations.Merge(nodeSetSpecInline.Annotations)
+		if b.Spec.Configuration != "" {
+			nodeSetAnnotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+		} else {
+			nodeSetAnnotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
 		}
 
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
@@ -250,7 +278,7 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 				&RemoteDatabaseNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 
@@ -263,7 +291,7 @@ func (b *DatabaseBuilder) getNodeSetBuilders(databaseLabels labels.Labels) []Res
 				&DatabaseNodeSetBuilder{
 					Object: b,
 
-					Name:        b.Name + "-" + nodeSetSpecInline.Name,
+					Name:        nodeSetName,
 					Labels:      nodeSetLabels,
 					Annotations: nodeSetAnnotations,
 

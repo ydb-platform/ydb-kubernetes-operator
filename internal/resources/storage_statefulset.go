@@ -80,9 +80,11 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok && value == api.AnnotationValueTrue {
-		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
-			Type: "OnDelete",
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok {
+		if isTrue, _ := strconv.ParseBool(value); isTrue {
+			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
+				Type: "OnDelete",
+			}
 		}
 	}
 
@@ -157,9 +159,8 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 		switch value {
 		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
 			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
-		case "":
-			podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirst
 		default:
+			podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirst
 		}
 	}
 
@@ -383,13 +384,17 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		Resources:    containerResources,
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; !ok || value != api.AnnotationValueTrue {
-		container.LivenessProbe = &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(api.GRPCPort),
-				},
+	container.LivenessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			TCPSocket: &corev1.TCPSocketAction{
+				Port: intstr.FromInt(api.GRPCPort),
 			},
+		},
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; ok {
+		if isTrue, _ := strconv.ParseBool(value); isTrue {
+			container.LivenessProbe = nil
 		}
 	}
 

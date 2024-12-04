@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
 
@@ -20,10 +20,6 @@ type StorageNodeSetBuilder struct {
 	Annotations map[string]string
 
 	StorageNodeSetSpec api.StorageNodeSetSpec
-}
-
-type StorageNodeSetResource struct {
-	*api.StorageNodeSet
 }
 
 func (b *StorageNodeSetBuilder) Build(obj client.Object) error {
@@ -54,31 +50,49 @@ func (b *StorageNodeSetBuilder) Placeholder(cr client.Object) client.Object {
 	}
 }
 
-func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
-	ydbCr := api.RecastStorageNodeSet(b.Unwrap())
-	storageLabels := labels.StorageLabels(ydbCr)
+type StorageNodeSetResource struct {
+	*api.StorageNodeSet
+}
 
-	statefulSetName := b.Name
-	statefulSetLabels := storageLabels.Copy()
-	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: statefulSetName})
+func (b *StorageNodeSetResource) NewLabels() labels.Labels {
+	l := labels.Common(b.Name, b.Labels)
+	l.Merge(map[string]string{labels.ComponentKey: labels.StorageComponent})
 
 	storageNodeSetName := b.Labels[labels.StorageNodeSetComponent]
-	statefulSetLabels.Merge(map[string]string{labels.StorageNodeSetComponent: storageNodeSetName})
+	l.Merge(map[string]string{labels.StorageNodeSetComponent: storageNodeSetName})
+
 	if remoteCluster, exist := b.Labels[labels.RemoteClusterKey]; exist {
-		statefulSetLabels.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
+		l.Merge(map[string]string{labels.RemoteClusterKey: remoteCluster})
 	}
 
-	statefulSetAnnotations := CopyDict(b.Spec.AdditionalAnnotations)
-	statefulSetAnnotations[annotations.ConfigurationChecksum] = SHAChecksum(b.Spec.Configuration)
+	return l
+}
+
+func (b *StorageNodeSetResource) NewAnnotations() ydbannotations.Annotations {
+	annotations := ydbannotations.Common(b.Annotations)
+
+	return annotations
+}
+
+func (b *StorageNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {
+	nodeSetLabels := b.NewLabels()
+	nodeSetAnnotations := b.NewAnnotations()
+
+	statefulSetLabels := nodeSetLabels.Copy()
+	statefulSetLabels.Merge(b.Spec.AdditionalLabels)
+	statefulSetLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+
+	statefulSetAnnotations := nodeSetAnnotations.Copy()
+	statefulSetAnnotations.Merge(b.Spec.AdditionalAnnotations)
 
 	var resourceBuilders []ResourceBuilder
 	resourceBuilders = append(
 		resourceBuilders,
 		&StorageStatefulSetBuilder{
-			Storage:    ydbCr,
+			Storage:    api.RecastStorageNodeSet(b.StorageNodeSet),
 			RestConfig: restConfig,
 
-			Name:        statefulSetName,
+			Name:        b.Name,
 			Labels:      statefulSetLabels,
 			Annotations: statefulSetAnnotations,
 		},

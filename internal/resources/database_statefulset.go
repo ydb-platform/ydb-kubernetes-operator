@@ -7,6 +7,7 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
@@ -63,9 +65,11 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 		Template:             b.buildPodTemplateSpec(),
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok && value == api.AnnotationValueTrue {
-		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
-			Type: "OnDelete",
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok {
+		if isTrue, _ := strconv.ParseBool(value); isTrue {
+			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
+				Type: "OnDelete",
+			}
 		}
 	}
 
@@ -144,12 +148,10 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateDNSPolicy]; ok {
-		switch value {
-		case string(corev1.DNSClusterFirstWithHostNet), string(corev1.DNSClusterFirst), string(corev1.DNSDefault), string(corev1.DNSNone):
-			podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
-		case "":
-			podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirst
-		default:
+		for _, acceptedPolicy := range ydbannotations.AcceptedDNSPolicy {
+			if value == acceptedPolicy {
+				podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
+			}
 		}
 	}
 
@@ -422,13 +424,17 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		},
 	}
 
-	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; !ok || value != api.AnnotationValueTrue {
-		container.LivenessProbe = &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(api.GRPCPort),
-				},
+	container.LivenessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			TCPSocket: &corev1.TCPSocketAction{
+				Port: intstr.FromInt(api.GRPCPort),
 			},
+		},
+	}
+
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; ok {
+		if isTrue, _ := strconv.ParseBool(value); isTrue {
+			container.LivenessProbe = nil
 		}
 	}
 
@@ -696,6 +702,9 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationNodeHost]; ok {
+		if !strings.HasPrefix(value, "$(NODE_NAME).") {
+			value = fmt.Sprintf("%s.%s", "$(NODE_NAME)", value)
+		}
 		args = append(args,
 			"--node-host",
 			value,

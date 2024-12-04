@@ -62,7 +62,7 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
 	nodeSetAnnotations := CopyDict(b.Annotations)
-	delete(nodeSetAnnotations, ydbannotations.LastAppliedAnnotation)
+	delete(nodeSetAnnotations, ydbannotations.LastApplied)
 
 	resourceBuilders = append(resourceBuilders,
 		&StorageNodeSetBuilder{
@@ -150,8 +150,8 @@ func (b *RemoteStorageNodeSetResource) SetPrimaryResourceAnnotations(obj client.
 		annotations[key] = value
 	}
 
-	if _, exist := annotations[ydbannotations.PrimaryResourceStorageAnnotation]; !exist {
-		annotations[ydbannotations.PrimaryResourceStorageAnnotation] = b.Spec.StorageRef.Name
+	if _, exist := annotations[ydbannotations.PrimaryResourceStorage]; !exist {
+		annotations[ydbannotations.PrimaryResourceStorage] = b.Spec.StorageRef.Name
 	}
 
 	obj.SetAnnotations(annotations)
@@ -160,7 +160,7 @@ func (b *RemoteStorageNodeSetResource) SetPrimaryResourceAnnotations(obj client.
 func (b *RemoteStorageNodeSetResource) UnsetPrimaryResourceAnnotations(obj client.Object) {
 	annotations := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		if key != annotations[ydbannotations.PrimaryResourceStorageAnnotation] {
+		if key != annotations[ydbannotations.PrimaryResourceStorage] {
 			annotations[key] = value
 		}
 	}
