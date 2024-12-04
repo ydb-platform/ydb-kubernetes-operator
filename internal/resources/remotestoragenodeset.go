@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
@@ -62,7 +62,7 @@ func (b *RemoteStorageNodeSetResource) GetResourceBuilders() []ResourceBuilder {
 	var resourceBuilders []ResourceBuilder
 
 	nodeSetAnnotations := CopyDict(b.Annotations)
-	delete(nodeSetAnnotations, annotations.LastApplied)
+	delete(nodeSetAnnotations, ydbannotations.LastApplied)
 
 	resourceBuilders = append(resourceBuilders,
 		&StorageNodeSetBuilder{
@@ -145,26 +145,26 @@ func (b *RemoteStorageNodeSetResource) GetRemoteObjects(
 }
 
 func (b *RemoteStorageNodeSetResource) SetPrimaryResourceAnnotations(obj client.Object) {
-	an := make(map[string]string)
+	annotations := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		an[key] = value
+		annotations[key] = value
 	}
 
-	if _, exist := an[annotations.PrimaryResourceStorage]; !exist {
-		an[annotations.PrimaryResourceStorage] = b.Spec.StorageRef.Name
+	if _, exist := annotations[ydbannotations.PrimaryResourceStorage]; !exist {
+		annotations[ydbannotations.PrimaryResourceStorage] = b.Spec.StorageRef.Name
 	}
 
-	obj.SetAnnotations(an)
+	obj.SetAnnotations(annotations)
 }
 
 func (b *RemoteStorageNodeSetResource) UnsetPrimaryResourceAnnotations(obj client.Object) {
-	an := make(map[string]string)
+	annotations := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		if key != an[annotations.PrimaryResourceStorage] {
-			an[key] = value
+		if key != annotations[ydbannotations.PrimaryResourceStorage] {
+			annotations[key] = value
 		}
 	}
-	obj.SetAnnotations(an)
+	obj.SetAnnotations(annotations)
 }
 
 func (b *RemoteStorageNodeSetResource) CreateRemoteResourceStatus(remoteObj client.Object) {

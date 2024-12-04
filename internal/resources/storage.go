@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
 )
@@ -38,11 +38,11 @@ func (b *StorageClusterBuilder) NewLabels() labels.Labels {
 	return l
 }
 
-func (b *StorageClusterBuilder) NewAnnotations() annotations.Annotations {
-	an := annotations.Common(b.Annotations)
-	an.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+func (b *StorageClusterBuilder) NewAnnotations() ydbannotations.Annotations {
+	annotations := ydbannotations.Common(b.Annotations)
+	annotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
 
-	return an
+	return annotations
 }
 
 func (b *StorageClusterBuilder) NewInitJobLabels() labels.Labels {
@@ -56,15 +56,15 @@ func (b *StorageClusterBuilder) NewInitJobLabels() labels.Labels {
 	return l
 }
 
-func (b *StorageClusterBuilder) NewInitJobAnnotations() annotations.Annotations {
-	an := annotations.Common(b.Annotations)
+func (b *StorageClusterBuilder) NewInitJobAnnotations() ydbannotations.Annotations {
+	annotations := ydbannotations.Common(b.Annotations)
 
 	if b.Spec.InitJob != nil {
-		an.Merge(b.Spec.InitJob.AdditionalLabels)
+		annotations.Merge(b.Spec.InitJob.AdditionalLabels)
 	}
-	an.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+	annotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
 
-	return an
+	return annotations
 }
 
 func (b *StorageClusterBuilder) GetInitJobBuilder() ResourceBuilder {
@@ -217,7 +217,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 
 func (b *StorageClusterBuilder) getNodeSetBuilders(
 	storageLabels labels.Labels,
-	storageAnnotations annotations.Annotations,
+	storageAnnotations ydbannotations.Annotations,
 ) []ResourceBuilder {
 	var nodeSetBuilders []ResourceBuilder
 

@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 )
 
@@ -68,10 +68,10 @@ func (b *DatabaseNodeSetResource) NewLabels() labels.Labels {
 	return l
 }
 
-func (b *DatabaseNodeSetResource) NewAnnotations() annotations.Annotations {
-	an := annotations.Common(b.Annotations)
+func (b *DatabaseNodeSetResource) NewAnnotations() ydbannotations.Annotations {
+	annotations := ydbannotations.Common(b.Annotations)
 
-	return an
+	return annotations
 }
 
 func (b *DatabaseNodeSetResource) GetResourceBuilders(restConfig *rest.Config) []ResourceBuilder {

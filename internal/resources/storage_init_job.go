@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
@@ -80,7 +80,7 @@ func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
 		}
 		if storage.Spec.InitJob.AdditionalAnnotations != nil {
 			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
-			jobAnnotations[annotations.ConfigurationChecksum] = GetSHA256Checksum(storage.Spec.Configuration)
+			jobAnnotations[ydbannotations.ConfigurationChecksum] = GetSHA256Checksum(storage.Spec.Configuration)
 		}
 	}
 
@@ -148,7 +148,7 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateDNSPolicy]; ok {
-		for _, acceptedPolicy := range annotations.AcceptedDNSPolicy {
+		for _, acceptedPolicy := range ydbannotations.AcceptedDNSPolicy {
 			if value == acceptedPolicy {
 				podTemplate.Spec.DNSPolicy = corev1.DNSPolicy(value)
 			}

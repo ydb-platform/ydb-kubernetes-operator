@@ -7,13 +7,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 )
 
 func LastAppliedAnnotationPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return !annotations.CompareLastAppliedAnnotation(
+			return !ydbannotations.CompareLastAppliedAnnotation(
 				e.ObjectOld.GetAnnotations(),
 				e.ObjectNew.GetAnnotations(),
 			)

@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	ydblabels "github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
@@ -118,8 +118,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 	annotationFilter := func(mapObj client.Object) []reconcile.Request {
 		requests := make([]reconcile.Request, 0)
 
-		an := mapObj.GetAnnotations()
-		primaryResourceName, exist := an[annotations.PrimaryResourceStorage]
+		annotations := mapObj.GetAnnotations()
+		primaryResourceName, exist := annotations[ydbannotations.PrimaryResourceStorage]
 		if exist {
 			storageNodeSets := &v1alpha1.StorageNodeSetList{}
 			if err := r.Client.List(

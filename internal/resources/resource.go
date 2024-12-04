@@ -25,7 +25,7 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/connection"
 )
 
@@ -82,7 +82,7 @@ type ResourceBuilder interface {
 }
 
 var (
-	annotator  = patch.NewAnnotator(annotations.LastApplied)
+	annotator  = patch.NewAnnotator(ydbannotations.LastApplied)
 	patchMaker = patch.NewPatchMaker(annotator)
 )
 
@@ -263,23 +263,23 @@ func UpdateResource(oldObj, newObj client.Object) client.Object {
 }
 
 func CopyPrimaryResourceObjectAnnotation(obj client.Object, oldAnnotations map[string]string) {
-	an := CopyDict(obj.GetAnnotations())
+	annotations := CopyDict(obj.GetAnnotations())
 	for key, value := range oldAnnotations {
-		if key == annotations.PrimaryResourceDatabase ||
-			key == annotations.PrimaryResourceStorage {
-			an[key] = value
+		if key == ydbannotations.PrimaryResourceDatabase ||
+			key == ydbannotations.PrimaryResourceStorage {
+			annotations[key] = value
 		}
 	}
-	obj.SetAnnotations(an)
+	obj.SetAnnotations(annotations)
 }
 
 func SetRemoteResourceVersionAnnotation(obj client.Object, resourceVersion string) {
-	an := make(map[string]string)
+	annotations := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		an[key] = value
+		annotations[key] = value
 	}
-	an[annotations.RemoteResourceVersion] = resourceVersion
-	obj.SetAnnotations(an)
+	annotations[ydbannotations.RemoteResourceVersion] = resourceVersion
+	obj.SetAnnotations(annotations)
 }
 
 func ConvertRemoteResourceToObject(remoteResource api.RemoteResource, namespace string) (client.Object, error) {

@@ -36,11 +36,11 @@ var (
 type Annotations map[string]string
 
 func Common(objAnnotations Annotations) Annotations {
-	an := Annotations{}
+	annotations := Annotations{}
 
-	an.Merge(getSupportedAnnotations(objAnnotations))
+	annotations.Merge(getSupportedAnnotations(objAnnotations))
 
-	return an
+	return annotations
 }
 
 func (an Annotations) Merge(other map[string]string) map[string]string {

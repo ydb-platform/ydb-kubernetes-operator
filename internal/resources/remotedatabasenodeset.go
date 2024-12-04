@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
 
@@ -161,26 +161,26 @@ func (b *RemoteDatabaseNodeSetResource) GetRemoteObjects(
 }
 
 func (b *RemoteDatabaseNodeSetResource) SetPrimaryResourceAnnotations(obj client.Object) {
-	an := make(map[string]string)
+	annotations := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		an[key] = value
+		annotations[key] = value
 	}
 
-	if _, exist := an[annotations.PrimaryResourceDatabase]; !exist {
-		an[annotations.PrimaryResourceDatabase] = b.Spec.DatabaseRef.Name
+	if _, exist := annotations[ydbannotations.PrimaryResourceDatabase]; !exist {
+		annotations[ydbannotations.PrimaryResourceDatabase] = b.Spec.DatabaseRef.Name
 	}
 
-	obj.SetAnnotations(an)
+	obj.SetAnnotations(annotations)
 }
 
 func (b *RemoteDatabaseNodeSetResource) UnsetPrimaryResourceAnnotations(obj client.Object) {
-	an := make(map[string]string)
+	annotations := make(map[string]string)
 	for key, value := range obj.GetAnnotations() {
-		if key != an[annotations.PrimaryResourceDatabase] {
-			an[key] = value
+		if key != annotations[ydbannotations.PrimaryResourceDatabase] {
+			annotations[key] = value
 		}
 	}
-	obj.SetAnnotations(an)
+	obj.SetAnnotations(annotations)
 }
 
 func (b *RemoteDatabaseNodeSetResource) CreateRemoteResourceStatus(

@@ -7,7 +7,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/metrics"
@@ -35,10 +35,10 @@ func (b *DatabaseBuilder) NewLabels() labels.Labels {
 	return l
 }
 
-func (b *DatabaseBuilder) NewAnnotations() annotations.Annotations {
-	an := annotations.Common(b.Annotations)
+func (b *DatabaseBuilder) NewAnnotations() ydbannotations.Annotations {
+	annotations := ydbannotations.Common(b.Annotations)
 
-	return an
+	return annotations
 }
 
 func (b *DatabaseBuilder) Unwrap() *api.Database {
@@ -60,9 +60,9 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 	statefulSetAnnotations := databaseAnnotations.Copy()
 	statefulSetAnnotations.Merge(b.Spec.AdditionalAnnotations)
 	if b.Spec.Configuration != "" {
-		statefulSetAnnotations.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+		statefulSetAnnotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
 	} else {
-		statefulSetAnnotations.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
+		statefulSetAnnotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
 	}
 
 	grpcServiceLabels := databaseLabels.Copy()
@@ -249,7 +249,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 
 func (b *DatabaseBuilder) getNodeSetBuilders(
 	databaseLabels labels.Labels,
-	databaseAnnotations annotations.Annotations,
+	databaseAnnotations ydbannotations.Annotations,
 ) []ResourceBuilder {
 	var nodeSetBuilders []ResourceBuilder
 
@@ -266,9 +266,9 @@ func (b *DatabaseBuilder) getNodeSetBuilders(
 		nodeSetAnnotations := databaseAnnotations.Copy()
 		nodeSetAnnotations.Merge(nodeSetSpecInline.Annotations)
 		if b.Spec.Configuration != "" {
-			nodeSetAnnotations.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
+			nodeSetAnnotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Spec.Configuration)})
 		} else {
-			nodeSetAnnotations.Merge(map[string]string{annotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
+			nodeSetAnnotations.Merge(map[string]string{ydbannotations.ConfigurationChecksum: GetSHA256Checksum(b.Storage.Spec.Configuration)})
 		}
 
 		databaseNodeSetSpec := b.recastDatabaseNodeSetSpecInline(nodeSetSpecInline.DeepCopy())
