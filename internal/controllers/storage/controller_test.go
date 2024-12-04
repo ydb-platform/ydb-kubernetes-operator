@@ -168,12 +168,9 @@ var _ = Describe("Storage controller medium tests", func() {
 				if err != nil {
 					return err
 				}
-				value, exist := foundStatefulSets.Items[0].Labels[testLabelKey]
-				if !exist {
-					return fmt.Errorf("label key `ydb-label` does not exist in StatefulSet. Current labels: %s", foundStatefulSets.Items[0].Labels)
-				}
+				value := foundStatefulSets.Items[0].Labels[testLabelKey]
 				if value != testLabelValue {
-					return fmt.Errorf("label value `ydb-label` in StatefulSet does not equal `test`. Current labels: %s", foundStatefulSets.Items[0].Labels)
+					return fmt.Errorf("label value of `%s` in StatefulSet does not equal `%s`. Current labels: %s", testLabelKey, testLabelValue, foundStatefulSets.Items[0].Labels)
 				}
 				return nil
 			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
@@ -186,8 +183,42 @@ var _ = Describe("Storage controller medium tests", func() {
 					},
 				},
 			))
+		})
 
-			By("check that delete StatefulSet event was detected...")
+		By("Check that additionalPodLabels propagated into podTemplate...", func() {
+			testLabelKey := "ydb-pod-label"
+			testLabelValue := "test-podTemplate"
+			By("set additional pod labels to Storage...")
+			Eventually(func() error {
+				foundStorage := v1alpha1.Storage{}
+				Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name:      storageSample.Name,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundStorage))
+				foundStorage.Spec.AdditionalPodLabels = make(map[string]string)
+				foundStorage.Spec.AdditionalPodLabels[testLabelKey] = testLabelValue
+				return k8sClient.Update(ctx, &foundStorage)
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			By("check that additional pod labels was added...")
+			foundStatefulSets := appsv1.StatefulSetList{}
+			Eventually(func() error {
+				err := k8sClient.List(ctx, &foundStatefulSets,
+					client.InNamespace(testobjects.YdbNamespace),
+				)
+				if err != nil {
+					return err
+				}
+				value := foundStatefulSets.Items[0].Spec.Template.Labels[testLabelKey]
+				if value != testLabelValue {
+					return fmt.Errorf("label value of `%s` in StatefulSet does not equal `%s`. Current labels: %s", testLabelKey, testLabelValue, foundStatefulSets.Items[0].Labels)
+				}
+				return nil
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+		})
+
+		By("check that delete StatefulSet event was detected...", func() {
+			foundStatefulSets := appsv1.StatefulSetList{}
 			Expect(k8sClient.List(ctx, &foundStatefulSets, client.InNamespace(testobjects.YdbNamespace))).ShouldNot(HaveOccurred())
 			Expect(len(foundStatefulSets.Items)).Should(Equal(1))
 			Expect(k8sClient.Delete(ctx, &foundStatefulSets.Items[0])).ShouldNot(HaveOccurred())
