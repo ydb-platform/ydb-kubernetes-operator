@@ -201,7 +201,7 @@ var _ = Describe("Operator smoke test", func() {
 		CheckPodsRunningAndReady(ctx, k8sClient, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 	})
 
-	FIt("freeze + delete StatefulSet + un-freeze Storage", func() {
+	It("freeze + delete StatefulSet + un-freeze Storage", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer DeleteStorageSafely(ctx, k8sClient, storageSample)
