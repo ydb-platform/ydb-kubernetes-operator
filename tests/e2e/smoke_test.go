@@ -473,20 +473,26 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the database pods are running and ready...")
 		CheckPodsRunningAndReady(ctx, k8sClient, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
 
-		storagePods := corev1.PodList{}
-		Expect(k8sClient.List(ctx, &storagePods,
-			client.InNamespace(testobjects.YdbNamespace),
-			client.MatchingLabels{
-				"ydb-cluster": "kind-database",
-			})).Should(Succeed())
-		podName := storagePods.Items[0].Name
+		database := v1alpha1.Database{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &database)).Should(Succeed())
+		storageEndpoint := database.Spec.StorageEndpoint
 
-		By("bring YDB CLI inside ydb storage pod...")
+		databasePods := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &databasePods,
+			client.InNamespace(testobjects.YdbNamespace),
+			client.MatchingLabels{"ydb-cluster": "kind-database"}),
+		).Should(Succeed())
+		podName := databasePods.Items[0].Name
+
+		By("bring YDB CLI inside ydb database pod...")
 		BringYdbCliToPod(podName, testobjects.YdbNamespace)
 
-		By("execute simple query inside ydb storage pod...")
-		storageEndpoint := fmt.Sprintf("grpcs://%s:%d", testobjects.StorageGRPCService, testobjects.StorageGRPCPort)
-		ExecuteSimpleTableE2ETest(podName, testobjects.YdbNamespace, storageEndpoint, "/"+testobjects.DefaultDomain)
+		By("execute simple query inside ydb database pod...")
+		databasePath := DatabasePathWithDefaultDomain(databaseSample)
+		ExecuteSimpleTableE2ETest(podName, testobjects.YdbNamespace, storageEndpoint, databasePath)
 	})
 
 	It("Check that Storage deleted after Database...", func() {
