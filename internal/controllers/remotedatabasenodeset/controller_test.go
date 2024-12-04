@@ -25,7 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
@@ -36,6 +35,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storagenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
+	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"
 )
 
 const (
@@ -203,7 +203,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 	var databaseSample *v1alpha1.Database
 
 	BeforeEach(func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		databaseSample = testobjects.DefaultDatabase()
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 			Name: testNodeSetName + "-local",

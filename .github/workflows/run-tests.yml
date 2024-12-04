@@ -109,7 +109,7 @@ jobs:
           kind delete cluster
           kind create cluster \
           --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
-          --config=./e2e/kind-cluster-config.yaml
+          --config=./tests/cfg/kind-cluster-config.yaml
 
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
 
@@ -138,7 +138,7 @@ jobs:
             kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3
       - name: pull-and-load-ydb-image
         run: |
-          YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./e2e/tests/**/*.go | grep -o -E '"cr\.yandex.*"')
+          YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/e2e/**/*.go | grep -o -E '"cr\.yandex.*"')
           YDB_IMAGE=${YDB_IMAGE:1:-1} # strip ""
           docker pull $YDB_IMAGE
           kind load docker-image $YDB_IMAGE --nodes kind-worker,kind-worker2,kind-worker3
@@ -148,7 +148,7 @@ jobs:
       - name: run-e2e-tests
         id: run-e2e-tests
         run: |
-          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./e2e/... -ginkgo.vv
+          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./tests/e2e/... -ginkgo.vv
       - name: convert-json-log-to-human-readable
         run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
       - name: artifact-upload-step
@@ -164,4 +164,3 @@ jobs:
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster
-

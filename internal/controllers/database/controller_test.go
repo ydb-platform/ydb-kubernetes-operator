@@ -21,11 +21,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
+	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"
 )
 
 var (
@@ -65,7 +65,7 @@ var _ = Describe("Database controller medium tests", func() {
 			},
 		}
 		Expect(k8sClient.Create(ctx, &namespace)).Should(Succeed())
-		storageSample = *testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
+		storageSample = *testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		Expect(k8sClient.Create(ctx, &storageSample)).Should(Succeed())
 
 		By("checking that Storage created on local cluster...")
