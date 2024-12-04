@@ -107,7 +107,7 @@ jobs:
           PREVIOUS_VERSION: ${{ env.PREVIOUS_VERSION }}
         run: |
           go install gotest.tools/gotestsum@v1.12.0
-          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s ./tests/compatibility/... -ginkgo.vv -coverprofile cover.out
+          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./tests/compatibility/... -ginkgo.vv -coverprofile cover.out
 
       - name: convert-to-human-readable
         run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
