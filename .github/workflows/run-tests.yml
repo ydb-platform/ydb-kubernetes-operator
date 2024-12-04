@@ -112,10 +112,6 @@ jobs:
           --config=./tests/cfg/kind-cluster-config.yaml
 
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
-
-          kubectl label --overwrite node kind-worker topology.kubernetes.io/zone=fakeZone1
-          kubectl label --overwrite node kind-worker2 topology.kubernetes.io/zone=fakeZone2
-          kubectl label --overwrite node kind-worker3 topology.kubernetes.io/zone=fakeZone3
       - name: build-operator-image
         uses: docker/build-push-action@v3
         with:
@@ -138,7 +134,7 @@ jobs:
             kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3
       - name: pull-and-load-ydb-image
         run: |
-          YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/e2e/**/*.go | grep -o -E '"cr\.yandex.*"')
+          YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"')
           YDB_IMAGE=${YDB_IMAGE:1:-1} # strip ""
           docker pull $YDB_IMAGE
           kind load docker-image $YDB_IMAGE --nodes kind-worker,kind-worker2,kind-worker3
