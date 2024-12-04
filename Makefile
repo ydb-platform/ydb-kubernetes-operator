@@ -70,20 +70,22 @@ kind-init:
 	kind create cluster --config e2e/kind-cluster-config.yaml --name kind-ydb-operator; \
 	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0; \
 	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --name kind-ydb-operator; \
-	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17; \
-	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17 --name kind-ydb-operator
+	docker pull cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7; \
+	kind load docker-image cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7 --name kind-ydb-operator
 
 kind-load:
 	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
 	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
 
+opts ?= ''
+
 .PHONY: unit-test
 unit-test: manifests generate fmt vet envtest ## Run unit tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use --arch=amd64 $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 900s -p 1 ./internal/... -ginkgo.v -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use --arch=amd64 $(ENVTEST_K8S_VERSION) -p path)" go test -v -timeout 900s -p 1 ./internal/... -ginkgo.v -coverprofile cover.out $(opts)
 
 .PHONY: e2e-test
 e2e-test: manifests generate fmt vet docker-build kind-init kind-load ## Run e2e tests
-	go test -v -timeout 3600s -p 1 ./e2e/... -args -ginkgo.v
+	go test -v -timeout 3600s -p 1 ./e2e/... -ginkgo.v $(opts)
 
 .PHONY: test
 test: unit-test e2e-test ## Run all tests
@@ -104,7 +106,7 @@ docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
-CONTROLLER_GEN_VERSION ?= v0.6.1
+CONTROLLER_GEN_VERSION ?= v0.16.5
 controller-gen: ## Download controller-gen locally if necessary.
 	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION))
 
@@ -112,7 +114,7 @@ controller-gen: ## Download controller-gen locally if necessary.
 # Version pinning is needed due to version incompatibility between controller-runtime and setup-envtest.
 # For more information: https://github.com/kubernetes-sigs/controller-runtime/issues/2744
 ENVTEST = $(shell pwd)/bin/setup-envtest
-ENVTEST_VERSION ?= release-0.16
+ENVTEST_VERSION ?= release-0.17
 envtest: ## Download envtest-setup locally if necessary.
 	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION))
 

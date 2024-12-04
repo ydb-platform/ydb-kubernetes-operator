@@ -21,7 +21,7 @@ var (
 		string(corev1.DNSDefault),
 		string(corev1.DNSNone),
 	}
-	UserAnnotations = map[string]struct{}{
+	SupportedAnnotations = map[string]struct{}{
 		v1alpha1.AnnotationSkipInitialization:     {},
 		v1alpha1.AnnotationUpdateStrategyOnDelete: {},
 		v1alpha1.AnnotationUpdateDNSPolicy:        {},
@@ -38,7 +38,7 @@ type Annotations map[string]string
 func Common(objAnnotations Annotations) Annotations {
 	an := Annotations{}
 
-	an.Merge(getUserAnnotations(objAnnotations))
+	an.Merge(getSupportedAnnotations(objAnnotations))
 
 	return an
 }
@@ -69,11 +69,11 @@ func (an Annotations) Copy() Annotations {
 	return res
 }
 
-func getUserAnnotations(annotations map[string]string) map[string]string {
+func getSupportedAnnotations(annotations map[string]string) map[string]string {
 	common := make(map[string]string)
 
 	for key, value := range annotations {
-		if _, exists := UserAnnotations[key]; exists {
+		if _, exists := SupportedAnnotations[key]; exists {
 			common[key] = value
 		}
 	}

@@ -1,0 +1,113 @@
+apiVersion: ydb.tech/v1alpha1
+kind: Storage
+metadata:
+  name: storage-kind-sample
+spec:
+  image:
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - storage-node
+          topologyKey: "kubernetes.io/hostname"
+  dataStore: []
+  nodes: 3
+  domain: Root
+  erasure: mirror-3-dc
+  configuration: |-
+    actor_system_config:
+      cpu_count: 1
+      node_type: STORAGE
+      use_auto_config: true
+    blob_storage_config:
+      service_set:
+        groups:
+        - erasure_species: mirror-3-dc
+          rings:
+          - fail_domains:
+            - vdisk_locations:
+              - node_id: 1
+                pdisk_category: SSD
+                path: SectorMap:1:64
+            - vdisk_locations:
+              - node_id: 1
+                pdisk_category: SSD
+                path: SectorMap:2:64
+            - vdisk_locations:
+              - node_id: 1
+                pdisk_category: SSD
+                path: SectorMap:3:64
+          - fail_domains:
+            - vdisk_locations:
+              - node_id: 2
+                pdisk_category: SSD
+                path: SectorMap:1:64
+            - vdisk_locations:
+              - node_id: 2
+                pdisk_category: SSD
+                path: SectorMap:2:64
+            - vdisk_locations:
+              - node_id: 2
+                pdisk_category: SSD
+                path: SectorMap:3:64
+          - fail_domains:
+            - vdisk_locations:
+              - node_id: 3
+                pdisk_category: SSD
+                path: SectorMap:1:64
+            - vdisk_locations:
+              - node_id: 3
+                pdisk_category: SSD
+                path: SectorMap:2:64
+            - vdisk_locations:
+              - node_id: 3
+                pdisk_category: SSD
+                path: SectorMap:3:64
+    channel_profile_config:
+      profile:
+        - channel:
+            - erasure_species: mirror-3-dc
+              pdisk_category: 0
+              storage_pool_kind: ssd
+            - erasure_species: mirror-3-dc
+              pdisk_category: 0
+              storage_pool_kind: ssd
+            - erasure_species: mirror-3-dc
+              pdisk_category: 0
+              storage_pool_kind: ssd
+          profile_id: 0
+    domains_config:
+      domain:
+        - name: Root
+          storage_pool_types:
+            - kind: ssd
+              pool_config:
+                box_id: 1
+                erasure_species: mirror-3-dc
+                kind: ssd
+                pdisk_filter:
+                  - property:
+                      - type: SSD
+                vdisk_kind: Default
+      state_storage:
+        - ring:
+            node: [1, 2, 3]
+            nto_select: 3
+          ssid: 1
+    grpc_config:
+      port: 2135
+    host_configs:
+      - drive:
+          - path: SectorMap:1:64
+            type: SSD
+          - path: SectorMap:2:64
+            type: SSD
+          - path: SectorMap:3:64
+            type: SSD
+        host_config_id: 1
+    static_erasure: mirror-3-dc

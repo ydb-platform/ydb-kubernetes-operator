@@ -2,28 +2,14 @@ package v1alpha1
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"errors"
 	"fmt"
-	"path"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 )
-
-const (
-	DatabaseEncryptionKeyPath           = "/opt/ydb/secrets/database_encryption"
-	DatabaseEncryptionKeyFile           = "key"
-	DatastreamsIAMServiceAccountKeyPath = "/opt/ydb/secrets/datastreams"
-	DatastreamsIAMServiceAccountKeyFile = "sa_key.json"
-)
-
-func hash(text string) string {
-	h := sha256.New()
-	h.Write([]byte(text))
-	return fmt.Sprintf("%x", h.Sum(nil))
-}
 
 func generateHosts(cr *Storage) []schema.Host {
 	var hosts []schema.Host
@@ -61,24 +47,6 @@ func generateHosts(cr *Storage) []schema.Host {
 	return hosts
 }
 
-func generateKeyConfig(cr *Storage, crDB *Database) *schema.KeyConfig {
-	var keyConfig *schema.KeyConfig
-	if crDB != nil && crDB.Spec.Encryption != nil && crDB.Spec.Encryption.Enabled {
-		keyConfig = &schema.KeyConfig{
-			Keys: []schema.Key{
-				{
-					ContainerPath: path.Join(DatabaseEncryptionKeyPath, DatabaseEncryptionKeyFile),
-					ID:            hash(cr.Name),
-					Pin:           crDB.Spec.Encryption.Pin,
-					Version:       1,
-				},
-			},
-		}
-	}
-
-	return keyConfig
-}
-
 func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 	config := make(map[string]interface{})
 
@@ -93,19 +61,22 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 		rawYamlConfiguration = cr.Spec.Configuration
 	}
 
-	dynconfig, err := ParseDynconfig(rawYamlConfiguration)
-	if err == nil {
-		if dynconfig.Config["hosts"] == nil {
+	success, dynConfig, err := ParseDynConfig(rawYamlConfiguration)
+	if success {
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse dynconfig, error: %w", err)
+		}
+		if dynConfig.Config["hosts"] == nil {
 			hosts := generateHosts(cr)
-			dynconfig.Config["hosts"] = hosts
+			dynConfig.Config["hosts"] = hosts
 		}
 
-		return yaml.Marshal(dynconfig)
+		return yaml.Marshal(dynConfig)
 	}
 
 	err = yaml.Unmarshal([]byte(rawYamlConfiguration), &config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize YAML config, error: %w", err)
 	}
 
 	if config["hosts"] == nil {
@@ -113,38 +84,66 @@ func BuildConfiguration(cr *Storage, crDB *Database) ([]byte, error) {
 		config["hosts"] = hosts
 	}
 
-	// Will be removed by YDBOPS-9692
-	keyConfig := generateKeyConfig(cr, crDB)
-	if keyConfig != nil {
-		config["key_config"] = keyConfig
-	}
-
 	return yaml.Marshal(config)
 }
 
 func ParseConfiguration(rawYamlConfiguration string) (schema.Configuration, error) {
-	configuration := schema.Configuration{}
-
-	dynconfig, err := ParseDynconfig(rawYamlConfiguration)
-	if err == nil {
-		config, err := yaml.Marshal(dynconfig.Config)
-		if err != nil {
-			return configuration, err
-		}
-		rawYamlConfiguration = string(config)
-	}
-
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(false)
-	err = dec.Decode(&configuration)
 
-	return configuration, err
+	var configuration schema.Configuration
+	err := dec.Decode(&configuration)
+	if err != nil {
+		return schema.Configuration{}, nil
+	}
+
+	return configuration, nil
 }
 
-func ParseDynconfig(rawYamlConfiguration string) (schema.Dynconfig, error) {
-	dynconfig := schema.Dynconfig{}
+func ParseDynConfig(rawYamlConfiguration string) (bool, schema.DynConfig, error) {
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(rawYamlConfiguration)))
 	dec.KnownFields(true)
-	err := dec.Decode(&dynconfig)
-	return dynconfig, err
+
+	var dynConfig schema.DynConfig
+	err := dec.Decode(&dynConfig)
+	if err != nil {
+		return false, schema.DynConfig{}, fmt.Errorf("error unmarshal yaml to dynconfig: %w", err)
+	}
+
+	err = validateDynConfig(dynConfig)
+	if err != nil {
+		return true, dynConfig, fmt.Errorf("error validate dynconfig: %w", err)
+	}
+
+	return true, dynConfig, err
+}
+
+func validateDynConfig(dynConfig schema.DynConfig) error {
+	if _, exist := dynConfig.Config["yaml_config_enabled"]; !exist {
+		return errors.New("failed to find mandatory `yaml_config_enabled` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["static_erasure"]; !exist {
+		return errors.New("failed to find mandatory `static_erasure` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["host_configs"]; !exist {
+		return errors.New("failed to find mandatory `host_configs` field inside config")
+	}
+
+	if _, exist := dynConfig.Config["blob_storage_config"]; !exist {
+		return errors.New("failed to find mandatory `blob_storage_config` field inside config")
+	}
+
+	return nil
+}
+
+func GetConfigForCMS(dynConfig schema.DynConfig) ([]byte, error) {
+	delete(dynConfig.Config, "static_erasure")
+	delete(dynConfig.Config, "host_configs")
+	delete(dynConfig.Config, "nameservice_config")
+	delete(dynConfig.Config, "blob_storage_config")
+	delete(dynConfig.Config, "hosts")
+
+	return yaml.Marshal(dynConfig)
 }

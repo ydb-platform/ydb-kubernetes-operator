@@ -1,4 +1,4 @@
-[![check-pr](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/check-pr.yml/badge.svg)](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/check-pr.yml)
+[![run-tests](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/run-tests.yml/badge.svg)](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/run-tests.yml)
 [![upload-artifacts](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/upload-artifacts.yml/badge.svg)](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/upload-artifacts.yml)
 
 # YDB Kubernetes Operator

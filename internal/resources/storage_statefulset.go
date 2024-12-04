@@ -106,8 +106,12 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 }
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
+	domain := api.DefaultDomainName
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
 	dnsConfigSearches := []string{
-		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace(), domain),
 	}
 
 	podTemplate := corev1.PodTemplateSpec{

@@ -72,15 +72,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then lets add the finalizer and update the object. This is equivalent
 		// to registering our finalizer.
-		if !controllerutil.ContainsFinalizer(remoteStorageNodeSet, v1alpha1.FinalizerRemote) {
-			controllerutil.AddFinalizer(remoteStorageNodeSet, v1alpha1.FinalizerRemote)
+		if !controllerutil.ContainsFinalizer(remoteStorageNodeSet, v1alpha1.RemoteFinalizerKey) {
+			controllerutil.AddFinalizer(remoteStorageNodeSet, v1alpha1.RemoteFinalizerKey)
 			if err := r.RemoteClient.Update(ctx, remoteStorageNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}
 		}
 	} else {
 		// The object is being deleted
-		if controllerutil.ContainsFinalizer(remoteStorageNodeSet, v1alpha1.FinalizerRemote) {
+		if controllerutil.ContainsFinalizer(remoteStorageNodeSet, v1alpha1.RemoteFinalizerKey) {
 			// our finalizer is present, so lets handle any external dependency
 			if err := r.deleteExternalResources(ctx, remoteStorageNodeSet); err != nil {
 				// if fail to delete the external dependency here, return with error
@@ -89,7 +89,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(remoteStorageNodeSet, v1alpha1.FinalizerRemote)
+			controllerutil.RemoveFinalizer(remoteStorageNodeSet, v1alpha1.RemoteFinalizerKey)
 			if err := r.RemoteClient.Update(ctx, remoteStorageNodeSet); err != nil {
 				return ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
 			}

@@ -3,6 +3,7 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -11,6 +12,7 @@ import (
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 )
 
@@ -66,9 +68,38 @@ func (b *StorageInitJobBuilder) Placeholder(cr client.Object) client.Object {
 	}
 }
 
+func GetInitJobBuilder(storage *api.Storage) ResourceBuilder {
+	jobName := fmt.Sprintf(InitJobNameFormat, storage.Name)
+	jobLabels := labels.Common(storage.Name, make(map[string]string))
+	jobAnnotations := make(map[string]string)
+
+	if storage.Spec.InitJob != nil {
+		if storage.Spec.InitJob.AdditionalLabels != nil {
+			jobLabels.Merge(storage.Spec.InitJob.AdditionalLabels)
+			jobLabels[labels.StorageGeneration] = strconv.FormatInt(storage.ObjectMeta.Generation, 10)
+		}
+		if storage.Spec.InitJob.AdditionalAnnotations != nil {
+			jobAnnotations = CopyDict(storage.Spec.InitJob.AdditionalAnnotations)
+			jobAnnotations[annotations.ConfigurationChecksum] = GetSHA256Checksum(storage.Spec.Configuration)
+		}
+	}
+
+	return &StorageInitJobBuilder{
+		Storage: storage,
+
+		Name:        jobName,
+		Labels:      jobLabels,
+		Annotations: jobAnnotations,
+	}
+}
+
 func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplateSpec {
+	domain := api.DefaultDomainName
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
 	dnsConfigSearches := []string{
-		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace()),
+		fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Storage.Name, b.GetNamespace(), domain),
 	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{

@@ -79,20 +79,35 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 	var envVars []corev1.EnvVar
 
-	envVars = append(envVars, corev1.EnvVar{
-		Name: "NODE_NAME", // for `--grpc-public-host` flag
-		ValueFrom: &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				APIVersion: "v1",
-				FieldPath:  "metadata.name",
+	envVars = append(envVars,
+		corev1.EnvVar{
+			Name: "NODE_NAME", // for `--grpc-public-host` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.name",
+				},
 			},
 		},
-	})
+		corev1.EnvVar{
+			Name: "POD_IP", // for `--grpc-public-address-<ip-family>` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "status.podIP",
+				},
+			},
+		},
+	)
 
 	return envVars
 }
 
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
+	domain := api.DefaultDomainName
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      b.Labels,
@@ -111,7 +126,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: []string{
-					fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace),
+					fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Spec.StorageClusterRef.Name, b.Spec.StorageClusterRef.Namespace, domain),
 				},
 			},
 		},
@@ -181,11 +196,10 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	}
 
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
-		volumes = append(volumes, b.buildEncryptionVolume())
+		volumes = append(volumes, b.buildEncryptionVolumes()...)
 	}
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
-		volumes = append(volumes, b.buildDatastreamsIAMServiceAccountKeyVolume())
 		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumes = append(volumes, buildTLSVolume(datastreamsTLSVolumeName, b.Spec.Service.Datastreams.TLSConfiguration))
 		}
@@ -348,47 +362,43 @@ func buildTLSVolume(name string, configuration *api.TLSConfiguration) corev1.Vol
 	return volume
 }
 
-func (b *DatabaseStatefulSetBuilder) buildEncryptionVolume() corev1.Volume {
+func (b *DatabaseStatefulSetBuilder) buildEncryptionVolumes() []corev1.Volume {
 	var secretName, secretKey string
 	if b.Spec.Encryption.Key != nil {
 		secretName = b.Spec.Encryption.Key.Name
 		secretKey = b.Spec.Encryption.Key.Key
 	} else {
 		secretName = b.Name
-		secretKey = defaultEncryptionSecretKey
+		secretKey = wellKnownNameForEncryptionKeySecret
 	}
 
-	return corev1.Volume{
-		Name: encryptionVolumeName,
+	encryptionKeySecret := corev1.Volume{
+		Name: encryptionKeySecretVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
 				SecretName: secretName,
 				Items: []corev1.KeyToPath{
 					{
 						Key:  secretKey,
-						Path: api.DatabaseEncryptionKeyFile,
+						Path: api.DatabaseEncryptionKeySecretFile,
 					},
 				},
 			},
 		},
 	}
-}
 
-func (b *DatabaseStatefulSetBuilder) buildDatastreamsIAMServiceAccountKeyVolume() corev1.Volume {
-	return corev1.Volume{
-		Name: datastreamsIAMServiceAccountKeyVolumeName,
+	encryptionKeyConfig := corev1.Volume{
+		Name: encryptionKeyConfigVolumeName,
 		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: b.Spec.Datastreams.IAMServiceAccountKey.Name,
-				Items: []corev1.KeyToPath{
-					{
-						Key:  b.Spec.Datastreams.IAMServiceAccountKey.Key,
-						Path: api.DatastreamsIAMServiceAccountKeyFile,
-					},
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: fmt.Sprintf(EncryptionKeyConfigNameFormat, b.GetName()),
 				},
 			},
 		},
 	}
+
+	return []corev1.Volume{encryptionKeySecret, encryptionKeyConfig}
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
@@ -488,18 +498,20 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      encryptionVolumeName,
+			Name:      encryptionKeyConfigVolumeName,
 			ReadOnly:  true,
-			MountPath: api.DatabaseEncryptionKeyPath,
+			MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.DatabaseEncryptionKeyConfigFile),
+			SubPath:   api.DatabaseEncryptionKeyConfigFile,
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      encryptionKeySecretVolumeName,
+			ReadOnly:  true,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, api.DatabaseEncryptionKeySecretDir),
 		})
 	}
 
 	if b.Spec.Datastreams != nil && b.Spec.Datastreams.Enabled {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      datastreamsIAMServiceAccountKeyVolumeName,
-			ReadOnly:  true,
-			MountPath: api.DatastreamsIAMServiceAccountKeyPath,
-		})
 		if b.Spec.Service.Datastreams.TLSConfiguration.Enabled {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
 				Name:      datastreamsTLSVolumeName,
@@ -539,6 +551,10 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 }
 
 func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
+	domain := api.DefaultDomainName
+	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
+		domain = dnsAnnotation
+	}
 	command := []string{fmt.Sprintf("%s/%s", api.BinariesDir, api.DaemonBinaryName)}
 
 	args := []string{
@@ -572,6 +588,13 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		args = append(args,
 			"--label",
 			fmt.Sprintf("%s=%s", api.LabelSharedDatabaseKey, api.LabelSharedDatabaseValueFalse),
+		)
+	}
+
+	if b.Spec.Encryption != nil && b.Spec.Encryption.Enabled {
+		args = append(args,
+			"--key-file",
+			fmt.Sprintf("%s/%s", api.ConfigDir, api.DatabaseEncryptionKeyConfigFile),
 		)
 	}
 
@@ -624,13 +647,38 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	publicHostOption := "--grpc-public-host"
-	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace()) // FIXME .svc.cluster.local
+	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace(), domain) // FIXME .svc.cluster.local
+
 	if b.Spec.Service.GRPC.ExternalHost != "" {
 		publicHost = b.Spec.Service.GRPC.ExternalHost
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
 		publicHost = value
 	}
+
+	if b.Spec.Service.GRPC.IPDiscovery != nil && b.Spec.Service.GRPC.IPDiscovery.Enabled {
+		targetNameOverride := b.Spec.Service.GRPC.IPDiscovery.TargetNameOverride
+		ipFamilyArg := "--grpc-public-address-v4"
+
+		if b.Spec.Service.GRPC.IPDiscovery.IPFamily == corev1.IPv6Protocol {
+			ipFamilyArg = "--grpc-public-address-v6"
+		}
+
+		args = append(
+			args,
+
+			ipFamilyArg,
+			"$(POD_IP)",
+		)
+		if targetNameOverride != "" {
+			args = append(
+				args,
+				"--grpc-public-target-name-override",
+				fmt.Sprintf("%s.%s", "$(NODE_NAME)", targetNameOverride),
+			)
+		}
+	}
+
 	publicPortOption := "--grpc-public-port"
 	publicPort := api.GRPCPort
 

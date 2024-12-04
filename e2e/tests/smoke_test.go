@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -31,11 +32,12 @@ import (
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 )
 
 const (
 	Timeout  = time.Second * 600
-	Interval = time.Second * 5
+	Interval = time.Second * 2
 )
 
 func podIsReady(conditions []corev1.PodCondition) bool {
@@ -141,7 +143,23 @@ func checkPodsRunningAndReady(ctx context.Context, podLabelKey, podLabelValue st
 			g.Expect(podIsReady(pod.Status.Conditions)).Should(BeTrue())
 		}
 		return true
-	}, 30*time.Second, Interval).Should(BeTrue())
+	}, test.Timeout, test.Interval).Should(BeTrue())
+}
+
+func deleteStorageSafely(ctx context.Context, storageSample *v1alpha1.Storage) {
+	// not checking that deletion completed successfully
+	// because some tests delete storage themselves and
+	// it may already be deleted.
+	_ = k8sClient.Delete(ctx, storageSample)
+
+	Eventually(func() bool {
+		fetched := v1alpha1.Storage{}
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      storageSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &fetched)
+		return apierrors.IsNotFound(err)
+	}, Timeout, Interval).Should(BeTrue())
 }
 
 func bringYdbCliToPod(podName, podNamespace string) {
@@ -150,6 +168,7 @@ func bringYdbCliToPod(podName, podNamespace string) {
 			"-n",
 			podNamespace,
 			"cp",
+			// This implicitly relies on 'ydb' cli binary installed in your system
 			fmt.Sprintf("%v/ydb/bin/ydb", os.ExpandEnv("$HOME")),
 			fmt.Sprintf("%v:/tmp/ydb", podName),
 		}
@@ -158,7 +177,7 @@ func bringYdbCliToPod(podName, podNamespace string) {
 	}, Timeout, Interval).Should(BeNil())
 }
 
-func executeSimpleQuery(ctx context.Context, podName, podNamespace, storageEndpoint string) {
+func executeSimpleQuery(podName, podNamespace, storageEndpoint string) {
 	Eventually(func(g Gomega) string {
 		args := []string{
 			"-n",
@@ -246,7 +265,26 @@ func portForward(ctx context.Context, svcName string, svcNamespace string, port 
 			return fmt.Errorf("kubectl port-forward stderr: %s", content)
 		}
 		return nil
-	}, 60*time.Second, Interval).Should(BeNil())
+	}, Timeout, test.Interval).Should(BeNil())
+}
+
+func emptyStorageDefaultFields(storage *v1alpha1.Storage) {
+	storage.Spec.Image = nil
+	storage.Spec.Resources = nil
+	storage.Spec.Service = nil
+	storage.Spec.Monitoring = nil
+}
+
+func emptyDatabaseDefaultFields(database *v1alpha1.Database) {
+	database.Spec.StorageClusterRef.Namespace = ""
+	database.Spec.Image = nil
+	database.Spec.Service = nil
+	database.Spec.Domain = ""
+	database.Spec.Path = ""
+	database.Spec.Encryption = nil
+	database.Spec.Datastreams = nil
+	database.Spec.Monitoring = nil
+	database.Spec.StorageEndpoint = ""
 }
 
 var _ = Describe("Operator smoke test", func() {
@@ -257,7 +295,7 @@ var _ = Describe("Operator smoke test", func() {
 	var databaseSample *v1alpha1.Database
 
 	BeforeEach(func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config.yaml"))
 		databaseSample = testobjects.DefaultDatabase()
 
 		ctx = context.Background()
@@ -281,36 +319,38 @@ var _ = Describe("Operator smoke test", func() {
 	})
 
 	It("Check webhook defaulter", func() {
-		storageSample.Spec.Image = nil
-		storageSample.Spec.Resources = nil
-		storageSample.Spec.Service = nil
-		storageSample.Spec.Monitoring = nil
+		emptyStorageDefaultFields(storageSample)
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
-		databaseSample.Spec.StorageClusterRef.Namespace = ""
-		databaseSample.Spec.Image = nil
-		databaseSample.Spec.Service = nil
-		databaseSample.Spec.Domain = ""
-		databaseSample.Spec.Path = ""
-		databaseSample.Spec.Encryption = nil
-		databaseSample.Spec.Datastreams = nil
-		databaseSample.Spec.Monitoring = nil
-		databaseSample.Spec.StorageEndpoint = ""
+		emptyDatabaseDefaultFields(databaseSample)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
 		}()
 	})
 
+	It("Check webhook defaulter with dynconfig and nodeSets", func() {
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-dynconfig.yaml"))
+		emptyStorageDefaultFields(storageSample)
+		storageSample.Spec.NodeSets = []v1alpha1.StorageNodeSetSpecInline{
+			{
+				Name:            "storage-nodeset-1",
+				StorageNodeSpec: v1alpha1.StorageNodeSpec{Nodes: 1},
+			},
+			{
+				Name:            "storage-nodeset-2",
+				StorageNodeSpec: v1alpha1.StorageNodeSpec{Nodes: 2},
+			},
+		}
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer deleteStorageSafely(ctx, storageSample)
+	})
+
 	It("general smoke pipeline, create storage + database", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
@@ -345,15 +385,13 @@ var _ = Describe("Operator smoke test", func() {
 		bringYdbCliToPod(podName, testobjects.YdbNamespace)
 
 		By("execute simple query inside ydb database pod...")
-		executeSimpleQuery(ctx, podName, testobjects.YdbNamespace, storageEndpoint)
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	It("pause and un-pause Storage, should destroy and bring up Pods", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -401,9 +439,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("freeze + delete StatefulSet + un-freeze Storage", func() {
 		By("issuing create commands...")
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -429,7 +465,7 @@ var _ = Describe("Operator smoke test", func() {
 			})).Should(Succeed())
 
 			return len(storagePods.Items) == int(storageSample.Spec.Nodes)
-		}, 20*time.Second, Interval).Should(BeTrue())
+		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("deleting a StatefulSet...")
 		statefulSet := v1.StatefulSet{}
@@ -456,7 +492,7 @@ var _ = Describe("Operator smoke test", func() {
 			})).Should(Succeed())
 
 			return len(storagePods.Items) == 0
-		}, 20*time.Second, Interval).Should(BeTrue())
+		}, test.Timeout, test.Interval).Should(BeTrue())
 
 		By("setting storage freeze back to Running...")
 		storage = v1alpha1.Storage{}
@@ -473,45 +509,28 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("checking that all the storage pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
-
-		/*
-			// This test suite attempts to create a database on uninitialised storage
-
-			By("database can be healthily created after Frozen storage...")
-			Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
-			defer func() {
-				Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
-			}()
-			By("waiting until database is ready...")
-			waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
-			By("checking that all the database pods are running and ready...")
-			checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
-		*/
 	})
 
 	It("create storage and database with nodeSets", func() {
 		By("issuing create commands...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config-nodeSets.yaml"))
-		databaseSample = testobjects.DefaultDatabase()
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config.yaml"))
 		testNodeSetName := "nodeset"
-		for idx := 1; idx <= 2; idx++ {
+		for idx := 1; idx <= 3; idx++ {
 			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
 				Name: testNodeSetName + "-" + strconv.Itoa(idx),
 				StorageNodeSpec: v1alpha1.StorageNodeSpec{
-					Nodes: 4,
+					Nodes: 1,
 				},
 			})
 			databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 				Name: testNodeSetName + "-" + strconv.Itoa(idx),
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-					Nodes: 4,
+					Nodes: 1,
 				},
 			})
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
@@ -531,18 +550,24 @@ var _ = Describe("Operator smoke test", func() {
 
 		database := v1alpha1.Database{}
 		databasePods := corev1.PodList{}
-		By("delete nodeSetSpec inline to check inheritance...")
+		By("modify nodeSetSpec inline to check inheritance...")
 		Eventually(func(g Gomega) error {
 			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      databaseSample.Name,
 				Namespace: testobjects.YdbNamespace,
 			}, &database)).Should(Succeed())
-			database.Spec.Nodes = 4
+			database.Spec.Nodes = 2
 			database.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{
 				{
 					Name: testNodeSetName + "-" + strconv.Itoa(1),
 					DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-						Nodes: 4,
+						Nodes: 1,
+					},
+				},
+				{
+					Name: testNodeSetName + "-" + strconv.Itoa(2),
+					DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
+						Nodes: 1,
 					},
 				},
 			}
@@ -572,21 +597,19 @@ var _ = Describe("Operator smoke test", func() {
 		bringYdbCliToPod(podName, testobjects.YdbNamespace)
 
 		By("execute simple query inside ydb database pod...")
-		executeSimpleQuery(ctx, podName, testobjects.YdbNamespace, storageEndpoint)
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	It("operatorConnection check, create storage with default staticCredentials", func() {
 		By("issuing create commands...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config-staticCreds.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-staticCreds.yaml"))
 		storageSample.Spec.OperatorConnection = &v1alpha1.ConnectionOptions{
 			StaticCredentials: &v1alpha1.StaticCredentialsAuth{
 				Username: "root",
 			},
 		}
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -597,9 +620,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("storage.State goes Pending -> Preparing -> Initializing -> Provisioning -> Ready", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -638,7 +659,7 @@ var _ = Describe("Operator smoke test", func() {
 		}()
 
 		By("create storage...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-block-4-2-config-tls.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-tls.yaml"))
 		storageSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
 		storageSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
@@ -652,16 +673,8 @@ var _ = Describe("Operator smoke test", func() {
 			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
 			Key:                  "ca.crt",
 		}
-
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
-		}()
-		By("create database...")
-		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
-		defer func() {
-			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
-		}()
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -669,11 +682,159 @@ var _ = Describe("Operator smoke test", func() {
 		By("checking that all the storage pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 
+		By("create database...")
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.crt",
+		}
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.Key = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "tls.key",
+		}
+		databaseSample.Spec.Service.GRPC.TLSConfiguration.CertificateAuthority = corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
+			Key:                  "ca.crt",
+		}
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+
 		By("waiting until database is ready...")
 		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
 
 		By("checking that all the database pods are running and ready...")
 		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		storagePods := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &storagePods,
+			client.InNamespace(testobjects.YdbNamespace),
+			client.MatchingLabels{
+				"ydb-cluster": "kind-database",
+			})).Should(Succeed())
+		podName := storagePods.Items[0].Name
+
+		By("bring YDB CLI inside ydb storage pod...")
+		bringYdbCliToPod(podName, testobjects.YdbNamespace)
+
+		By("execute simple query inside ydb storage pod...")
+		storageEndpoint := fmt.Sprintf("grpcs://%s:%d", testobjects.StorageGRPCService, testobjects.StorageGRPCPort)
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
+	})
+
+	It("Check that Storage deleted after Database...", func() {
+		By("create storage...")
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer deleteStorageSafely(ctx, storageSample)
+
+		By("create database...")
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("waiting until Database is ready...")
+		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the database pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		By("delete Storage...")
+		Expect(k8sClient.Delete(ctx, storageSample)).Should(Succeed())
+
+		By("checking that Storage deletionTimestamp is not nil...")
+		Eventually(func() bool {
+			foundStorage := v1alpha1.Storage{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage)
+			if err != nil {
+				return false
+			}
+			return !foundStorage.DeletionTimestamp.IsZero()
+		}, Timeout, test.Interval).Should(BeTrue())
+
+		By("checking that Storage is present in cluster...")
+		Consistently(func() error {
+			foundStorage := v1alpha1.Storage{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage)
+			return err
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		By("delete Database...")
+		Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+
+		By("checking that Storage deleted from cluster...")
+		Eventually(func() bool {
+			foundStorage := v1alpha1.Storage{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage)
+			return apierrors.IsNotFound(err)
+		}, Timeout, test.Interval).Should(BeTrue())
+	})
+
+	It("check storage with dynconfig", func() {
+		By("create storage...")
+		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-dynconfig.yaml"))
+
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer deleteStorageSafely(ctx, storageSample)
+
+		storage := v1alpha1.Storage{}
+		By("waiting until StorageInitialized condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, StorageInitializedCondition)
+			if condition != nil {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("waiting until ReplaceConfig condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, ReplaceConfigOperationCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
+
+		By("waiting until ConfigurationSynced condition is true...")
+		Eventually(func(g Gomega) bool {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      storageSample.Name,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			condition := meta.FindStatusCondition(storage.Status.Conditions, ConfigurationSyncedCondition)
+			if condition != nil && condition.ObservedGeneration == storage.Generation {
+				return condition.Status == metav1.ConditionTrue
+			}
+
+			return false
+		}, Timeout, Interval).Should(BeTrue())
 	})
 
 	It("TLS for status service", func() {
@@ -695,7 +856,7 @@ var _ = Describe("Operator smoke test", func() {
 			transport := &http.Transport{TLSClientConfig: tlsConfig}
 			client := &http.Client{
 				Transport: transport,
-				Timeout:   10 * time.Second,
+				Timeout:   test.Timeout,
 			}
 			resp, err := client.Get(url)
 			if err != nil {
@@ -740,13 +901,16 @@ var _ = Describe("Operator smoke test", func() {
 				Key:                  "ca.crt",
 			},
 		}
-
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer deleteStorageSafely(ctx, storageSample)
 
 		By("create database...")
 		databaseSample.Spec.Nodes = 1
 		databaseSample.Spec.Service.Status = *storageSample.Spec.Service.Status.DeepCopy()
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
 
 		By("waiting until Storage is ready...")
 		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
@@ -771,6 +935,52 @@ var _ = Describe("Operator smoke test", func() {
 			fmt.Sprintf(resources.StatusServiceNameFormat, databaseSample.Name), databaseSample.Namespace,
 			v1alpha1.StatusPort, tlsHTTPCheck,
 		)
+	})
+
+	It("Check encryption for Database", func() {
+		By("create storage...")
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer deleteStorageSafely(ctx, storageSample)
+		By("create database...")
+		databaseSample.Spec.Encryption = &v1alpha1.EncryptionConfig{
+			Enabled: true,
+		}
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+
+		By("waiting until Storage is ready...")
+		waitUntilStorageReady(ctx, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("waiting until database is ready...")
+		waitUntilDatabaseReady(ctx, databaseSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the database pods are running and ready...")
+		checkPodsRunningAndReady(ctx, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		database := v1alpha1.Database{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{
+			Name:      databaseSample.Name,
+			Namespace: testobjects.YdbNamespace,
+		}, &database)).Should(Succeed())
+		storageEndpoint := database.Spec.StorageEndpoint
+
+		databasePods := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &databasePods,
+			client.InNamespace(testobjects.YdbNamespace),
+			client.MatchingLabels{"ydb-cluster": "kind-database"}),
+		).Should(Succeed())
+		podName := databasePods.Items[0].Name
+
+		By("bring YDB CLI inside ydb database pod...")
+		bringYdbCliToPod(podName, testobjects.YdbNamespace)
+
+		By("execute simple query inside ydb database pod...")
+		executeSimpleQuery(podName, testobjects.YdbNamespace, storageEndpoint)
 	})
 
 	AfterEach(func() {

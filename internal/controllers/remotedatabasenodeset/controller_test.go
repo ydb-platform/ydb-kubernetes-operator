@@ -14,10 +14,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -206,12 +203,12 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 	var databaseSample *v1alpha1.Database
 
 	BeforeEach(func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-block-4-2-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		databaseSample = testobjects.DefaultDatabase()
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 			Name: testNodeSetName + "-local",
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 4,
+				Nodes: 1,
 			},
 		})
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
@@ -220,7 +217,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 				Cluster: testRemoteCluster,
 			},
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 4,
+				Nodes: 1,
 			},
 		})
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
@@ -229,7 +226,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 				Cluster: testRemoteCluster,
 			},
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 4,
+				Nodes: 1,
 			},
 		})
 
@@ -347,8 +344,10 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 	})
 
 	AfterEach(func() {
-		deleteAll(localEnv, localClient, &localNamespace)
-		deleteAll(remoteEnv, remoteClient, &localNamespace)
+		Expect(localClient.Delete(ctx, databaseSample)).Should(Succeed())
+		Expect(localClient.Delete(ctx, storageSample)).Should(Succeed())
+		test.DeleteAllObjects(localEnv, localClient, &localNamespace)
+		test.DeleteAllObjects(remoteEnv, remoteClient, &localNamespace)
 	})
 
 	When("Created RemoteDatabaseNodeSet in k8s-mgmt-cluster", func() {
@@ -443,7 +442,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 						Cluster: testRemoteCluster,
 					},
 					StorageNodeSpec: v1alpha1.StorageNodeSpec{
-						Nodes: 4,
+						Nodes: 1,
 					},
 				})
 
@@ -568,7 +567,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 					{
 						Name: testNodeSetName + "-local",
 						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-							Nodes: 4,
+							Nodes: 2,
 						},
 					},
 					{
@@ -577,7 +576,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 							Cluster: testRemoteCluster,
 						},
 						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-							Nodes: 4,
+							Nodes: 1,
 						},
 					},
 				}
@@ -821,7 +820,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 					{
 						Name: testNodeSetName + "-local",
 						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-							Nodes: 4,
+							Nodes: 2,
 						},
 					},
 					{
@@ -830,7 +829,7 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 							Cluster: testRemoteCluster,
 						},
 						DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-							Nodes: 4,
+							Nodes: 1,
 						},
 					},
 				}
@@ -890,108 +889,3 @@ var _ = Describe("RemoteDatabaseNodeSet controller tests", func() {
 		})
 	})
 })
-
-func deleteAll(env *envtest.Environment, k8sClient client.Client, objs ...client.Object) {
-	for _, obj := range objs {
-		ctx := context.Background()
-		clientGo, err := kubernetes.NewForConfig(env.Config)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, obj))).Should(Succeed())
-
-		//nolint:nestif
-		if ns, ok := obj.(*corev1.Namespace); ok {
-			// Normally the kube-controller-manager would handle finalization
-			// and garbage collection of namespaces, but with envtest, we aren't
-			// running a kube-controller-manager. Instead we're gonna approximate
-			// (poorly) the kube-controller-manager by explicitly deleting some
-			// resources within the namespace and then removing the `kubernetes`
-			// finalizer from the namespace resource so it can finish deleting.
-			// Note that any resources within the namespace that we don't
-			// successfully delete could reappear if the namespace is ever
-			// recreated with the same name.
-
-			// Look up all namespaced resources under the discovery API
-			_, apiResources, err := clientGo.Discovery().ServerGroupsAndResources()
-			Expect(err).ShouldNot(HaveOccurred())
-			namespacedGVKs := make(map[string]schema.GroupVersionKind)
-			for _, apiResourceList := range apiResources {
-				defaultGV, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
-				Expect(err).ShouldNot(HaveOccurred())
-				for _, r := range apiResourceList.APIResources {
-					if !r.Namespaced || strings.Contains(r.Name, "/") {
-						// skip non-namespaced and subresources
-						continue
-					}
-					gvk := schema.GroupVersionKind{
-						Group:   defaultGV.Group,
-						Version: defaultGV.Version,
-						Kind:    r.Kind,
-					}
-					if r.Group != "" {
-						gvk.Group = r.Group
-					}
-					if r.Version != "" {
-						gvk.Version = r.Version
-					}
-					namespacedGVKs[gvk.String()] = gvk
-				}
-			}
-
-			// Delete all namespaced resources in this namespace
-			for _, gvk := range namespacedGVKs {
-				var u unstructured.Unstructured
-				u.SetGroupVersionKind(gvk)
-				err := k8sClient.DeleteAllOf(ctx, &u, client.InNamespace(ns.Name))
-				Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(err))).ShouldNot(HaveOccurred())
-			}
-
-			// Delete all Services in this namespace
-			serviceList := corev1.ServiceList{}
-			err = k8sClient.List(ctx, &serviceList, client.InNamespace(ns.Name))
-			Expect(err).ShouldNot(HaveOccurred())
-			for idx := range serviceList.Items {
-				policy := metav1.DeletePropagationForeground
-				err = k8sClient.Delete(ctx, &serviceList.Items[idx], &client.DeleteOptions{PropagationPolicy: &policy})
-				Expect(err).ShouldNot(HaveOccurred())
-			}
-
-			Eventually(func() error {
-				key := client.ObjectKeyFromObject(ns)
-				if err := k8sClient.Get(ctx, key, ns); err != nil {
-					return client.IgnoreNotFound(err)
-				}
-				// remove `kubernetes` finalizer
-				const kubernetes = "kubernetes"
-				finalizers := []corev1.FinalizerName{}
-				for _, f := range ns.Spec.Finalizers {
-					if f != kubernetes {
-						finalizers = append(finalizers, f)
-					}
-				}
-				ns.Spec.Finalizers = finalizers
-
-				// We have to use the k8s.io/client-go library here to expose
-				// ability to patch the /finalize subresource on the namespace
-				_, err = clientGo.CoreV1().Namespaces().Finalize(ctx, ns, metav1.UpdateOptions{})
-				return err
-			}, test.Timeout, test.Interval).Should(Succeed())
-		}
-
-		Eventually(func() metav1.StatusReason {
-			key := client.ObjectKeyFromObject(obj)
-			if err := k8sClient.Get(ctx, key, obj); err != nil {
-				return apierrors.ReasonForError(err)
-			}
-			return ""
-		}, test.Timeout, test.Interval).Should(Equal(metav1.StatusReasonNotFound))
-	}
-}
-
-func ignoreMethodNotAllowed(err error) error {
-	if err != nil {
-		if apierrors.ReasonForError(err) == metav1.StatusReasonMethodNotAllowed {
-			return nil
-		}
-	}
-	return err
-}

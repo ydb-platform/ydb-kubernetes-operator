@@ -1,0 +1,4 @@
+kind: Added
+body: 'added the ability to create metadata announce for customize dns domain (default:
+  cluster.local)'
+time: 2024-11-18T22:28:10.452679+03:00

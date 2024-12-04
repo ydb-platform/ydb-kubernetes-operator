@@ -331,7 +331,7 @@ func (r *Reconciler) createOrUpdateOperatorTokenSecret(
 	storage *resources.StorageClusterBuilder,
 	creds ydbCredentials.Credentials,
 ) error {
-	ydbCtx, cancel := context.WithTimeout(ctx, time.Second)
+	ydbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	token, err := creds.Token(
 		metadata.AppendToOutgoingContext(ydbCtx, "x-ydb-database", storage.Spec.Domain),

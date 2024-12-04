@@ -6,15 +6,18 @@ const (
 
 	ImagePathFormat = "%s:%s"
 
+	DefaultDomainName   = "cluster.local"
+	DNSDomainAnnotation = "dns.domain"
+
 	GRPCPort              = 2135
 	GRPCServicePortName   = "grpc"
 	GRPCProto             = "grpc://"
 	GRPCSProto            = "grpcs://"
-	GRPCServiceFQDNFormat = "%s-grpc.%s.svc.cluster.local"
+	GRPCServiceFQDNFormat = "%s-grpc.%s.svc.%s"
 
 	InterconnectPort              = 19001
 	InterconnectServicePortName   = "interconnect"
-	InterconnectServiceFQDNFormat = "%s-interconnect.%s.svc.cluster.local"
+	InterconnectServiceFQDNFormat = "%s-interconnect.%s.svc.%s"
 
 	StatusPort            = 8765
 	StatusServicePortName = "status"
@@ -30,11 +33,18 @@ const (
 	ConfigDir      = "/opt/ydb/cfg"
 	ConfigFileName = "config.yaml"
 
+	DatabaseEncryptionKeySecretDir  = "database_encryption"
+	DatabaseEncryptionKeySecretFile = "key"
+	DatabaseEncryptionKeyConfigFile = "key.txt"
+
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
 
-	DefaultRootUsername = "root"
-	DefaultRootPassword = ""
+	DefaultRootUsername          = "root"
+	DefaultRootPassword          = ""
+	DefaultDatabaseDomain        = "Root"
+	DefaultDatabaseEncryptionPin = "EmptyPin"
+	DefaultSignAlgorithm         = "RS256"
 
 	LabelDeploymentKey             = "deployment"
 	LabelDeploymentValueKubernetes = "kubernetes"
@@ -51,7 +61,8 @@ const (
 	AnnotationNodeHost               = "ydb.tech/node-host"
 	AnnotationNodeDomain             = "ydb.tech/node-domain"
 
-	FinalizerRemote = "ydb.tech/remote-finalizer"
+	RemoteFinalizerKey  = "ydb.tech/remote-finalizer"
+	StorageFinalizerKey = "ydb.tech/storage-finalizer"
 
 	legacyTenantNameFormat = "/%s/%s"
 )
