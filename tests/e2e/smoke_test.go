@@ -59,7 +59,7 @@ var _ = Describe("Operator smoke test", func() {
 	var databaseSample *v1alpha1.Database
 
 	BeforeEach(func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config.yaml"))
 		databaseSample = testobjects.DefaultDatabase()
 
 		ctx = context.Background()
@@ -95,7 +95,7 @@ var _ = Describe("Operator smoke test", func() {
 	})
 
 	It("Check webhook defaulter with dynconfig and nodeSets", func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-dynconfig.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-dynconfig.yaml"))
 		emptyStorageDefaultFields(storageSample)
 		storageSample.Spec.NodeSets = []v1alpha1.StorageNodeSetSpecInline{
 			{
@@ -278,7 +278,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("create storage and database with nodeSets", func() {
 		By("issuing create commands...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config.yaml"))
 		testNodeSetName := "nodeset"
 		for idx := 1; idx <= 3; idx++ {
 			storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
@@ -368,7 +368,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("operatorConnection check, create storage with default staticCredentials", func() {
 		By("issuing create commands...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-staticCreds.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config-staticCreds.yaml"))
 		storageSample.Spec.OperatorConnection = &v1alpha1.ConnectionOptions{
 			StaticCredentials: &v1alpha1.StaticCredentialsAuth{
 				Username: "root",
@@ -415,9 +415,9 @@ var _ = Describe("Operator smoke test", func() {
 	It("using grpcs for storage connection", func() {
 		By("create secret...")
 		cert := testobjects.DefaultCertificate(
-			filepath.Join(".", "data", "tls.crt"),
-			filepath.Join(".", "data", "tls.key"),
-			filepath.Join(".", "data", "ca.crt"),
+			filepath.Join("..", "data", "tls.crt"),
+			filepath.Join("..", "data", "tls.key"),
+			filepath.Join("..", "data", "ca.crt"),
 		)
 		Expect(k8sClient.Create(ctx, cert)).Should(Succeed())
 		defer func() {
@@ -425,7 +425,7 @@ var _ = Describe("Operator smoke test", func() {
 		}()
 
 		By("create storage...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-config-tls.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config-tls.yaml"))
 		storageSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
 		storageSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
@@ -551,7 +551,7 @@ var _ = Describe("Operator smoke test", func() {
 
 	It("check storage with dynconfig", func() {
 		By("create storage...")
-		storageSample = testobjects.DefaultStorage(filepath.Join(".", "data", "storage-mirror-3-dc-dynconfig.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-dynconfig.yaml"))
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer DeleteStorageSafely(ctx, k8sClient, storageSample)
@@ -606,7 +606,7 @@ var _ = Describe("Operator smoke test", func() {
 	It("TLS for status service", func() {
 		tlsHTTPCheck := func(port int) error {
 			url := fmt.Sprintf("https://localhost:%d/", port)
-			cert, err := os.ReadFile(filepath.Join(".", "data", "ca.crt"))
+			cert, err := os.ReadFile(filepath.Join("..", "data", "ca.crt"))
 			Expect(err).ShouldNot(HaveOccurred())
 
 			certPool := x509.NewCertPool()
@@ -645,9 +645,9 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("create secret...")
 		cert := testobjects.DefaultCertificate(
-			filepath.Join(".", "data", "tls.crt"),
-			filepath.Join(".", "data", "tls.key"),
-			filepath.Join(".", "data", "ca.crt"),
+			filepath.Join("..", "data", "tls.crt"),
+			filepath.Join("..", "data", "tls.key"),
+			filepath.Join("..", "data", "ca.crt"),
 		)
 		Expect(k8sClient.Create(ctx, cert)).Should(Succeed())
 
