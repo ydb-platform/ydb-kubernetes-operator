@@ -104,10 +104,11 @@ func (r *Reconciler) handleResourcesSync(
 
 	if databaseNodeSet.Status.State == DatabaseNodeSetPending {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetPreparedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: "Waiting for sync resources",
+			Type:               NodeSetPreparedCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            "Waiting for sync resources",
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetPreparing
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
@@ -197,10 +198,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if databaseNodeSet.Status.State == DatabaseNodeSetPreparing {
 		meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-			Type:    NodeSetProvisionedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Waiting for scale to desired nodes: %d", databaseNodeSet.Spec.Nodes),
+			Type:               NodeSetProvisionedCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: databaseNodeSet.Generation,
+			Message:            fmt.Sprintf("Waiting for scale to desired nodes: %d", databaseNodeSet.Spec.Nodes),
 		})
 		databaseNodeSet.Status.State = DatabaseNodeSetProvisioning
 		return r.updateStatus(ctx, databaseNodeSet, StatusUpdateRequeueDelay)
@@ -330,8 +332,8 @@ func (r *Reconciler) updateStatus(
 
 func shouldIgnoreDatabaseNodeSetChange(databaseNodeSet *resources.DatabaseNodeSetResource) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
-		if statefulSet, ok := oldObj.(*appsv1.StatefulSet); ok {
-			if databaseNodeSet.Spec.Pause && *statefulSet.Spec.Replicas == 0 {
+		if _, ok := newObj.(*appsv1.StatefulSet); ok {
+			if databaseNodeSet.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
 				return true
 			}
 		}
@@ -348,16 +350,18 @@ func (r *Reconciler) handlePauseResume(
 	if databaseNodeSet.Status.State == DatabaseNodeSetProvisioning {
 		if databaseNodeSet.Spec.Pause {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetPausedCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
+				Type:               NodeSetPausedCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: databaseNodeSet.Generation,
 			})
 			databaseNodeSet.Status.State = DatabaseNodeSetPaused
 		} else {
 			meta.SetStatusCondition(&databaseNodeSet.Status.Conditions, metav1.Condition{
-				Type:   NodeSetReadyCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
+				Type:               NodeSetReadyCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: databaseNodeSet.Generation,
 			})
 			databaseNodeSet.Status.State = DatabaseNodeSetReady
 		}

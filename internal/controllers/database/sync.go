@@ -43,12 +43,12 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	stop, result, err = r.syncNodeSetSpecInline(ctx, &database)
+	stop, result, err = r.handleResourcesSync(ctx, &database)
 	if stop {
 		return result, err
 	}
 
-	stop, result, err = r.handleResourcesSync(ctx, &database)
+	stop, result, err = r.syncNodeSetSpecInline(ctx, &database)
 	if stop {
 		return result, err
 	}
@@ -115,10 +115,11 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 
 	if database.Status.State == DatabasePending {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    DatabasePreparedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: "Waiting for sync resources",
+			Type:               DatabasePreparedCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: database.Generation,
+			Message:            "Waiting for sync resources",
 		})
 		database.Status.State = DatabasePreparing
 		return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
@@ -169,9 +170,10 @@ func (r *Reconciler) waitForClusterResources(ctx context.Context, database *reso
 			),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:   DatabasePreparedCondition,
-			Status: metav1.ConditionFalse,
-			Reason: ReasonInProgress,
+			Type:               DatabasePreparedCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: database.Generation,
 			Message: fmt.Sprintf(
 				"Referenced storage cluster (%s, %s) is not initialized",
 				database.Spec.StorageClusterRef.Name,
@@ -195,10 +197,11 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 
 	if database.Status.State == DatabaseInitializing {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    DatabaseProvisionedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: "Waiting for NodeSets conditions to be Provisioned",
+			Type:               DatabaseProvisionedCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: database.Generation,
+			Message:            "Waiting for NodeSet resources to be Provisioned",
 		})
 		database.Status.State = DatabaseProvisioning
 		return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
@@ -294,10 +297,11 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 	if database.Status.State == DatabaseInitializing {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    DatabaseProvisionedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: fmt.Sprintf("Waiting for scale to desired nodes: %d", database.Spec.Nodes),
+			Type:               DatabaseProvisionedCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: database.Generation,
+			Message:            fmt.Sprintf("Waiting for scale to desired number of nodes: %d", database.Spec.Nodes),
 		})
 		database.Status.State = DatabaseProvisioning
 		return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
@@ -670,16 +674,18 @@ func (r *Reconciler) handlePauseResume(
 	if database.Status.State == DatabaseProvisioning {
 		if database.Spec.Pause {
 			meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-				Type:   DatabasePausedCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
+				Type:               DatabasePausedCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: database.Generation,
 			})
 			database.Status.State = DatabasePaused
 		} else {
 			meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-				Type:   DatabaseReadyCondition,
-				Status: metav1.ConditionTrue,
-				Reason: ReasonCompleted,
+				Type:               DatabaseReadyCondition,
+				Status:             metav1.ConditionTrue,
+				Reason:             ReasonCompleted,
+				ObservedGeneration: database.Generation,
 			})
 			database.Status.State = DatabaseReady
 		}
