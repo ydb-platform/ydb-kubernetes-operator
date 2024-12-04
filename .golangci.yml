@@ -37,15 +37,22 @@ output:
   # colored-line-number|line-number|json|tab|checkstyle, default is "colored-line-number"
   format: colored-line-number
 
-  # print lines of code with issue, default is true
   print-issued-lines: true
 
-  # print linter name in the end of issue text, default is true
   print-linter-name: true
 
 
 # all available settings of specific linters
 linters-settings:
+  stylecheck:
+    dot-import-whitelist:
+      # used in tests only
+      - "github.com/onsi/ginkgo/v2"
+      # used in tests only
+      - "github.com/onsi/gomega"
+      # it's nice having string constants in a separate package, but without boilerplate
+      - "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
+
   errcheck:
     # report about not checking of errors in types assetions: `a := b.(MyStruct)`;
     # default is false: such cases aren't reported by default.

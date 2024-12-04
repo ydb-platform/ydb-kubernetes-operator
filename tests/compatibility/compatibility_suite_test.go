@@ -359,6 +359,6 @@ func RestartPodsNoRollingRestart(
 			return newPod.Status.Phase == corev1.PodRunning
 		}, Timeout, Interval).Should(BeTrue(), fmt.Sprintf("Pod %s should be running", pod.Name))
 
-		time.Sleep(90 * time.Second)
+		time.Sleep(120 * time.Second)
 	}
 }

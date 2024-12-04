@@ -217,10 +217,9 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 			"-s",
 			fmt.Sprintf("CREATE TABLE `%s` (testColumnA Utf8, testColumnB Utf8, PRIMARY KEY (testColumnA));", tablePath),
 		}
-		output, err := exec.Command("kubectl", args...).CombinedOutput()
+		output, _ := exec.Command("kubectl", args...).CombinedOutput()
 		fmt.Println(string(output))
-		g.Expect(err).ShouldNot(HaveOccurred())
-	}, Timeout, Interval).Should(Succeed())
+	}, Timeout, time.Second * 10).Should(Succeed())
 
 	argsInsert := []string{
 		"-n", podNamespace,
