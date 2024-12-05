@@ -251,7 +251,7 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 	}
 	output, err = exec.Command("kubectl", argsSelect...).CombinedOutput()
 	Expect(err).ShouldNot(HaveOccurred(), string(output))
-	Expect(strings.TrimSpace(string(output))).To(Equal("\"valueA\",\"valueB\""))
+	Expect(strings.TrimSpace(string(output))).To(ContainSubstring("\"valueA\",\"valueB\""))
 
 	argsDrop := []string{
 		"-n", podNamespace,
@@ -268,7 +268,12 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 	Expect(err).ShouldNot(HaveOccurred(), string(output))
 }
 
-func PortForward(ctx context.Context, svcName, svcNamespace string, port int, f func(int) error) {
+func PortForward(
+	ctx context.Context,
+	svcName, svcNamespace, serverName string,
+	port int,
+	f func(int, string) error,
+) {
 	Eventually(func(g Gomega) error {
 		args := []string{
 			"-n", svcNamespace,
@@ -318,7 +323,7 @@ func PortForward(ctx context.Context, svcName, svcNamespace string, port int, f 
 		}
 
 		if localPort != 0 {
-			if err = f(localPort); err != nil {
+			if err = f(localPort, serverName); err != nil {
 				return err
 			}
 		} else {

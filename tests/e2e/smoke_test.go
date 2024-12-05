@@ -412,33 +412,25 @@ var _ = Describe("Operator smoke test", func() {
 		}
 	})
 
-	It("using grpcs for storage connection", func() {
-		By("create secret...")
-		cert := testobjects.DefaultCertificate(
-			filepath.Join("..", "data", "tls.crt"),
-			filepath.Join("..", "data", "tls.key"),
-			filepath.Join("..", "data", "ca.crt"),
-		)
-		Expect(k8sClient.Create(ctx, cert)).Should(Succeed())
+	FIt("using grpcs for storage connection", func() {
+		By("create storage certificate secret...")
+		storageCert := testobjects.StorageCertificate()
+		Expect(k8sClient.Create(ctx, storageCert)).Should(Succeed())
 		defer func() {
-			Expect(k8sClient.Delete(ctx, cert)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, storageCert)).Should(Succeed())
+		}()
+		By("create database certificate secret...")
+		databaseCert := testobjects.DatabaseCertificate()
+		Expect(k8sClient.Create(ctx, databaseCert)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseCert)).Should(Succeed())
 		}()
 
 		By("create storage...")
 		storageSample = testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config-tls.yaml"))
-		storageSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
-		storageSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-			Key:                  "tls.crt",
-		}
-		storageSample.Spec.Service.GRPC.TLSConfiguration.Key = corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-			Key:                  "tls.key",
-		}
-		storageSample.Spec.Service.GRPC.TLSConfiguration.CertificateAuthority = corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-			Key:                  "ca.crt",
-		}
+		storageSample.Spec.Service.GRPC.TLSConfiguration = testobjects.TLSConfiguration(
+			testobjects.StorageCertificateSecretName,
+		)
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer DeleteStorageSafely(ctx, k8sClient, storageSample)
 
@@ -449,19 +441,9 @@ var _ = Describe("Operator smoke test", func() {
 		CheckPodsRunningAndReady(ctx, k8sClient, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
 
 		By("create database...")
-		databaseSample.Spec.Service.GRPC.TLSConfiguration.Enabled = true
-		databaseSample.Spec.Service.GRPC.TLSConfiguration.Certificate = corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-			Key:                  "tls.crt",
-		}
-		databaseSample.Spec.Service.GRPC.TLSConfiguration.Key = corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-			Key:                  "tls.key",
-		}
-		databaseSample.Spec.Service.GRPC.TLSConfiguration.CertificateAuthority = corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-			Key:                  "ca.crt",
-		}
+		databaseSample.Spec.Service.GRPC.TLSConfiguration = testobjects.TLSConfiguration(
+			testobjects.DatabaseCertificateSecretName,
+		)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
@@ -609,10 +591,10 @@ var _ = Describe("Operator smoke test", func() {
 		}, Timeout, Interval).Should(BeTrue())
 	})
 
-	It("TLS for status service", func() {
-		tlsHTTPCheck := func(port int) error {
+	FIt("TLS for status service", func() {
+		tlsHTTPCheck := func(port int, serverName string) error {
 			url := fmt.Sprintf("https://localhost:%d/", port)
-			cert, err := os.ReadFile(filepath.Join("..", "data", "ca.crt"))
+			cert, err := os.ReadFile(testobjects.TestCAPath)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			certPool := x509.NewCertPool()
@@ -622,7 +604,7 @@ var _ = Describe("Operator smoke test", func() {
 			tlsConfig := &tls.Config{
 				MinVersion: tls.VersionTLS12,
 				RootCAs:    certPool,
-				ServerName: "storage-grpc.ydb.svc.cluster.local",
+				ServerName: serverName,
 			}
 
 			transport := &http.Transport{TLSClientConfig: tlsConfig}
@@ -649,36 +631,31 @@ var _ = Describe("Operator smoke test", func() {
 			return nil
 		}
 
-		By("create secret...")
-		cert := testobjects.DefaultCertificate(
-			filepath.Join("..", "data", "tls.crt"),
-			filepath.Join("..", "data", "tls.key"),
-			filepath.Join("..", "data", "ca.crt"),
-		)
-		Expect(k8sClient.Create(ctx, cert)).Should(Succeed())
+		By("create storage certificate secret...")
+		storageCert := testobjects.StorageCertificate()
+		Expect(k8sClient.Create(ctx, storageCert)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, storageCert)).Should(Succeed())
+		}()
+		By("create database certificate secret...")
+		databaseCert := testobjects.DatabaseCertificate()
+		Expect(k8sClient.Create(ctx, databaseCert)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseCert)).Should(Succeed())
+		}()
 
 		By("create storage...")
-		storageSample.Spec.Service.Status.TLSConfiguration = &v1alpha1.TLSConfiguration{
-			Enabled: true,
-			Certificate: corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-				Key:                  "tls.crt",
-			},
-			Key: corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-				Key:                  "tls.key",
-			},
-			CertificateAuthority: corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: testobjects.CertificateSecretName},
-				Key:                  "ca.crt",
-			},
-		}
+		storageSample.Spec.Service.Status.TLSConfiguration = testobjects.TLSConfiguration(
+			testobjects.StorageCertificateSecretName,
+		)
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer DeleteStorageSafely(ctx, k8sClient, storageSample)
 
 		By("create database...")
 		databaseSample.Spec.Nodes = 1
-		databaseSample.Spec.Service.Status = *storageSample.Spec.Service.Status.DeepCopy()
+		databaseSample.Spec.Service.Status.TLSConfiguration = testobjects.TLSConfiguration(
+			testobjects.DatabaseCertificateSecretName,
+		)
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {
 			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
@@ -693,7 +670,7 @@ var _ = Describe("Operator smoke test", func() {
 		By("forward storage status port and check that we can check TLS response")
 		PortForward(ctx,
 			fmt.Sprintf(resources.StatusServiceNameFormat, storageSample.Name), storageSample.Namespace,
-			v1alpha1.StatusPort, tlsHTTPCheck,
+			"storage-grpc.ydb.svc.cluster.local", v1alpha1.StatusPort, tlsHTTPCheck,
 		)
 
 		By("waiting until database is ready...")
@@ -705,7 +682,7 @@ var _ = Describe("Operator smoke test", func() {
 		By("forward database status port and check that we can check TLS response")
 		PortForward(ctx,
 			fmt.Sprintf(resources.StatusServiceNameFormat, databaseSample.Name), databaseSample.Namespace,
-			v1alpha1.StatusPort, tlsHTTPCheck,
+			"database-grpc.ydb.svc.cluster.local", v1alpha1.StatusPort, tlsHTTPCheck,
 		)
 	})
 

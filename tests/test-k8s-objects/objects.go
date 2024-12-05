@@ -2,6 +2,7 @@ package testobjects
 
 import (
 	"os"
+	"path/filepath"
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -11,15 +12,26 @@ import (
 )
 
 const (
-	YdbImage              = "cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7" // anchor_for_fetching_image_from_workflow
-	YdbNamespace          = "ydb"
-	StorageName           = "storage"
-	DatabaseName          = "database"
-	CertificateSecretName = "storage-crt"
-	DefaultDomain         = "Root"
-	ReadyStatus           = "Ready"
-	StorageGRPCService    = "storage-grpc.ydb.svc.cluster.local"
-	StorageGRPCPort       = 2135
+	YdbImage                      = "cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7" // anchor_for_fetching_image_from_workflow
+	YdbNamespace                  = "ydb"
+	StorageName                   = "storage"
+	DatabaseName                  = "database"
+	StorageCertificateSecretName  = "storage-crt"
+	DatabaseCertificateSecretName = "database-crt"
+	DefaultDomain                 = "Root"
+	ReadyStatus                   = "Ready"
+	StorageGRPCService            = "storage-grpc.ydb.svc.cluster.local"
+	StorageGRPCPort               = 2135
+)
+
+var (
+	TestCAPath = filepath.Join("..", "data", "generate-crts", "ca.crt")
+
+	StorageTlsKeyPath = filepath.Join("..", "data", "storage.key")
+	StorageTlsCrtPath = filepath.Join("..", "data", "storage.crt")
+
+	DatabaseTlsKeyPath = filepath.Join("..", "data", "database.key")
+	DatabaseTlsCrtPath = filepath.Join("..", "data", "database.crt")
 )
 
 func constructAntiAffinityFor(key, value string) *corev1.Affinity {
@@ -172,7 +184,25 @@ func DefaultDatabase() *v1alpha1.Database {
 	}
 }
 
-func DefaultCertificate(certPath, keyPath, caPath string) *corev1.Secret {
+func StorageCertificate() *corev1.Secret {
+	return DefaultCertificate(
+		StorageCertificateSecretName,
+		StorageTlsCrtPath,
+		StorageTlsKeyPath,
+		TestCAPath,
+	)
+}
+
+func DatabaseCertificate() *corev1.Secret {
+	return DefaultCertificate(
+		DatabaseCertificateSecretName,
+		DatabaseTlsCrtPath,
+		DatabaseTlsKeyPath,
+		TestCAPath,
+	)
+}
+
+func DefaultCertificate(secretName, certPath, keyPath, caPath string) *corev1.Secret {
 	cert, err := os.ReadFile(certPath)
 	Expect(err).To(BeNil())
 	key, err := os.ReadFile(keyPath)
@@ -182,7 +212,7 @@ func DefaultCertificate(certPath, keyPath, caPath string) *corev1.Secret {
 
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      CertificateSecretName,
+			Name:      secretName,
 			Namespace: YdbNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
@@ -190,6 +220,24 @@ func DefaultCertificate(certPath, keyPath, caPath string) *corev1.Secret {
 			"ca.crt":  ca,
 			"tls.crt": cert,
 			"tls.key": key,
+		},
+	}
+}
+
+func TLSConfiguration(secretName string) *v1alpha1.TLSConfiguration {
+	return &v1alpha1.TLSConfiguration{
+		Enabled: true,
+		Certificate: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+			Key:                  "tls.crt",
+		},
+		Key: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+			Key:                  "tls.key",
+		},
+		CertificateAuthority: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: secretName},
+			Key:                  "ca.crt",
 		},
 	}
 }
