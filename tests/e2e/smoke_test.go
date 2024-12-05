@@ -412,7 +412,7 @@ var _ = Describe("Operator smoke test", func() {
 		}
 	})
 
-	FIt("using grpcs for storage connection", func() {
+	It("using grpcs for storage connection", func() {
 		By("create storage certificate secret...")
 		storageCert := testobjects.StorageCertificate()
 		Expect(k8sClient.Create(ctx, storageCert)).Should(Succeed())
@@ -591,7 +591,7 @@ var _ = Describe("Operator smoke test", func() {
 		}, Timeout, Interval).Should(BeTrue())
 	})
 
-	FIt("TLS for status service", func() {
+	It("TLS for status service", func() {
 		tlsHTTPCheck := func(port int, serverName string) error {
 			url := fmt.Sprintf("https://localhost:%d/", port)
 			cert, err := os.ReadFile(testobjects.TestCAPath)
