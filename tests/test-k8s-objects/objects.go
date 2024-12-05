@@ -27,11 +27,11 @@ const (
 var (
 	TestCAPath = filepath.Join("..", "data", "generate-crts", "ca.crt")
 
-	StorageTlsKeyPath = filepath.Join("..", "data", "storage.key")
-	StorageTlsCrtPath = filepath.Join("..", "data", "storage.crt")
+	StorageTLSKeyPath = filepath.Join("..", "data", "storage.key")
+	StorageTLSCrtPath = filepath.Join("..", "data", "storage.crt")
 
-	DatabaseTlsKeyPath = filepath.Join("..", "data", "database.key")
-	DatabaseTlsCrtPath = filepath.Join("..", "data", "database.crt")
+	DatabaseTLSKeyPath = filepath.Join("..", "data", "database.key")
+	DatabaseTLSCrtPath = filepath.Join("..", "data", "database.crt")
 )
 
 func constructAntiAffinityFor(key, value string) *corev1.Affinity {
@@ -187,8 +187,8 @@ func DefaultDatabase() *v1alpha1.Database {
 func StorageCertificate() *corev1.Secret {
 	return DefaultCertificate(
 		StorageCertificateSecretName,
-		StorageTlsCrtPath,
-		StorageTlsKeyPath,
+		StorageTLSCrtPath,
+		StorageTLSKeyPath,
 		TestCAPath,
 	)
 }
@@ -196,8 +196,8 @@ func StorageCertificate() *corev1.Secret {
 func DatabaseCertificate() *corev1.Secret {
 	return DefaultCertificate(
 		DatabaseCertificateSecretName,
-		DatabaseTlsCrtPath,
-		DatabaseTlsKeyPath,
+		DatabaseTLSCrtPath,
+		DatabaseTLSKeyPath,
 		TestCAPath,
 	)
 }
