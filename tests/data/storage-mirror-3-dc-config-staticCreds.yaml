@@ -118,3 +118,6 @@ channel_profile_config:
     profile_id: 0
 grpc_config:
     port: 2135
+cms_config:
+  sentinel_config:
+    default_state_limit: 1

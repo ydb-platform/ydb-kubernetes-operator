@@ -101,6 +101,9 @@ spec:
           ssid: 1
     grpc_config:
       port: 2135
+    cms_config:
+      sentinel_config:
+        default_state_limit: 1
     host_configs:
       - drive:
           - path: SectorMap:1:64

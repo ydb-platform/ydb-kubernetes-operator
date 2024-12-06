@@ -128,3 +128,6 @@ grpc_config:
   keep_alive_probe_interval_sec: 10
   services: [legacy, yql, scripting, cms, discovery, monitoring, import, export, locking, maintenance]
   streaming_config: {enable_output_streams: true}
+cms_config:
+  sentinel_config:
+    default_state_limit: 1
