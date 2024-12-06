@@ -82,7 +82,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential
 
-          go install sigs.k8s.io/kind@v0.17.0
+          go install sigs.k8s.io/kind@v0.25.0
 
           curl -LO https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl
           chmod +x ./kubectl
@@ -108,14 +108,10 @@ jobs:
         run: |
           kind delete cluster
           kind create cluster \
-          --image=kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5 \
-          --config=./e2e/kind-cluster-config.yaml
+          --image=kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
+          --config=./tests/cfg/kind-cluster-config.yaml
 
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
-
-          kubectl label --overwrite node kind-worker topology.kubernetes.io/zone=fakeZone1
-          kubectl label --overwrite node kind-worker2 topology.kubernetes.io/zone=fakeZone2
-          kubectl label --overwrite node kind-worker3 topology.kubernetes.io/zone=fakeZone3
       - name: build-operator-image
         uses: docker/build-push-action@v3
         with:
@@ -138,7 +134,7 @@ jobs:
             kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3
       - name: pull-and-load-ydb-image
         run: |
-          YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./e2e/tests/**/*.go | grep -o -E '"cr\.yandex.*"')
+          YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"')
           YDB_IMAGE=${YDB_IMAGE:1:-1} # strip ""
           docker pull $YDB_IMAGE
           kind load docker-image $YDB_IMAGE --nodes kind-worker,kind-worker2,kind-worker3
@@ -148,7 +144,7 @@ jobs:
       - name: run-e2e-tests
         id: run-e2e-tests
         run: |
-          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./e2e/... -ginkgo.vv
+          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./tests/e2e/... -ginkgo.vv
       - name: convert-json-log-to-human-readable
         run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
       - name: artifact-upload-step
@@ -164,4 +160,3 @@ jobs:
       - name: teardown-k8s-cluster
         run: |
           kind delete cluster
-

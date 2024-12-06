@@ -115,16 +115,7 @@ channel_profile_config:
       storage_pool_kind: ssd
     profile_id: 0
 grpc_config:
-  start_grpc_proxy: true
-  ssl_port: 2135
-  ca: /etc/ssl/certs/ca-certificates.crt
-  cert: /tls/grpc/tls.crt
-  key: /tls/grpc/tls.key
-  grpc_memory_quota_bytes: '1073741824'
-  host: '[::]'
-  keep_alive_enable: true
-  keep_alive_idle_timeout_trigger_sec: 90
-  keep_alive_max_probe_count: 3
-  keep_alive_probe_interval_sec: 10
-  services: [legacy, yql, scripting, cms, discovery, monitoring, import, export, locking, maintenance]
-  streaming_config: {enable_output_streams: true}
+    port: 2135
+cms_config:
+  sentinel_config:
+    default_state_limit: 1

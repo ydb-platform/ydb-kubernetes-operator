@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/remotestoragenodeset"
@@ -32,6 +31,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storagenodeset"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
+	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"
 )
 
 const (
@@ -175,7 +175,7 @@ var _ = Describe("RemoteStorageNodeSet controller tests", func() {
 	var storageSample *v1alpha1.Storage
 
 	BeforeEach(func() {
-		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
+		storageSample = testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		storageSample.Spec.NodeSets = append(storageSample.Spec.NodeSets, v1alpha1.StorageNodeSetSpecInline{
 			Name: testNodeSetName + "-local",
 			StorageNodeSpec: v1alpha1.StorageNodeSpec{
