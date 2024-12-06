@@ -76,7 +76,7 @@ jobs:
           curl -sSL https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz | tar -zxvf - --strip-components=1 linux-amd64/helm
           chmod +x ./helm && sudo mv ./helm /usr/local/bin
 
-          go install sigs.k8s.io/kind@v0.17.0
+          go install sigs.k8s.io/kind@v0.25.0
 
           curl -sSL https://storage.yandexcloud.net/yandexcloud-ydb/install.sh | bash
 
