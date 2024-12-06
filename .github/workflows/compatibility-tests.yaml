@@ -96,7 +96,7 @@ jobs:
       - name: Setup k8s cluster
         run: |
           kind create cluster \
-            --image=kindest/node:v1.25.3 \
+            --image=kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
             --config=./tests/cfg/kind-cluster-config.yaml
 
           kubectl wait --timeout=5m --for=condition=ready node -l worker=true
