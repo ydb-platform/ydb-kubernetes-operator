@@ -18,9 +18,6 @@ spec:
         host_config_id: 1
     grpc_config:
       port: 2135
-    cms_config:
-      sentinel_config:
-        default_state_limit: 1
     domains_config:
       domain:
         - name: Root
