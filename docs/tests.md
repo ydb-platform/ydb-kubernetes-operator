@@ -43,7 +43,7 @@ containers on a single machine. This allows for full-blown smoke tests - apply t
 `Storage` manifests, wait until the `Pod`s become available, run `SELECT 1` inside
 one of those pods to check that YDB is actually up and running!
 
-E2E tests are located in [e2e](../e2e) folder.
+E2E tests are located in [tests/e2e](../tests/e2e) folder.
 
 ## Running tests
 
@@ -81,7 +81,7 @@ kind delete cluster --name=local-kind
 kind create cluster \
  --image=kindest/node:v1.21.14@sha256:9d9eb5fb26b4fbc0c6d95fa8c790414f9750dd583f5d7cee45d92e8c26670aa1 \
  --name=local-kind \
- --config=./e2e/kind-cluster-config.yaml \
+ --config=./tests/cfg/kind-cluster-config.yaml \
  --wait 5m
 
 # Switch your local kubeconfig to the newly created cluster:
@@ -92,7 +92,7 @@ kubectl config use-context kind-local-kind
 # kind/ydb-operator:current
 
 # You have to download the ydb image and build the operator image yourself. Then, explicitly
-# upload them into the kind cluster. Refer to `./github/e2e.yaml` github workflow which essentially
+# upload them into the kind cluster. Refer to `./github/workflows/run-tests.yaml` github workflow which essentially
 # does the same thing.
 kind --name local-kind load docker-image kind/ydb-operator:current
 kind --name local-kind load docker-image ydb:<version>

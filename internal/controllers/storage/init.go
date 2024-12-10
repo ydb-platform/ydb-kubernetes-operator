@@ -193,7 +193,7 @@ func (r *Reconciler) initializeBlobstorage(
 			storage,
 			corev1.EventTypeWarning,
 			"InitializingStorage",
-			"Failed initBlobstorage Job, check Pod logs for addditional info",
+			"Failed initBlobstorage Job, check Pod logs for additional info",
 		)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:   StorageInitializedCondition,
