@@ -17,6 +17,7 @@ func contains(s []corev1.Capability, v corev1.Capability) bool {
 
 func mergeSecurityContextWithDefaults(context *corev1.SecurityContext) *corev1.SecurityContext {
 	var result *corev1.SecurityContext
+	var defaultCapabilities = []corev1.Capability{"SYS_RAWIO"}
 
 	if context != nil {
 		result = context.DeepCopy()
@@ -36,7 +37,7 @@ func mergeSecurityContextWithDefaults(context *corev1.SecurityContext) *corev1.S
 		}
 	}
 
-	for _, defaultCapability := range []corev1.Capability{"SYS_RAWIO"} {
+	for _, defaultCapability := range defaultCapabilities {
 		if !contains(result.Capabilities.Add, defaultCapability) {
 			result.Capabilities.Add = append(result.Capabilities.Add, defaultCapability)
 		}
