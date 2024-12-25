@@ -103,7 +103,19 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 	return nil
 }
 
+func (b *StorageStatefulSetBuilder) buildPodTemplateLabels() labels.Labels {
+	podTemplateLabels := labels.Labels{}
+
+	podTemplateLabels.Merge(b.Labels)
+	podTemplateLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+	podTemplateLabels.Merge(b.Spec.AdditionalPodLabels)
+
+	return podTemplateLabels
+}
+
 func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
+	podTemplateLabels := b.buildPodTemplateLabels()
+
 	domain := api.DefaultDomainName
 	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
 		domain = dnsAnnotation
@@ -114,7 +126,7 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      b.Labels,
+			Labels:      podTemplateLabels,
 			Annotations: b.Annotations,
 		},
 		Spec: corev1.PodSpec{
