@@ -24,10 +24,11 @@ func (r *Reconciler) setInitPipelineStatus(
 ) (bool, ctrl.Result, error) {
 	if database.Status.State == DatabasePreparing {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    DatabaseInitializedCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonInProgress,
-			Message: "Database has not been initialized yet",
+			Type:               DatabaseInitializedCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: database.Generation,
+			Message:            "Database has not been initialized yet",
 		})
 		database.Status.State = DatabaseInitializing
 		return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
@@ -58,16 +59,18 @@ func (r *Reconciler) setInitDatabaseCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    DatabaseInitializedCondition,
-		Status:  metav1.ConditionTrue,
-		Reason:  ReasonCompleted,
-		Message: message,
+		Type:               DatabaseInitializedCondition,
+		Status:             metav1.ConditionTrue,
+		Reason:             ReasonCompleted,
+		ObservedGeneration: database.Generation,
+		Message:            message,
 	})
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-		Type:    CreateDatabaseOperationCondition,
-		Status:  metav1.ConditionTrue,
-		Reason:  ReasonCompleted,
-		Message: "Tenant creation operation is completed",
+		Type:               CreateDatabaseOperationCondition,
+		Status:             metav1.ConditionTrue,
+		Reason:             ReasonCompleted,
+		ObservedGeneration: database.Generation,
+		Message:            "Tenant creation operation is completed",
 	})
 	return r.updateStatus(ctx, database, StatusUpdateRequeueDelay)
 }
@@ -90,10 +93,11 @@ func (r *Reconciler) checkCreateDatabaseOperation(
 			errMessage,
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    CreateDatabaseOperationCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonFailed,
-			Message: errMessage,
+			Type:               CreateDatabaseOperationCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonFailed,
+			ObservedGeneration: database.Generation,
+			Message:            errMessage,
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
@@ -124,10 +128,11 @@ func (r *Reconciler) checkCreateDatabaseOperation(
 			errMessage,
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    CreateDatabaseOperationCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  ReasonCompleted,
-			Message: errMessage,
+			Type:               CreateDatabaseOperationCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonCompleted,
+			ObservedGeneration: database.Generation,
+			Message:            errMessage,
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
@@ -140,10 +145,11 @@ func (r *Reconciler) checkCreateDatabaseOperation(
 			fmt.Sprintf("Tenant creation operation is not completed, operationID: %s", operationID),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    CreateDatabaseOperationCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: operationID,
+			Type:               CreateDatabaseOperationCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: database.Generation,
+			Message:            operationID,
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
@@ -296,10 +302,11 @@ func (r *Reconciler) initializeTenant(
 			fmt.Sprintf("Tenant creation operation in progress, operationID: %s", operationID),
 		)
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
-			Type:    CreateDatabaseOperationCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: operationID,
+			Type:               CreateDatabaseOperationCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: database.Generation,
+			Message:            operationID,
 		})
 		return r.updateStatus(ctx, database, DatabaseInitializationRequeueDelay)
 	}
