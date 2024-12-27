@@ -1,0 +1,129 @@
+name: compatibility-tests
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  test-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Maximize build space
+        uses: AdityaGarg8/remove-unwanted-software@v4.1
+        with:
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-dotnet: 'true'
+          remove-swapfile: 'true'
+
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # we need to know about previous tags
+
+      - name: print the latest version without "v"
+        id: latest-no-v
+        uses: miniscruff/changie-action@v2
+        with:
+          version: latest
+          args: latest --remove-prefix
+
+      - name: determine-versions
+        run: |
+          NEW_VERSION=${{ steps.latest-no-v.outputs.output }}
+
+          # Extract the major and minor parts of the version
+          MAJOR=$(echo $NEW_VERSION | cut -d. -f1)
+          MINOR=$(echo $NEW_VERSION | cut -d. -f2)
+          PREV_MINOR=$((MINOR - 1))
+
+          # Find the previous version tag in the format "<MAJOR>.<MINOR-1>.<LATEST_PATCH>"
+          PREVIOUS_VERSION=$(git tag -l "${MAJOR}.${PREV_MINOR}.*" | sort --version-sort | tail -1)
+
+          # If no previous version is found, fallback to a default or handle the error somehow
+          if [ -z "$PREVIOUS_VERSION" ]; then
+            echo "No previous version found, ensure your repository has proper tags."
+            exit 1
+          fi
+
+          # remove after creating 0.6.0 tag. 
+          # Basically, we are incompatible with 0.4, and while there is no 0.6 (and prev minor being 0.5), 
+          # we will run compat tests from previous patch version
+          if [ "$PREVIOUS_VERSION" = "0.4.42" ]; then
+            PREVIOUS_VERSION="0.5.30"
+          fi
+
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "PREVIOUS_VERSION=$PREVIOUS_VERSION" >> $GITHUB_ENV
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.22'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+          curl -LO https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl
+          chmod +x ./kubectl && sudo mv ./kubectl /usr/local/bin
+
+          HELM_VERSION="v3.10.3"
+          curl -sSL https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz | tar -zxvf - --strip-components=1 linux-amd64/helm
+          chmod +x ./helm && sudo mv ./helm /usr/local/bin
+
+          go install sigs.k8s.io/kind@v0.25.0
+
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-ydb/install.sh | bash
+
+          echo "$(pwd)" >> $GITHUB_PATH
+          echo "$HOME/ydb/bin" >> $GITHUB_PATH
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+
+      - name: Check dependencies
+        run: |
+          gcc --version
+          go version
+          kind version
+          kubectl version --client=true
+          helm version
+          ydb version
+
+      - name: Setup k8s cluster
+        run: |
+          kind create cluster \
+            --image=kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
+            --config=./tests/cfg/kind-cluster-config.yaml
+
+          kubectl wait --timeout=5m --for=condition=ready node -l worker=true
+
+      - name: Run compatibility tests
+        env:
+          NEW_VERSION: ${{ env.NEW_VERSION }}
+          PREVIOUS_VERSION: ${{ env.PREVIOUS_VERSION }}
+        run: |
+          go install gotest.tools/gotestsum@v1.12.0
+          gotestsum --format pkgname --jsonfile log.json -- -v -timeout 3600s -p 1 ./tests/compatibility/... -ginkgo.vv -coverprofile cover.out
+
+      - name: convert-to-human-readable
+        run: jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
+
+      - name: artifact-upload-step
+        uses: actions/upload-artifact@v4
+        id: artifact-upload-step
+        if: always()
+        with:
+          name: compat-tests-log
+          path: log.txt
+          if-no-files-found: error
+
+      - name: echo-tests-log-url
+        run: echo 'Unit tests log URL is ${{ steps.artifact-upload-step.outputs.artifact-url }}'
+
+      - name: Teardown k8s cluster
+        run: |
+          kind delete cluster

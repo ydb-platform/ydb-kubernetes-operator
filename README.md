@@ -1,5 +1,5 @@
-[![run-tests](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/run-tests.yml/badge.svg)](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/run-tests.yml)
 [![upload-artifacts](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/upload-artifacts.yml/badge.svg)](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/upload-artifacts.yml)
+[![compatibility-tests](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/compatibility-tests.yaml/badge.svg)](https://github.com/ydb-platform/ydb-kubernetes-operator/actions/workflows/compatibility-tests.yaml)
 
 # YDB Kubernetes Operator
 
