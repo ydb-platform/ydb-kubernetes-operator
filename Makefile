@@ -9,6 +9,8 @@ VERSION ?= 0.1.0
 IMG ?= cr.yandex/yc/ydb-operator:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.26
+# Image URL which uses in tests
+YDB_IMAGE ?= $(shell grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"' | tr -d '"')
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -66,32 +68,28 @@ vet: ## Run go vet against code.
 kind-init:
 	if kind get clusters | grep "kind-ydb-operator"; then exit 0; fi; \
 	kind create cluster \
-	--config e2e/kind-cluster-config.yaml \
+	--config tests/cfg/kind-cluster-config.yaml \
 	--image=kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
-	--name kind-ydb-operator; \
-    docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0; \
-	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3 --name kind-ydb-operator; \
-	YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"'); \
-	YDB_IMAGE=${YDB_IMAGE:1:-1}; \
-	docker pull ${YDB_IMAGE}; \
-	kind load docker-image ${YDB_IMAGE} --nodes kind-worker,kind-worker2,kind-worker3 --name kind-ydb-operator;
+	--name kind-ydb-operator
+	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --name kind-ydb-operator
+	docker pull ${YDB_IMAGE}
+	kind load docker-image ${YDB_IMAGE} --name kind-ydb-operator
 
 kind-load:
-	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current
-	kind load docker-image kind/ydb-operator:current --nodes kind-worker,kind-worker2,kind-worker3 --name kind-ydb-operator
+	docker tag ${IMG} kind/ydb-operator:current
+	kind load docker-image kind/ydb-operator:current --name kind-ydb-operator
 
 opts ?= ''
 
 .PHONY: unit-test
-unit-test: manifests generate fmt vet gotestsum envtest ## Run unit tests
+unit-test: manifests generate fmt vet envtest ## Run unit tests
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use --arch=amd64 $(ENVTEST_K8S_VERSION) -p path)" \
-	$(GOTESTSUM) --format testname --jsonfile log.json -- -v -timeout 900s -p 1 ./internal/... -ginkgo.vv -coverprofile cover.out $(opts)
-	jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
+	go test -v -timeout 900s -p 1 ./internal/... -ginkgo.vv -coverprofile cover.out $(opts)
 
 .PHONY: e2e-test
-e2e-test: manifests generate fmt vet gotestsum docker-build kind-init kind-load ## Run e2e tests
-	$(GOTESTSUM) --format testname --jsonfile log.json -- -v -timeout 3600s -p 1 ./tests/e2e/... -ginkgo.vv $(opts)
-	jq -r '.Output| gsub("[\\n]"; "")' log.json 2>/dev/null 1>log.txt || true
+e2e-test: manifests generate fmt vet docker-build kind-init kind-load ## Run e2e tests
+	go test -v -timeout 3600s -p 1 ./tests/e2e/... -ginkgo.vv $(opts)
 
 .PHONY: test
 test: unit-test e2e-test ## Run all tests
@@ -123,11 +121,6 @@ ENVTEST = $(shell pwd)/bin/setup-envtest
 ENVTEST_VERSION ?= release-0.17
 envtest: ## Download envtest-setup locally if necessary.
 	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION))
-
-GOTESTSUM = $(shell pwd)/bin/gotestsum
-GOTESTSUM_VERSION ?= v1.12.0
-gotestsum: ## Download gotestsum locally if necessary.
-	$(call go-get-tool,$(ENVTEST),gotest.tools/gotestsum@$(GOTESTSUM_VERSION))
 
 # go-get-tool will 'go install' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))

@@ -14,21 +14,11 @@ nodes:
     worker: true
 
 - role: worker
-  extraPortMappings:
-  - containerPort: 30001
-    hostPort: 2135
-    listenAddress: "127.0.0.1"
-    protocol: tcp
   labels:
     topology.kubernetes.io/zone: az-2
     worker: true
 
 - role: worker
-  extraPortMappings:
-  - containerPort: 30001
-    hostPort: 2135
-    listenAddress: "127.0.0.1"
-    protocol: tcp
   labels:
     topology.kubernetes.io/zone: az-3
     worker: true
