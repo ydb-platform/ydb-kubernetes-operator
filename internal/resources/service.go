@@ -62,6 +62,12 @@ func (b *ServiceBuilder) Build(obj client.Object) error {
 		service.Spec.ClusterIP = "None"
 	}
 
+	for _, port := range service.Spec.Ports {
+		if port.NodePort != 0 {
+			service.Spec.Type = corev1.ServiceTypeNodePort
+		}
+	}
+
 	return nil
 }
 

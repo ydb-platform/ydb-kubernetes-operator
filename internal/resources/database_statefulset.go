@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -670,7 +669,13 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	publicPortOption := "--grpc-public-port"
-	publicPort := api.GRPCPort
+	publicPort := fmt.Sprintf("%d", api.GRPCPort)
+	if b.Spec.Service.GRPC.ExternalPort != 0 {
+		publicPort = fmt.Sprintf("%d", b.Spec.Service.GRPC.ExternalPort)
+	}
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicPort]; ok {
+		publicPort = value
+	}
 
 	args = append(
 		args,
@@ -679,7 +684,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
 
 		publicPortOption,
-		strconv.Itoa(publicPort),
+		publicPort,
 	)
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDataCenter]; ok {

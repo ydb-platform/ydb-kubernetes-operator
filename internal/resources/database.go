@@ -152,8 +152,9 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
-				Name: api.GRPCServicePortName,
-				Port: api.GRPCPort,
+				Name:     api.GRPCServicePortName,
+				Port:     api.GRPCPort,
+				NodePort: b.Spec.Service.GRPC.ExternalPort,
 			}},
 			IPFamilies:     b.Spec.Service.GRPC.IPFamilies,
 			IPFamilyPolicy: b.Spec.Service.GRPC.IPFamilyPolicy,

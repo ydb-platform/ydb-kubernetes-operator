@@ -21,7 +21,8 @@ type GRPCService struct {
 	Service `json:""`
 
 	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
-	ExternalHost     string            `json:"externalHost,omitempty"` // TODO implementation
+	ExternalHost     string            `json:"externalHost,omitempty"`
+	ExternalPort     int32             `json:"externalPort,omitempty"`
 	IPDiscovery      *IPDiscovery      `json:"ipDiscovery,omitempty"`
 }
 
