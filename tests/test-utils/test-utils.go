@@ -26,6 +26,7 @@ import (
 
 	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
+
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"
@@ -280,7 +281,7 @@ func ExecuteSimpleTableE2ETestWithSDK(databasePath string) {
 	defer cancel()
 
 	cc, err := ydb.Open(ctx, fmt.Sprintf("grpc://localhost:2135/%s", databasePath))
-	Expect(err).ShouldNot(HaveOccurred(), string(err.Error()))
+	Expect(err).ShouldNot(HaveOccurred())
 	defer func() { _ = cc.Close(ctx) }()
 
 	c, err := ydb.Connector(cc,
