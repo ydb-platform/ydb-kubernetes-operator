@@ -733,6 +733,34 @@ var _ = Describe("Operator smoke test", func() {
 		ExecuteSimpleTableE2ETest(podName, testobjects.YdbNamespace, storageEndpoint, databasePath)
 	})
 
+	It("Check externalPort for Database", func() {
+		By("create storage...")
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+		defer DeleteStorageSafely(ctx, k8sClient, storageSample)
+		By("create database...")
+		databaseSample.Spec.Service.GRPC.ExternalPort = 30001
+		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, databaseSample)).Should(Succeed())
+		}()
+
+		By("waiting until Storage is ready...")
+		WaitUntilStorageReady(ctx, k8sClient, storageSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the storage pods are running and ready...")
+		CheckPodsRunningAndReady(ctx, k8sClient, "ydb-cluster", "kind-storage", storageSample.Spec.Nodes)
+
+		By("waiting until database is ready...")
+		WaitUntilDatabaseReady(ctx, k8sClient, databaseSample.Name, testobjects.YdbNamespace)
+
+		By("checking that all the database pods are running and ready...")
+		CheckPodsRunningAndReady(ctx, k8sClient, "ydb-cluster", "kind-database", databaseSample.Spec.Nodes)
+
+		By("execute simple query with ydb-go-sdk...")
+		databasePath := DatabasePathWithDefaultDomain(databaseSample)
+		ExecuteSimpleTableE2ETestWithSDK(databasePath)
+	})
+
 	AfterEach(func() {
 		UninstallOperatorWithHelm(testobjects.YdbNamespace)
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())

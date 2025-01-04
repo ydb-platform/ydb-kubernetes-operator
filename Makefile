@@ -70,11 +70,11 @@ kind-init:
 	--image=kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
 	--name kind-ydb-operator; \
     docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0; \
-    kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3 --name kind-ydb-operator; \
-    YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"'); \
-    YDB_IMAGE=${YDB_IMAGE:1:-1}; \
-    docker pull ${YDB_IMAGE}; \
-    kind load docker-image ${YDB_IMAGE} --nodes kind-worker,kind-worker2,kind-worker3 --name kind-ydb-operator;
+	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3 --name kind-ydb-operator; \
+	YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"'); \
+	YDB_IMAGE=${YDB_IMAGE:1:-1}; \
+	docker pull ${YDB_IMAGE}; \
+	kind load docker-image ${YDB_IMAGE} --nodes kind-worker,kind-worker2,kind-worker3 --name kind-ydb-operator;
 
 kind-load:
 	docker tag cr.yandex/yc/ydb-operator:latest kind/ydb-operator:current

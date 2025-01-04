@@ -427,8 +427,15 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		}
 	}
 
+	var grpcPublicPort int32
+	if b.Spec.Service.GRPC.ExternalPort != 0 {
+		grpcPublicPort = b.Spec.Service.GRPC.ExternalPort
+	} else {
+		grpcPublicPort = api.GRPCPort
+	}
+
 	ports := []corev1.ContainerPort{{
-		Name: "grpc", ContainerPort: api.GRPCPort,
+		Name: "grpc", ContainerPort: grpcPublicPort,
 	}, {
 		Name: "interconnect", ContainerPort: api.InterconnectPort,
 	}, {

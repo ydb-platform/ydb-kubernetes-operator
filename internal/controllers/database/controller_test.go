@@ -310,7 +310,6 @@ var _ = Describe("Database controller medium tests", func() {
 
 	It("Check externalHost and externalPort GRPC Service field propagation", func() {
 		By("Create test database")
-		publicHost := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, testobjects.DatabaseName, testobjects.YdbNamespace, v1alpha1.DefaultDomainName)
 		databaseSample = *testobjects.DefaultDatabase()
 		Expect(k8sClient.Create(ctx, &databaseSample)).Should(Succeed())
 
@@ -350,6 +349,7 @@ var _ = Describe("Database controller medium tests", func() {
 		}
 
 		By("Check that args `--grpc-public-host` and `--grpc-public-port` propagated to StatefulSet pods...")
+		publicHost := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, testobjects.DatabaseName, testobjects.YdbNamespace, v1alpha1.DefaultDomainName)
 		Eventually(
 			checkPublicArgs(fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), fmt.Sprintf("%d", v1alpha1.GRPCPort)),
 			test.Timeout,
@@ -357,7 +357,6 @@ var _ = Describe("Database controller medium tests", func() {
 
 		externalHost := fmt.Sprintf("%s.%s.%s", testobjects.DatabaseName, testobjects.YdbNamespace, "example.com")
 		externalPort := int32(31001)
-
 		By("Update externalHost and externalPort for Database GRPC Service...", func() {
 			database := v1alpha1.Database{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
