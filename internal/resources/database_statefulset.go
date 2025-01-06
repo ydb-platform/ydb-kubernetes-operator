@@ -437,15 +437,8 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		}
 	}
 
-	var grpcPublicPort int32
-	if b.Spec.Service.GRPC.ExternalPort != 0 {
-		grpcPublicPort = b.Spec.Service.GRPC.ExternalPort
-	} else {
-		grpcPublicPort = api.GRPCPort
-	}
-
 	ports := []corev1.ContainerPort{{
-		Name: "grpc", ContainerPort: grpcPublicPort,
+		Name: "grpc", ContainerPort: api.GRPCPort,
 	}, {
 		Name: "interconnect", ContainerPort: api.InterconnectPort,
 	}, {
@@ -655,11 +648,9 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	publicHostOption := "--grpc-public-host"
 	publicHostDomain := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace(), domain)
 	publicHost := fmt.Sprintf("%s.%s", "$(POD_NAME)", publicHostDomain)
+
 	if b.Spec.Service.GRPC.ExternalHost != "" {
 		publicHost = fmt.Sprintf("%s.%s", "$(POD_NAME)", b.Spec.Service.GRPC.ExternalHost)
-	}
-	if b.Spec.Service.GRPC.ExternalPort > 0 {
-		publicHost = "$(NODE_NAME)"
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
 		publicHost = value
@@ -690,10 +681,12 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 
 	publicPortOption := "--grpc-public-port"
 	publicPort := fmt.Sprintf("%d", api.GRPCPort)
-	if b.Spec.Service.GRPC.ExternalPort != 0 {
+	if b.Spec.Service.GRPC.ExternalPort > 0 {
+		publicHost = "$(NODE_NAME)"
 		publicPort = fmt.Sprintf("%d", b.Spec.Service.GRPC.ExternalPort)
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicPort]; ok {
+		publicHost = "$(NODE_NAME)"
 		publicPort = value
 	}
 

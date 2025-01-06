@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/rest"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -153,10 +152,9 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			SelectorLabels: databaseLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
 			Ports: []corev1.ServicePort{{
-				Name:       api.GRPCServicePortName,
-				Port:       api.GRPCPort,
-				TargetPort: intstr.IntOrString{Type: intstr.String, StrVal: "grpc"},
-				NodePort:   b.Spec.Service.GRPC.ExternalPort,
+				Name:     api.GRPCServicePortName,
+				Port:     api.GRPCPort,
+				NodePort: b.Spec.Service.GRPC.ExternalPort,
 			}},
 			IPFamilies:     b.Spec.Service.GRPC.IPFamilies,
 			IPFamilyPolicy: b.Spec.Service.GRPC.IPFamilyPolicy,

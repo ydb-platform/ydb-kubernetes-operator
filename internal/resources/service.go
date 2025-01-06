@@ -63,7 +63,7 @@ func (b *ServiceBuilder) Build(obj client.Object) error {
 	}
 
 	for _, port := range service.Spec.Ports {
-		if port.NodePort != 0 {
+		if port.NodePort > 0 {
 			service.Spec.Type = corev1.ServiceTypeNodePort
 		}
 	}
