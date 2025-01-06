@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -76,11 +77,20 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 
 	envVars = append(envVars,
 		corev1.EnvVar{
-			Name: "NODE_NAME", // for `--grpc-public-host` flag
+			Name: "POD_NAME", // for `--grpc-public-host` flag
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
 					APIVersion: "v1",
 					FieldPath:  "metadata.name",
+				},
+			},
+		},
+		corev1.EnvVar{
+			Name: "NODE_NAME", // for `--grpc-public-port` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "spec.nodeName",
 				},
 			},
 		},
@@ -643,10 +653,13 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	publicHostOption := "--grpc-public-host"
-	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace(), domain) // FIXME .svc.cluster.local
-
+	publicHostDomain := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace(), domain)
+	publicHost := fmt.Sprintf("%s.%s", "$(POD_NAME)", publicHostDomain)
 	if b.Spec.Service.GRPC.ExternalHost != "" {
-		publicHost = b.Spec.Service.GRPC.ExternalHost
+		publicHost = fmt.Sprintf("%s.%s", "$(POD_NAME)", b.Spec.Service.GRPC.ExternalHost)
+	}
+	if b.Spec.Service.GRPC.ExternalPort > 0 {
+		publicHost = "$(NODE_NAME)"
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
 		publicHost = value
@@ -670,7 +683,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 			args = append(
 				args,
 				"--grpc-public-target-name-override",
-				fmt.Sprintf("%s.%s", "$(NODE_NAME)", targetNameOverride),
+				fmt.Sprintf("%s.%s", "$(POD_NAME)", targetNameOverride),
 			)
 		}
 	}
@@ -688,7 +701,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		args,
 
 		publicHostOption,
-		fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
+		publicHost,
 
 		publicPortOption,
 		publicPort,
@@ -704,6 +717,9 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationNodeHost]; ok {
+		if !strings.HasPrefix(value, "$(POD_NAME).") {
+			value = fmt.Sprintf("%s.%s", "$(POD_NAME)", value)
+		}
 		args = append(args,
 			"--node-host",
 			value,

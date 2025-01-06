@@ -351,7 +351,7 @@ var _ = Describe("Database controller medium tests", func() {
 		By("Check that args `--grpc-public-host` and `--grpc-public-port` propagated to StatefulSet pods...")
 		publicHost := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, testobjects.DatabaseName, testobjects.YdbNamespace, v1alpha1.DefaultDomainName)
 		Eventually(
-			checkPublicArgs(fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), fmt.Sprintf("%d", v1alpha1.GRPCPort)),
+			checkPublicArgs(fmt.Sprintf("%s.%s", "$(POD_NAME)", publicHost), fmt.Sprintf("%d", v1alpha1.GRPCPort)),
 			test.Timeout,
 			test.Interval).ShouldNot(HaveOccurred())
 
@@ -396,7 +396,7 @@ var _ = Describe("Database controller medium tests", func() {
 
 		By("Check that args `--grpc-public-host` and `--grpc-public-port` was updated in StatefulSet...")
 		Eventually(
-			checkPublicArgs(fmt.Sprintf("%s.%s", "$(NODE_NAME)", externalHost), fmt.Sprintf("%d", externalPort)),
+			checkPublicArgs(fmt.Sprintf("%s.%s", "$(POD_NAME)", externalHost), fmt.Sprintf("%d", externalPort)),
 			test.Timeout,
 			test.Interval).ShouldNot(HaveOccurred())
 	})
