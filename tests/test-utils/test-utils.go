@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/resolver"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
@@ -27,7 +26,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
-	"github.com/ydb-platform/ydb-go-sdk/v3/config"
 	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
 
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -285,20 +283,17 @@ func ExecuteSimpleTableE2ETestWithSDK(databaseName, databaseNamespace, databaseP
 
 	// Register the custom resolver
 	publicHostDomain := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, databaseName, databaseNamespace, v1alpha1.DefaultDomainName)
-	mockAddresses := map[string][]string{
-		fmt.Sprintf("%s.%s", "database-0", publicHostDomain): {"127.0.0.1"},
-		fmt.Sprintf("%s.%s", "database-1", publicHostDomain): {"127.0.0.1"},
-		fmt.Sprintf("%s.%s", "database-2", publicHostDomain): {"127.0.0.1"},
+	mockDNSRecords := map[string]string{
+		fmt.Sprintf("%s.%s", "database-0", publicHostDomain): "127.0.0.1",
+		fmt.Sprintf("%s.%s", "database-1", publicHostDomain): "127.0.0.1",
+		fmt.Sprintf("%s.%s", "database-2", publicHostDomain): "127.0.0.1",
 	}
-	resolver.Register(&MockResolverBuilder{mockAddresses: mockAddresses})
-	dialOptions := []grpc.DialOption{
-		grpc.WithResolvers(),
-	}
+	// Override the global resolver with the custom resolver
+	net.DefaultResolver = mockDNSResolver(mockDNSRecords)
 
 	cc, err := ydb.Open(
 		ctx,
 		fmt.Sprintf("grpc://localhost:30001/%s", databasePath),
-		ydb.With(config.WithGrpcOptions(dialOptions...)),
 	)
 	Expect(err).ShouldNot(HaveOccurred())
 	defer func() { _ = cc.Close(ctx) }()
