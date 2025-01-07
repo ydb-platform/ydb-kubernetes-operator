@@ -396,7 +396,7 @@ var _ = Describe("Database controller medium tests", func() {
 
 		By("Check that args `--grpc-public-host` and `--grpc-public-port` was updated in StatefulSet...")
 		Eventually(
-			checkPublicArgs(fmt.Sprintf("%s.%s", "$(POD_NAME)", externalHost), fmt.Sprintf("%d", externalPort)),
+			checkPublicArgs("$(NODE_NAME)", fmt.Sprintf("%d", externalPort)),
 			test.Timeout,
 			test.Interval).ShouldNot(HaveOccurred())
 	})

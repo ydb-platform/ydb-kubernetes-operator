@@ -682,11 +682,11 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	publicPortOption := "--grpc-public-port"
 	publicPort := fmt.Sprintf("%d", api.GRPCPort)
 	if b.Spec.Service.GRPC.ExternalPort > 0 {
-		publicHost = "$(NODE_NAME)"
+		publicHost = "$(NODE_NAME)" //nolint:goconst
 		publicPort = fmt.Sprintf("%d", b.Spec.Service.GRPC.ExternalPort)
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicPort]; ok {
-		publicHost = "$(NODE_NAME)"
+		publicHost = "$(NODE_NAME)" //nolint:goconst
 		publicPort = value
 	}
 

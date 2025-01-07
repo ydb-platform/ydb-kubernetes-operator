@@ -280,7 +280,7 @@ func ExecuteSimpleTableE2ETestWithSDK(databasePath string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cc, err := ydb.Open(ctx, fmt.Sprintf("grpc://localhost:2135/%s", databasePath))
+	cc, err := ydb.Open(ctx, fmt.Sprintf("grpc://localhost:30001/%s", databasePath))
 	Expect(err).ShouldNot(HaveOccurred())
 	defer func() { _ = cc.Close(ctx) }()
 

@@ -6,7 +6,7 @@ nodes:
 - role: worker
   extraPortMappings:
   - containerPort: 30001
-    hostPort: 2135
+    hostPort: 30001
     listenAddress: "127.0.0.1"
     protocol: tcp
   labels:
