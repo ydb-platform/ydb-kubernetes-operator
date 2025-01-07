@@ -758,7 +758,7 @@ var _ = Describe("Operator smoke test", func() {
 
 		By("execute simple query with ydb-go-sdk...")
 		databasePath := DatabasePathWithDefaultDomain(databaseSample)
-		ExecuteSimpleTableE2ETestWithSDK(databasePath)
+		ExecuteSimpleTableE2ETestWithSDK(databaseSample.Name, testobjects.YdbNamespace, databasePath)
 	})
 
 	AfterEach(func() {

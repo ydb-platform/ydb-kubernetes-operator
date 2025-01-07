@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
@@ -25,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/ydb-platform/ydb-go-sdk/v3/config"
 	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
 
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -276,11 +279,86 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 	Expect(err).ShouldNot(HaveOccurred(), string(output))
 }
 
-func ExecuteSimpleTableE2ETestWithSDK(databasePath string) {
+func customDNSServer(addr string, ipMap map[string]string) (error, func()) {
+	serv, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		return err, nil
+	}
+
+	go func() {
+		buf := make([]byte, 512)
+		for {
+			n, clientAddr, err := serv.ReadFrom(buf)
+			if err != nil {
+				break
+			}
+
+			request := string(buf[:n])
+			name := strings.TrimSuffix(strings.Split(request, "|")[0], ".")
+
+			var response string
+			ip, found := ipMap[name]
+			if found {
+				response = fmt.Sprintf("%s|%s", name, ip)
+			} else {
+				response = fmt.Sprintf("%s|NXDOMAIN", name)
+			}
+
+			serv.WriteTo([]byte(response), clientAddr)
+		}
+	}()
+
+	return nil, func() {
+		serv.Close()
+	}
+}
+
+func customResolver(dnsServerAddr string) *net.Resolver {
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return net.Dial("udp", dnsServerAddr)
+		},
+	}
+}
+
+func customDialer(resolver *net.Resolver) func(ctx context.Context, addr string) (net.Conn, error) {
+	return func(ctx context.Context, addr string) (net.Conn, error) {
+		d := &net.Dialer{
+			Resolver: resolver,
+			Timeout:  5 * time.Second,
+		}
+		return d.DialContext(ctx, "tcp", addr)
+	}
+}
+
+func ExecuteSimpleTableE2ETestWithSDK(databaseName, databaseNamespace, databasePath string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cc, err := ydb.Open(ctx, fmt.Sprintf("grpc://localhost:30001/%s", databasePath))
+	publicHostDomain := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, databaseName, databaseNamespace, v1alpha1.DefaultDomainName)
+	mockDNSServerAddr := "127.0.0.1:5353"
+	mockDNSRecords := map[string]string{
+		fmt.Sprintf("%s.%s", "database-0", publicHostDomain): "127.0.0.1",
+		fmt.Sprintf("%s.%s", "database-1", publicHostDomain): "127.0.0.1",
+		fmt.Sprintf("%s.%s", "database-2", publicHostDomain): "127.0.0.1",
+	}
+
+	err, cleanup := customDNSServer(mockDNSServerAddr, mockDNSRecords)
+	Expect(err).ShouldNot(HaveOccurred())
+	defer cleanup()
+
+	mockResolver := customResolver(mockDNSServerAddr)
+	dialer := customDialer(mockResolver)
+	dialOptions := []grpc.DialOption{
+		grpc.WithContextDialer(dialer),
+	}
+
+	cc, err := ydb.Open(
+		ctx,
+		fmt.Sprintf("grpc://localhost:30001/%s", databasePath),
+		ydb.With(config.WithGrpcOptions(dialOptions...)),
+	)
 	Expect(err).ShouldNot(HaveOccurred())
 	defer func() { _ = cc.Close(ctx) }()
 

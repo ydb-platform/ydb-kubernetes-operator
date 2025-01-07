@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -86,11 +85,11 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 			},
 		},
 		corev1.EnvVar{
-			Name: "NODE_NAME", // for `--grpc-public-port` flag
+			Name: "NODE_NAME", // for `--grpc-public-host` flag
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
 					APIVersion: "v1",
-					FieldPath:  "spec.nodeName",
+					FieldPath:  "metadata.name",
 				},
 			},
 		},
@@ -682,11 +681,9 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	publicPortOption := "--grpc-public-port"
 	publicPort := fmt.Sprintf("%d", api.GRPCPort)
 	if b.Spec.Service.GRPC.ExternalPort > 0 {
-		publicHost = "$(NODE_NAME)" //nolint:goconst
 		publicPort = fmt.Sprintf("%d", b.Spec.Service.GRPC.ExternalPort)
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicPort]; ok {
-		publicHost = "$(NODE_NAME)" //nolint:goconst
 		publicPort = value
 	}
 
@@ -710,9 +707,6 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationNodeHost]; ok {
-		if !strings.HasPrefix(value, "$(POD_NAME).") {
-			value = fmt.Sprintf("%s.%s", "$(POD_NAME)", value)
-		}
 		args = append(args,
 			"--node-host",
 			value,
