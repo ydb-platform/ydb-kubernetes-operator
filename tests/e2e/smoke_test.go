@@ -738,6 +738,9 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer DeleteStorageSafely(ctx, k8sClient, storageSample)
 		By("create database...")
+		databaseSample.Annotations = map[string]string{
+			v1alpha1.AnnotationGRPCPublicHost: "localhost",
+		}
 		databaseSample.Spec.Service.GRPC.ExternalPort = 30001
 		Expect(k8sClient.Create(ctx, databaseSample)).Should(Succeed())
 		defer func() {

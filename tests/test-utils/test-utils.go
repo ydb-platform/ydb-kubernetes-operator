@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -281,16 +280,6 @@ func ExecuteSimpleTableE2ETestWithSDK(databaseName, databaseNamespace, databaseP
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Register the custom resolver
-	publicHostDomain := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, databaseName, databaseNamespace, v1alpha1.DefaultDomainName)
-	mockDNSRecords := map[string]string{
-		fmt.Sprintf("%s.%s", "database-0", publicHostDomain): "127.0.0.1",
-		fmt.Sprintf("%s.%s", "database-1", publicHostDomain): "127.0.0.1",
-		fmt.Sprintf("%s.%s", "database-2", publicHostDomain): "127.0.0.1",
-	}
-	// Override the global resolver with the custom resolver
-	net.DefaultResolver = mockDNSResolver(mockDNSRecords)
-
 	cc, err := ydb.Open(
 		ctx,
 		fmt.Sprintf("grpc://localhost:30001/%s", databasePath),
@@ -300,7 +289,7 @@ func ExecuteSimpleTableE2ETestWithSDK(databaseName, databaseNamespace, databaseP
 
 	c, err := ydb.Connector(cc,
 		ydb.WithAutoDeclare(),
-		ydb.WithTablePathPrefix(TestTablePath),
+		ydb.WithTablePathPrefix(fmt.Sprintf("%s/%s", databasePath, TestTablePath)),
 	)
 	Expect(err).ShouldNot(HaveOccurred())
 	defer func() { _ = c.Close() }()
