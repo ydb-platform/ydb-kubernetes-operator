@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/resolver"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
@@ -279,79 +279,20 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 	Expect(err).ShouldNot(HaveOccurred(), string(output))
 }
 
-func customDNSServer(addr string, ipMap map[string]string) (error, func()) {
-	serv, err := net.ListenPacket("udp", addr)
-	if err != nil {
-		return err, nil
-	}
-
-	go func() {
-		buf := make([]byte, 512)
-		for {
-			n, clientAddr, err := serv.ReadFrom(buf)
-			if err != nil {
-				break
-			}
-
-			request := string(buf[:n])
-			name := strings.TrimSuffix(strings.Split(request, "|")[0], ".")
-
-			var response string
-			ip, found := ipMap[name]
-			if found {
-				response = fmt.Sprintf("%s|%s", name, ip)
-			} else {
-				response = fmt.Sprintf("%s|NXDOMAIN", name)
-			}
-
-			serv.WriteTo([]byte(response), clientAddr)
-		}
-	}()
-
-	return nil, func() {
-		serv.Close()
-	}
-}
-
-func customResolver(dnsServerAddr string) *net.Resolver {
-	return &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return net.Dial("udp", dnsServerAddr)
-		},
-	}
-}
-
-func customDialer(resolver *net.Resolver) func(ctx context.Context, addr string) (net.Conn, error) {
-	return func(ctx context.Context, addr string) (net.Conn, error) {
-		d := &net.Dialer{
-			Resolver: resolver,
-			Timeout:  5 * time.Second,
-		}
-		return d.DialContext(ctx, "tcp", addr)
-	}
-}
-
 func ExecuteSimpleTableE2ETestWithSDK(databaseName, databaseNamespace, databasePath string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Register the custom resolver
 	publicHostDomain := fmt.Sprintf(v1alpha1.InterconnectServiceFQDNFormat, databaseName, databaseNamespace, v1alpha1.DefaultDomainName)
-	mockDNSServerAddr := "127.0.0.1:5353"
-	mockDNSRecords := map[string]string{
-		fmt.Sprintf("%s.%s", "database-0", publicHostDomain): "127.0.0.1",
-		fmt.Sprintf("%s.%s", "database-1", publicHostDomain): "127.0.0.1",
-		fmt.Sprintf("%s.%s", "database-2", publicHostDomain): "127.0.0.1",
+	mockAddresses := map[string][]string{
+		fmt.Sprintf("%s.%s", "database-0", publicHostDomain): {"127.0.0.1"},
+		fmt.Sprintf("%s.%s", "database-1", publicHostDomain): {"127.0.0.1"},
+		fmt.Sprintf("%s.%s", "database-2", publicHostDomain): {"127.0.0.1"},
 	}
-
-	err, cleanup := customDNSServer(mockDNSServerAddr, mockDNSRecords)
-	Expect(err).ShouldNot(HaveOccurred())
-	defer cleanup()
-
-	mockResolver := customResolver(mockDNSServerAddr)
-	dialer := customDialer(mockResolver)
+	resolver.Register(&MockResolverBuilder{mockAddresses: mockAddresses})
 	dialOptions := []grpc.DialOption{
-		grpc.WithContextDialer(dialer),
+		grpc.WithResolvers(),
 	}
 
 	cc, err := ydb.Open(
