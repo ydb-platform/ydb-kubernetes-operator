@@ -738,6 +738,10 @@ var _ = Describe("Operator smoke test", func() {
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 		defer DeleteStorageSafely(ctx, k8sClient, storageSample)
 		By("create database...")
+		databaseSample.Spec.Nodes = 1
+		databaseSample.Spec.NodeSelector = map[string]string{
+			"topology.kubernetes.io/zone": "az-1",
+		}
 		databaseSample.Annotations = map[string]string{
 			v1alpha1.AnnotationGRPCPublicHost: "localhost",
 		}
