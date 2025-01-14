@@ -376,12 +376,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		Command:         command,
 		Args:            args,
 
-		SecurityContext: &corev1.SecurityContext{
-			Privileged: ptr.Bool(false),
-			Capabilities: &corev1.Capabilities{
-				Add: []corev1.Capability{"SYS_RAWIO"},
-			},
-		},
+		SecurityContext: mergeSecurityContextWithDefaults(b.Spec.SecurityContext),
 
 		Ports: []corev1.ContainerPort{{
 			Name: "grpc", ContainerPort: api.GRPCPort,

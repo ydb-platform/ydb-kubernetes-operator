@@ -16,11 +16,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
-	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/e2e/tests/test-objects"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
+	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"
 )
 
 var (
@@ -119,7 +119,7 @@ func createMockDBAndSvc() {
 func createMockStorageAndSvc() {
 	GinkgoHelper()
 
-	stor := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "e2e", "tests", "data", "storage-mirror-3-dc-config.yaml"))
+	stor := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 	Expect(k8sClient.Create(ctx, stor)).Should(Succeed())
 
 	stor.Status.State = StorageReady

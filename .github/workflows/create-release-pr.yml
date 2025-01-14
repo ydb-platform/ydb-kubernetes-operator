@@ -2,6 +2,15 @@ name: create-release-pr
 
 on:
   workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Which version to bump when creating a release PR: minor or patch?'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
 
 jobs:
   create-release-pr:
@@ -14,7 +23,7 @@ jobs:
       uses: miniscruff/changie-action@v2
       with:
         version: latest
-        args: batch patch
+        args: batch ${{ github.event.inputs.bump_type }}
 
     - name: merge-changes
       uses: miniscruff/changie-action@v2
@@ -48,4 +57,8 @@ jobs:
         title: Release ${{ steps.latest.outputs.output }}
         branch: release/${{ steps.latest.outputs.output }}
         commit-message: Release ${{ steps.latest.outputs.output }}
+        body: |
+          Here is what a new entry in changelog would look like:
+
+            [`.changes/${{ steps.latest.outputs.output }}.md`](https://github.com/${{ github.repository }}/blob/release/${{ steps.latest.outputs.output }}/.changes/${{ steps.latest.outputs.output }}.md)
         token: ${{ github.token }}

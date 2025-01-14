@@ -417,6 +417,7 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 	if b.Spec.Image.PullPolicyName != nil {
 		imagePullPolicy = *b.Spec.Image.PullPolicyName
 	}
+
 	container := corev1.Container{
 		Name:            "ydb-dynamic",
 		Image:           b.Spec.Image.Name,
@@ -425,13 +426,8 @@ func (b *DatabaseStatefulSetBuilder) buildContainer() corev1.Container {
 		Args:            args,
 		Env:             b.buildEnv(),
 
-		VolumeMounts: b.buildVolumeMounts(),
-		SecurityContext: &corev1.SecurityContext{
-			Privileged: ptr.Bool(false),
-			Capabilities: &corev1.Capabilities{
-				Add: []corev1.Capability{"SYS_RAWIO"},
-			},
-		},
+		VolumeMounts:    b.buildVolumeMounts(),
+		SecurityContext: mergeSecurityContextWithDefaults(b.Spec.SecurityContext),
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; !ok || value != api.AnnotationValueTrue {
