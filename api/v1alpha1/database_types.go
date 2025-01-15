@@ -165,6 +165,10 @@ type DatabaseNodeSpec struct {
 	// +optional
 	AdditionalLabels map[string]string `json:"additionalLabels,omitempty"`
 
+	// (Optional) Additional custom resource labels that are added to Pods
+	// +optional
+	AdditionalPodLabels map[string]string `json:"additionalPodLabels,omitempty"`
+
 	// (Optional) Additional custom resource annotations that are added to all resources
 	// +optional
 	AdditionalAnnotations map[string]string `json:"additionalAnnotations,omitempty"`

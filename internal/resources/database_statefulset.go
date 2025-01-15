@@ -99,14 +99,26 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 	return envVars
 }
 
+func (b *DatabaseStatefulSetBuilder) buildPodTemplateLabels() labels.Labels {
+	podTemplateLabels := labels.Labels{}
+
+	podTemplateLabels.Merge(b.Labels)
+	podTemplateLabels.Merge(map[string]string{labels.StatefulsetComponent: b.Name})
+	podTemplateLabels.Merge(b.Spec.AdditionalPodLabels)
+
+	return podTemplateLabels
+}
+
 func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpec {
+	podTemplateLabels := b.buildPodTemplateLabels()
+
 	domain := api.DefaultDomainName
 	if dnsAnnotation, ok := b.GetAnnotations()[api.DNSDomainAnnotation]; ok {
 		domain = dnsAnnotation
 	}
 	podTemplate := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels:      b.Labels,
+			Labels:      podTemplateLabels,
 			Annotations: b.Annotations,
 		},
 		Spec: corev1.PodSpec{
