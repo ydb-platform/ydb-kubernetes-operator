@@ -1,0 +1,3 @@
+kind: Added
+body: field externalPort for grpc service to override --grpc-public-port arg
+time: 2025-01-04T14:34:52.706824+08:00

@@ -24,6 +24,7 @@ import (
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"
 )
@@ -305,5 +306,86 @@ var _ = Describe("Database controller medium tests", func() {
 		args = sts.Spec.Template.Spec.Containers[0].Args
 
 		Expect(args).To(ContainElements([]string{"--grpc-public-address-v4", "--grpc-public-target-name-override"}))
+	})
+
+	It("Check externalPort GRPC Service field propagation", func() {
+		By("Create test database")
+		databaseSample = *testobjects.DefaultDatabase()
+		Expect(k8sClient.Create(ctx, &databaseSample)).Should(Succeed())
+
+		checkPublicPortArg := func(expectedGRPCPort string) error {
+			foundStatefulSet := appsv1.StatefulSet{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx,
+					types.NamespacedName{
+						Name:      testobjects.DatabaseName,
+						Namespace: testobjects.YdbNamespace,
+					},
+					&foundStatefulSet,
+				)
+			}, test.Timeout, test.Interval).Should(Succeed())
+			podContainerArgs := foundStatefulSet.Spec.Template.Spec.Containers[0].Args
+			for idx, argKey := range podContainerArgs {
+				if argKey == "--grpc-public-port" {
+					if podContainerArgs[idx+1] != expectedGRPCPort {
+						return fmt.Errorf(
+							"Found arg `--grpc-public-port` value %s does not match with expected: %s",
+							podContainerArgs[idx+1],
+							expectedGRPCPort,
+						)
+					}
+				}
+			}
+			return nil
+		}
+
+		By("Check that args `--grpc-public-host` and `--grpc-public-port` propagated to StatefulSet pods...")
+		Eventually(
+			checkPublicPortArg(fmt.Sprintf("%d", v1alpha1.GRPCPort)),
+			test.Timeout,
+			test.Interval).ShouldNot(HaveOccurred())
+
+		externalPort := int32(30001)
+		By("Update externalHost and externalPort for Database GRPC Service...", func() {
+			database := v1alpha1.Database{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.DatabaseName,
+				Namespace: testobjects.YdbNamespace,
+			}, &database))
+			database.Spec.Service.GRPC.ExternalPort = externalPort
+			Expect(k8sClient.Update(ctx, &database)).Should(Succeed())
+		})
+
+		By("Check that type was updated for Database GRPC Service to NodePort...")
+		Eventually(func() error {
+			databaseGRPCService := corev1.Service{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      fmt.Sprintf(resources.GRPCServiceNameFormat, databaseSample.Name),
+				Namespace: testobjects.YdbNamespace,
+			}, &databaseGRPCService))
+			if databaseGRPCService.Spec.Type != corev1.ServiceTypeNodePort {
+				return fmt.Errorf(
+					"Found GRPC Service .spec.type %s does not match with expected: %s",
+					databaseGRPCService.Spec.Type,
+					corev1.ServiceTypeNodePort,
+				)
+			}
+			for _, port := range databaseGRPCService.Spec.Ports {
+				if port.NodePort != externalPort {
+					return fmt.Errorf(
+						"Found GRPC Service NodePort value %d does not match with expected: %s",
+						port.NodePort,
+						fmt.Sprintf("%d", externalPort),
+					)
+				}
+			}
+			return nil
+		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+		By("Check that args `--grpc-public-port` was updated in StatefulSet...")
+		Eventually(
+			checkPublicPortArg(fmt.Sprintf("%d", externalPort)),
+			test.Timeout,
+			test.Interval).ShouldNot(HaveOccurred())
 	})
 })

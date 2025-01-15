@@ -3,6 +3,7 @@ package testutils
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"os"
@@ -23,6 +24,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
+
 	v1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"
@@ -34,11 +38,17 @@ const (
 	Interval                   = time.Second * 2
 	YdbOperatorRemoteChart     = "ydb/ydb-operator"
 	YdbOperatorReleaseName     = "ydb-operator"
+	TestTablePath              = "testfolder/testtable"
 )
 
 var (
 	pathToHelmValuesInLocalInstall  = filepath.Join("..", "cfg", "operator-local-values.yaml")
 	pathToHelmValuesInRemoteInstall = filepath.Join("..", "cfg", "operator-values.yaml")
+
+	createTableQuery = fmt.Sprintf("CREATE TABLE `%s` (testColumnA Utf8, testColumnB Utf8, PRIMARY KEY (testColumnA));", TestTablePath)
+	insertQuery      = fmt.Sprintf("INSERT INTO `%s` (testColumnA, testColumnB) VALUES ('valueA', 'valueB');", TestTablePath)
+	selectQuery      = fmt.Sprintf("SELECT testColumnA, testColumnB FROM `%s`;", TestTablePath)
+	dropTableQuery   = fmt.Sprintf("DROP TABLE `%s`;", TestTablePath)
 )
 
 func InstallLocalOperatorWithHelm(namespace string) {
@@ -203,8 +213,6 @@ func BringYdbCliToPod(podName, podNamespace string) {
 }
 
 func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, databasePath string) {
-	tablePath := "testfolder/testtable"
-
 	tableCreatingInterval := time.Second * 10
 
 	Eventually(func(g Gomega) {
@@ -217,7 +225,7 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 			"-e", storageEndpoint,
 			"yql",
 			"-s",
-			fmt.Sprintf("CREATE TABLE `%s` (testColumnA Utf8, testColumnB Utf8, PRIMARY KEY (testColumnA));", tablePath),
+			createTableQuery,
 		}
 		output, _ := exec.Command("kubectl", args...).CombinedOutput()
 		fmt.Println(string(output))
@@ -232,7 +240,7 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 		"-e", storageEndpoint,
 		"yql",
 		"-s",
-		fmt.Sprintf("INSERT INTO `%s` (testColumnA, testColumnB) VALUES ('valueA', 'valueB');", tablePath),
+		insertQuery,
 	}
 	output, err := exec.Command("kubectl", argsInsert...).CombinedOutput()
 	Expect(err).ShouldNot(HaveOccurred(), string(output))
@@ -247,7 +255,7 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 		"yql",
 		"--format", "csv",
 		"-s",
-		fmt.Sprintf("SELECT * FROM `%s`;", tablePath),
+		selectQuery,
 	}
 	output, err = exec.Command("kubectl", argsSelect...).CombinedOutput()
 	Expect(err).ShouldNot(HaveOccurred(), string(output))
@@ -262,10 +270,75 @@ func ExecuteSimpleTableE2ETest(podName, podNamespace, storageEndpoint string, da
 		"-e", storageEndpoint,
 		"yql",
 		"-s",
-		fmt.Sprintf("DROP TABLE `%s`;", tablePath),
+		dropTableQuery,
 	}
 	output, err = exec.Command("kubectl", argsDrop...).CombinedOutput()
 	Expect(err).ShouldNot(HaveOccurred(), string(output))
+}
+
+func ExecuteSimpleTableE2ETestWithSDK(databaseName, databaseNamespace, databasePath string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cc, err := ydb.Open(
+		ctx,
+		fmt.Sprintf("grpc://localhost:30001/%s", databasePath),
+	)
+	Expect(err).ShouldNot(HaveOccurred())
+	defer func() { _ = cc.Close(ctx) }()
+
+	c, err := ydb.Connector(cc,
+		ydb.WithAutoDeclare(),
+		ydb.WithTablePathPrefix(fmt.Sprintf("%s/%s", databasePath, TestTablePath)),
+	)
+	Expect(err).ShouldNot(HaveOccurred())
+	defer func() { _ = c.Close() }()
+
+	db := sql.OpenDB(c)
+	defer func() { _ = db.Close() }()
+
+	err = retry.Do(ctx, db, func(ctx context.Context, cc *sql.Conn) error {
+		_, err = cc.ExecContext(ydb.WithQueryMode(ctx, ydb.SchemeQueryMode), createTableQuery)
+		if err != nil {
+			return err
+		}
+		return nil
+	}, retry.WithIdempotent(true))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	err = retry.DoTx(ctx, db, func(ctx context.Context, tx *sql.Tx) error {
+		if _, err = tx.ExecContext(ctx, insertQuery); err != nil {
+			return err
+		}
+		return nil
+	}, retry.WithIdempotent(true))
+	Expect(err).ShouldNot(HaveOccurred())
+
+	var (
+		testColumnA string
+		testColumnB string
+	)
+	err = retry.Do(ctx, db, func(ctx context.Context, cc *sql.Conn) (err error) {
+		row := cc.QueryRowContext(ctx, selectQuery)
+		if err = row.Scan(&testColumnA, &testColumnB); err != nil {
+			return err
+		}
+
+		return nil
+	}, retry.WithIdempotent(true))
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(testColumnA).To(BeEquivalentTo("valueA"))
+	Expect(testColumnB).To(BeEquivalentTo("valueB"))
+
+	err = retry.Do(ctx, db, func(ctx context.Context, cc *sql.Conn) error {
+		_, err = cc.ExecContext(ydb.WithQueryMode(ctx, ydb.SchemeQueryMode), dropTableQuery)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}, retry.WithIdempotent(true))
+	Expect(err).ShouldNot(HaveOccurred())
 }
 
 func PortForward(
