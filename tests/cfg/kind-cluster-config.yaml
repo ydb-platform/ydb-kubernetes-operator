@@ -17,6 +17,3 @@ nodes:
   labels:
     topology.kubernetes.io/zone: az-3
     worker: true
-- role: worker
-  labels:
-    worker: true
