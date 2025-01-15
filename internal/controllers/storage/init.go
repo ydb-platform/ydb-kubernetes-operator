@@ -34,10 +34,11 @@ func (r *Reconciler) setInitPipelineStatus(
 ) (bool, ctrl.Result, error) {
 	if storage.Status.State == StoragePreparing {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:    StorageInitializedCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  ReasonInProgress,
-			Message: "Storage has not been initialized yet",
+			Type:               StorageInitializedCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: storage.Generation,
+			Message:            "Storage has not been initialized yet",
 		})
 		storage.Status.State = StorageInitializing
 		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
@@ -67,10 +68,11 @@ func (r *Reconciler) setInitStorageCompleted(
 	message string,
 ) (bool, ctrl.Result, error) {
 	meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-		Type:    StorageInitializedCondition,
-		Status:  metav1.ConditionTrue,
-		Reason:  ReasonCompleted,
-		Message: message,
+		Type:               StorageInitializedCondition,
+		Status:             metav1.ConditionTrue,
+		Reason:             ReasonCompleted,
+		ObservedGeneration: storage.Generation,
+		Message:            message,
 	})
 	return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
 }
@@ -196,9 +198,10 @@ func (r *Reconciler) initializeBlobstorage(
 			"Failed initBlobstorage Job, check Pod logs for additional info",
 		)
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:   StorageInitializedCondition,
-			Status: metav1.ConditionFalse,
-			Reason: ReasonInProgress,
+			Type:               StorageInitializedCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: storage.Generation,
 		})
 		if err := r.Delete(ctx, initJob, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 			r.Recorder.Event(
