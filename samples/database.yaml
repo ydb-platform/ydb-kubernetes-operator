@@ -12,3 +12,7 @@ spec:
         unitKind: ssd
   storageClusterRef:
     name: storage-sample
+  configuration: |-
+    kafka_proxy_config:
+      enable_kafka_proxy: true
+      listening_port: 9092
