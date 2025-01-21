@@ -153,6 +153,21 @@ func (b *StorageInitJobBuilder) buildInitJobVolumes() []corev1.Volume {
 			})
 	}
 
+	for _, secret := range b.Spec.Secrets {
+		volumes = append(volumes, corev1.Volume{
+			Name: secret.Name,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secret.Name,
+				},
+			},
+		})
+	}
+
+	for _, volume := range b.Spec.Volumes {
+		volumes = append(volumes, *volume)
+	}
+
 	if b.AnyCertificatesAdded() {
 		volumes = append(volumes, corev1.Volume{
 			Name: systemCertsVolumeName,
