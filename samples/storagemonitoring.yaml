@@ -3,7 +3,7 @@ kind: StorageMonitoring
 metadata:
   name: storage-sample
   labels:
-    release: prom
+    release: kube-prom-stack
 spec:
   storageRef:
     name: storage-sample
