@@ -1,0 +1,3 @@
+kind: Added
+body: 'annotations overrides default secret name and key for arg --auth-token-file'
+time: 2025-01-24T14:18:10.344319+08:00

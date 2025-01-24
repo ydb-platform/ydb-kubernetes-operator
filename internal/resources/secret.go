@@ -13,28 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func CheckSecretKey(
-	ctx context.Context,
-	namespace string,
-	config *rest.Config,
-	secretKeyRef *corev1.SecretKeySelector,
-) (bool, error) {
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return false, fmt.Errorf("failed to create kubernetes clientset, error: %w", err)
-	}
-
-	getCtx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-	secret, err := clientset.CoreV1().Secrets(namespace).Get(getCtx, secretKeyRef.Name, metav1.GetOptions{})
-	if err != nil {
-		return false, fmt.Errorf("failed to get secret %s, error: %w", secretKeyRef.Name, err)
-	}
-
-	_, exist := secret.Data[secretKeyRef.Key]
-	return exist, nil
-}
-
 func GetSecretKey(
 	ctx context.Context,
 	namespace string,

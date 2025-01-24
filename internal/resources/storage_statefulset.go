@@ -1,10 +1,8 @@
 package resources
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -521,30 +519,23 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 		)
 	}
 
+	authTokenSecretName := api.AuthTokenSecretName
+	authTokenSecretKey := api.AuthTokenSecretKey
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationAuthTokenSecretName]; ok {
+		authTokenSecretName = value
+	}
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationAuthTokenSecretKey]; ok {
+		authTokenSecretKey = value
+	}
 	for _, secret := range b.Spec.Secrets {
-		exist, err := CheckSecretKey(
-			context.Background(),
-			b.GetNamespace(),
-			b.RestConfig,
-			&corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: secret.Name,
-				},
-				Key: api.YdbAuthToken,
-			},
-		)
-		if err != nil {
-			log.Default().Printf("Failed to inspect a secret %s: %s\n", secret.Name, err.Error())
-			continue
-		}
-		if exist {
+		if secret.Name == authTokenSecretName {
 			args = append(args,
-				"--auth-token-file",
+				api.AuthTokenFileArg,
 				fmt.Sprintf(
 					"%s/%s/%s",
 					wellKnownDirForAdditionalSecrets,
-					secret.Name,
-					api.YdbAuthToken,
+					authTokenSecretName,
+					authTokenSecretKey,
 				),
 			)
 		}
