@@ -266,7 +266,7 @@ var _ = Describe("Storage controller medium tests", func() {
 					Namespace: testobjects.YdbNamespace,
 				}, &foundStorage))
 				foundStorage.Spec.Secrets = []*corev1.LocalObjectReference{
-					&corev1.LocalObjectReference{
+					{
 						Name: v1alpha1.AuthTokenSecretName,
 					},
 				}
