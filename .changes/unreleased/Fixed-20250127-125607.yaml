@@ -1,0 +1,3 @@
+kind: Fixed
+body: fix field resourceVersion inside .status.remoteResources.conditions
+time: 2025-01-27T12:56:07.577721+08:00
