@@ -369,15 +369,8 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 func shouldIgnoreDatabaseChange(database *resources.DatabaseBuilder) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
-		if statefulSet, ok := oldObj.(*appsv1.StatefulSet); ok {
-			if database.Spec.Pause && *statefulSet.Spec.Replicas == 0 {
-				return true
-			}
-		}
-
-		if sec, ok := oldObj.(*corev1.Secret); ok {
-			// Do not update already existing secret data for encryption
-			if (len(sec.StringData) > 0) || (len(sec.Data) > 0) {
+		if _, ok := newObj.(*appsv1.StatefulSet); ok {
+			if database.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
 				return true
 			}
 		}
