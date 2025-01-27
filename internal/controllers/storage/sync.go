@@ -292,8 +292,8 @@ func (r *Reconciler) waitForNodeSetsToProvisioned(
 
 func shouldIgnoreStorageChange(storage *resources.StorageClusterBuilder) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
-		if _, ok := newObj.(*appsv1.StatefulSet); ok {
-			if storage.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
+		if statefulSet, ok := newObj.(*appsv1.StatefulSet); ok {
+			if storage.Spec.Pause && *statefulSet.Spec.Replicas == 0 {
 				return true
 			}
 		}
