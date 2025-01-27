@@ -41,11 +41,6 @@ func (r *Reconciler) Sync(ctx context.Context, cr *v1alpha1.Storage) (ctrl.Resul
 		return result, err
 	}
 
-	stop, result, err = r.syncNodeSetSpecInline(ctx, &storage)
-	if stop {
-		return result, err
-	}
-
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StorageInitializedCondition) {
 		return r.handleBlobstorageInit(ctx, &storage)
 	}
@@ -400,6 +395,17 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
+	if err := r.syncNodeSetSpecInline(ctx, storage); err != nil {
+		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
+			Type:               StoragePreparedCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: storage.Generation,
+			Message:            "Failed to sync NodeSet resources",
+		})
+		return r.updateStatus(ctx, storage, DefaultRequeueDelay)
+	}
+
 	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StoragePreparedCondition) {
 		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
 			Type:               StoragePreparedCondition,
@@ -418,8 +424,7 @@ func (r *Reconciler) handleResourcesSync(
 func (r *Reconciler) syncNodeSetSpecInline(
 	ctx context.Context,
 	storage *resources.StorageClusterBuilder,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running step syncNodeSetSpecInline")
+) error {
 	matchingFields := client.MatchingFields{
 		OwnerControllerField: storage.Name,
 	}
@@ -435,7 +440,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list StorageNodeSets: %s", err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		return err
 	}
 
 	for _, storageNodeSet := range storageNodeSets.Items {
@@ -459,7 +464,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 					"ProvisioningFailed",
 					fmt.Sprintf("Failed to delete StorageNodeSet: %s", err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+				return err
 			}
 			r.Recorder.Event(
 				storage,
@@ -484,7 +489,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list RemoteStorageNodeSets: %s", err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		return err
 	}
 
 	for _, remoteStorageNodeSet := range remoteStorageNodeSets.Items {
@@ -508,7 +513,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 					"ProvisioningFailed",
 					fmt.Sprintf("Failed to delete RemoteStorageNodeSet: %s", err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+				return err
 			}
 			r.Recorder.Event(
 				storage,
@@ -522,19 +527,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	if !meta.IsStatusConditionTrue(storage.Status.Conditions, StoragePreparedCondition) {
-		meta.SetStatusCondition(&storage.Status.Conditions, metav1.Condition{
-			Type:               StoragePreparedCondition,
-			Status:             metav1.ConditionTrue,
-			Reason:             ReasonCompleted,
-			ObservedGeneration: storage.Generation,
-			Message:            "Successfully synced resources",
-		})
-		return r.updateStatus(ctx, storage, StatusUpdateRequeueDelay)
-	}
-
-	r.Log.Info("complete step syncNodeSetSpecInline")
-	return Continue, ctrl.Result{Requeue: false}, nil
+	return nil
 }
 
 func (r *Reconciler) runSelfCheck(

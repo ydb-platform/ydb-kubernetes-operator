@@ -48,11 +48,6 @@ func (r *Reconciler) Sync(ctx context.Context, ydbCr *v1alpha1.Database) (ctrl.R
 		return result, err
 	}
 
-	stop, result, err = r.syncNodeSetSpecInline(ctx, &database)
-	if stop {
-		return result, err
-	}
-
 	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabaseInitializedCondition) {
 		return r.handleTenantCreation(ctx, &database)
 	}
@@ -464,6 +459,17 @@ func (r *Reconciler) handleResourcesSync(
 		}
 	}
 
+	if err := r.syncNodeSetSpecInline(ctx, database); err != nil {
+		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
+			Type:               DatabasePreparedCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             ReasonInProgress,
+			ObservedGeneration: database.Generation,
+			Message:            "Failed to sync NodeSet resources",
+		})
+		return r.updateStatus(ctx, database, DefaultRequeueDelay)
+	}
+
 	if !meta.IsStatusConditionTrue(database.Status.Conditions, DatabasePreparedCondition) {
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{
 			Type:               DatabasePreparedCondition,
@@ -550,9 +556,7 @@ func (r *Reconciler) updateStatus(
 func (r *Reconciler) syncNodeSetSpecInline(
 	ctx context.Context,
 	database *resources.DatabaseBuilder,
-) (bool, ctrl.Result, error) {
-	r.Log.Info("running step syncNodeSetSpecInline")
-
+) error {
 	databaseNodeSets := &v1alpha1.DatabaseNodeSetList{}
 	if err := r.List(ctx, databaseNodeSets,
 		client.InNamespace(database.Namespace),
@@ -566,7 +570,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list DatabaseNodeSets: %s", err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		return err
 	}
 
 	for _, databaseNodeSet := range databaseNodeSets.Items {
@@ -589,7 +593,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 					"ProvisioningFailed",
 					fmt.Sprintf("Failed to delete DatabaseNodeSet: %s", err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+				return err
 			}
 			r.Recorder.Event(
 				database,
@@ -616,7 +620,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 			"ProvisioningFailed",
 			fmt.Sprintf("Failed to list RemoteDatabaseNodeSets: %s", err),
 		)
-		return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+		return err
 	}
 
 	for _, remoteDatabaseNodeSet := range remoteDatabaseNodeSets.Items {
@@ -640,7 +644,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 					"ProvisioningFailed",
 					fmt.Sprintf("Failed to delete RemoteDatabaseNodeSet: %s", err),
 				)
-				return Stop, ctrl.Result{RequeueAfter: DefaultRequeueDelay}, err
+				return err
 			}
 			r.Recorder.Event(
 				database,
@@ -654,8 +658,7 @@ func (r *Reconciler) syncNodeSetSpecInline(
 		}
 	}
 
-	r.Log.Info("complete step syncNodeSetSpecInline")
-	return Continue, ctrl.Result{Requeue: false}, nil
+	return nil
 }
 
 func (r *Reconciler) handlePauseResume(
