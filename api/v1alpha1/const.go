@@ -28,17 +28,23 @@ const (
 	DiskPathPrefix      = "/dev/kikimr_ssd"
 	DiskNumberMaxDigits = 2
 	DiskFilePath        = "/data"
-	YdbAuthToken        = "ydb-auth-token-file"
 
-	ConfigDir      = "/opt/ydb/cfg"
-	ConfigFileName = "config.yaml"
+	AuthTokenSecretName = "ydb-auth-token-file"
+	AuthTokenSecretKey  = "ydb-auth-token-file"
+	AuthTokenFileArg    = "--auth-token-file"
 
 	DatabaseEncryptionKeySecretDir  = "database_encryption"
 	DatabaseEncryptionKeySecretFile = "key"
 	DatabaseEncryptionKeyConfigFile = "key.txt"
 
+	ConfigDir      = "/opt/ydb/cfg"
+	ConfigFileName = "config.yaml"
+
 	BinariesDir      = "/opt/ydb/bin"
 	DaemonBinaryName = "ydbd"
+
+	AdditionalSecretsDir = "/opt/ydb/secrets"
+	AdditionalVolumesDir = "/opt/ydb/volumes"
 
 	DefaultRootUsername          = "root"
 	DefaultRootPassword          = ""
@@ -60,6 +66,8 @@ const (
 	AnnotationGRPCPublicHost         = "ydb.tech/grpc-public-host"
 	AnnotationNodeHost               = "ydb.tech/node-host"
 	AnnotationNodeDomain             = "ydb.tech/node-domain"
+	AnnotationAuthTokenSecretName    = "ydb.tech/auth-token-secret-name"
+	AnnotationAuthTokenSecretKey     = "ydb.tech/auth-token-secret-key"
 
 	AnnotationValueTrue = "true"
 

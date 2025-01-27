@@ -62,6 +62,23 @@ var _ = Describe("Storage controller medium tests", func() {
 	})
 
 	It("Checking field propagation to objects", func() {
+		getStatefulSet := func(objName string) (appsv1.StatefulSet, error) {
+			foundStatefulSets := appsv1.StatefulSetList{}
+			err := k8sClient.List(ctx, &foundStatefulSets, client.InNamespace(
+				testobjects.YdbNamespace,
+			))
+			if err != nil {
+				return appsv1.StatefulSet{}, err
+			}
+			for _, statefulSet := range foundStatefulSets.Items {
+				if statefulSet.Name == objName {
+					return statefulSet, nil
+				}
+			}
+
+			return appsv1.StatefulSet{}, fmt.Errorf("Statefulset with name %s was not found", objName)
+		}
+
 		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 
 		tmpFilesDir := "/tmp/mounted_volume"
@@ -226,6 +243,67 @@ var _ = Describe("Storage controller medium tests", func() {
 				Expect(k8sClient.List(ctx, &foundStatefulSets, client.InNamespace(testobjects.YdbNamespace))).ShouldNot(HaveOccurred())
 				return len(foundStatefulSets.Items)
 			}, test.Timeout, test.Interval).Should(Equal(1))
+		})
+
+		By("check --auth-token-file arg in StatefulSet...", func() {
+			By("create auth-token Secret with default name...")
+			defaultAuthTokenSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      v1alpha1.AuthTokenSecretName,
+					Namespace: testobjects.YdbNamespace,
+				},
+				StringData: map[string]string{
+					v1alpha1.AuthTokenSecretKey: "StaffApiUserToken: 'default-token'",
+				},
+			}
+			Expect(k8sClient.Create(ctx, defaultAuthTokenSecret))
+
+			By("append auth-token Secret inside Storage manifest...")
+			Eventually(func() error {
+				foundStorage := v1alpha1.Storage{}
+				Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name:      testobjects.StorageName,
+					Namespace: testobjects.YdbNamespace,
+				}, &foundStorage))
+				foundStorage.Spec.Secrets = []*corev1.LocalObjectReference{
+					{
+						Name: v1alpha1.AuthTokenSecretName,
+					},
+				}
+				return k8sClient.Update(ctx, &foundStorage)
+			}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+
+			checkAuthTokenArgs := func() error {
+				statefulSet, err := getStatefulSet(testobjects.StorageName)
+				if err != nil {
+					return err
+				}
+				podContainerArgs := statefulSet.Spec.Template.Spec.Containers[0].Args
+				var argExist bool
+				var currentArgValue string
+				authTokenFileArgValue := fmt.Sprintf("%s/%s/%s",
+					v1alpha1.AdditionalSecretsDir,
+					v1alpha1.AuthTokenSecretName,
+					v1alpha1.AuthTokenSecretKey,
+				)
+				for idx, arg := range podContainerArgs {
+					if arg == v1alpha1.AuthTokenFileArg {
+						argExist = true
+						currentArgValue = podContainerArgs[idx+1]
+						break
+					}
+				}
+				if !argExist {
+					return fmt.Errorf("arg `%s` did not found in StatefulSet podTemplate args: %v", v1alpha1.AuthTokenFileArg, podContainerArgs)
+				}
+				if authTokenFileArgValue != currentArgValue {
+					return fmt.Errorf("current arg `%s` value `%s` did not match with expected: %s", v1alpha1.AuthTokenFileArg, currentArgValue, authTokenFileArgValue)
+				}
+				return nil
+			}
+
+			By("check that --auth-token-file arg was added to Statefulset template...")
+			Eventually(checkAuthTokenArgs, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 		})
 	})
 })
