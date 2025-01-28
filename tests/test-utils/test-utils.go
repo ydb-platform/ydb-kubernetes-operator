@@ -108,7 +108,7 @@ func UpgradeOperatorWithHelm(namespace, version string) {
 		"ydb-operator",
 		YdbOperatorRemoteChart,
 		"--version", version,
-		"-f", pathToHelmValuesInLocalInstall,
+		"-f", pathToHelmValuesInRemoteInstall,
 	}
 
 	cmd := exec.Command("helm", args...)
