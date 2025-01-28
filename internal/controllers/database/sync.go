@@ -359,8 +359,8 @@ func (r *Reconciler) waitForStatefulSetToScale(
 
 func shouldIgnoreDatabaseChange(database *resources.DatabaseBuilder) resources.IgnoreChangesFunction {
 	return func(oldObj, newObj runtime.Object) bool {
-		if _, ok := newObj.(*appsv1.StatefulSet); ok {
-			if database.Spec.Pause && *oldObj.(*appsv1.StatefulSet).Spec.Replicas == 0 {
+		if statefulSet, ok := oldObj.(*appsv1.StatefulSet); ok {
+			if database.Spec.Pause && *statefulSet.Spec.Replicas == 0 {
 				return true
 			}
 		}
