@@ -64,6 +64,7 @@ const (
 	AnnotationDisableLivenessProbe   = "ydb.tech/disable-liveness-probe"
 	AnnotationDataCenter             = "ydb.tech/data-center"
 	AnnotationGRPCPublicHost         = "ydb.tech/grpc-public-host"
+	AnnotationGRPCPublicPort         = "ydb.tech/grpc-public-port"
 	AnnotationNodeHost               = "ydb.tech/node-host"
 	AnnotationNodeDomain             = "ydb.tech/node-domain"
 	AnnotationAuthTokenSecretName    = "ydb.tech/auth-token-secret-name"

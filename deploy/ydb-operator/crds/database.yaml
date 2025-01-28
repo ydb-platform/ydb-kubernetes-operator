@@ -4075,6 +4075,9 @@ spec:
                         type: object
                       externalHost:
                         type: string
+                      externalPort:
+                        format: int32
+                        type: integer
                       ipDiscovery:
                         properties:
                           enabled:

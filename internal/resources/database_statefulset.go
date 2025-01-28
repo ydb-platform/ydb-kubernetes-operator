@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -74,6 +73,15 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 	var envVars []corev1.EnvVar
 
 	envVars = append(envVars,
+		corev1.EnvVar{
+			Name: "POD_NAME", // for `--grpc-public-host` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.name",
+				},
+			},
+		},
 		corev1.EnvVar{
 			Name: "NODE_NAME", // for `--grpc-public-host` flag
 			ValueFrom: &corev1.EnvVarSource{
@@ -640,10 +648,11 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	publicHostOption := "--grpc-public-host"
-	publicHost := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace(), domain) // FIXME .svc.cluster.local
+	publicHostDomain := fmt.Sprintf(api.InterconnectServiceFQDNFormat, b.Database.Name, b.GetNamespace(), domain)
+	publicHost := fmt.Sprintf("%s.%s", "$(POD_NAME)", publicHostDomain)
 
 	if b.Spec.Service.GRPC.ExternalHost != "" {
-		publicHost = b.Spec.Service.GRPC.ExternalHost
+		publicHost = fmt.Sprintf("%s.%s", "$(POD_NAME)", b.Spec.Service.GRPC.ExternalHost)
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
 		publicHost = value
@@ -667,22 +676,28 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 			args = append(
 				args,
 				"--grpc-public-target-name-override",
-				fmt.Sprintf("%s.%s", "$(NODE_NAME)", targetNameOverride),
+				fmt.Sprintf("%s.%s", "$(POD_NAME)", targetNameOverride),
 			)
 		}
 	}
 
 	publicPortOption := "--grpc-public-port"
-	publicPort := api.GRPCPort
+	publicPort := fmt.Sprintf("%d", api.GRPCPort)
+	if b.Spec.Service.GRPC.ExternalPort > 0 {
+		publicPort = fmt.Sprintf("%d", b.Spec.Service.GRPC.ExternalPort)
+	}
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicPort]; ok {
+		publicPort = value
+	}
 
 	args = append(
 		args,
 
 		publicHostOption,
-		fmt.Sprintf("%s.%s", "$(NODE_NAME)", publicHost), // fixme $(NODE_NAME)
+		publicHost,
 
 		publicPortOption,
-		strconv.Itoa(publicPort),
+		publicPort,
 	)
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDataCenter]; ok {
