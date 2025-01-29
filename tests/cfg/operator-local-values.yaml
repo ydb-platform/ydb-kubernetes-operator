@@ -8,8 +8,3 @@ webhook:
 
   patch:
     enabled: true
-
-image:
-  pullPolicy: Never
-  repository: kind/ydb-operator
-  tag: current
