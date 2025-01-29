@@ -1,3 +1,0 @@
-kind: Fixed
-body: panic when create object with .spec.pause is true
-time: 2025-01-27T14:10:03.497565+08:00
