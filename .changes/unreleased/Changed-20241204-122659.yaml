@@ -1,3 +1,0 @@
-kind: Changed
-body: refactor package labels to separate methods buildLabels, buildSelectorLabels and buildeNodeSetLabels for each resource
-time: 2024-12-04T12:26:59.096105+07:00

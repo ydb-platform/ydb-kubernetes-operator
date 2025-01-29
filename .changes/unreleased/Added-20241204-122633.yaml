@@ -1,3 +1,0 @@
-kind: Added
-body: new method buildPodTemplateLabels to append additionalPodLabels for statefulset builders
-time: 2024-12-04T12:26:33.654222+07:00

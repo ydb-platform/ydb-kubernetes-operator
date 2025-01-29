@@ -1,3 +1,0 @@
-kind: Changed
-body: propagate labels ydb.tech/database-nodeset, ydb.tech/storage-nodeset and ydb.tech/remote-cluster with method makeCommonLabels between resource recasting
-time: 2024-12-04T12:27:13.265234+07:00
