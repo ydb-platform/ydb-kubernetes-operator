@@ -768,6 +768,82 @@ var _ = Describe("Operator smoke test", func() {
 		ExecuteSimpleTableE2ETestWithSDK(databaseSample.Name, testobjects.YdbNamespace, databasePath)
 	})
 
+	It("Check init job has additional volumes", func() {
+		By("create storage tls secret...")
+		storageCert := testobjects.StorageCertificate()
+		Expect(k8sClient.Create(ctx, storageCert)).Should(Succeed())
+
+		By("create storage...")
+		storage := testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config.yaml"))
+
+		secretName := testobjects.StorageCertificateSecretName
+		secretPath := fmt.Sprintf("%s/%s", resources.wellKnownDirForAdditionalSecrets, secretName)
+
+		storage.Spec.Secrets = []*corev1.LocalObjectReference{
+			{
+				Name: secretName,
+			},
+		}
+
+		storage.Spec.InitContainers = []corev1.Container{
+			{
+				Name:    "init-container",
+				Image:   storage.Spec.Image.Name,
+				Command: []string{"bash", "-xc"},
+				Args:    []string{fmt.Sprintf("ls -la %s", secretPath)},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      secretName,
+						MountPath: secretPath,
+						ReadOnly:  true,
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, storage)).Should(Succeed())
+		defer DeleteStorageSafely(ctx, k8sClient, storage)
+
+		By("waiting until Storage is ready ...")
+		WaitUntilStorageReady(ctx, k8sClient, storage.Name, testobjects.YdbNamespace)
+	})
+
+	It("Check init job has additional volumes with GRPCS enabled", func() {
+		By("create storage tls secret...")
+		storageCert := testobjects.StorageCertificate()
+		Expect(k8sClient.Create(ctx, storageCert)).Should(Succeed())
+
+		By("create storage...")
+		storage := testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config-tls.yaml"))
+
+		secretName := testobjects.StorageCertificateSecretName
+		secretPath := fmt.Sprintf("%s/%s", resources.wellKnownDirForAdditionalSecrets, secretName)
+
+		storage.Spec.Service.GRPC.TLSConfiguration = testobjects.TLSConfiguration(secretName)
+
+		storage.Spec.InitContainers = []corev1.Container{
+			{
+				Name:    "init-container",
+				Image:   storage.Spec.Image.Name,
+				Command: []string{"bash", "-xc"},
+				Args:    []string{fmt.Sprintf("ls -la %s", secretPath)},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      resources.grpcTLSVolumeName,
+						MountPath: secretPath,
+						ReadOnly:  true,
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, storage)).Should(Succeed())
+		defer DeleteStorageSafely(ctx, k8sClient, storage)
+
+		By("waiting until Storage is ready ...")
+		WaitUntilStorageReady(ctx, k8sClient, storage.Name, testobjects.YdbNamespace)
+	})
+
 	AfterEach(func() {
 		UninstallOperatorWithHelm(testobjects.YdbNamespace)
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())

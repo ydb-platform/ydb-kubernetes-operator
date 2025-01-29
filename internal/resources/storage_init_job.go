@@ -75,6 +75,7 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},
+			InitContainers: b.Spec.InitContainers,
 		},
 	}
 
@@ -92,8 +93,7 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 		}
 	}
 
-	// InitContainer only needed for CaBundle manipulation for now,
-	// may be probably used for other stuff later
+	// append an init container for updating the ca.crt if we have any certificates
 	if b.AnyCertificatesAdded() {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
