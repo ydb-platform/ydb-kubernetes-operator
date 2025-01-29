@@ -73,6 +73,7 @@ kind-init:
 	--name kind-ydb-operator
 	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
 	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --name kind-ydb-operator
+	kubectl cluster-info --context kind-kind-ydb-operator # yes, kind prefixes all context with one more 'kind-'
 	docker pull ${YDB_IMAGE}
 	kind load docker-image ${YDB_IMAGE} --name kind-ydb-operator
 

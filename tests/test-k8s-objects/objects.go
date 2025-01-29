@@ -109,6 +109,9 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 				AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
 				Affinity:         storageAntiAffinity,
 			},
+			InitJob: &v1alpha1.StorageInitJobSpec{
+				AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage-init"},
+			},
 		},
 	}
 }
