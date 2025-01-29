@@ -768,6 +768,54 @@ var _ = Describe("Operator smoke test", func() {
 		ExecuteSimpleTableE2ETestWithSDK(databaseSample.Name, testobjects.YdbNamespace, databasePath)
 	})
 
+	It("Check init job with additional volumes and GRPCS enabled", func() {
+		By("create stls secrets...")
+		storageCert := testobjects.StorageCertificate()
+
+		secret := storageCert.DeepCopy()
+		secret.Name = "another-secret"
+
+		Expect(k8sClient.Create(ctx, storageCert)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, secret)).Should(Succeed())
+
+		By("create storage...")
+		storage := testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config-tls.yaml"))
+
+		storage.Spec.Service.GRPC.TLSConfiguration = testobjects.TLSConfiguration(
+			testobjects.StorageCertificateSecretName,
+		)
+
+		storage.Spec.Secrets = []*corev1.LocalObjectReference{
+			{
+				Name: secret.Name,
+			},
+		}
+
+		mountPath := fmt.Sprintf("%s/%s", v1alpha1.AdditionalSecretsDir, secret.Name)
+
+		storage.Spec.InitContainers = []corev1.Container{
+			{
+				Name:    "init-container",
+				Image:   storage.Spec.Image.Name,
+				Command: []string{"bash", "-xc"},
+				Args:    []string{fmt.Sprintf("ls -la %s", mountPath)},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      secret.Name,
+						MountPath: mountPath,
+						ReadOnly:  true,
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, storage)).Should(Succeed())
+		defer DeleteStorageSafely(ctx, k8sClient, storage)
+
+		By("waiting until Storage is ready ...")
+		WaitUntilStorageReady(ctx, k8sClient, storage.Name, testobjects.YdbNamespace)
+	})
+
 	AfterEach(func() {
 		UninstallOperatorWithHelm(testobjects.YdbNamespace)
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())

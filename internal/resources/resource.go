@@ -35,7 +35,7 @@ const (
 	StatusServiceNameFormat       = "%s-status"
 	DatastreamsServiceNameFormat  = "%s-datastreams"
 
-	grpcTLSVolumeName         = "grpc-tls-volume"
+	GRPCTLSVolumeName         = "grpc-tls-volume"
 	interconnectTLSVolumeName = "interconnect-tls-volume"
 	datastreamsTLSVolumeName  = "datastreams-tls-volume"
 	statusTLSVolumeName       = "status-tls-volume"

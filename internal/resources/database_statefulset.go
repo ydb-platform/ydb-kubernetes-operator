@@ -192,7 +192,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumes() []corev1.Volume {
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
+		volumes = append(volumes, buildTLSVolume(GRPCTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
 	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
@@ -314,7 +314,7 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMoun
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      grpcTLSVolumeName,
+			Name:      GRPCTLSVolumeName,
 			ReadOnly:  true,
 			MountPath: grpcTLSVolumeMountPath,
 		})
@@ -482,7 +482,7 @@ func (b *DatabaseStatefulSetBuilder) buildVolumeMounts() []corev1.VolumeMount {
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      grpcTLSVolumeName,
+			Name:      GRPCTLSVolumeName,
 			ReadOnly:  true,
 			MountPath: grpcTLSVolumeMountPath,
 		})

@@ -75,6 +75,7 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 			DNSConfig: &corev1.PodDNSConfig{
 				Searches: dnsConfigSearches,
 			},
+			InitContainers: b.Spec.InitContainers,
 		},
 	}
 
@@ -92,8 +93,7 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 		}
 	}
 
-	// InitContainer only needed for CaBundle manipulation for now,
-	// may be probably used for other stuff later
+	// append an init container for updating the ca.crt if we have any certificates
 	if b.AnyCertificatesAdded() {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
@@ -137,7 +137,7 @@ func (b *StorageInitJobBuilder) buildInitJobVolumes() []corev1.Volume {
 	}
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		volumes = append(volumes, buildTLSVolume(grpcTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
+		volumes = append(volumes, buildTLSVolume(GRPCTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
 
 	if b.Spec.OperatorConnection != nil {
@@ -151,6 +151,21 @@ func (b *StorageInitJobBuilder) buildInitJobVolumes() []corev1.Volume {
 					},
 				},
 			})
+	}
+
+	for _, secret := range b.Spec.Secrets {
+		volumes = append(volumes, corev1.Volume{
+			Name: secret.Name,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secret.Name,
+				},
+			},
+		})
+	}
+
+	for _, volume := range b.Spec.Volumes {
+		volumes = append(volumes, *volume)
 	}
 
 	if b.AnyCertificatesAdded() {
@@ -219,7 +234,7 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      grpcTLSVolumeName,
+			Name:      GRPCTLSVolumeName,
 			ReadOnly:  true,
 			MountPath: grpcTLSVolumeMountPath,
 		})
@@ -302,7 +317,7 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainerVolumeMounts() 
 
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      grpcTLSVolumeName,
+			Name:      GRPCTLSVolumeName,
 			ReadOnly:  true,
 			MountPath: grpcTLSVolumeMountPath,
 		})
