@@ -769,28 +769,40 @@ var _ = Describe("Operator smoke test", func() {
 	})
 
 	It("Check init job with additional volumes and GRPCS enabled", func() {
-		By("create storage tls secret...")
+		By("create stls secrets...")
 		storageCert := testobjects.StorageCertificate()
+
+		secret := storageCert.DeepCopy()
+		secret.Name = "another-secret"
+
 		Expect(k8sClient.Create(ctx, storageCert)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, secret)).Should(Succeed())
 
 		By("create storage...")
 		storage := testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config-tls.yaml"))
 
-		secretName := testobjects.StorageCertificateSecretName
-		secretPath := fmt.Sprintf("%s/%s", v1alpha1.AdditionalSecretsDir, secretName)
+		storage.Spec.Service.GRPC.TLSConfiguration = testobjects.TLSConfiguration(
+			testobjects.StorageCertificateSecretName,
+		)
 
-		storage.Spec.Service.GRPC.TLSConfiguration = testobjects.TLSConfiguration(secretName)
+		storage.Spec.Secrets = []*corev1.LocalObjectReference{
+			{
+				Name: secret.Name,
+			},
+		}
+
+		mountPath := fmt.Sprintf("%s/%s", v1alpha1.AdditionalSecretsDir, secret.Name)
 
 		storage.Spec.InitContainers = []corev1.Container{
 			{
 				Name:    "init-container",
 				Image:   storage.Spec.Image.Name,
 				Command: []string{"bash", "-xc"},
-				Args:    []string{fmt.Sprintf("ls -la %s", secretPath)},
+				Args:    []string{fmt.Sprintf("ls -la %s", mountPath)},
 				VolumeMounts: []corev1.VolumeMount{
 					{
-						Name:      resources.GRPCTLSVolumeName,
-						MountPath: secretPath,
+						Name:      secret.Name,
+						MountPath: mountPath,
 						ReadOnly:  true,
 					},
 				},
