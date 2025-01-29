@@ -777,7 +777,7 @@ var _ = Describe("Operator smoke test", func() {
 		storage := testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config.yaml"))
 
 		secretName := testobjects.StorageCertificateSecretName
-		secretPath := fmt.Sprintf("%s/%s", resources.wellKnownDirForAdditionalSecrets, secretName)
+		secretPath := fmt.Sprintf("%s/%s", v1alpha1.AdditionalSecretsDir, secretName)
 
 		storage.Spec.Secrets = []*corev1.LocalObjectReference{
 			{
@@ -817,7 +817,7 @@ var _ = Describe("Operator smoke test", func() {
 		storage := testobjects.DefaultStorage(filepath.Join("..", "data", "storage-mirror-3-dc-config-tls.yaml"))
 
 		secretName := testobjects.StorageCertificateSecretName
-		secretPath := fmt.Sprintf("%s/%s", resources.wellKnownDirForAdditionalSecrets, secretName)
+		secretPath := fmt.Sprintf("%s/%s", v1alpha1.AdditionalSecretsDir, secretName)
 
 		storage.Spec.Service.GRPC.TLSConfiguration = testobjects.TLSConfiguration(secretName)
 
@@ -829,7 +829,7 @@ var _ = Describe("Operator smoke test", func() {
 				Args:    []string{fmt.Sprintf("ls -la %s", secretPath)},
 				VolumeMounts: []corev1.VolumeMount{
 					{
-						Name:      resources.grpcTLSVolumeName,
+						Name:      resources.GRPCTLSVolumeName,
 						MountPath: secretPath,
 						ReadOnly:  true,
 					},
