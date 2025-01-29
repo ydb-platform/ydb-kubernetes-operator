@@ -1,0 +1,3 @@
+kind: Fixed
+body: Passing additional secret volumes to blobstorage-init. The init container can now use them without issues.
+time: 2025-01-29T13:42:26.145577+01:00
