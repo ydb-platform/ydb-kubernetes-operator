@@ -29,6 +29,11 @@ jobs:
         custom_tag: ${{ env.VERSION }}
         github_token: ${{ github.token }}
 
+    - name: dispatch-compatibility-tests
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        event-type: compatibility-tests
+
     - name: install-dependencies
       run: |
         HELM_PKG="helm-v3.10.3-linux-amd64.tar.gz"
