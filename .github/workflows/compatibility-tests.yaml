@@ -48,13 +48,6 @@ jobs:
             exit 1
           fi
 
-          # remove after creating 0.6.0 tag. 
-          # Basically, we are incompatible with 0.4, and while there is no 0.6 (and prev minor being 0.5), 
-          # we will run compat tests from previous patch version
-          if [ "$PREVIOUS_VERSION" = "0.4.42" ]; then
-            PREVIOUS_VERSION="0.5.30"
-          fi
-
           echo "Current version is $NEW_VERSION"
           echo "Will be tested for compatibility from $PREVIOUS_VERSION"
 
