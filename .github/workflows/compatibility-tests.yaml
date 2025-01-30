@@ -1,10 +1,9 @@
 name: compatibility-tests
 
 on:
-  push:
-    tags:
-      - '*'
   workflow_dispatch:
+  repository_dispatch:
+    types: [compatibility-tests]
 
 jobs:
   test-compatibility:
@@ -55,6 +54,9 @@ jobs:
           if [ "$PREVIOUS_VERSION" = "0.4.42" ]; then
             PREVIOUS_VERSION="0.5.30"
           fi
+
+          echo "Current version is $NEW_VERSION"
+          echo "Will be tested for compatibility from $PREVIOUS_VERSION"
 
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
           echo "PREVIOUS_VERSION=$PREVIOUS_VERSION" >> $GITHUB_ENV

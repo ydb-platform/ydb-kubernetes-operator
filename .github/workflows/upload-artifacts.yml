@@ -131,3 +131,8 @@ jobs:
         tag_name: ${{ env.VERSION }} 
       env:
         GITHUB_TOKEN: ${{ github.token }}
+
+    - name: dispatch-compatibility-tests
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        event-type: compatibility-tests

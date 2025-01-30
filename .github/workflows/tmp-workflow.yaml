@@ -1,0 +1,18 @@
+name: tmp
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: dispatch-compatibility-tests
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        event-type: compatibility-tests
