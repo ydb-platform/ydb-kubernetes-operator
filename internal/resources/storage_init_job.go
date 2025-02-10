@@ -136,6 +136,10 @@ func (b *StorageInitJobBuilder) buildInitJobVolumes() []corev1.Volume {
 		},
 	}
 
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
+		volumes = append(volumes, buildTLSVolume(interconnectTLSVolumeName, b.Spec.Service.Interconnect.TLSConfiguration))
+	}
+
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumes = append(volumes, buildTLSVolume(GRPCTLSVolumeName, b.Spec.Service.GRPC.TLSConfiguration))
 	}
@@ -222,16 +226,7 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 	return container
 }
 
-func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
-	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      configVolumeName,
-			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
-			SubPath:   api.ConfigFileName,
-		},
-	}
-
+func (b *StorageInitJobBuilder) appendTLSVolumeMounts(volumeMounts []corev1.VolumeMount) []corev1.VolumeMount {
 	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      GRPCTLSVolumeName,
@@ -240,12 +235,11 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 		})
 	}
 
-	if b.Spec.OperatorConnection != nil {
-		secretName := fmt.Sprintf(OperatorTokenSecretNameFormat, b.Storage.Name)
+	if b.Spec.Service.Interconnect.TLSConfiguration.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      operatorTokenVolumeName,
+			Name:      interconnectTLSVolumeName,
 			ReadOnly:  true,
-			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, secretName),
+			MountPath: interconnectTLSVolumeMountPath,
 		})
 	}
 
@@ -260,6 +254,29 @@ func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
 			MountPath: systemCertsDir,
 		})
 	}
+	return volumeMounts
+}
+
+func (b *StorageInitJobBuilder) buildJobVolumeMounts() []corev1.VolumeMount {
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      configVolumeName,
+			ReadOnly:  true,
+			MountPath: fmt.Sprintf("%s/%s", api.ConfigDir, api.ConfigFileName),
+			SubPath:   api.ConfigFileName,
+		},
+	}
+
+	if b.Spec.OperatorConnection != nil {
+		secretName := fmt.Sprintf(OperatorTokenSecretNameFormat, b.Storage.Name)
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      operatorTokenVolumeName,
+			ReadOnly:  true,
+			MountPath: fmt.Sprintf("%s/%s", wellKnownDirForAdditionalSecrets, secretName),
+		})
+	}
+
+	volumeMounts = b.appendTLSVolumeMounts(volumeMounts)
 
 	return volumeMounts
 }
@@ -301,29 +318,7 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainer() corev1.Conta
 }
 
 func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainerVolumeMounts() []corev1.VolumeMount {
-	volumeMounts := []corev1.VolumeMount{}
-
-	if b.AnyCertificatesAdded() {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      localCertsVolumeName,
-			MountPath: localCertsDir,
-		})
-
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      systemCertsVolumeName,
-			MountPath: systemCertsDir,
-		})
-	}
-
-	if b.Spec.Service.GRPC.TLSConfiguration.Enabled {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      GRPCTLSVolumeName,
-			ReadOnly:  true,
-			MountPath: grpcTLSVolumeMountPath,
-		})
-	}
-
-	return volumeMounts
+	return b.appendTLSVolumeMounts([]corev1.VolumeMount{})
 }
 
 func (b *StorageInitJobBuilder) buildBlobStorageInitCommandArgs() ([]string, []string) {
