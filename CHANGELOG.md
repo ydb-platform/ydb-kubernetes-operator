@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.6.1 - 2025-02-12
+### Fixed
+* fix passing interconnet TLS volume in blobstorage-init job
+
 ## v0.6.0 - 2025-01-29
 ### Added
 * starting with this release, deploying to dockerhub (ydbplatform/ydb-kubernetes-operator)
