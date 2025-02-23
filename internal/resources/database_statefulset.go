@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -656,6 +657,9 @@ func (b *DatabaseStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
 		publicHost = value
+	}
+	if !(strings.HasPrefix(publicHost, "$(POD_NAME)") || strings.HasPrefix(publicHost, "$(NODE_NAME)")) {
+		publicHost = fmt.Sprintf("%s.%s", "$(POD_NAME)", publicHost)
 	}
 
 	if b.Spec.Service.GRPC.IPDiscovery != nil && b.Spec.Service.GRPC.IPDiscovery.Enabled {

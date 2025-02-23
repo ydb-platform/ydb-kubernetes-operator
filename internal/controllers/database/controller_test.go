@@ -308,40 +308,47 @@ var _ = Describe("Database controller medium tests", func() {
 		Expect(args).To(ContainElements([]string{"--grpc-public-address-v4", "--grpc-public-target-name-override"}))
 	})
 
+	checkContainerArg := func(expectedArgKey, expectedArgValue string) error {
+		foundStatefulSet := appsv1.StatefulSet{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx,
+				types.NamespacedName{
+					Name:      testobjects.DatabaseName,
+					Namespace: testobjects.YdbNamespace,
+				},
+				&foundStatefulSet,
+			)
+		}, test.Timeout, test.Interval).Should(Succeed())
+		podContainerArgs := foundStatefulSet.Spec.Template.Spec.Containers[0].Args
+		for idx, argKey := range podContainerArgs {
+			if argKey == expectedArgKey {
+				if podContainerArgs[idx+1] != expectedArgValue {
+					return fmt.Errorf(
+						"Found arg `%s` value %s does not match with expected: %s",
+						expectedArgKey,
+						podContainerArgs[idx+1],
+						expectedArgValue,
+					)
+				}
+			}
+		}
+		return nil
+	}
+
 	It("Check externalPort GRPC Service field propagation", func() {
 		By("Create test database")
 		databaseSample = *testobjects.DefaultDatabase()
+		databaseSample.Spec.Service.GRPC.ExternalHost = fmt.Sprintf("%s.%s", testobjects.YdbNamespace, "k8s.external.net")
 		Expect(k8sClient.Create(ctx, &databaseSample)).Should(Succeed())
-
-		checkPublicPortArg := func(expectedGRPCPort string) error {
-			foundStatefulSet := appsv1.StatefulSet{}
-			Eventually(func() error {
-				return k8sClient.Get(ctx,
-					types.NamespacedName{
-						Name:      testobjects.DatabaseName,
-						Namespace: testobjects.YdbNamespace,
-					},
-					&foundStatefulSet,
-				)
-			}, test.Timeout, test.Interval).Should(Succeed())
-			podContainerArgs := foundStatefulSet.Spec.Template.Spec.Containers[0].Args
-			for idx, argKey := range podContainerArgs {
-				if argKey == "--grpc-public-port" {
-					if podContainerArgs[idx+1] != expectedGRPCPort {
-						return fmt.Errorf(
-							"Found arg `--grpc-public-port` value %s does not match with expected: %s",
-							podContainerArgs[idx+1],
-							expectedGRPCPort,
-						)
-					}
-				}
-			}
-			return nil
-		}
 
 		By("Check that args `--grpc-public-host` and `--grpc-public-port` propagated to StatefulSet pods...")
 		Eventually(
-			checkPublicPortArg(fmt.Sprintf("%d", v1alpha1.GRPCPort)),
+			checkContainerArg("--grpc-public-host", fmt.Sprintf("%s.%s", "$(POD_NAME)", databaseSample.Spec.Service.GRPC.ExternalHost)),
+			test.Timeout,
+			test.Interval).ShouldNot(HaveOccurred())
+
+		Eventually(
+			checkContainerArg("--grpc-public-port", fmt.Sprintf("%d", v1alpha1.GRPCPort)),
 			test.Timeout,
 			test.Interval).ShouldNot(HaveOccurred())
 
@@ -384,8 +391,31 @@ var _ = Describe("Database controller medium tests", func() {
 
 		By("Check that args `--grpc-public-port` was updated in StatefulSet...")
 		Eventually(
-			checkPublicPortArg(fmt.Sprintf("%d", externalPort)),
+			checkContainerArg("--grpc-public-port", fmt.Sprintf("%d", externalPort)),
 			test.Timeout,
 			test.Interval).ShouldNot(HaveOccurred())
 	})
+
+	It("Checking args propagation from annotation to StatefulSet", func() {
+		By("Check that Database with annotations was created...")
+		databaseSample = *testobjects.DefaultDatabase()
+		databaseSample.Annotations = map[string]string{
+			v1alpha1.AnnotationGRPCPublicHost: fmt.Sprintf("%s.%s", testobjects.YdbNamespace, "k8s.external.net"),
+			v1alpha1.AnnotationGRPCPublicPort: fmt.Sprintf("%d", 30001),
+		}
+		Expect(k8sClient.Create(ctx, &databaseSample)).Should(Succeed())
+
+		By("Check that args `--grpc-public-host` propagated to StatefulSet pods...")
+		Eventually(
+			checkContainerArg("--grpc-public-host", fmt.Sprintf("%s.%s.%s", "$(POD_NAME)", testobjects.YdbNamespace, "k8s.external.net")),
+			test.Timeout,
+			test.Interval).ShouldNot(HaveOccurred())
+
+		By("Check that args `--grpc-public-port` propagated to StatefulSet pods...")
+		Eventually(
+			checkContainerArg("--grpc-public-port", fmt.Sprintf("%d", 30001)),
+			test.Timeout,
+			test.Interval).ShouldNot(HaveOccurred())
+	})
+
 })
