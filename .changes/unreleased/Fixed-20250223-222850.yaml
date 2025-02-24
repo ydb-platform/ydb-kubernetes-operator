@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'bug: regression with pod name in grpc-public-host arg'
-time: 2025-02-23T22:28:50.688471+08:00
