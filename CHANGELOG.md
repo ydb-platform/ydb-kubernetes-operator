@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.6.2 - 2025-02-24
+### Fixed
+* bug: regression with pod name in grpc-public-host arg
+
 ## v0.6.1 - 2025-02-12
 ### Fixed
 * fix passing interconnet TLS volume in blobstorage-init job
