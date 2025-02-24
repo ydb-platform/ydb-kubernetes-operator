@@ -1,0 +1,3 @@
+kind: Changed
+body: 'set updateStrategy: OnDelete for Storage StatefulSet by default'
+time: 2025-02-24T10:48:18.815104+08:00
