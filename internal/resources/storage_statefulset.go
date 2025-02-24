@@ -72,16 +72,13 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 				labels.StatefulsetComponent: b.Name,
 			},
 		},
+		UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
+			Type: appsv1.OnDeleteStatefulSetStrategyType,
+		},
 		PodManagementPolicy:  appsv1.ParallelPodManagement,
 		RevisionHistoryLimit: ptr.Int32(10),
 		ServiceName:          fmt.Sprintf(InterconnectServiceNameFormat, b.Storage.Name),
 		Template:             b.buildPodTemplateSpec(),
-	}
-
-	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok && value == api.AnnotationValueTrue {
-		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
-			Type: "OnDelete",
-		}
 	}
 
 	pvcList := make([]corev1.PersistentVolumeClaim, 0, len(b.Spec.DataStore))
