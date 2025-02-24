@@ -417,5 +417,4 @@ var _ = Describe("Database controller medium tests", func() {
 			test.Timeout,
 			test.Interval).ShouldNot(HaveOccurred())
 	})
-
 })
