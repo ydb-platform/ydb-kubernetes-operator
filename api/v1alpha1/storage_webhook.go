@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"reflect"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-cmp/cmp"
@@ -115,10 +116,6 @@ type StorageDefaulter struct {
 func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) error {
 	storage := obj.(*Storage)
 	storagelog.Info("default", "name", storage.Name)
-
-	if !storage.Spec.OperatorSync {
-		return nil
-	}
 
 	if storage.Spec.OperatorConnection != nil {
 		if storage.Spec.OperatorConnection.Oauth2TokenExchange != nil {
@@ -311,9 +308,38 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 	oldStorageCopy.Spec.OperatorSync = false
 	newStorageCopy.Spec.OperatorSync = false
 
-	ignoreNonSpecFields := cmpopts.IgnoreFields(Storage{}, "Status", "ObjectMeta", "TypeMeta")
+	// We will allow configuration diffs if they are limited to
+	// formatting, order of keys in the map etc. If two maps are
+	// meaningfully different (not deep-equal), we still disallow
+	// the diff of course.
+	configurationCompareOpt := cmp.FilterPath(
+		func(path cmp.Path) bool {
+			if sf, ok := path.Last().(cmp.StructField); ok {
+				return sf.Name() == "Configuration"
+			}
+			return false
+		},
+		cmp.Comparer(func(a, b string) bool {
+			var o1, o2 any
 
-	diff := cmp.Diff(oldStorageCopy, newStorageCopy, ignoreNonSpecFields)
+			if err := yaml.Unmarshal([]byte(a), &o1); err != nil {
+				return false
+			}
+			if err := yaml.Unmarshal([]byte(b), &o2); err != nil {
+				return false
+			}
+
+			return reflect.DeepEqual(o1, o2)
+		}),
+	)
+
+	ignoreNonSpecFields := cmpopts.IgnoreFields(Storage{}, "Status", "ObjectMeta", "TypeMeta")
+	diff := cmp.Diff(
+		oldStorageCopy,
+		newStorageCopy,
+		ignoreNonSpecFields,
+		configurationCompareOpt,
+	)
 	return diff != "", diff
 }
 
