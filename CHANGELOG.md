@@ -1,6 +1,8 @@
 # Changelog
 
 
+## v0.6.3 - 2025-05-07
+
 ## v0.6.2 - 2025-02-24
 ### Fixed
 * bug: regression with pod name in grpc-public-host arg
