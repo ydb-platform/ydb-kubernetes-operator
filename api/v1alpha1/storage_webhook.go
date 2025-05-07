@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"reflect"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-cmp/cmp"
@@ -116,6 +115,10 @@ type StorageDefaulter struct {
 func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) error {
 	storage := obj.(*Storage)
 	storagelog.Info("default", "name", storage.Name)
+
+	if !storage.Spec.OperatorSync {
+		return nil
+	}
 
 	if storage.Spec.OperatorConnection != nil {
 		if storage.Spec.OperatorConnection.Oauth2TokenExchange != nil {
@@ -329,7 +332,12 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 				return false
 			}
 
-			return reflect.DeepEqual(o1, o2)
+			diff := cmp.Diff(o1, o2)
+			if diff != "" {
+				storagelog.Info(fmt.Sprintf("Configurations are different:\n%v\n%v", o1, o2))
+			}
+
+			return diff == ""
 		}),
 	)
 
