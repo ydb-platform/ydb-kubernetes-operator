@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"reflect"
+	"sort"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-cmp/cmp"
@@ -441,6 +443,49 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
 	if crdCheckError != nil {
 		return crdCheckError
+	}
+
+	if err := r.validateGrpcPorts(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Storage) validateGrpcPorts() error {
+	servicePorts := []int32{}
+
+	firstPort := int32(GRPCPort)
+	if r.Spec.Service.GRPC.Port != 0 {
+		firstPort = r.Spec.Service.GRPC.Port
+	}
+	servicePorts = append(servicePorts, firstPort)
+	if r.Spec.Service.GRPC.AdditionalPort != 0 {
+		servicePorts = append(servicePorts, r.Spec.Service.GRPC.AdditionalPort)
+	}
+	configuration, err := ParseConfiguration(r.Spec.Configuration)
+	if err != nil {
+		return fmt.Errorf("failed to parse configuration immediately after building it, should not happen, %w", err)
+	}
+
+	configurationPorts := []int32{}
+	if configuration.GrpcConfig.Port != 0 {
+		configurationPorts = append(configurationPorts, configuration.GrpcConfig.Port)
+	}
+	if configuration.GrpcConfig.SslPort != 0 {
+		configurationPorts = append(configurationPorts, configuration.GrpcConfig.SslPort)
+	}
+
+	sort.Slice(servicePorts, func(i, j int) bool {
+		return servicePorts[i] < servicePorts[j]
+	})
+
+	sort.Slice(configurationPorts, func(i, j int) bool {
+		return configurationPorts[i] < configurationPorts[j]
+	})
+
+	if !reflect.DeepEqual(servicePorts, configurationPorts) {
+		return fmt.Errorf("grpc port mismatch: %v in spec.service.grpc, %v in YDB configuration", servicePorts, configurationPorts)
 	}
 
 	return nil

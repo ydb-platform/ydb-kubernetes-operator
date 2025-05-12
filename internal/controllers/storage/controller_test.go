@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -315,6 +317,10 @@ var _ = Describe("Storage controller medium tests", func() {
 
 			storage.Spec.Service.GRPC.Port = 2137
 
+			configWithNewPorts, err := patchGRPCPortsInConfiguration(storage.Spec.Configuration, 2137, -1)
+			Expect(err).To(BeNil())
+			storage.Spec.Configuration = configWithNewPorts
+
 			Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
 			var svc corev1.Service
@@ -349,8 +355,12 @@ var _ = Describe("Storage controller medium tests", func() {
 				Namespace: testobjects.YdbNamespace,
 			}, &storage)).Should(Succeed())
 
-			storage.Spec.Service.GRPC.Port = 2135
+			storage.Spec.Service.GRPC.Port = v1alpha1.GRPCPort
 			storage.Spec.Service.GRPC.AdditionalPort = 2136
+
+			configWithNewPorts, err := patchGRPCPortsInConfiguration(storage.Spec.Configuration, 2135, 2136)
+			Expect(err).To(BeNil())
+			storage.Spec.Configuration = configWithNewPorts
 
 			Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
 
@@ -370,7 +380,7 @@ var _ = Describe("Storage controller medium tests", func() {
 
 				ports := svc.Spec.Ports
 				g.Expect(len(ports)).To(Equal(2), "expected 2 ports but got %d", len(ports))
-				g.Expect(ports[0].Port).To(Equal(int32(2135)))
+				g.Expect(ports[0].Port).To(Equal(int32(v1alpha1.GRPCPort)))
 				g.Expect(ports[0].Name).To(Equal(v1alpha1.GRPCServicePortName))
 				g.Expect(ports[1].Port).To(Equal(storage.Spec.Service.GRPC.AdditionalPort))
 				g.Expect(ports[1].Name).To(Equal(v1alpha1.GRPCServiceAdditionalPortName))
@@ -380,5 +390,52 @@ var _ = Describe("Storage controller medium tests", func() {
 				"Service %s/%s should eventually have proper ports", testobjects.YdbNamespace, serviceName,
 			)
 		})
+
+		By("Forbid to edit grpc ports, when out of sync with YDB config...", func() {
+			storage := v1alpha1.Storage{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			storage.Spec.Service.GRPC.Port = v1alpha1.GRPCPort
+			By("Specify 2136 in manifest spec...")
+			storage.Spec.Service.GRPC.AdditionalPort = 2136
+
+			By("And then specify 2137 in manifest spec...")
+			configWithNewPorts, err := patchGRPCPortsInConfiguration(storage.Spec.Configuration, v1alpha1.GRPCPort, 2137)
+			Expect(err).To(BeNil())
+			storage.Spec.Configuration = configWithNewPorts
+
+			err = k8sClient.Update(ctx, &storage)
+			Expect(err).To(MatchError(ContainSubstring("grpc port mismatch")))
+		})
 	})
 })
+
+func patchGRPCPortsInConfiguration(in string, port, sslPort int) (string, error) {
+	m := make(map[string]interface{})
+	if err := yaml.Unmarshal([]byte(in), &m); err != nil {
+		return "", err
+	}
+
+	cfg, _ := m["grpc_config"].(map[string]interface{})
+	if cfg == nil {
+		cfg = make(map[string]interface{})
+	}
+
+	if sslPort != -1 {
+		cfg["ssl_port"] = sslPort
+	}
+	if port != -1 {
+		cfg["port"] = port
+	}
+	m["grpc_config"] = cfg
+
+	res, err := yaml.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+
+	return string(res), nil
+}

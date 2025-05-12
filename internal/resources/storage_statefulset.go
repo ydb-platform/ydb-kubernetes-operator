@@ -356,6 +356,38 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 	return volumeMounts
 }
 
+func (b *StorageStatefulSetBuilder) buildContainerPorts() []corev1.ContainerPort {
+	podPorts := []corev1.ContainerPort{{
+		Name: "grpc", ContainerPort: api.GRPCPort,
+	}, {
+		Name: "interconnect", ContainerPort: api.InterconnectPort,
+	}, {
+		Name: "status", ContainerPort: api.StatusPort,
+	}}
+
+	firstGRPCPort := corev1.ContainerPort{
+		Name:          "grpc",
+		ContainerPort: api.GRPCPort,
+	}
+
+	overrideGRPCPort := b.Spec.StorageClusterSpec.Service.GRPC.Port
+	if overrideGRPCPort != 0 {
+		firstGRPCPort.ContainerPort = overrideGRPCPort
+	}
+
+	podPorts = append(podPorts, firstGRPCPort)
+
+	additionalPort := b.Spec.StorageClusterSpec.Service.GRPC.AdditionalPort
+	if additionalPort != 0 {
+		podPorts = append(podPorts, corev1.ContainerPort{
+			Name:          "additional-grpc",
+			ContainerPort: additionalPort,
+		})
+	}
+
+	return podPorts
+}
+
 func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo add init container for sparse files?
 	command, args := b.buildContainerArgs()
 	containerResources := corev1.ResourceRequirements{}
@@ -376,13 +408,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 
 		SecurityContext: mergeSecurityContextWithDefaults(b.Spec.SecurityContext),
 
-		Ports: []corev1.ContainerPort{{
-			Name: "grpc", ContainerPort: api.GRPCPort,
-		}, {
-			Name: "interconnect", ContainerPort: api.InterconnectPort,
-		}, {
-			Name: "status", ContainerPort: api.StatusPort,
-		}},
+		Ports: b.buildContainerPorts(),
 
 		VolumeMounts: b.buildVolumeMounts(),
 		Resources:    containerResources,

@@ -71,7 +71,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 		}
 		Expect(k8sClient.Create(ctx, &namespace)).Should(Succeed())
 
-		storageSample = *testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
+		storageSample = *testobjects.DefaultBlock42Storage(filepath.Join("..", "..", "..", "tests", "data", "storage-block-4-2-config.yaml"))
 		Expect(k8sClient.Create(ctx, &storageSample)).Should(Succeed())
 
 		By("checking that Storage created on local cluster...")
@@ -100,10 +100,11 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 		}, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 
 		databaseSample = *testobjects.DefaultDatabase()
+		databaseSample.Spec.DatabaseNodeSpec.Nodes = 4
 		databaseSample.Spec.NodeSets = append(databaseSample.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 			Name: testNodeSetName,
 			DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-				Nodes: 1,
+				Nodes: 4,
 			},
 		})
 
@@ -154,15 +155,15 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 				v1alpha1.AnnotationUpdateStrategyOnDelete: "true",
 			}
 
-			foundDatabase.Spec.NodeSets = append(foundDatabase.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
+			foundDatabase.Spec.NodeSets = []v1alpha1.DatabaseNodeSetSpecInline{{
 				Name: testNodeSetName + "-labeled",
 				Labels: map[string]string{
 					testNodeSetLabel: "true",
 				},
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-					Nodes: 1,
+					Nodes: 2,
 				},
-			})
+			}}
 
 			foundDatabase.Spec.NodeSets = append(foundDatabase.Spec.NodeSets, v1alpha1.DatabaseNodeSetSpecInline{
 				Name: testNodeSetName + "-annotated",
@@ -170,7 +171,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 					v1alpha1.AnnotationDataCenter: "envtest",
 				},
 				DatabaseNodeSpec: v1alpha1.DatabaseNodeSpec{
-					Nodes: 1,
+					Nodes: 2,
 				},
 			})
 

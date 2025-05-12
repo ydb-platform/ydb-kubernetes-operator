@@ -149,6 +149,7 @@ func SetupK8STestManager(testCtx *context.Context, k8sClient *client.Client, con
 
 	// FIXME: find a better way?
 	_, curfile, _, _ := runtime.Caller(0) //nolint:dogsled
+	webhookDir := filepath.Join(curfile, "..", "..", "..", "config", "webhook")
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join(curfile, "..", "..", "..", "deploy", "ydb-operator", "crds"),
@@ -156,6 +157,12 @@ func SetupK8STestManager(testCtx *context.Context, k8sClient *client.Client, con
 		},
 		ErrorIfCRDPathMissing: true,
 		UseExistingCluster:    &useExistingCluster,
+		WebhookInstallOptions: envtest.WebhookInstallOptions{
+			Paths:               []string{webhookDir},
+			LocalServingHost:    "127.0.0.1",
+			LocalServingPort:    9443,
+			LocalServingCertDir: "",
+		},
 	}
 
 	BeforeSuite(func() {
@@ -174,6 +181,9 @@ func SetupK8STestManager(testCtx *context.Context, k8sClient *client.Client, con
 		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 			MetricsBindAddress: "0",
 			Scheme:             scheme.Scheme,
+			Host:               testEnv.WebhookInstallOptions.LocalServingHost,
+			Port:               testEnv.WebhookInstallOptions.LocalServingPort,
+			CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -182,6 +192,11 @@ func SetupK8STestManager(testCtx *context.Context, k8sClient *client.Client, con
 		for _, c := range controllers(&mgr) {
 			Expect(c.SetupWithManager(mgr)).To(Succeed())
 		}
+
+		// Setup webhooks
+		Expect((&v1alpha1.Storage{}).SetupWebhookWithManager(mgr)).To(Succeed())
+		Expect((&v1alpha1.Database{}).SetupWebhookWithManager(mgr)).To(Succeed())
+		Expect(v1alpha1.RegisterMonitoringValidatingWebhook(mgr, true)).To(Succeed())
 
 		go func() {
 			defer GinkgoRecover()

@@ -10,6 +10,7 @@ type Configuration struct {
 	DomainsConfig *DomainsConfig `yaml:"domains_config"`
 	Hosts         []Host         `yaml:"hosts,omitempty"`
 	KeyConfig     *KeyConfig     `yaml:"key_config,omitempty"`
+	GrpcConfig    *GrpcConfig    `yaml:"grpc_config,omitempty"`
 }
 
 type Metadata struct {
