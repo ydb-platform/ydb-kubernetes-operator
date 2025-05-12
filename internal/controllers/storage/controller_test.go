@@ -112,10 +112,7 @@ var _ = Describe("Storage controller medium tests", func() {
 					},
 					&svc,
 				)
-				if err != nil {
-					return false
-				}
-				return true
+				return err == nil
 			}, test.Timeout, test.Interval).Should(BeTrue(),
 				"Service %s/%s should eventually exist", testobjects.YdbNamespace, serviceName,
 			)
