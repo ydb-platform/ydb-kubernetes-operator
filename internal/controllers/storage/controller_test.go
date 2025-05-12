@@ -97,7 +97,37 @@ var _ = Describe("Storage controller medium tests", func() {
 			},
 		})
 
+		storageSample.Spec.Service.GRPC.AdditionalPort = 2136
+
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+
+		By("Check grpc service has an additional port...", func() {
+			var svc corev1.Service
+			serviceName := fmt.Sprintf("%v-grpc", testobjects.StorageName)
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx,
+					client.ObjectKey{
+						Name:      serviceName,
+						Namespace: testobjects.YdbNamespace,
+					},
+					&svc,
+				)
+				if err != nil {
+					return false
+				}
+				return true
+			}, test.Timeout, test.Interval).Should(BeTrue(),
+				"Service %s/%s should eventually exist", testobjects.YdbNamespace, serviceName,
+			)
+
+			ports := svc.Spec.Ports
+			Expect(len(ports)).To(Equal(2), "expected 2 ports but got %d", len(ports))
+			Expect(ports[0].Port).To(Equal(int32(2135)))
+			Expect(ports[0].Name).To(Equal(v1alpha1.GRPCServicePortName))
+			Expect(ports[1].Port).To(Equal(int32(2136)))
+			Expect(ports[1].Name).To(Equal(v1alpha1.GRPCServiceAdditionalPortName))
+			Expect(ports[1].TargetPort.IntVal).To(Equal(int32(2136)))
+		})
 
 		By("Check volume has been propagated to pods...")
 		storageStatefulSets := appsv1.StatefulSetList{}

@@ -5214,6 +5214,9 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      additionalPort:
+                        format: int32
+                        type: integer
                       externalHost:
                         type: string
                       externalPort:

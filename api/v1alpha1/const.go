@@ -9,11 +9,12 @@ const (
 	DefaultDomainName   = "cluster.local"
 	DNSDomainAnnotation = "dns.domain"
 
-	GRPCPort              = 2135
-	GRPCServicePortName   = "grpc"
-	GRPCProto             = "grpc://"
-	GRPCSProto            = "grpcs://"
-	GRPCServiceFQDNFormat = "%s-grpc.%s.svc.%s"
+	GRPCPort                      = 2135
+	GRPCServicePortName           = "grpc"
+	GRPCServiceAdditionalPortName = "additional-grpc"
+	GRPCProto                     = "grpc://"
+	GRPCSProto                    = "grpcs://"
+	GRPCServiceFQDNFormat         = "%s-grpc.%s.svc.%s"
 
 	InterconnectPort              = 19001
 	InterconnectServicePortName   = "interconnect"
