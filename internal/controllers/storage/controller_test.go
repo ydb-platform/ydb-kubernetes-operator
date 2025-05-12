@@ -97,34 +97,7 @@ var _ = Describe("Storage controller medium tests", func() {
 			},
 		})
 
-		storageSample.Spec.Service.GRPC.AdditionalPort = 2136
-
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
-
-		By("Check grpc service has an additional port...", func() {
-			var svc corev1.Service
-			serviceName := fmt.Sprintf("%v-grpc", testobjects.StorageName)
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx,
-					client.ObjectKey{
-						Name:      serviceName,
-						Namespace: testobjects.YdbNamespace,
-					},
-					&svc,
-				)
-				return err == nil
-			}, test.Timeout, test.Interval).Should(BeTrue(),
-				"Service %s/%s should eventually exist", testobjects.YdbNamespace, serviceName,
-			)
-
-			ports := svc.Spec.Ports
-			Expect(len(ports)).To(Equal(2), "expected 2 ports but got %d", len(ports))
-			Expect(ports[0].Port).To(Equal(int32(2135)))
-			Expect(ports[0].Name).To(Equal(v1alpha1.GRPCServicePortName))
-			Expect(ports[1].Port).To(Equal(int32(2136)))
-			Expect(ports[1].Name).To(Equal(v1alpha1.GRPCServiceAdditionalPortName))
-			Expect(ports[1].TargetPort.IntVal).To(Equal(int32(2136)))
-		})
 
 		By("Check volume has been propagated to pods...")
 		storageStatefulSets := appsv1.StatefulSetList{}
@@ -331,6 +304,81 @@ var _ = Describe("Storage controller medium tests", func() {
 
 			By("check that --auth-token-file arg was added to Statefulset template...")
 			Eventually(checkAuthTokenArgs, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
+		})
+
+		By("Checking overriding port value in GRPC Service...", func() {
+			storage := v1alpha1.Storage{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			storage.Spec.Service.GRPC.Port = 2137
+
+			Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
+
+			var svc corev1.Service
+			serviceName := fmt.Sprintf("%v-grpc", testobjects.StorageName)
+
+			Eventually(func(g Gomega) bool {
+				err := k8sClient.Get(ctx,
+					client.ObjectKey{
+						Name:      serviceName,
+						Namespace: testobjects.YdbNamespace,
+					},
+					&svc,
+				)
+				if err != nil {
+					return false
+				}
+
+				ports := svc.Spec.Ports
+				g.Expect(len(ports)).To(Equal(1), "expected 1 port but got %d", len(ports))
+				g.Expect(ports[0].Name).To(Equal(v1alpha1.GRPCServicePortName))
+				g.Expect(ports[0].Port).To(Equal(storage.Spec.Service.GRPC.Port))
+				return true
+			}, test.Timeout, test.Interval).Should(BeTrue(),
+				"Service %s/%s should eventually have proper ports", testobjects.YdbNamespace, serviceName,
+			)
+		})
+
+		By("Checking additionalPort propagation in GRPC Service...", func() {
+			storage := v1alpha1.Storage{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			storage.Spec.Service.GRPC.Port = 2135
+			storage.Spec.Service.GRPC.AdditionalPort = 2136
+
+			Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
+
+			var svc corev1.Service
+			serviceName := fmt.Sprintf("%v-grpc", testobjects.StorageName)
+			Eventually(func(g Gomega) error {
+				err := k8sClient.Get(ctx,
+					client.ObjectKey{
+						Name:      serviceName,
+						Namespace: testobjects.YdbNamespace,
+					},
+					&svc,
+				)
+				if err != nil {
+					return err
+				}
+
+				ports := svc.Spec.Ports
+				g.Expect(len(ports)).To(Equal(2), "expected 2 ports but got %d", len(ports))
+				g.Expect(ports[0].Port).To(Equal(int32(2135)))
+				g.Expect(ports[0].Name).To(Equal(v1alpha1.GRPCServicePortName))
+				g.Expect(ports[1].Port).To(Equal(storage.Spec.Service.GRPC.AdditionalPort))
+				g.Expect(ports[1].Name).To(Equal(v1alpha1.GRPCServiceAdditionalPortName))
+				g.Expect(ports[1].TargetPort.IntVal).To(Equal(storage.Spec.Service.GRPC.AdditionalPort))
+				return nil
+			}, test.Timeout, test.Interval).Should(Succeed(),
+				"Service %s/%s should eventually have proper ports", testobjects.YdbNamespace, serviceName,
+			)
 		})
 	})
 })

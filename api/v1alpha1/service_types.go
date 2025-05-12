@@ -21,6 +21,7 @@ type GRPCService struct {
 	Service `json:""`
 
 	AdditionalPort int32 `json:"additionalPort,omitempty"`
+	Port           int32 `json:"port,omitempty"`
 
 	TLSConfiguration *TLSConfiguration `json:"tls,omitempty"`
 	ExternalHost     string            `json:"externalHost,omitempty"`

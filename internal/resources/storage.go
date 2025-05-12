@@ -212,9 +212,15 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 }
 
 func (b *StorageClusterBuilder) buildGrpcServicePorts() []corev1.ServicePort {
+	firstPort := int32(api.GRPCPort)
+
+	if b.Spec.Service.GRPC.Port != 0 {
+		firstPort = b.Spec.Service.GRPC.Port
+	}
+
 	ports := []corev1.ServicePort{{
 		Name: api.GRPCServicePortName,
-		Port: api.GRPCPort,
+		Port: firstPort,
 	}}
 
 	if b.Spec.Service.GRPC.AdditionalPort != 0 {
