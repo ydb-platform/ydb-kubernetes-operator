@@ -358,8 +358,6 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 
 func (b *StorageStatefulSetBuilder) buildContainerPorts() []corev1.ContainerPort {
 	podPorts := []corev1.ContainerPort{{
-		Name: "grpc", ContainerPort: api.GRPCPort,
-	}, {
 		Name: "interconnect", ContainerPort: api.InterconnectPort,
 	}, {
 		Name: "status", ContainerPort: api.StatusPort,
@@ -414,11 +412,16 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		Resources:    containerResources,
 	}
 
+	livenessProbePort := api.GRPCPort
+	if b.Spec.Service.GRPC.Port != 0 {
+		livenessProbePort = int(b.Spec.Service.GRPC.Port)
+	}
+
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; !ok || value != api.AnnotationValueTrue {
 		container.LivenessProbe = &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(api.GRPCPort),
+					Port: intstr.FromInt(livenessProbePort),
 				},
 			},
 		}
