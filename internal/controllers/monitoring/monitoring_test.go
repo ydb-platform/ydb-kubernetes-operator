@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
@@ -132,7 +131,7 @@ func createMockStorageAndSvc() {
 }
 
 func cleanupMockStorageAndSvc() {
-	storage := v1alpha1.Storage{}
+	storage := api.Storage{}
 	Expect(k8sClient.Get(ctx, types.NamespacedName{
 		Name:      testobjects.StorageName,
 		Namespace: testobjects.YdbNamespace,
@@ -150,7 +149,7 @@ func cleanupMockStorageAndSvc() {
 func cleanupMockDatabaseAndSvc() {
 	cleanupMockStorageAndSvc()
 
-	database := v1alpha1.Database{}
+	database := api.Database{}
 	Expect(k8sClient.Get(ctx, types.NamespacedName{
 		Name:      testobjects.DatabaseName,
 		Namespace: testobjects.YdbNamespace,
