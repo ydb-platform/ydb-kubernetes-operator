@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/monitoring"
@@ -107,6 +108,8 @@ func createMockSvc(name string, parentKind string, parent client.Object) {
 func createMockDBAndSvc() {
 	GinkgoHelper()
 
+	createMockStorageAndSvc()
+
 	db := testobjects.DefaultDatabase()
 	Expect(k8sClient.Create(ctx, db)).Should(Succeed())
 
@@ -126,6 +129,40 @@ func createMockStorageAndSvc() {
 	Expect(k8sClient.Status().Update(ctx, stor)).Should(Succeed())
 
 	createMockSvc("storage-svc-status", "Storage", stor)
+}
+
+func cleanupMockStorageAndSvc() {
+	storage := v1alpha1.Storage{}
+	Expect(k8sClient.Get(ctx, types.NamespacedName{
+		Name:      testobjects.StorageName,
+		Namespace: testobjects.YdbNamespace,
+	}, &storage))
+	Expect(k8sClient.Delete(ctx, &storage)).Should(Succeed())
+
+	svc := corev1.Service{}
+	Expect(k8sClient.Get(ctx, types.NamespacedName{
+		Name:      "storage-svc-status",
+		Namespace: testobjects.YdbNamespace,
+	}, &svc))
+	Expect(k8sClient.Delete(ctx, &svc)).Should(Succeed())
+}
+
+func cleanupMockDatabaseAndSvc() {
+	cleanupMockStorageAndSvc()
+
+	database := v1alpha1.Database{}
+	Expect(k8sClient.Get(ctx, types.NamespacedName{
+		Name:      testobjects.DatabaseName,
+		Namespace: testobjects.YdbNamespace,
+	}, &database))
+	Expect(k8sClient.Delete(ctx, &database)).Should(Succeed())
+
+	svc := corev1.Service{}
+	Expect(k8sClient.Get(ctx, types.NamespacedName{
+		Name:      "database-svc-status",
+		Namespace: testobjects.YdbNamespace,
+	}, &svc))
+	Expect(k8sClient.Delete(ctx, &svc)).Should(Succeed())
 }
 
 var _ = Describe("Create DatabaseMonitoring", func() {
@@ -162,12 +199,14 @@ var _ = Describe("Create DatabaseMonitoring", func() {
 				}
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			cleanupMockDatabaseAndSvc()
 		})
 	})
 })
 
 var _ = Describe("StorageMonitoring tests", func() {
-	When("Database is already ready", func() {
+	When("Storage is already ready", func() {
 		It("We must create ServiceMonitor", func() {
 			createMockStorageAndSvc()
 
@@ -200,6 +239,8 @@ var _ = Describe("StorageMonitoring tests", func() {
 				}
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			cleanupMockStorageAndSvc()
 		})
 	})
 })
