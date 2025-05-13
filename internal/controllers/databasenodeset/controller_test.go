@@ -71,7 +71,7 @@ var _ = Describe("DatabaseNodeSet controller medium tests", func() {
 		}
 		Expect(k8sClient.Create(ctx, &namespace)).Should(Succeed())
 
-		storageSample = *testobjects.DefaultBlock42Storage(filepath.Join("..", "..", "..", "tests", "data", "storage-block-4-2-config.yaml"))
+		storageSample = *testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		Expect(k8sClient.Create(ctx, &storageSample)).Should(Succeed())
 
 		By("checking that Storage created on local cluster...")

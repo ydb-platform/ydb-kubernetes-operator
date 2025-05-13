@@ -116,67 +116,6 @@ func DefaultStorage(storageYamlConfigPath string) *v1alpha1.Storage {
 	}
 }
 
-func DefaultBlock42Storage(storageYamlConfigPath string) *v1alpha1.Storage {
-	storageConfig, err := os.ReadFile(storageYamlConfigPath)
-	Expect(err).To(BeNil())
-
-	defaultPolicy := corev1.PullIfNotPresent
-	storageAntiAffinity := constructAntiAffinityFor("ydb-cluster", "kind-storage")
-
-	return &v1alpha1.Storage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      StorageName,
-			Namespace: YdbNamespace,
-		},
-		Spec: v1alpha1.StorageSpec{
-			StorageClusterSpec: v1alpha1.StorageClusterSpec{
-				Domain:       DefaultDomain,
-				OperatorSync: true,
-				Erasure:      "block-4-2",
-				Image: &v1alpha1.PodImage{
-					Name:           YdbImage,
-					PullPolicyName: &defaultPolicy,
-				},
-				Configuration: string(storageConfig),
-				Service: &v1alpha1.StorageServices{
-					GRPC: v1alpha1.GRPCService{
-						TLSConfiguration: &v1alpha1.TLSConfiguration{
-							Enabled: false,
-						},
-						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-					},
-					Interconnect: v1alpha1.InterconnectService{
-						TLSConfiguration: &v1alpha1.TLSConfiguration{
-							Enabled: false,
-						},
-						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-					},
-					Status: v1alpha1.StatusService{
-						Service: v1alpha1.Service{IPFamilies: []corev1.IPFamily{"IPv4"}},
-						TLSConfiguration: &v1alpha1.TLSConfiguration{
-							Enabled: false,
-						},
-					},
-				},
-				Monitoring: &v1alpha1.MonitoringOptions{
-					Enabled: false,
-				},
-			},
-			StorageNodeSpec: v1alpha1.StorageNodeSpec{
-				Nodes:     8,
-				DataStore: []corev1.PersistentVolumeClaimSpec{},
-
-				Resources:        &corev1.ResourceRequirements{},
-				AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage"},
-				Affinity:         storageAntiAffinity,
-			},
-			InitJob: &v1alpha1.StorageInitJobSpec{
-				AdditionalLabels: map[string]string{"ydb-cluster": "kind-storage-init"},
-			},
-		},
-	}
-}
-
 func DefaultDatabase() *v1alpha1.Database {
 	defaultPolicy := corev1.PullIfNotPresent
 	databaseAntiAffinity := constructAntiAffinityFor("ydb-cluster", "kind-database")
