@@ -1,3 +1,3 @@
 kind: Added
-body: '`additionalPort` can be specified in GRPC Service spec to create a Service with 2 ports'
+body: '`insecurePort` can be specified in GRPC Service spec to create a Service with a second port (for non-tls grpc port in storage)'
 time: 2025-05-12T14:01:19.020259248+02:00
