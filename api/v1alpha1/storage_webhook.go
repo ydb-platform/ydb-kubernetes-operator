@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"reflect"
-	"sort"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-cmp/cmp"
@@ -453,39 +451,90 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 }
 
 func (r *Storage) validateGrpcPorts() error {
-	servicePorts := []int32{}
+	// There are three possible ways to configure grpc ports:
 
-	firstPort := int32(GRPCPort)
-	if r.Spec.Service.GRPC.Port != 0 {
-		firstPort = r.Spec.Service.GRPC.Port
-	}
-	servicePorts = append(servicePorts, firstPort)
-	if r.Spec.Service.GRPC.AdditionalPort != 0 {
-		servicePorts = append(servicePorts, r.Spec.Service.GRPC.AdditionalPort)
-	}
+	// service:
+	//    grpc:                  == this means one insecure port, tls is disabled
+	//      port: 2135
+
+	// service:
+	//    grpc:
+	//      port: 2136           == this means one secure port, tls is enabled
+	//      tls:
+	//        enabled: true
+
+	//  service:
+	//    grpc:
+	//      insecurePort: 2135   == this means two ports, one secure \ one insecure
+	//      port: 2136
+	//      tls:
+	//        enabled: true
+
 	configuration, err := ParseConfiguration(r.Spec.Configuration)
 	if err != nil {
 		return fmt.Errorf("failed to parse configuration immediately after building it, should not happen, %w", err)
 	}
-
-	configurationPorts := []int32{}
+	configurationPort := int32(GRPCPort)
 	if configuration.GrpcConfig.Port != 0 {
-		configurationPorts = append(configurationPorts, configuration.GrpcConfig.Port)
+		configurationPort = configuration.GrpcConfig.Port
 	}
+	configurationSslPort := int32(0)
 	if configuration.GrpcConfig.SslPort != 0 {
-		configurationPorts = append(configurationPorts, configuration.GrpcConfig.SslPort)
+		configurationSslPort = configuration.GrpcConfig.SslPort
 	}
 
-	sort.Slice(servicePorts, func(i, j int) bool {
-		return servicePorts[i] < servicePorts[j]
-	})
+	if !r.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		// there should be only 1 port, both in service and in config, insecure
+		servicePort := int32(GRPCPort)
+		if r.Spec.Service.GRPC.Port != 0 {
+			servicePort = r.Spec.Service.GRPC.Port
+		}
+		if configurationPort != servicePort {
+			return fmt.Errorf(
+				"inconsistent grpc ports: spec.service.grpc.port (%v) != configuration.grpc_config.port (%v)",
+				servicePort,
+				configurationPort,
+			)
+		}
 
-	sort.Slice(configurationPorts, func(i, j int) bool {
-		return configurationPorts[i] < configurationPorts[j]
-	})
+		if r.Spec.Service.GRPC.InsecurePort != 0 {
+			return fmt.Errorf(
+				"spec.service.grpc.tls.enabled is false, use `port` instead of `insecurePort` field to assign non-tls grpc port",
+			)
+		}
+		return nil
+	}
 
-	if !reflect.DeepEqual(servicePorts, configurationPorts) {
-		return fmt.Errorf("grpc port mismatch: %v in spec.service.grpc, %v in YDB configuration", servicePorts, configurationPorts)
+	// otherwise, there might be 1 (secure only) port...
+	servicePort := int32(GRPCPort)
+	if r.Spec.Service.GRPC.Port != 0 {
+		servicePort = r.Spec.Service.GRPC.Port
+	}
+	if configurationSslPort == 0 {
+		return fmt.Errorf(
+			"configuration.grpc_config.ssl_port is absent in cluster configuration, but spec.service.grpc has tls enabled and port %v",
+			servicePort,
+		)
+	}
+	if configurationSslPort != servicePort {
+		return fmt.Errorf(
+			"inconsistent grpc ports: spec.service.grpc.port (%v) != configuration.grpc_config.ssl_port (%v)",
+			servicePort,
+			configurationSslPort,
+		)
+	}
+
+	// or, optionally, one more: insecure port
+	if r.Spec.Service.GRPC.InsecurePort != 0 {
+		serviceInsecurePort := r.Spec.Service.GRPC.InsecurePort
+
+		if configurationPort != serviceInsecurePort {
+			return fmt.Errorf(
+				"inconsistent grpc insecure ports: spec.service.grpc.insecure_port (%v) != configuration.grpc_config.port (%v)",
+				serviceInsecurePort,
+				configurationPort,
+			)
+		}
 	}
 
 	return nil

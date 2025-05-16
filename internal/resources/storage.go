@@ -223,10 +223,10 @@ func (b *StorageClusterBuilder) buildGrpcServicePorts() []corev1.ServicePort {
 		Port: firstPort,
 	}}
 
-	if b.Spec.Service.GRPC.AdditionalPort != 0 {
+	if b.Spec.Service.GRPC.InsecurePort != 0 {
 		ports = append(ports, corev1.ServicePort{
-			Name: api.GRPCServiceAdditionalPortName,
-			Port: b.Spec.Service.GRPC.AdditionalPort,
+			Name: api.GRPCServiceInsecurePortName,
+			Port: b.Spec.Service.GRPC.InsecurePort,
 		})
 	}
 

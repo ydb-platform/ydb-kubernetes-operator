@@ -375,11 +375,11 @@ func (b *StorageStatefulSetBuilder) buildContainerPorts() []corev1.ContainerPort
 
 	podPorts = append(podPorts, firstGRPCPort)
 
-	additionalPort := b.Spec.StorageClusterSpec.Service.GRPC.AdditionalPort
-	if additionalPort != 0 {
+	insecurePort := b.Spec.StorageClusterSpec.Service.GRPC.InsecurePort
+	if insecurePort != 0 {
 		podPorts = append(podPorts, corev1.ContainerPort{
-			Name:          "additional-grpc",
-			ContainerPort: additionalPort,
+			Name:          api.GRPCServiceInsecurePortName,
+			ContainerPort: insecurePort,
 		})
 	}
 
