@@ -67,15 +67,7 @@ func (r *Storage) GetGRPCServiceEndpoint() string {
 }
 
 func (r *Storage) GetHostFromConfigEndpoint() string {
-	var rawYamlConfiguration string
-	// skip handle error because we already checked in webhook
-	success, dynConfig, _ := ParseDynConfig(r.Spec.Configuration)
-	if success {
-		config, _ := yaml.Marshal(dynConfig.Config)
-		rawYamlConfiguration = string(config)
-	} else {
-		rawYamlConfiguration = r.Spec.Configuration
-	}
+	rawYamlConfiguration := r.getRawYamlConfiguration()
 
 	configuration, _ := ParseConfiguration(rawYamlConfiguration)
 	randNum := rand.Intn(len(configuration.Hosts)) // #nosec G404
@@ -450,6 +442,20 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	return nil
 }
 
+func (r *Storage) getRawYamlConfiguration() string {
+	var rawYamlConfiguration string
+	// skip handle error because we already checked in webhook
+	success, dynConfig, _ := ParseDynConfig(r.Spec.Configuration)
+	if success {
+		config, _ := yaml.Marshal(dynConfig.Config)
+		rawYamlConfiguration = string(config)
+	} else {
+		rawYamlConfiguration = r.Spec.Configuration
+	}
+
+	return rawYamlConfiguration
+}
+
 func (r *Storage) validateGrpcPorts() error {
 	// There are three possible ways to configure grpc ports:
 
@@ -470,7 +476,8 @@ func (r *Storage) validateGrpcPorts() error {
 	//      tls:
 	//        enabled: true
 
-	configuration, err := ParseConfiguration(r.Spec.Configuration)
+	rawYamlConfiguration := r.getRawYamlConfiguration()
+	configuration, err := ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
 		return fmt.Errorf("failed to parse configuration immediately after building it, should not happen, %w", err)
 	}

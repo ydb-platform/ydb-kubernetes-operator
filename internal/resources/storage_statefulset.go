@@ -364,7 +364,7 @@ func (b *StorageStatefulSetBuilder) buildContainerPorts() []corev1.ContainerPort
 	}}
 
 	firstGRPCPort := corev1.ContainerPort{
-		Name:          "grpc",
+		Name:          api.GRPCServicePortName,
 		ContainerPort: api.GRPCPort,
 	}
 
