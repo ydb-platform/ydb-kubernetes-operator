@@ -1,0 +1,3 @@
+kind: Fixed
+body: '[development] mutating\validating webhooks now run during medium tests (previously e2e only)'
+time: 2025-05-13T11:34:45.560660001+02:00

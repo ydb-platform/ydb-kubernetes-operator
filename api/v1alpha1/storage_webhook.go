@@ -67,15 +67,7 @@ func (r *Storage) GetGRPCServiceEndpoint() string {
 }
 
 func (r *Storage) GetHostFromConfigEndpoint() string {
-	var rawYamlConfiguration string
-	// skip handle error because we already checked in webhook
-	success, dynConfig, _ := ParseDynConfig(r.Spec.Configuration)
-	if success {
-		config, _ := yaml.Marshal(dynConfig.Config)
-		rawYamlConfiguration = string(config)
-	} else {
-		rawYamlConfiguration = r.Spec.Configuration
-	}
+	rawYamlConfiguration := r.getRawYamlConfiguration()
 
 	configuration, _ := ParseConfiguration(rawYamlConfiguration)
 	randNum := rand.Intn(len(configuration.Hosts)) // #nosec G404
@@ -441,6 +433,115 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
 	if crdCheckError != nil {
 		return crdCheckError
+	}
+
+	if err := r.validateGrpcPorts(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Storage) getRawYamlConfiguration() string {
+	var rawYamlConfiguration string
+	// skip handle error because we already checked in webhook
+	success, dynConfig, _ := ParseDynConfig(r.Spec.Configuration)
+	if success {
+		config, _ := yaml.Marshal(dynConfig.Config)
+		rawYamlConfiguration = string(config)
+	} else {
+		rawYamlConfiguration = r.Spec.Configuration
+	}
+
+	return rawYamlConfiguration
+}
+
+func (r *Storage) validateGrpcPorts() error {
+	// There are three possible ways to configure grpc ports:
+
+	// service:
+	//    grpc:                  == this means one insecure port, tls is disabled
+	//      port: 2135
+
+	// service:
+	//    grpc:
+	//      port: 2136           == this means one secure port, tls is enabled
+	//      tls:
+	//        enabled: true
+
+	//  service:
+	//    grpc:
+	//      insecurePort: 2135   == this means two ports, one secure \ one insecure
+	//      port: 2136
+	//      tls:
+	//        enabled: true
+
+	rawYamlConfiguration := r.getRawYamlConfiguration()
+	configuration, err := ParseConfiguration(rawYamlConfiguration)
+	if err != nil {
+		return fmt.Errorf("failed to parse configuration immediately after building it, should not happen, %w", err)
+	}
+	configurationPort := int32(GRPCPort)
+	if configuration.GrpcConfig.Port != 0 {
+		configurationPort = configuration.GrpcConfig.Port
+	}
+	configurationSslPort := int32(0)
+	if configuration.GrpcConfig.SslPort != 0 {
+		configurationSslPort = configuration.GrpcConfig.SslPort
+	}
+
+	if !r.Spec.Service.GRPC.TLSConfiguration.Enabled {
+		// there should be only 1 port, both in service and in config, insecure
+		servicePort := int32(GRPCPort)
+		if r.Spec.Service.GRPC.Port != 0 {
+			servicePort = r.Spec.Service.GRPC.Port
+		}
+		if configurationPort != servicePort {
+			return fmt.Errorf(
+				"inconsistent grpc ports: spec.service.grpc.port (%v) != configuration.grpc_config.port (%v)",
+				servicePort,
+				configurationPort,
+			)
+		}
+
+		if r.Spec.Service.GRPC.InsecurePort != 0 {
+			return fmt.Errorf(
+				"spec.service.grpc.tls.enabled is false, use `port` instead of `insecurePort` field to assign non-tls grpc port",
+			)
+		}
+		return nil
+	}
+
+	// otherwise, there might be 1 (secure only) port...
+	servicePort := int32(GRPCPort)
+	if r.Spec.Service.GRPC.Port != 0 {
+		servicePort = r.Spec.Service.GRPC.Port
+	}
+	if configurationSslPort == 0 {
+		return fmt.Errorf(
+			"configuration.grpc_config.ssl_port is absent in cluster configuration, but spec.service.grpc has tls enabled and port %v",
+			servicePort,
+		)
+	}
+	if configurationSslPort != servicePort {
+		return fmt.Errorf(
+			"inconsistent grpc ports: spec.service.grpc.port (%v) != configuration.grpc_config.ssl_port (%v)",
+			servicePort,
+			configurationSslPort,
+		)
+	}
+
+	// or, optionally, one more: insecure port
+	if r.Spec.Service.GRPC.InsecurePort != 0 {
+		serviceInsecurePort := r.Spec.Service.GRPC.InsecurePort
+
+		if configurationPort != serviceInsecurePort {
+			return fmt.Errorf(
+				"inconsistent grpc insecure ports: spec.service.grpc.insecure_port (%v) != configuration.grpc_config.port (%v)",
+				serviceInsecurePort,
+				configurationPort,
+			)
+		}
 	}
 
 	return nil

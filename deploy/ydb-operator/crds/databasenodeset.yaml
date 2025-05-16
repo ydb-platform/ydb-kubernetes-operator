@@ -2690,6 +2690,9 @@ spec:
                       externalPort:
                         format: int32
                         type: integer
+                      insecurePort:
+                        format: int32
+                        type: integer
                       ipDiscovery:
                         properties:
                           enabled:
@@ -2715,6 +2718,9 @@ spec:
                         description: IPFamilyPolicy represents the dual-stack-ness
                           requested or required by a Service
                         type: string
+                      port:
+                        format: int32
+                        type: integer
                       tls:
                         properties:
                           CA:

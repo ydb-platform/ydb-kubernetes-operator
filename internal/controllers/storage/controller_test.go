@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -305,5 +307,151 @@ var _ = Describe("Storage controller medium tests", func() {
 			By("check that --auth-token-file arg was added to Statefulset template...")
 			Eventually(checkAuthTokenArgs, test.Timeout, test.Interval).ShouldNot(HaveOccurred())
 		})
+
+		By("Checking overriding port value in GRPC Service...", func() {
+			storage := v1alpha1.Storage{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			storage.Spec.Service.GRPC.Port = 2137
+
+			configWithNewPorts, err := patchGRPCPortsInConfiguration(storage.Spec.Configuration, -1, 2137)
+			Expect(err).To(BeNil())
+			storage.Spec.Configuration = configWithNewPorts
+
+			Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
+
+			var svc corev1.Service
+			serviceName := fmt.Sprintf("%v-grpc", testobjects.StorageName)
+
+			Eventually(func(g Gomega) bool {
+				err := k8sClient.Get(ctx,
+					client.ObjectKey{
+						Name:      serviceName,
+						Namespace: testobjects.YdbNamespace,
+					},
+					&svc,
+				)
+				if err != nil {
+					return false
+				}
+
+				ports := svc.Spec.Ports
+				g.Expect(len(ports)).To(Equal(1), "expected 1 port but got %d", len(ports))
+				g.Expect(ports[0].Name).To(Equal(v1alpha1.GRPCServicePortName))
+				g.Expect(ports[0].Port).To(Equal(storage.Spec.Service.GRPC.Port))
+				return true
+			}, test.Timeout, test.Interval).Should(BeTrue(),
+				"Service %s/%s should eventually have proper ports", testobjects.YdbNamespace, serviceName,
+			)
+		})
+
+		By("Checking insecurePort propagation in GRPC Service...", func() {
+			storage := v1alpha1.Storage{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			storage.Spec.Service.GRPC.Port = v1alpha1.GRPCPort
+			storage.Spec.Service.GRPC.InsecurePort = 2136
+			storage.Spec.Service.GRPC.TLSConfiguration.Enabled = true
+
+			configWithNewPorts, err := patchGRPCPortsInConfiguration(
+				storage.Spec.Configuration,
+				storage.Spec.Service.GRPC.Port,
+				storage.Spec.Service.GRPC.InsecurePort,
+			)
+
+			Expect(err).To(BeNil())
+			storage.Spec.Configuration = configWithNewPorts
+
+			Expect(k8sClient.Update(ctx, &storage)).Should(Succeed())
+
+			var svc corev1.Service
+			serviceName := fmt.Sprintf("%v-grpc", testobjects.StorageName)
+			Eventually(func(g Gomega) error {
+				err := k8sClient.Get(ctx,
+					client.ObjectKey{
+						Name:      serviceName,
+						Namespace: testobjects.YdbNamespace,
+					},
+					&svc,
+				)
+				if err != nil {
+					return err
+				}
+
+				ports := svc.Spec.Ports
+				g.Expect(len(ports)).To(Equal(2), "expected 2 ports but got %d", len(ports))
+				g.Expect(ports[0].Port).To(Equal(int32(v1alpha1.GRPCPort)))
+				g.Expect(ports[0].Name).To(Equal(v1alpha1.GRPCServicePortName))
+				g.Expect(ports[1].Port).To(Equal(storage.Spec.Service.GRPC.InsecurePort))
+				g.Expect(ports[1].Name).To(Equal(v1alpha1.GRPCServiceInsecurePortName))
+				g.Expect(ports[1].TargetPort.IntVal).To(Equal(storage.Spec.Service.GRPC.InsecurePort))
+				return nil
+			}, test.Timeout, test.Interval).Should(Succeed(),
+				"Service %s/%s should eventually have proper ports", testobjects.YdbNamespace, serviceName,
+			)
+		})
+
+		By("Forbid to edit grpc ports, when out of sync with YDB config...", func() {
+			storage := v1alpha1.Storage{}
+			Expect(k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &storage)).Should(Succeed())
+
+			storage.Spec.Service.GRPC.TLSConfiguration.Enabled = true
+
+			storage.Spec.Service.GRPC.Port = v1alpha1.GRPCPort
+			By("Specify 2136 in manifest spec...")
+			storage.Spec.Service.GRPC.InsecurePort = 2136
+
+			By("And then specify 2137 in manifest spec...")
+			configWithNewPorts, err := patchGRPCPortsInConfiguration(storage.Spec.Configuration, v1alpha1.GRPCPort, 2137)
+			Expect(err).To(BeNil())
+			storage.Spec.Configuration = configWithNewPorts
+
+			err = k8sClient.Update(ctx, &storage)
+			Expect(err).To(MatchError(ContainSubstring(
+				"inconsistent grpc insecure ports: spec.service.grpc.insecure_port (2136) != configuration.grpc_config.port (2137)",
+			)))
+		})
 	})
 })
+
+func patchGRPCPortsInConfiguration(in string, sslPort, port int32) (string, error) {
+	m := make(map[string]any)
+	if err := yaml.Unmarshal([]byte(in), &m); err != nil {
+		return "", err
+	}
+
+	cfg, _ := m["grpc_config"].(map[string]any)
+	if cfg == nil {
+		cfg = make(map[string]any)
+	}
+
+	if sslPort != -1 {
+		cfg["ssl_port"] = sslPort
+	} else {
+		delete(cfg, "ssl_port")
+	}
+
+	if port != -1 {
+		cfg["port"] = port
+	} else {
+		delete(cfg, "port")
+	}
+
+	m["grpc_config"] = cfg
+
+	res, err := yaml.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+
+	return string(res), nil
+}

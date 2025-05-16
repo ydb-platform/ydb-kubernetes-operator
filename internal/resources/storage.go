@@ -177,10 +177,7 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			Labels:         grpcServiceLabels,
 			SelectorLabels: storageSelectorLabels,
 			Annotations:    b.Spec.Service.GRPC.AdditionalAnnotations,
-			Ports: []corev1.ServicePort{{
-				Name: api.GRPCServicePortName,
-				Port: api.GRPCPort,
-			}},
+			Ports:          b.buildGrpcServicePorts(),
 			IPFamilies:     b.Spec.Service.GRPC.IPFamilies,
 			IPFamilyPolicy: b.Spec.Service.GRPC.IPFamilyPolicy,
 		},
@@ -212,6 +209,28 @@ func (b *StorageClusterBuilder) GetResourceBuilders(restConfig *rest.Config) []R
 			IPFamilyPolicy: b.Spec.Service.Status.IPFamilyPolicy,
 		},
 	)
+}
+
+func (b *StorageClusterBuilder) buildGrpcServicePorts() []corev1.ServicePort {
+	firstPort := int32(api.GRPCPort)
+
+	if b.Spec.Service.GRPC.Port != 0 {
+		firstPort = b.Spec.Service.GRPC.Port
+	}
+
+	ports := []corev1.ServicePort{{
+		Name: api.GRPCServicePortName,
+		Port: firstPort,
+	}}
+
+	if b.Spec.Service.GRPC.InsecurePort != 0 {
+		ports = append(ports, corev1.ServicePort{
+			Name: api.GRPCServiceInsecurePortName,
+			Port: b.Spec.Service.GRPC.InsecurePort,
+		})
+	}
+
+	return ports
 }
 
 func (b *StorageClusterBuilder) getNodeSetBuilders() []ResourceBuilder {

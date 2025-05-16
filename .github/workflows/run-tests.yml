@@ -28,7 +28,7 @@ jobs:
       - name: setup-go
         uses: actions/setup-go@v3
         with:
-          go-version: '1.20'
+          go-version: '1.23'
       - name: setup-medium-test-class-binaries
         run: |
           # This installs kube-apiserver and etcd binaries for `medium`
@@ -36,6 +36,10 @@ jobs:
           make envtest
           KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
           echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
+      - name: render-webhook-manifests
+        run: |
+          # This renders webhook manifests to ./config/webhook
+          make manifests
       - name: setup-gotestsum
         run: |
           go install gotest.tools/gotestsum@v1.12.0
@@ -76,7 +80,7 @@ jobs:
       - name: setup-go
         uses: actions/setup-go@v3
         with:
-          go-version: '1.20'
+          go-version: '1.23'
       - name: install-dependencies
         run: |
           sudo apt-get update

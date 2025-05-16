@@ -107,6 +107,8 @@ func createMockSvc(name string, parentKind string, parent client.Object) {
 func createMockDBAndSvc() {
 	GinkgoHelper()
 
+	createMockStorageAndSvc()
+
 	db := testobjects.DefaultDatabase()
 	Expect(k8sClient.Create(ctx, db)).Should(Succeed())
 
@@ -126,6 +128,40 @@ func createMockStorageAndSvc() {
 	Expect(k8sClient.Status().Update(ctx, stor)).Should(Succeed())
 
 	createMockSvc("storage-svc-status", "Storage", stor)
+}
+
+func cleanupMockStorageAndSvc() {
+	storage := api.Storage{}
+	Expect(k8sClient.Get(ctx, types.NamespacedName{
+		Name:      testobjects.StorageName,
+		Namespace: testobjects.YdbNamespace,
+	}, &storage))
+	Expect(k8sClient.Delete(ctx, &storage)).Should(Succeed())
+
+	svc := corev1.Service{}
+	Expect(k8sClient.Get(ctx, types.NamespacedName{
+		Name:      "storage-svc-status",
+		Namespace: testobjects.YdbNamespace,
+	}, &svc))
+	Expect(k8sClient.Delete(ctx, &svc)).Should(Succeed())
+}
+
+func cleanupMockDatabaseAndSvc() {
+	cleanupMockStorageAndSvc()
+
+	database := api.Database{}
+	Expect(k8sClient.Get(ctx, types.NamespacedName{
+		Name:      testobjects.DatabaseName,
+		Namespace: testobjects.YdbNamespace,
+	}, &database))
+	Expect(k8sClient.Delete(ctx, &database)).Should(Succeed())
+
+	svc := corev1.Service{}
+	Expect(k8sClient.Get(ctx, types.NamespacedName{
+		Name:      "database-svc-status",
+		Namespace: testobjects.YdbNamespace,
+	}, &svc))
+	Expect(k8sClient.Delete(ctx, &svc)).Should(Succeed())
 }
 
 var _ = Describe("Create DatabaseMonitoring", func() {
@@ -162,12 +198,14 @@ var _ = Describe("Create DatabaseMonitoring", func() {
 				}
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			cleanupMockDatabaseAndSvc()
 		})
 	})
 })
 
 var _ = Describe("StorageMonitoring tests", func() {
-	When("Database is already ready", func() {
+	When("Storage is already ready", func() {
 		It("We must create ServiceMonitor", func() {
 			createMockStorageAndSvc()
 
@@ -200,6 +238,8 @@ var _ = Describe("StorageMonitoring tests", func() {
 				}
 				return false
 			}, test.Timeout, test.Interval).Should(BeTrue())
+
+			cleanupMockStorageAndSvc()
 		})
 	})
 })

@@ -356,6 +356,36 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainerVolumeMount
 	return volumeMounts
 }
 
+func (b *StorageStatefulSetBuilder) buildContainerPorts() []corev1.ContainerPort {
+	podPorts := []corev1.ContainerPort{{
+		Name: "interconnect", ContainerPort: api.InterconnectPort,
+	}, {
+		Name: "status", ContainerPort: api.StatusPort,
+	}}
+
+	firstGRPCPort := corev1.ContainerPort{
+		Name:          api.GRPCServicePortName,
+		ContainerPort: api.GRPCPort,
+	}
+
+	overrideGRPCPort := b.Spec.StorageClusterSpec.Service.GRPC.Port
+	if overrideGRPCPort != 0 {
+		firstGRPCPort.ContainerPort = overrideGRPCPort
+	}
+
+	podPorts = append(podPorts, firstGRPCPort)
+
+	insecurePort := b.Spec.StorageClusterSpec.Service.GRPC.InsecurePort
+	if insecurePort != 0 {
+		podPorts = append(podPorts, corev1.ContainerPort{
+			Name:          api.GRPCServiceInsecurePortName,
+			ContainerPort: insecurePort,
+		})
+	}
+
+	return podPorts
+}
+
 func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo add init container for sparse files?
 	command, args := b.buildContainerArgs()
 	containerResources := corev1.ResourceRequirements{}
@@ -376,23 +406,22 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 
 		SecurityContext: mergeSecurityContextWithDefaults(b.Spec.SecurityContext),
 
-		Ports: []corev1.ContainerPort{{
-			Name: "grpc", ContainerPort: api.GRPCPort,
-		}, {
-			Name: "interconnect", ContainerPort: api.InterconnectPort,
-		}, {
-			Name: "status", ContainerPort: api.StatusPort,
-		}},
+		Ports: b.buildContainerPorts(),
 
 		VolumeMounts: b.buildVolumeMounts(),
 		Resources:    containerResources,
+	}
+
+	livenessProbePort := api.GRPCPort
+	if b.Spec.Service.GRPC.Port != 0 {
+		livenessProbePort = int(b.Spec.Service.GRPC.Port)
 	}
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationDisableLivenessProbe]; !ok || value != api.AnnotationValueTrue {
 		container.LivenessProbe = &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				TCPSocket: &corev1.TCPSocketAction{
-					Port: intstr.FromInt(api.GRPCPort),
+					Port: intstr.FromInt(livenessProbePort),
 				},
 			},
 		}
