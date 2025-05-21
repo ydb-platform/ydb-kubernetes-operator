@@ -1,6 +1,13 @@
 # Changelog
 
 
+## v0.6.4 - 2025-05-21
+### Added
+* `insecurePort` can be specified in GRPC Service spec to create a Service with a second port (for non-tls grpc port in storage)
+* Default 2135 port on the GRPC service can now be overridden
+### Fixed
+* [development] mutating\validating webhooks now run during medium tests (previously e2e only)
+
 ## v0.6.3 - 2025-05-07
 
 ## v0.6.2 - 2025-02-24
