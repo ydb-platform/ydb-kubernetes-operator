@@ -63,7 +63,7 @@ func (b *DatabaseStatefulSetBuilder) Build(obj client.Object) error {
 
 	if value, ok := b.ObjectMeta.Annotations[api.AnnotationUpdateStrategyOnDelete]; ok && value == api.AnnotationValueTrue {
 		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{
-			Type: "OnDelete",
+			Type: appsv1.OnDeleteStatefulSetStrategyType,
 		}
 	}
 
