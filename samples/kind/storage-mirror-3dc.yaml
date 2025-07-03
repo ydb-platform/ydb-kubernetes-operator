@@ -4,7 +4,7 @@ metadata:
   name: storage-kind-sample
 spec:
   image:
-    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:24.2.7
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:24.4.4.2
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
