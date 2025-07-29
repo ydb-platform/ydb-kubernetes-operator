@@ -102,6 +102,42 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 	return nil
 }
 
+func (b *StorageStatefulSetBuilder) buildEnv() []corev1.EnvVar {
+	var envVars []corev1.EnvVar
+
+	envVars = append(envVars,
+		corev1.EnvVar{
+			Name: "POD_NAME", // for `--grpc-public-host` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.name",
+				},
+			},
+		},
+		corev1.EnvVar{
+			Name: "NODE_NAME", // for `--grpc-public-host` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.name",
+				},
+			},
+		},
+		corev1.EnvVar{
+			Name: "POD_IP", // for `--grpc-public-address-<ip-family>` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "status.podIP",
+				},
+			},
+		},
+	)
+
+	return envVars
+}
+
 func (b *StorageStatefulSetBuilder) buildPodTemplateLabels() labels.Labels {
 	podTemplateLabels := labels.Labels{}
 
@@ -404,6 +440,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
+		Env:             b.buildEnv(),
 
 		SecurityContext: mergeSecurityContextWithDefaults(b.Spec.SecurityContext),
 
