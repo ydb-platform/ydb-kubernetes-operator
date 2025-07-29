@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -568,6 +569,37 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 				),
 			)
 		}
+	}
+
+	var publicHost string
+	if b.Spec.Service.GRPC.ExternalHost != "" {
+		publicHost = fmt.Sprintf("%s.%s", "$(POD_NAME)", b.Spec.Service.GRPC.ExternalHost)
+	}
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
+		publicHost = value
+	}
+	if publicHost != "" {
+		if !(strings.HasPrefix(publicHost, "$(POD_NAME)") || strings.HasPrefix(publicHost, "$(NODE_NAME)")) {
+			publicHost = fmt.Sprintf("%s.%s", "$(POD_NAME)", publicHost)
+		}
+		args = append(args,
+			"--grpc-public-host",
+			publicHost,
+		)
+	}
+
+	var publicPort string
+	if b.Spec.Service.GRPC.ExternalPort > 0 {
+		publicPort = fmt.Sprintf("%d", b.Spec.Service.GRPC.ExternalPort)
+	}
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicPort]; ok {
+		publicPort = value
+	}
+	if publicPort != "" {
+		args = append(args,
+			"--grpc-public-port",
+			publicPort,
+		)
 	}
 
 	return command, args
