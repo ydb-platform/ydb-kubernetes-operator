@@ -277,8 +277,9 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		b.Spec.Service.Status,
 	)
 	containerResources := corev1.ResourceRequirements{}
-	if b.Spec.Resources != nil {
-		containerResources = *b.Spec.Resources
+
+	if b.Spec.InitJob != nil && b.Spec.InitJob.Resources != nil {
+		containerResources = *b.Spec.InitJob.Resources
 	}
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {
