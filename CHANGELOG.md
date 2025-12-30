@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.6.5 - 2025-12-30
+### Added
+* Add storage init job security context inheritance and defaults
+
 ## v0.6.4 - 2025-05-21
 ### Added
 * `insecurePort` can be specified in GRPC Service spec to create a Service with a second port (for non-tls grpc port in storage)
