@@ -199,9 +199,6 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 
 	command, args := b.buildBlobStorageInitCommandArgs()
 
-	securityContext := mergeSecurityContextWithDefaults(b.Spec.SecurityContext)
-	securityContext.Privileged = ptr.Bool(false)
-
 	container := corev1.Container{
 		Name:            "ydb-init-blobstorage",
 		Image:           b.Spec.Image.Name,
@@ -209,7 +206,7 @@ func (b *StorageInitJobBuilder) buildInitJobContainer() corev1.Container { // to
 		Command:         command,
 		Args:            args,
 
-		SecurityContext: securityContext,
+		SecurityContext: mergeSecurityContextWithDefaults(b.Spec.SecurityContext),
 
 		VolumeMounts: b.buildJobVolumeMounts(),
 		Resources:    corev1.ResourceRequirements{},

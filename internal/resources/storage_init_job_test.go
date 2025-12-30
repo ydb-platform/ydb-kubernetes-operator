@@ -35,7 +35,8 @@ var _ = Describe("Storage init job", func() {
 				},
 				StorageNodeSpec: api.StorageNodeSpec{
 					SecurityContext: &corev1.SecurityContext{
-						RunAsUser: ptr.Int64(1001),
+						RunAsUser:  ptr.Int64(1001),
+						Privileged: ptr.Bool(false),
 						Capabilities: &corev1.Capabilities{
 							Add: []corev1.Capability{"SYS_PTRACE"},
 						},
@@ -50,6 +51,8 @@ var _ = Describe("Storage init job", func() {
 		Expect(container.SecurityContext).ToNot(BeNil())
 		Expect(container.SecurityContext.RunAsUser).ToNot(BeNil())
 		Expect(*container.SecurityContext.RunAsUser).To(Equal(int64(1001)))
+		Expect(container.SecurityContext.Privileged).ToNot(BeNil())
+		Expect(*container.SecurityContext.Privileged).To(BeFalse())
 		Expect(container.SecurityContext.Capabilities).ToNot(BeNil())
 		Expect(container.SecurityContext.Capabilities.Add).To(ContainElement(corev1.Capability("SYS_PTRACE")))
 		Expect(container.SecurityContext.Capabilities.Add).To(ContainElement(corev1.Capability("SYS_RAWIO")))
