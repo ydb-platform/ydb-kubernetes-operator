@@ -162,29 +162,33 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, remoteCluster *cluster.C
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(RemoteDatabaseNodeSetKind).
-		Watches(
-			source.NewKindWithCache(&v1alpha1.RemoteDatabaseNodeSet{}, cluster.GetCache()),
-			&handler.EnqueueRequestForObject{},
-			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+		WatchesRawSource(
+			source.Kind(cluster.GetCache(), &v1alpha1.RemoteDatabaseNodeSet{}, &handler.TypedEnqueueRequestForObject[*v1alpha1.RemoteDatabaseNodeSet]{}, predicate.TypedGenerationChangedPredicate[*v1alpha1.RemoteDatabaseNodeSet]{}),
 		).
 		Watches(
-			&source.Kind{Type: &v1alpha1.DatabaseNodeSet{}},
+			&v1alpha1.DatabaseNodeSet{},
 			&handler.EnqueueRequestForObject{},
 			builder.WithPredicates(resources.LabelExistsPredicate(isNodeSetFromMgmt)),
 		).
 		Watches(
-			&source.Kind{Type: &corev1.Service{}},
-			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+			&corev1.Service{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+				return annotationFilter(obj)
+			}),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Watches(
-			&source.Kind{Type: &corev1.ConfigMap{}},
-			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+			&corev1.ConfigMap{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+				return annotationFilter(obj)
+			}),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Watches(
-			&source.Kind{Type: &corev1.Secret{}},
-			handler.EnqueueRequestsFromMapFunc(annotationFilter),
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+				return annotationFilter(obj)
+			}),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		WithEventFilter(resources.IsRemoteDatabaseNodeSetCreatePredicate()).

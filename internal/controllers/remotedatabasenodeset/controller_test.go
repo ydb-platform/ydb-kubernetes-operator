@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
@@ -93,16 +94,20 @@ var _ = BeforeSuite(func() {
 	// +kubebuilder:scaffold:scheme
 
 	localManager, err := ctrl.NewManager(localCfg, ctrl.Options{
-		MetricsBindAddress: "0",
-		Scheme:             scheme.Scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+		Scheme: scheme.Scheme,
 	})
 	Expect(err).ShouldNot(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
 
 	remoteManager, err := ctrl.NewManager(remoteCfg, ctrl.Options{
-		MetricsBindAddress: "0",
-		Scheme:             scheme.Scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+		Scheme: scheme.Scheme,
 	})
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -111,11 +116,9 @@ var _ = BeforeSuite(func() {
 
 	remoteCluster, err := cluster.New(localCfg, func(o *cluster.Options) {
 		o.Scheme = scheme.Scheme
-		o.NewCache = cache.BuilderWithOptions(cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
-				&v1alpha1.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
-			},
-		})
+		o.Cache.ByObject = map[client.Object]cache.ByObject{
+			&v1alpha1.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
+		}
 	})
 	Expect(err).ShouldNot(HaveOccurred())
 
@@ -150,11 +153,11 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(remoteManager)
 	Expect(err).ShouldNot(HaveOccurred())
 
-	err = (&databasenodeset.Reconciler{
-		Client: remoteManager.GetClient(),
-		Scheme: remoteManager.GetScheme(),
-		Config: remoteManager.GetConfig(),
-	}).SetupWithManager(remoteManager)
+	err = databasenodeset.NewReconciler(
+		remoteManager.GetClient(),
+		remoteManager.GetScheme(),
+		remoteManager.GetConfig(),
+	).SetupWithManagerAndName(remoteManager, "RemoteDatabaseNodeSet-Remote")
 	Expect(err).ShouldNot(HaveOccurred())
 
 	err = (&remotestoragenodeset.Reconciler{
