@@ -56,11 +56,8 @@ func InPod(
 		},
 	)
 	if err != nil {
-		return stdout.String(), stderr.String(), errors.Wrapf(
-			err,
-			//nolint:govet  // TODO @jorres figure out why non-const error messages are not recommended
-			fmt.Sprintf("failed to stream execution results back, stdout:\n\"%s\"stderr:\n\"%s\"", stdout.String(), stderr.String()),
-		)
+		errMsg := fmt.Sprintf("failed to stream execution results back, stdout:\n\"%s\"stderr:\n\"%s\"", stdout.String(), stderr.String())
+		return stdout.String(), stderr.String(), errors.Wrap(err, errMsg)
 	}
 
 	return stdout.String(), stderr.String(), nil
