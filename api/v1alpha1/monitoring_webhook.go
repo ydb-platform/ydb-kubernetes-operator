@@ -79,12 +79,9 @@ type monitoringValidationHandler struct {
 	logger                  logr.Logger
 	client                  client.Client
 	mgr                     ctrl.Manager
-	decoder                 *admission.Decoder
 }
 
-var (
-	_ admission.Handler = &monitoringValidationHandler{}
-)
+var _ admission.Handler = &monitoringValidationHandler{}
 
 func (v *monitoringValidationHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if !v.enableServiceMonitoring {
