@@ -100,6 +100,7 @@ func (r *DatabaseMonitoringReconciler) SetupWithManager(mgr ctrl.Manager) error 
 	r.Recorder = mgr.GetEventRecorderFor("DatabaseMonitoring")
 
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("DatabaseMonitoring").
 		For(&api.DatabaseMonitoring{}).
 		Owns(&monitoring.ServiceMonitor{}).
 		Complete(r)
