@@ -403,6 +403,7 @@ func (b *StorageStatefulSetBuilder) buildContainer() corev1.Container { // todo 
 		ImagePullPolicy: imagePullPolicy,
 		Command:         command,
 		Args:            args,
+		Env:             b.buildEnv(),
 
 		SecurityContext: mergeSecurityContextWithDefaults(b.Spec.SecurityContext),
 
@@ -571,6 +572,23 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 	}
 
 	return command, args
+}
+
+func (b *StorageStatefulSetBuilder) buildEnv() []corev1.EnvVar {
+	var envVars []corev1.EnvVar
+
+	envVars = append(envVars,
+		corev1.EnvVar{
+			Name: "POD_UID", // passing metadata.uid to correctly identify pods in traces
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.uid",
+				},
+			},
+		},
+	)
+	return envVars
 }
 
 func (b *StorageStatefulSetBuilder) Placeholder(cr client.Object) client.Object {
