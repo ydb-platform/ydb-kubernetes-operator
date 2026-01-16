@@ -101,6 +101,15 @@ func (b *DatabaseStatefulSetBuilder) buildEnv() []corev1.EnvVar {
 				},
 			},
 		},
+		corev1.EnvVar{
+			Name: "POD_UID", // passing metadata.uid to correctly identify pods in traces
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.uid",
+				},
+			},
+		},
 	)
 
 	return envVars
