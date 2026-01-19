@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.6.6 - 2026-01-19
+### Added
+* Add passing metadata.uid to POD_UID environment variable to correctly identify pods in traces
+
 ## v0.6.5 - 2025-12-30
 ### Added
 * Add storage init job security context inheritance and defaults
