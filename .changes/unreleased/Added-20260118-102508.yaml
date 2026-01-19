@@ -1,3 +1,0 @@
-kind: Added
-body: Add passing metadata.uid to POD_UID environment variable to correctly identify pods in traces
-time: 2026-01-18T10:25:08.970422+01:00
