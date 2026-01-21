@@ -95,9 +95,10 @@ func (r *StorageMonitoringReconciler) waitForStorage(ctx context.Context, cr *ap
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *StorageMonitoringReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("DatabaseMonitoring")
+	r.Recorder = mgr.GetEventRecorderFor("StorageMonitoring")
 
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("StorageMonitoring").
 		For(&api.StorageMonitoring{}).
 		Complete(r)
 }

@@ -61,12 +61,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, err
 }
 
+// NewReconciler creates a new Reconciler instance
+func NewReconciler(client client.Client, scheme *runtime.Scheme, config *rest.Config) *Reconciler {
+	return &Reconciler{
+		Client: client,
+		Scheme: scheme,
+		Config: config,
+	}
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor(DatabaseNodeSetKind)
+	return r.SetupWithManagerAndName(mgr, DatabaseNodeSetKind)
+}
+
+// SetupWithManagerAndName sets up the controller with the Manager using a custom name.
+func (r *Reconciler) SetupWithManagerAndName(mgr ctrl.Manager, name string) error {
+	r.Recorder = mgr.GetEventRecorderFor(name)
 	controller := ctrl.NewControllerManagedBy(mgr)
 
 	return controller.
+		Named(name).
 		For(&v1alpha1.DatabaseNodeSet{},
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
