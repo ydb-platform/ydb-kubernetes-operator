@@ -4,7 +4,7 @@ metadata:
   name: database-sample
 spec:
   image:
-    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:23.3.17
+    name: cr.yandex/crptqonuodf51kdj7a7d/ydb:24.4.4.2
   nodes: 3
   resources:
     storageUnits:
