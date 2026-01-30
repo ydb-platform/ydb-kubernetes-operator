@@ -71,6 +71,9 @@ const (
 	AnnotationAuthTokenSecretName    = "ydb.tech/auth-token-secret-name"
 	AnnotationAuthTokenSecretKey     = "ydb.tech/auth-token-secret-key"
 
+	// Preserve original key id when `.spec.StorageClusterRef` name changes
+	EncryptionKeyStorageNameAnnotation = "ydb.tech/encryption-key-storage-name"
+
 	AnnotationValueTrue = "true"
 
 	legacyTenantNameFormat = "/%s/%s"
