@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.6.7 - 2026-02-06
+### Added
+* Database encryption key override for storage names
+
 ## v0.6.6 - 2026-01-19
 ### Added
 * Add passing metadata.uid to POD_UID environment variable to correctly identify pods in traces
