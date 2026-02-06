@@ -138,6 +138,14 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 			)
 		}
 
+		// This allows to specify old Storage value when changing StorageClusterRef.
+		// therefore, encryption key ID will stay the same and no re-encryption needed
+		// for databases.
+		storageNameForKeyID := b.Spec.StorageClusterRef.Name
+		if override, ok := b.Annotations[api.EncryptionKeyStorageNameAnnotation]; ok {
+			storageNameForKeyID = override
+		}
+
 		keyConfig := schema.KeyConfig{
 			Keys: []schema.Key{
 				{
@@ -146,7 +154,7 @@ func (b *DatabaseBuilder) GetResourceBuilders(restConfig *rest.Config) []Resourc
 						api.DatabaseEncryptionKeySecretDir,
 						api.DatabaseEncryptionKeySecretFile,
 					),
-					ID:      SHAChecksum(b.Spec.StorageClusterRef.Name),
+					ID:      SHAChecksum(storageNameForKeyID),
 					Pin:     b.Spec.Encryption.Pin,
 					Version: 1,
 				},
