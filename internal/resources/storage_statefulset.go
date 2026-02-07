@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -99,6 +100,42 @@ func (b *StorageStatefulSetBuilder) Build(obj client.Object) error {
 	sts.Spec.VolumeClaimTemplates = pvcList
 
 	return nil
+}
+
+func (b *StorageStatefulSetBuilder) buildEnv() []corev1.EnvVar {
+	var envVars []corev1.EnvVar
+
+	envVars = append(envVars,
+		corev1.EnvVar{
+			Name: "POD_NAME", // for `--grpc-public-host` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.name",
+				},
+			},
+		},
+		corev1.EnvVar{
+			Name: "NODE_NAME", // for `--grpc-public-host` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.name",
+				},
+			},
+		},
+		corev1.EnvVar{
+			Name: "POD_IP", // for `--grpc-public-address-<ip-family>` flag
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "status.podIP",
+				},
+			},
+		},
+	)
+
+	return envVars
 }
 
 func (b *StorageStatefulSetBuilder) buildPodTemplateLabels() labels.Labels {
@@ -569,6 +606,37 @@ func (b *StorageStatefulSetBuilder) buildContainerArgs() ([]string, []string) {
 				),
 			)
 		}
+	}
+
+	var publicHost string
+	if b.Spec.Service.GRPC.ExternalHost != "" {
+		publicHost = fmt.Sprintf("%s.%s", "$(POD_NAME)", b.Spec.Service.GRPC.ExternalHost)
+	}
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicHost]; ok {
+		publicHost = value
+	}
+	if publicHost != "" {
+		if !(strings.HasPrefix(publicHost, "$(POD_NAME)") || strings.HasPrefix(publicHost, "$(NODE_NAME)")) {
+			publicHost = fmt.Sprintf("%s.%s", "$(POD_NAME)", publicHost)
+		}
+		args = append(args,
+			"--grpc-public-host",
+			publicHost,
+		)
+	}
+
+	var publicPort string
+	if b.Spec.Service.GRPC.ExternalPort > 0 {
+		publicPort = fmt.Sprintf("%d", b.Spec.Service.GRPC.ExternalPort)
+	}
+	if value, ok := b.ObjectMeta.Annotations[api.AnnotationGRPCPublicPort]; ok {
+		publicPort = value
+	}
+	if publicPort != "" {
+		args = append(args,
+			"--grpc-public-port",
+			publicPort,
+		)
 	}
 
 	return command, args
