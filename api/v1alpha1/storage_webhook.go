@@ -15,7 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/configuration/schema"
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
@@ -28,6 +28,7 @@ func (r *Storage) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		WithDefaulter(&StorageDefaulter{Client: mgr.GetClient()}).
+		WithValidator(r).
 		Complete()
 }
 
@@ -178,7 +179,7 @@ func (r *StorageDefaulter) Default(ctx context.Context, obj runtime.Object) erro
 
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-storage,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=storages,verbs=create;update,versions=v1alpha1,name=validate-storage.ydb.tech,admissionReviewVersions=v1
 
-var _ webhook.Validator = &Storage{}
+var _ admission.CustomValidator = &Storage{}
 
 func isSignAlgorithmSupported(alg string) bool {
 	supportedAlgs := jwt.GetAlgorithms()
@@ -192,33 +193,34 @@ func isSignAlgorithmSupported(alg string) bool {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *Storage) ValidateCreate() error {
-	storagelog.Info("validate create", "name", r.Name)
+func (r *Storage) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	storage := obj.(*Storage)
+	storagelog.Info("validate create", "name", storage.Name)
 
 	var rawYamlConfiguration string
-	success, dynConfig, err := ParseDynConfig(r.Spec.Configuration)
+	success, dynConfig, err := ParseDynConfig(storage.Spec.Configuration)
 	if success {
 		if err != nil {
-			return fmt.Errorf("failed to parse dynconfig, error: %w", err)
+			return nil, fmt.Errorf("failed to parse dynconfig, error: %w", err)
 		}
 		config, err := yaml.Marshal(dynConfig.Config)
 		if err != nil {
-			return fmt.Errorf("failed to serialize YAML config, error: %w", err)
+			return nil, fmt.Errorf("failed to serialize YAML config, error: %w", err)
 		}
 		rawYamlConfiguration = string(config)
 	} else {
-		rawYamlConfiguration = r.Spec.Configuration
+		rawYamlConfiguration = storage.Spec.Configuration
 	}
 
 	var configuration schema.Configuration
 	configuration, err = ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
-		return fmt.Errorf("failed to parse configuration, error: %w", err)
+		return nil, fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
 
 	var nodesNumber int32
 	if len(configuration.Hosts) == 0 {
-		nodesNumber = r.Spec.Nodes
+		nodesNumber = storage.Spec.Nodes
 	} else {
 		nodesNumber = int32(len(configuration.Hosts))
 	}
@@ -229,8 +231,8 @@ func (r *Storage) ValidateCreate() error {
 		None:             1,
 	}
 
-	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
-		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
+	if nodesNumber < minNodesPerErasure[storage.Spec.Erasure] {
+		return nil, fmt.Errorf("erasure type %v requires at least %v storage nodes", storage.Spec.Erasure, minNodesPerErasure[storage.Spec.Erasure])
 	}
 
 	var authEnabled bool
@@ -240,27 +242,27 @@ func (r *Storage) ValidateCreate() error {
 		}
 	}
 
-	if authEnabled && r.Spec.OperatorConnection == nil {
-		return fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
+	if authEnabled && storage.Spec.OperatorConnection == nil {
+		return nil, fmt.Errorf("field 'spec.operatorConnection' does not satisfy with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
-	if r.Spec.OperatorConnection != nil && r.Spec.OperatorConnection.Oauth2TokenExchange != nil {
-		auth := r.Spec.OperatorConnection.Oauth2TokenExchange
+	if storage.Spec.OperatorConnection != nil && storage.Spec.OperatorConnection.Oauth2TokenExchange != nil {
+		auth := storage.Spec.OperatorConnection.Oauth2TokenExchange
 		if auth.KeyID == nil {
-			return fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
+			return nil, fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
 		}
 		if !isSignAlgorithmSupported(auth.SignAlg) {
-			return fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
+			return nil, fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
 		}
 	}
 
-	if r.Spec.NodeSets != nil {
+	if storage.Spec.NodeSets != nil {
 		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSets {
+		for _, nodeSetInline := range storage.Spec.NodeSets {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
-		if nodesInSetsCount != r.Spec.Nodes {
-			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		if nodesInSetsCount != storage.Spec.Nodes {
+			return nil, fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", storage.Spec.Nodes, nodesInSetsCount)
 		}
 	}
 
@@ -269,25 +271,25 @@ func (r *Storage) ValidateCreate() error {
 		"datastreams",
 	}
 
-	for _, secret := range r.Spec.Secrets {
+	for _, secret := range storage.Spec.Secrets {
 		if slices.Contains(reservedSecretNames, secret.Name) {
-			return fmt.Errorf("the secret name %s is reserved, use another one", secret.Name)
+			return nil, fmt.Errorf("the secret name %s is reserved, use another one", secret.Name)
 		}
 	}
-	if r.Spec.Volumes != nil {
-		for _, volume := range r.Spec.Volumes {
+	if storage.Spec.Volumes != nil {
+		for _, volume := range storage.Spec.Volumes {
 			if volume.HostPath == nil {
-				return fmt.Errorf("unsupported volume source, %v. Only hostPath is supported ", volume.VolumeSource)
+				return nil, fmt.Errorf("unsupported volume source, %v. Only hostPath is supported ", volume.VolumeSource)
 			}
 		}
 	}
 
-	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
+	crdCheckError := checkMonitoringCRD(manager, storagelog, storage.Spec.Monitoring != nil)
 	if crdCheckError != nil {
-		return crdCheckError
+		return nil, crdCheckError
 	}
 
-	return nil
+	return nil, nil
 }
 
 func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
@@ -340,33 +342,34 @@ func hasUpdatesBesidesFrozen(oldStorage, newStorage *Storage) (bool, string) {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *Storage) ValidateUpdate(old runtime.Object) error {
-	storagelog.Info("validate update", "name", r.Name)
+func (r *Storage) ValidateUpdate(ctx context.Context, oldObj runtime.Object, newObj runtime.Object) (admission.Warnings, error) {
+	storage := newObj.(*Storage)
+	storagelog.Info("validate update", "name", storage.Name)
 
 	var rawYamlConfiguration string
-	success, dynConfig, err := ParseDynConfig(r.Spec.Configuration)
+	success, dynConfig, err := ParseDynConfig(storage.Spec.Configuration)
 	if success {
 		if err != nil {
-			return fmt.Errorf("failed to parse dynconfig, error: %w", err)
+			return nil, fmt.Errorf("failed to parse dynconfig, error: %w", err)
 		}
 		config, err := yaml.Marshal(dynConfig.Config)
 		if err != nil {
-			return fmt.Errorf("failed to serialize YAML config, error: %w", err)
+			return nil, fmt.Errorf("failed to serialize YAML config, error: %w", err)
 		}
 		rawYamlConfiguration = string(config)
 	} else {
-		rawYamlConfiguration = r.Spec.Configuration
+		rawYamlConfiguration = storage.Spec.Configuration
 	}
 
 	var configuration schema.Configuration
 	configuration, err = ParseConfiguration(rawYamlConfiguration)
 	if err != nil {
-		return fmt.Errorf("failed to parse configuration, error: %w", err)
+		return nil, fmt.Errorf("failed to parse configuration, error: %w", err)
 	}
 
 	var nodesNumber int32
 	if len(configuration.Hosts) == 0 {
-		nodesNumber = r.Spec.Nodes
+		nodesNumber = storage.Spec.Nodes
 	} else {
 		nodesNumber = int32(len(configuration.Hosts))
 	}
@@ -377,8 +380,8 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		None:             1,
 	}
 
-	if nodesNumber < minNodesPerErasure[r.Spec.Erasure] {
-		return fmt.Errorf("erasure type %v requires at least %v storage nodes", r.Spec.Erasure, minNodesPerErasure[r.Spec.Erasure])
+	if nodesNumber < minNodesPerErasure[storage.Spec.Erasure] {
+		return nil, fmt.Errorf("erasure type %v requires at least %v storage nodes", storage.Spec.Erasure, minNodesPerErasure[storage.Spec.Erasure])
 	}
 
 	var authEnabled bool
@@ -388,58 +391,58 @@ func (r *Storage) ValidateUpdate(old runtime.Object) error {
 		}
 	}
 
-	if authEnabled && r.Spec.OperatorConnection == nil {
-		return fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
+	if authEnabled && storage.Spec.OperatorConnection == nil {
+		return nil, fmt.Errorf("field 'spec.operatorConnection' does not align with config option `enforce_user_token_requirement: %t`", authEnabled)
 	}
 
-	if r.Spec.OperatorConnection != nil && r.Spec.OperatorConnection.Oauth2TokenExchange != nil {
-		auth := r.Spec.OperatorConnection.Oauth2TokenExchange
+	if storage.Spec.OperatorConnection != nil && storage.Spec.OperatorConnection.Oauth2TokenExchange != nil {
+		auth := storage.Spec.OperatorConnection.Oauth2TokenExchange
 		if auth.KeyID == nil {
-			return fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
+			return nil, fmt.Errorf("field keyID is required for OAuth2TokenExchange type")
 		}
 		if !isSignAlgorithmSupported(auth.SignAlg) {
-			return fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
+			return nil, fmt.Errorf("signAlg %s does not supported for OAuth2TokenExchange type", auth.SignAlg)
 		}
 	}
 
-	if !r.Spec.OperatorSync {
-		oldStorage := old.(*Storage)
+	if !storage.Spec.OperatorSync {
+		oldStorage := oldObj.(*Storage)
 
-		hasIllegalUpdates, diff := hasUpdatesBesidesFrozen(old.(*Storage), r)
+		hasIllegalUpdates, diff := hasUpdatesBesidesFrozen(oldStorage, storage)
 
 		if hasIllegalUpdates {
 			if oldStorage.Spec.OperatorSync {
-				return fmt.Errorf(
+				return nil, fmt.Errorf(
 					"it is illegal to update spec.OperatorSync and any other "+
 						"spec fields at the same time. Here is what you else tried to update: %s", diff)
 			}
 
-			return fmt.Errorf(
+			return nil, fmt.Errorf(
 				"it is illegal to update any spec fields when spec.OperatorSync is false. "+
 					"Here is what you else tried to update: %s", diff)
 		}
 	}
 
-	if r.Spec.NodeSets != nil {
+	if storage.Spec.NodeSets != nil {
 		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSets {
+		for _, nodeSetInline := range storage.Spec.NodeSets {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
-		if nodesInSetsCount != r.Spec.Nodes {
-			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		if nodesInSetsCount != storage.Spec.Nodes {
+			return nil, fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", storage.Spec.Nodes, nodesInSetsCount)
 		}
 	}
 
-	crdCheckError := checkMonitoringCRD(manager, storagelog, r.Spec.Monitoring != nil)
+	crdCheckError := checkMonitoringCRD(manager, storagelog, storage.Spec.Monitoring != nil)
 	if crdCheckError != nil {
-		return crdCheckError
+		return nil, crdCheckError
 	}
 
-	if err := r.validateGrpcPorts(); err != nil {
-		return err
+	if err := storage.validateGrpcPorts(); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (r *Storage) getRawYamlConfiguration() string {
@@ -547,9 +550,10 @@ func (r *Storage) validateGrpcPorts() error {
 	return nil
 }
 
-func (r *Storage) ValidateDelete() error {
-	if r.Status.State != StoragePaused {
-		return fmt.Errorf("storage deletion is only possible from `Paused` state, current state %v", r.Status.State)
+func (r *Storage) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	storage := obj.(*Storage)
+	if storage.Status.State != StoragePaused {
+		return nil, fmt.Errorf("storage deletion is only possible from `Paused` state, current state %v", storage.Status.State)
 	}
-	return nil
+	return nil, nil
 }

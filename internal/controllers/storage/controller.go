@@ -23,7 +23,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	ydbannotations "github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
@@ -211,6 +210,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return controller.
+		Named(StorageKind).
 		For(&v1alpha1.Storage{},
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
@@ -230,8 +230,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		Watches(
-			&source.Kind{Type: &corev1.Secret{}},
-			handler.EnqueueRequestsFromMapFunc(r.findStoragesForSecret),
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+				return r.findStoragesForSecret(obj)
+			}),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
 		WithEventFilter(resources.IsStorageCreatePredicate()).

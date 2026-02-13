@@ -23,6 +23,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 )
@@ -179,11 +181,15 @@ func SetupK8STestManager(testCtx *context.Context, k8sClient *client.Client, con
 
 		//+kubebuilder:scaffold:scheme
 		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-			MetricsBindAddress: "0",
-			Scheme:             scheme.Scheme,
-			Host:               testEnv.WebhookInstallOptions.LocalServingHost,
-			Port:               testEnv.WebhookInstallOptions.LocalServingPort,
-			CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+			Metrics: metricsserver.Options{
+				BindAddress: "0",
+			},
+			Scheme: scheme.Scheme,
+			WebhookServer: webhook.NewServer(webhook.Options{
+				Host:    testEnv.WebhookInstallOptions.LocalServingHost,
+				Port:    testEnv.WebhookInstallOptions.LocalServingPort,
+				CertDir: testEnv.WebhookInstallOptions.LocalServingCertDir,
+			}),
 		})
 		Expect(err).ToNot(HaveOccurred())
 

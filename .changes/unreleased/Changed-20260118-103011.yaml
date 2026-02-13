@@ -1,0 +1,3 @@
+kind: Changed
+body: controller-runtime version has been updated (0.14 -> 0.22) and Kubernetes libraries (1.26 → 1.34)
+time: 2026-01-18T10:30:11.401494+01:00

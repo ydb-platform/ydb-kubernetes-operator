@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
@@ -47,6 +46,7 @@ func RegisterMonitoringValidatingWebhook(mgr ctrl.Manager, enableServiceMonitori
 				logger:                  logf.Log.WithName(logName),
 				enableServiceMonitoring: enableServiceMonitoring,
 				mgr:                     mgr,
+				client:                  mgr.GetClient(),
 			},
 		})
 		return nil
@@ -79,13 +79,9 @@ type monitoringValidationHandler struct {
 	logger                  logr.Logger
 	client                  client.Client
 	mgr                     ctrl.Manager
-	decoder                 *admission.Decoder
 }
 
-var (
-	_ inject.Client     = &monitoringValidationHandler{}
-	_ admission.Handler = &monitoringValidationHandler{}
-)
+var _ admission.Handler = &monitoringValidationHandler{}
 
 func (v *monitoringValidationHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if !v.enableServiceMonitoring {
@@ -104,14 +100,4 @@ func (v *monitoringValidationHandler) Handle(ctx context.Context, req admission.
 	}
 
 	return admission.Allowed("")
-}
-
-func (v *monitoringValidationHandler) InjectClient(c client.Client) error {
-	v.client = c
-	return nil
-}
-
-func (v *monitoringValidationHandler) InjectDecoder(d *admission.Decoder) error {
-	v.decoder = d
-	return nil
 }

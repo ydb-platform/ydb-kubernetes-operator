@@ -12,7 +12,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants" //nolint:revive,stylecheck
 )
@@ -27,6 +27,7 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		WithDefaulter(&DatabaseDefaulter{Client: mgr.GetClient()}).
+		WithValidator(r).
 		Complete()
 }
 
@@ -165,82 +166,85 @@ func (r *DatabaseDefaulter) Default(ctx context.Context, obj runtime.Object) err
 
 //+kubebuilder:webhook:path=/validate-ydb-tech-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=ydb.tech,resources=databases,verbs=create;update,versions=v1alpha1,name=validate-database.ydb.tech,admissionReviewVersions=v1
 
-var _ webhook.Validator = &Database{}
+var _ admission.CustomValidator = &Database{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *Database) ValidateCreate() error {
-	databaselog.Info("validate create", "name", r.Name)
+func (r *Database) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	database := obj.(*Database)
+	databaselog.Info("validate create", "name", database.Name)
 
-	if r.Spec.Domain != "" && r.Spec.Path != "" {
-		if !strings.HasPrefix(r.Spec.Path, fmt.Sprintf("/%s", r.Spec.Domain)) {
-			return fmt.Errorf("incorrect database path, must start with domain: \"/%s\"", r.Spec.Domain)
+	if database.Spec.Domain != "" && database.Spec.Path != "" {
+		if !strings.HasPrefix(database.Spec.Path, fmt.Sprintf("/%s", database.Spec.Domain)) {
+			return nil, fmt.Errorf("incorrect database path, must start with domain: \"/%s\"", database.Spec.Domain)
 		}
 	}
 
-	if r.Spec.Resources == nil && r.Spec.SharedResources == nil && r.Spec.ServerlessResources == nil {
-		return errors.New("incorrect database resources configuration, must be one of: Resources, SharedResources, ServerlessResources")
+	if database.Spec.Resources == nil && database.Spec.SharedResources == nil && database.Spec.ServerlessResources == nil {
+		return nil, errors.New("incorrect database resources configuration, must be one of: Resources, SharedResources, ServerlessResources")
 	}
 
-	if r.Spec.Volumes != nil {
-		for _, volume := range r.Spec.Volumes {
+	if database.Spec.Volumes != nil {
+		for _, volume := range database.Spec.Volumes {
 			if volume.HostPath == nil {
-				return fmt.Errorf("unsupported volume source, %v. Only hostPath is supported ", volume.VolumeSource)
+				return nil, fmt.Errorf("unsupported volume source, %v. Only hostPath is supported ", volume.VolumeSource)
 			}
 		}
 	}
 
-	if r.Spec.NodeSets != nil {
+	if database.Spec.NodeSets != nil {
 		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSets {
+		for _, nodeSetInline := range database.Spec.NodeSets {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
-		if nodesInSetsCount != r.Spec.Nodes {
-			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		if nodesInSetsCount != database.Spec.Nodes {
+			return nil, fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", database.Spec.Nodes, nodesInSetsCount)
 		}
 	}
 
-	crdCheckError := checkMonitoringCRD(manager, databaselog, r.Spec.Monitoring != nil)
+	crdCheckError := checkMonitoringCRD(manager, databaselog, database.Spec.Monitoring != nil)
 	if crdCheckError != nil {
-		return crdCheckError
+		return nil, crdCheckError
 	}
 
-	return nil
+	return nil, nil
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *Database) ValidateUpdate(old runtime.Object) error {
-	databaselog.Info("validate update", "name", r.Name)
+func (r *Database) ValidateUpdate(ctx context.Context, oldObj runtime.Object, newObj runtime.Object) (admission.Warnings, error) {
+	database := newObj.(*Database)
+	databaselog.Info("validate update", "name", database.Name)
 
-	oldDatabase, _ := old.(*Database)
-	if r.Spec.Domain != oldDatabase.Spec.Domain {
-		return errors.New("database domain cannot be changed")
+	oldDatabase, _ := oldObj.(*Database)
+	if database.Spec.Domain != oldDatabase.Spec.Domain {
+		return nil, errors.New("database domain cannot be changed")
 	}
 
-	if oldDatabase.GetDatabasePath() != r.GetDatabasePath() {
-		return errors.New("database path cannot be changed")
+	if oldDatabase.GetDatabasePath() != database.GetDatabasePath() {
+		return nil, errors.New("database path cannot be changed")
 	}
 
-	if r.Spec.NodeSets != nil {
+	if database.Spec.NodeSets != nil {
 		var nodesInSetsCount int32
-		for _, nodeSetInline := range r.Spec.NodeSets {
+		for _, nodeSetInline := range database.Spec.NodeSets {
 			nodesInSetsCount += nodeSetInline.Nodes
 		}
-		if nodesInSetsCount != r.Spec.Nodes {
-			return fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", r.Spec.Nodes, nodesInSetsCount)
+		if nodesInSetsCount != database.Spec.Nodes {
+			return nil, fmt.Errorf("incorrect value nodes: %d, does not satisfy with nodeSets: %d ", database.Spec.Nodes, nodesInSetsCount)
 		}
 	}
 
-	crdCheckError := checkMonitoringCRD(manager, databaselog, r.Spec.Monitoring != nil)
+	crdCheckError := checkMonitoringCRD(manager, databaselog, database.Spec.Monitoring != nil)
 	if crdCheckError != nil {
-		return crdCheckError
+		return nil, crdCheckError
 	}
 
-	return nil
+	return nil, nil
 }
 
-func (r *Database) ValidateDelete() error {
-	if r.Status.State != DatabasePaused {
-		return fmt.Errorf("database deletion is only possible from `Paused` state, current state %v", r.Status.State)
+func (r *Database) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	database := obj.(*Database)
+	if database.Status.State != DatabasePaused {
+		return nil, fmt.Errorf("database deletion is only possible from `Paused` state, current state %v", database.Status.State)
 	}
-	return nil
+	return nil, nil
 }

@@ -12,9 +12,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	ydbv1alpha1 "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
@@ -68,9 +71,13 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: metricsAddr,
+		},
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port: 9443,
+		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "a14e577a.ydb.tech",
@@ -221,11 +228,9 @@ func createRemoteCluster(mgmtClusterName, mgmtClusterKubeconfig string) (cluster
 
 	return cluster.New(remoteConfig, func(o *cluster.Options) {
 		o.Scheme = scheme
-		o.NewCache = cache.BuilderWithOptions(cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
-				&ydbv1alpha1.RemoteStorageNodeSet{}:  {Label: storageSelector},
-				&ydbv1alpha1.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
-			},
-		})
+		o.Cache.ByObject = map[client.Object]cache.ByObject{
+			&ydbv1alpha1.RemoteStorageNodeSet{}:  {Label: storageSelector},
+			&ydbv1alpha1.RemoteDatabaseNodeSet{}: {Label: databaseSelector},
+		}
 	})
 }
