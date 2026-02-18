@@ -138,8 +138,8 @@ jobs:
           retry_wait_seconds: 20
           max_attempts: 3
           command: |
-            docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
-            kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3
+            docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.5.4
+            kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.5.4 --nodes kind-worker,kind-worker2,kind-worker3
       - name: pull-and-load-ydb-image
         run: |
           YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"')
