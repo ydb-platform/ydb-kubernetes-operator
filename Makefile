@@ -8,8 +8,7 @@ VERSION ?= 0.1.0
 # Image URL to use all building/pushing image targets
 IMG ?= cr.yandex/yc/ydb-operator:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-# Pin patch version to avoid "latest patch" discovery via GCS listing in CI.
-ENVTEST_K8S_VERSION = 1.26.1
+ENVTEST_K8S_VERSION = 1.26
 # Image URL which uses in tests
 YDB_IMAGE ?= $(shell grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"' | tr -d '"')
 
@@ -120,7 +119,7 @@ controller-gen: ## Download controller-gen locally if necessary.
 # Version pinning is needed due to version incompatibility between controller-runtime and setup-envtest.
 # For more information: https://github.com/kubernetes-sigs/controller-runtime/issues/2744
 ENVTEST = $(shell pwd)/bin/setup-envtest
-ENVTEST_VERSION ?= release-0.17
+ENVTEST_VERSION ?= release-0.22
 envtest: ## Download envtest-setup locally if necessary.
 	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION))
 
