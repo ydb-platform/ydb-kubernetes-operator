@@ -8,7 +8,8 @@ VERSION ?= 0.1.0
 # Image URL to use all building/pushing image targets
 IMG ?= cr.yandex/yc/ydb-operator:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.26
+# Pin patch version to avoid "latest patch" discovery via GCS listing in CI.
+ENVTEST_K8S_VERSION = 1.26.1
 # Image URL which uses in tests
 YDB_IMAGE ?= $(shell grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"' | tr -d '"')
 

@@ -38,7 +38,7 @@ jobs:
           # This installs kube-apiserver and etcd binaries for `medium`
           # class tests. Refer to the writing tests docs for more info.
           make envtest
-          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
+          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use --arch=amd64 1.26.1 -p path)
           echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
       - name: render-webhook-manifests
         run: |
