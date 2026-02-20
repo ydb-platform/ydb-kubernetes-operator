@@ -71,8 +71,8 @@ kind-init:
 	--config tests/cfg/kind-cluster-config.yaml \
 	--image=kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
 	--name kind-ydb-operator
-	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
-	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --name kind-ydb-operator
+	docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.5.4
+	kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.5.4 --name kind-ydb-operator
 	kubectl cluster-info --context kind-kind-ydb-operator # yes, kind prefixes all context with one more 'kind-'
 	docker pull ${YDB_IMAGE}
 	kind load docker-image ${YDB_IMAGE} --name kind-ydb-operator
@@ -119,7 +119,7 @@ controller-gen: ## Download controller-gen locally if necessary.
 # Version pinning is needed due to version incompatibility between controller-runtime and setup-envtest.
 # For more information: https://github.com/kubernetes-sigs/controller-runtime/issues/2744
 ENVTEST = $(shell pwd)/bin/setup-envtest
-ENVTEST_VERSION ?= release-0.17
+ENVTEST_VERSION ?= release-0.22
 envtest: ## Download envtest-setup locally if necessary.
 	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION))
 

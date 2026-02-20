@@ -16,7 +16,7 @@ jobs:
       - name: setup-go
         uses: actions/setup-go@v3
         with:
-          go-version: '1.23'
+          go-version: '1.24'
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
@@ -32,13 +32,13 @@ jobs:
       - name: setup-go
         uses: actions/setup-go@v3
         with:
-          go-version: '1.23'
+          go-version: '1.24'
       - name: setup-medium-test-class-binaries
         run: |
           # This installs kube-apiserver and etcd binaries for `medium`
           # class tests. Refer to the writing tests docs for more info.
           make envtest
-          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.26 -p path)
+          KUBEBUILDER_ASSETS=$(./bin/setup-envtest use --arch=amd64 1.26 -p path)
           echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_ENV
       - name: render-webhook-manifests
         run: |
@@ -84,7 +84,7 @@ jobs:
       - name: setup-go
         uses: actions/setup-go@v3
         with:
-          go-version: '1.23'
+          go-version: '1.24'
       - name: install-dependencies
         run: |
           sudo apt-get update
@@ -138,8 +138,8 @@ jobs:
           retry_wait_seconds: 20
           max_attempts: 3
           command: |
-            docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
-            kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0 --nodes kind-worker,kind-worker2,kind-worker3
+            docker pull k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.5.4
+            kind load docker-image k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.5.4 --nodes kind-worker,kind-worker2,kind-worker3
       - name: pull-and-load-ydb-image
         run: |
           YDB_IMAGE=$(grep "anchor_for_fetching_image_from_workflow" ./tests/**/*.go | grep -o -E '"cr\.yandex.*"')
