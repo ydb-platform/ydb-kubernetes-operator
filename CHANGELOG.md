@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.7.0 - 2026-02-20
+### Changed
+* controller-runtime version has been updated (0.14 -> 0.22) and Kubernetes libraries (1.26 → 1.34)
+
 ## v0.6.7 - 2026-02-06
 ### Added
 * Database encryption key override for storage names
