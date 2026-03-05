@@ -134,6 +134,11 @@ func (in *DatabaseClusterSpec) DeepCopyInto(out *DatabaseClusterSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.GenerateCAStore != nil {
+		in, out := &in.GenerateCAStore, &out.GenerateCAStore
+		*out = new(bool)
+		**out = **in
+	}
 	if in.Service != nil {
 		in, out := &in.Service, &out.Service
 		*out = new(DatabaseServices)
@@ -1217,6 +1222,11 @@ func (in *StorageClusterSpec) DeepCopyInto(out *StorageClusterSpec) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.GenerateCAStore != nil {
+		in, out := &in.GenerateCAStore, &out.GenerateCAStore
+		*out = new(bool)
+		**out = **in
 	}
 	if in.Service != nil {
 		in, out := &in.Service, &out.Service

@@ -1,0 +1,3 @@
+kind: Added
+body: add generateCaStore api field for ability to run without CA store generate init container
+time: 2026-03-05T17:31:24.421992+01:00

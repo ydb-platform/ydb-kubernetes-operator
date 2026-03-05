@@ -1205,6 +1205,12 @@ spec:
                 - block-4-2
                 - none
                 type: string
+              generateCaStore:
+                default: true
+                description: |-
+                  (Optional) Run the init container that builds the built-in CA store.
+                  `init-main-shared-certs-volume` and `init-main-shared-source-dir-volume` are added regardless.
+                type: boolean
               hostNetwork:
                 description: |-
                   (Optional) Whether host network should be enabled.

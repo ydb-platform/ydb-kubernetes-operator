@@ -60,6 +60,12 @@ type StorageClusterSpec struct {
 	// +optional
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
+	// (Optional) Run the init container that builds the built-in CA store.
+	// `init-main-shared-certs-volume` and `init-main-shared-source-dir-volume` are added regardless.
+	// +kubebuilder:default:=true
+	// +optional
+	GenerateCAStore *bool `json:"generateCaStore,omitempty"`
+
 	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
 	// +optional
 	Configuration string `json:"configuration"`

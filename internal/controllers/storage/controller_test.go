@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,12 +32,13 @@ import (
 var (
 	k8sClient client.Client
 	ctx       context.Context
+	env       *envtest.Environment
 )
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	test.SetupK8STestManager(&ctx, &k8sClient, func(mgr *manager.Manager) []test.Reconciler {
+	env = test.SetupK8STestManager(&ctx, &k8sClient, func(mgr *manager.Manager) []test.Reconciler {
 		return []test.Reconciler{
 			&storage.Reconciler{
 				Client: k8sClient,
@@ -61,6 +64,7 @@ var _ = Describe("Storage controller medium tests", func() {
 
 	AfterEach(func() {
 		Expect(k8sClient.Delete(ctx, &namespace)).Should(Succeed())
+		test.DeleteAllObjects(env, k8sClient, &namespace)
 	})
 
 	It("Checking field propagation to objects", func() {
@@ -420,6 +424,61 @@ var _ = Describe("Storage controller medium tests", func() {
 				"inconsistent grpc insecure ports: spec.service.grpc.insecure_port (2136) != configuration.grpc_config.port (2137)",
 			)))
 		})
+	})
+
+	It("Checks GenerateCAStore behavior for CA store init container", func() {
+		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
+		storageSample.Spec.CABundle = "-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----"
+		//storageSample.Spec.GenerateCAStore = true
+
+		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
+
+		By("check that by default GenerateCAStore=true adds ydb-storage-init-container as the first init container...")
+		Eventually(func(g Gomega) {
+			statefulSet := appsv1.StatefulSet{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &statefulSet)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			initContainers := statefulSet.Spec.Template.Spec.InitContainers
+			g.Expect(initContainers).ShouldNot(BeEmpty())
+			g.Expect(initContainers[0].Name).Should(Equal("ydb-storage-init-container"))
+		}, test.Timeout, test.Interval).Should(Succeed())
+
+		By("set GenerateCAStore=false and check ydb-storage-init-container is not present...")
+		Eventually(func() error {
+			foundStorage := v1alpha1.Storage{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &foundStorage); err != nil {
+				return err
+			}
+			foundStorage.Spec.GenerateCAStore = ptr.Bool(false)
+			return k8sClient.Update(ctx, &foundStorage)
+		}, test.Timeout, test.Interval).Should(Succeed())
+
+		Eventually(func() (bool, error) {
+			statefulSet := appsv1.StatefulSet{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &statefulSet)
+			if err != nil {
+				return false, err
+			}
+
+			for _, initContainer := range statefulSet.Spec.Template.Spec.InitContainers {
+
+				if initContainer.Name == "ydb-storage-init-container" {
+					return false, nil
+				}
+			}
+
+			return true, nil
+		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 })
 
