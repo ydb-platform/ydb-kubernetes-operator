@@ -61,7 +61,7 @@ type StorageClusterSpec struct {
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
 	// (Optional) Configure the init container that builds the built-in CA store.
-	// `init-main-shared-certs-volume` and `init-main-shared-source-dir-volume` are added regardless.
+	// When any certificates or TLS-enabled services are configured, the shared cert volumes are added.
 	// If `enabled` is not specified, the init container is enabled.
 	// +optional
 	GenerateCABundleContainer *GenerateCABundleContainer `json:"generateCABundleContainer,omitempty"`

@@ -430,10 +430,35 @@ var _ = Describe("Storage controller medium tests", func() {
 	It("Checks GenerateCABundleContainer behavior for CA store init container", func() {
 		storageSample := testobjects.DefaultStorage(filepath.Join("..", "..", "..", "tests", "data", "storage-mirror-3-dc-config.yaml"))
 		storageSample.Spec.CABundle = "-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----"
+		storageSample.Spec.Resources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("50m"),
+				corev1.ResourceMemory: resource.MustParse("32Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("100m"),
+				corev1.ResourceMemory: resource.MustParse("64Mi"),
+			},
+		}
 
 		Expect(k8sClient.Create(ctx, storageSample)).Should(Succeed())
 
-		containerResources := corev1.ResourceRequirements{
+		By("check that init container resources fall back to spec.resources...")
+		Eventually(func(g Gomega) {
+			statefulSet := appsv1.StatefulSet{}
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.StorageName,
+				Namespace: testobjects.YdbNamespace,
+			}, &statefulSet)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			initContainers := statefulSet.Spec.Template.Spec.InitContainers
+			g.Expect(initContainers).ShouldNot(BeEmpty())
+			g.Expect(initContainers[0].Name).Should(Equal("ydb-storage-init-container"))
+			g.Expect(initContainers[0].Resources).Should(Equal(*storageSample.Spec.Resources))
+		}, test.Timeout, test.Interval).Should(Succeed())
+
+		overrideResources := corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("100m"),
 				corev1.ResourceMemory: resource.MustParse("64Mi"),
@@ -451,11 +476,11 @@ var _ = Describe("Storage controller medium tests", func() {
 			}, &found); err != nil {
 				return err
 			}
-			found.Spec.GenerateCABundleContainer = &v1alpha1.GenerateCABundleContainer{Resources: &containerResources}
+			found.Spec.GenerateCABundleContainer = &v1alpha1.GenerateCABundleContainer{Resources: &overrideResources}
 			return k8sClient.Update(ctx, &found)
 		}, test.Timeout, test.Interval).Should(Succeed())
 
-		By("check that GenerateCABundleContainer.resources are propagated to ydb-storage-init-container...")
+		By("check that GenerateCABundleContainer.resources override spec.resources for ydb-storage-init-container...")
 		Eventually(func(g Gomega) {
 			statefulSet := appsv1.StatefulSet{}
 			err := k8sClient.Get(ctx, types.NamespacedName{
@@ -467,7 +492,7 @@ var _ = Describe("Storage controller medium tests", func() {
 			initContainers := statefulSet.Spec.Template.Spec.InitContainers
 			g.Expect(initContainers).ShouldNot(BeEmpty())
 			g.Expect(initContainers[0].Name).Should(Equal("ydb-storage-init-container"))
-			g.Expect(initContainers[0].Resources).Should(Equal(containerResources))
+			g.Expect(initContainers[0].Resources).Should(Equal(overrideResources))
 		}, test.Timeout, test.Interval).Should(Succeed())
 
 		By("set GenerateCABundleContainer.enabled=false and check ydb-storage-init-container is not present...")

@@ -291,6 +291,11 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 
 		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
 	}
+	if b.Spec.Resources != nil {
+		container.Resources = b.Spec.Resources.ContainerResources
+	} else if b.Spec.SharedResources != nil {
+		container.Resources = b.Spec.SharedResources.ContainerResources
+	}
 	if b.Spec.GenerateCABundleContainer != nil && b.Spec.GenerateCABundleContainer.Resources != nil {
 		container.Resources = *b.Spec.GenerateCABundleContainer.Resources
 	}

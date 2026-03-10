@@ -280,6 +280,9 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		b.Spec.Service.Status,
 	)
 	containerResources := corev1.ResourceRequirements{}
+	if b.Spec.Resources != nil {
+		containerResources = *b.Spec.Resources
+	}
 	if b.Spec.GenerateCABundleContainer != nil && b.Spec.GenerateCABundleContainer.Resources != nil {
 		containerResources = *b.Spec.GenerateCABundleContainer.Resources
 	}
