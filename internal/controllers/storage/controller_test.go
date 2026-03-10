@@ -494,7 +494,6 @@ var _ = Describe("Storage controller medium tests", func() {
 			}
 
 			for _, initContainer := range statefulSet.Spec.Template.Spec.InitContainers {
-
 				if initContainer.Name == "ydb-storage-init-container" {
 					return false, nil
 				}

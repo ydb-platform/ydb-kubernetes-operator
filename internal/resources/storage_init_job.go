@@ -7,7 +7,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	utilptr "k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -96,7 +96,7 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 
 	// append an init container for updating the ca.crt if we have any certificates
 	generateCABundleContainerEnabled := b.Spec.GenerateCABundleContainer == nil ||
-		pointer.BoolDeref(b.Spec.GenerateCABundleContainer.Enabled, true)
+		utilptr.Deref(b.Spec.GenerateCABundleContainer.Enabled, true)
 	if b.AnyCertificatesAdded() && generateCABundleContainerEnabled {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},

@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	utilptr "k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -160,7 +160,7 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
 	generateCABundleContainerEnabled := b.Spec.GenerateCABundleContainer == nil ||
-		pointer.BoolDeref(b.Spec.GenerateCABundleContainer.Enabled, true)
+		utilptr.Deref(b.Spec.GenerateCABundleContainer.Enabled, true)
 	if b.AnyCertificatesAdded() && generateCABundleContainerEnabled {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
