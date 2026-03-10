@@ -51,6 +51,7 @@ type RemoteSpec struct {
 type GenerateCABundleContainer struct {
 	// (Optional) Enables the init container that builds the built-in CA store.
 	// If not specified, the init container is enabled.
+	// +kubebuilder:default:=true
 	// +optional
 	Enabled *bool `json:"enabled,omitempty"`
 

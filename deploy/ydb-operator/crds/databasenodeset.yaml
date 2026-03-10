@@ -1058,6 +1058,7 @@ spec:
                   If `enabled` is not specified, the init container is enabled.
                 properties:
                   enabled:
+                    default: true
                     description: |-
                       (Optional) Enables the init container that builds the built-in CA store.
                       If not specified, the init container is enabled.
