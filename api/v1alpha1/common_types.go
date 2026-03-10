@@ -46,6 +46,19 @@ type RemoteSpec struct {
 	Cluster string `json:"cluster"`
 }
 
+// GenerateCABundleContainer configures the init container that builds
+// the built-in CA store with the user-provided CA bundle or CA from TLS-enabled services.
+type GenerateCABundleContainer struct {
+	// (Optional) Enables the init container that builds the built-in CA store.
+	// If not specified, the init container is enabled.
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// (Optional) Container resource limits for the CA bundle init container.
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+}
+
 type RemoteResource struct {
 	Group      string                        `json:"group"`
 	Version    string                        `json:"version"`

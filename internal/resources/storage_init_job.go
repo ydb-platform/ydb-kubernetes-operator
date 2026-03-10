@@ -95,7 +95,9 @@ func (b *StorageInitJobBuilder) buildInitJobPodTemplateSpec() corev1.PodTemplate
 	}
 
 	// append an init container for updating the ca.crt if we have any certificates
-	if b.AnyCertificatesAdded() && pointer.BoolDeref(b.Spec.GenerateCAStore, true) {
+	generateCABundleContainerEnabled := b.Spec.GenerateCABundleContainer == nil ||
+		pointer.BoolDeref(b.Spec.GenerateCABundleContainer.Enabled, true)
+	if b.AnyCertificatesAdded() && generateCABundleContainerEnabled {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -289,6 +291,11 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainer() corev1.Conta
 		imagePullPolicy = *b.Spec.Image.PullPolicyName
 	}
 
+	containerResources := corev1.ResourceRequirements{}
+	if b.Spec.GenerateCABundleContainer != nil && b.Spec.GenerateCABundleContainer.Resources != nil {
+		containerResources = *b.Spec.GenerateCABundleContainer.Resources
+	}
+
 	container := corev1.Container{
 		Name:            "ydb-storage-init-container",
 		Image:           b.Spec.Image.Name,
@@ -300,7 +307,7 @@ func (b *StorageInitJobBuilder) buildCaStorePatchingInitContainer() corev1.Conta
 		},
 
 		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
-		Resources:    corev1.ResourceRequirements{},
+		Resources:    containerResources,
 	}
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{

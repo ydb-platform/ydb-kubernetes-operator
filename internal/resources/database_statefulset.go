@@ -159,7 +159,9 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.AnyCertificatesAdded() && pointer.BoolDeref(b.Spec.GenerateCAStore, true) {
+	generateCABundleContainerEnabled := b.Spec.GenerateCABundleContainer == nil ||
+		pointer.BoolDeref(b.Spec.GenerateCABundleContainer.Enabled, true)
+	if b.AnyCertificatesAdded() && generateCABundleContainerEnabled {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -289,13 +291,9 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 
 		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
 	}
-	var containerResources corev1.ResourceRequirements
-	if b.Spec.Resources != nil {
-		containerResources = b.Spec.Resources.ContainerResources
-	} else if b.Spec.SharedResources != nil {
-		containerResources = b.Spec.SharedResources.ContainerResources
+	if b.Spec.GenerateCABundleContainer != nil && b.Spec.GenerateCABundleContainer.Resources != nil {
+		container.Resources = *b.Spec.GenerateCABundleContainer.Resources
 	}
-	container.Resources = containerResources
 
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{

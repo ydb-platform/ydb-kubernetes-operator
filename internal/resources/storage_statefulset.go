@@ -147,7 +147,9 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.AnyCertificatesAdded() && pointer.BoolDeref(b.Spec.GenerateCAStore, true) {
+	generateCABundleContainerEnabled := b.Spec.GenerateCABundleContainer == nil ||
+		pointer.BoolDeref(b.Spec.GenerateCABundleContainer.Enabled, true)
+	if b.AnyCertificatesAdded() && generateCABundleContainerEnabled {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -278,8 +280,8 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 		b.Spec.Service.Status,
 	)
 	containerResources := corev1.ResourceRequirements{}
-	if b.Spec.Resources != nil {
-		containerResources = *b.Spec.Resources
+	if b.Spec.GenerateCABundleContainer != nil && b.Spec.GenerateCABundleContainer.Resources != nil {
+		containerResources = *b.Spec.GenerateCABundleContainer.Resources
 	}
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {

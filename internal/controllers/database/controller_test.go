@@ -15,6 +15,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -225,12 +226,34 @@ var _ = Describe("Database controller medium tests", func() {
 		}, test.Timeout, test.Interval).Should(BeTrue())
 	})
 
-	It("Checks GenerateCAStore behavior for CA store init container", func() {
+	It("Checks GenerateCABundleContainer behavior for CA store init container", func() {
 		databaseSample = *testobjects.DefaultDatabase()
 		databaseSample.Spec.CABundle = "-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----"
 		Expect(k8sClient.Create(ctx, &databaseSample)).Should(Succeed())
 
-		By("check that by default GenerateCAStore=true adds ydb-storage-init-container as the first init container...")
+		containerResources := corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("100m"),
+				corev1.ResourceMemory: resource.MustParse("64Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("200m"),
+				corev1.ResourceMemory: resource.MustParse("128Mi"),
+			},
+		}
+		Eventually(func() error {
+			found := v1alpha1.Database{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      testobjects.DatabaseName,
+				Namespace: testobjects.YdbNamespace,
+			}, &found); err != nil {
+				return err
+			}
+			found.Spec.GenerateCABundleContainer = &v1alpha1.GenerateCABundleContainer{Resources: &containerResources}
+			return k8sClient.Update(ctx, &found)
+		}, test.Timeout, test.Interval).Should(Succeed())
+
+		By("check that GenerateCABundleContainer.resources are propagated to ydb-storage-init-container...")
 		Eventually(func(g Gomega) {
 			statefulSet := appsv1.StatefulSet{}
 			err := k8sClient.Get(ctx, types.NamespacedName{
@@ -242,9 +265,10 @@ var _ = Describe("Database controller medium tests", func() {
 			initContainers := statefulSet.Spec.Template.Spec.InitContainers
 			g.Expect(initContainers).ShouldNot(BeEmpty())
 			g.Expect(initContainers[0].Name).Should(Equal("ydb-storage-init-container"))
+			g.Expect(initContainers[0].Resources).Should(Equal(containerResources))
 		}, test.Timeout, test.Interval).Should(Succeed())
 
-		By("set GenerateCAStore=false and check ydb-storage-init-container is not present...")
+		By("set GenerateCABundleContainer.enabled=false and check ydb-storage-init-container is not present...")
 		Eventually(func() error {
 			foundDatabase := v1alpha1.Database{}
 			if err := k8sClient.Get(ctx, types.NamespacedName{
@@ -253,7 +277,7 @@ var _ = Describe("Database controller medium tests", func() {
 			}, &foundDatabase); err != nil {
 				return err
 			}
-			foundDatabase.Spec.GenerateCAStore = ptr.Bool(false)
+			foundDatabase.Spec.GenerateCABundleContainer = &v1alpha1.GenerateCABundleContainer{Enabled: ptr.Bool(false)}
 			return k8sClient.Update(ctx, &foundDatabase)
 		}, test.Timeout, test.Interval).Should(Succeed())
 
