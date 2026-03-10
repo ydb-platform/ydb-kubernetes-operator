@@ -11,7 +11,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -26,6 +25,7 @@ import (
 	. "github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/constants"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/database"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"

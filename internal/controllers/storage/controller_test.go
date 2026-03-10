@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	"gopkg.in/yaml.v3"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/annotations"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/controllers/storage"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/labels"
+	"github.com/ydb-platform/ydb-kubernetes-operator/internal/ptr"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/resources"
 	"github.com/ydb-platform/ydb-kubernetes-operator/internal/test"
 	testobjects "github.com/ydb-platform/ydb-kubernetes-operator/tests/test-k8s-objects"
