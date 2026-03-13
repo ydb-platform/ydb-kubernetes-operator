@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/rest"
+	utilptr "k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -146,7 +147,9 @@ func (b *StorageStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSpe
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.AnyCertificatesAdded() {
+	generateCABundleContainerEnabled := b.Spec.GenerateCABundleContainer == nil ||
+		utilptr.Deref(b.Spec.GenerateCABundleContainer.Enabled, true)
+	if b.AnyCertificatesAdded() && generateCABundleContainerEnabled {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -279,6 +282,9 @@ func (b *StorageStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.C
 	containerResources := corev1.ResourceRequirements{}
 	if b.Spec.Resources != nil {
 		containerResources = *b.Spec.Resources
+	}
+	if b.Spec.GenerateCABundleContainer != nil && b.Spec.GenerateCABundleContainer.Resources != nil {
+		containerResources = *b.Spec.GenerateCABundleContainer.Resources
 	}
 	imagePullPolicy := corev1.PullIfNotPresent
 	if b.Spec.Image.PullPolicyName != nil {

@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/rest"
+	utilptr "k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/ydb-platform/ydb-kubernetes-operator/api/v1alpha1"
@@ -158,7 +159,9 @@ func (b *DatabaseStatefulSetBuilder) buildPodTemplateSpec() corev1.PodTemplateSp
 
 	// InitContainer only needed for CaBundle manipulation for now,
 	// may be probably used for other stuff later
-	if b.AnyCertificatesAdded() {
+	generateCABundleContainerEnabled := b.Spec.GenerateCABundleContainer == nil ||
+		utilptr.Deref(b.Spec.GenerateCABundleContainer.Enabled, true)
+	if b.AnyCertificatesAdded() && generateCABundleContainerEnabled {
 		podTemplate.Spec.InitContainers = append(
 			[]corev1.Container{b.buildCaStorePatchingInitContainer()},
 			b.Spec.InitContainers...,
@@ -288,13 +291,14 @@ func (b *DatabaseStatefulSetBuilder) buildCaStorePatchingInitContainer() corev1.
 
 		VolumeMounts: b.buildCaStorePatchingInitContainerVolumeMounts(),
 	}
-	var containerResources corev1.ResourceRequirements
 	if b.Spec.Resources != nil {
-		containerResources = b.Spec.Resources.ContainerResources
+		container.Resources = b.Spec.Resources.ContainerResources
 	} else if b.Spec.SharedResources != nil {
-		containerResources = b.Spec.SharedResources.ContainerResources
+		container.Resources = b.Spec.SharedResources.ContainerResources
 	}
-	container.Resources = containerResources
+	if b.Spec.GenerateCABundleContainer != nil && b.Spec.GenerateCABundleContainer.Resources != nil {
+		container.Resources = *b.Spec.GenerateCABundleContainer.Resources
+	}
 
 	if len(b.Spec.CABundle) > 0 {
 		container.Env = []corev1.EnvVar{

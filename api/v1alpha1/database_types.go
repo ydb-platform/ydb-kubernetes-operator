@@ -66,6 +66,14 @@ type DatabaseClusterSpec struct {
 	// +optional
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 
+	// (Optional) Configure the init container that builds the built-in CA store.
+	// When any certificates or TLS-enabled services are configured, the shared cert volumes are added.
+	// If `enabled=false`, the operator does not add this init container, but /etc/ssl/certs is still
+	// mounted so you can provide your own init container to populate the trust store.
+	// If `enabled` is not specified, the init container is enabled.
+	// +optional
+	GenerateCABundleContainer *GenerateCABundleContainer `json:"generateCABundleContainer,omitempty"`
+
 	// YDB configuration in YAML format. Will be applied on top of generated one in internal/configuration
 	// +optional
 	Configuration string `json:"configuration"`

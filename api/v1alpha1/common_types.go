@@ -46,6 +46,23 @@ type RemoteSpec struct {
 	Cluster string `json:"cluster"`
 }
 
+// GenerateCABundleContainer configures the init container that builds
+// the built-in CA store with the user-provided CA bundle or CA from TLS-enabled services.
+// If enabled is false, the operator does not add this init container, but when certificates or
+// TLS-enabled services are configured it still mounts /etc/ssl/certs so users can provide their
+// own init container to populate the trust store.
+type GenerateCABundleContainer struct {
+	// (Optional) Enables the init container that builds the built-in CA store.
+	// If not specified, the init container is enabled.
+	// +kubebuilder:default:=true
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// (Optional) Container resource limits for the CA bundle init container.
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+}
+
 type RemoteResource struct {
 	Group      string                        `json:"group"`
 	Version    string                        `json:"version"`
