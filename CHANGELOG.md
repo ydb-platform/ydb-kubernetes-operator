@@ -1,6 +1,10 @@
 # Changelog
 
 
+## v0.8.0 - 2026-03-13
+### Added
+* add generateCABundleContainer api field with enabled/resources options to control the CA store init container
+
 ## v0.7.0 - 2026-02-20
 ### Changed
 * controller-runtime version has been updated (0.14 -> 0.22) and Kubernetes libraries (1.26 → 1.34)
